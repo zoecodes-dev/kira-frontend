@@ -1,0 +1,60 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --grid-line: rgba(255, 255, 255, 0.04);
+}
+
+html, body {
+  background: #0F1419;
+  color: #DDE2E7;
+  font-feature-settings: "ss01", "ss02";
+}
+
+body {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: -1px -1px;
+}
+
+/* 회사 제출용 톤: 데이터 강조, 절제된 색감 */
+.num-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-feature-settings: "tnum";
+}
+
+.divider-dot::before {
+  content: '·';
+  margin: 0 0.5rem;
+  color: rgba(221, 226, 231, 0.3);
+}
+
+/* 카드 호버 효과 */
+.card-hover {
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.card-hover:hover {
+  border-color: rgba(20, 184, 166, 0.4);
+  background-color: rgba(20, 184, 166, 0.02);
+}
+
+/* 펄스 점 (실시간 인디케이터) */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* 스크롤바 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #0F1419; }
+::-webkit-scrollbar-thumb { background: #3A4250; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #5A6470; }
