@@ -83,8 +83,7 @@ export default function SupplyChainMap({ onSelectNode, selectedId }: Props) {
 
           {/* Tier 구분 배경 */}
           <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#252B33" strokeWidth="0.5"/>
-          </pattern>
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#E5E8EC" strokeWidth="0.5"/>          </pattern>
         </defs>
 
         <rect width="1200" height="620" fill="url(#grid)" opacity="0.4"/>
@@ -181,7 +180,7 @@ export default function SupplyChainMap({ onSelectNode, selectedId }: Props) {
                 width="80"
                 height="60"
                 rx="3"
-                fill={isSelected ? colors.fill : '#1A1F26'}
+                fill={isSelected ? colors.fill : '#FFFFFF'}
                 stroke={colors.stroke}
                 strokeWidth={isSelected || isHovered ? 2 : 1}
               />

@@ -104,11 +104,11 @@ export default function DashboardPage() {
                       <stop offset="100%" stopColor="#14B8A6" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#252B33" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E8EC" vertical={false} />
                   <XAxis 
                     dataKey="date" 
-                    tick={{ fill: '#8A9199', fontSize: 11, fontFamily: 'JetBrains Mono' }} 
-                    axisLine={{ stroke: '#3A4250' }}
+                    tick={{ fill: '#4B5563', fontSize: 11, fontFamily: 'JetBrains Mono' }} 
+                    axisLine={{ stroke: '#C4CAD0' }}
                     tickLine={false}
                   />
                   <YAxis 
@@ -118,8 +118,9 @@ export default function DashboardPage() {
                   />
                   <Tooltip 
                     contentStyle={{ 
-                      background: '#1A1F26', 
-                      border: '1px solid #3A4250',
+                      background: '#FFFFFF', 
+                      border: '1px solid #E5E8EC',
+                      color: '#1F2937',
                       borderRadius: '2px',
                       fontSize: '12px',
                       fontFamily: 'JetBrains Mono'
