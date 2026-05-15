@@ -76,11 +76,11 @@ export default function QueuePage() {
 
 function SummaryTile({ label, count, icon: Icon, tone }: any) {
   const styles: any = {
-    info:  { border: 'border-blue-700/30',    bg: 'bg-blue-500/5',    text: 'text-blue-400' },
-    warn:  { border: 'border-amber-700/30',   bg: 'bg-amber-500/5',   text: 'text-amber-400' },
-    ok:    { border: 'border-emerald-700/30', bg: 'bg-emerald-500/5', text: 'text-emerald-400' },
-    alert: { border: 'border-red-700/30',     bg: 'bg-red-500/5',     text: 'text-red-400' },
-  };
+      info:  { border: 'border-blue-700/40',    bg: 'bg-blue-500/10',   text: 'text-blue-500 font-medium' },
+      warn:  { border: 'border-amber-700/40',   bg: 'bg-amber-500/10',  text: 'text-amber-500 font-medium' },
+      ok:    { border: 'border-emerald-700/40', bg: 'bg-emerald-500/10', text: 'text-emerald-500 font-medium' },
+      alert: { border: 'border-red-700/40',     bg: 'bg-red-500/10',    text: 'text-red-500 font-medium' },
+    };
   const s = styles[tone];
   
   return (
