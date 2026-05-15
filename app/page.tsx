@@ -229,14 +229,14 @@ function Stat({ label, value, unit, tone, hint }: any) {
 function BatchRow({ batch }: { batch: any }) {
   const stageMap: any = {
     'queued': { label: '큐 대기', tone: 'neutral' as const },
-    'supervisor': { label: 'Supervisor', tone: 'info' as const },
-    'extraction': { label: 'Extraction', tone: 'info' as const },
+    'supervisor': { label: '지혜 (Pipeline Coordinator)', tone: 'info' as const },
+    'extraction': { label: '은진 (Data Gateway)', tone: 'info' as const },
     'verification': { label: 'Verification', tone: 'info' as const },
-    'geo-analysis': { label: 'Geo-Analysis', tone: 'info' as const },
-    'compliance': { label: 'Compliance', tone: 'info' as const },
+    'geo-analysis': { label: '영수 (Geo Audit)', tone: 'info' as const },
+    'compliance': { label: '은지 (Regulatory Analyst)', tone: 'info' as const },
     'readiness': { label: 'DPP Readiness', tone: 'info' as const },
     'hitl-wait': { label: 'HITL 대기', tone: 'warn' as const },
-    'action': { label: 'Action', tone: 'info' as const },
+    'action': { label: '차윤 (Automation Controller)', tone: 'info' as const },
     'completed': { label: '완료', tone: 'ok' as const },
     'rejected': { label: '반려', tone: 'alert' as const },
   };

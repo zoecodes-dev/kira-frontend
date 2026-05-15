@@ -198,7 +198,7 @@ export default function HitlPage() {
                   <EvidenceRow 
                     icon={Bot}
                     nodeType="agent"
-                    nodeName="Extraction (Sonnet)"
+                    nodeName="은진 — Data Gateway"
                     finding="PDF 4페이지에서 NCM 전구체 조성 추출 완료"
                     detail="Co 8.2kg · Ni 23.6kg · Mn 4.1kg · 재활용 함량 명시 없음"
                     severity="info"
@@ -222,7 +222,7 @@ export default function HitlPage() {
                   <EvidenceRow 
                     icon={Bot}
                     nodeType="agent"
-                    nodeName="Geo-Analysis (Sonnet)"
+                    nodeName="영수 — Geo Audit"
                     finding="신장 폴리곤에서 12km 떨어진 광산 식별"
                     detail="UFLPA 직접 적용 대상 아니나 회색지대 — 인접 거리 기준 보수적 판단 필요"
                     severity="warn"
@@ -230,7 +230,7 @@ export default function HitlPage() {
                   <EvidenceRow 
                     icon={Bot}
                     nodeType="agent"
-                    nodeName="Compliance UFLPA (Opus)"
+                    nodeName="은지 — Regulatory Analyst"
                     finding="신뢰도 0.74로 임계치 미달, HITL 요청"
                     detail="법령 인용: UFLPA §3(a)(1) · CBP 가이던스 2024 · 회색지대 판례 부족"
                     severity="warn"

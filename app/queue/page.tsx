@@ -7,15 +7,15 @@ import { batchesInProgress, AgentStage } from '@/lib/data';
 import { Clock, AlertCircle, CheckCircle2, XCircle, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 
-const stages: { key: AgentStage; label: string; model?: string }[] = [
-  { key: 'supervisor',   label: 'Supervisor',     model: 'Haiku' },
-  { key: 'extraction',   label: 'Extraction',     model: 'Sonnet' },
-  { key: 'verification', label: 'Verification',   model: 'Tools' },
-  { key: 'geo-analysis', label: 'Geo-Analysis',   model: 'Sonnet' },
-  { key: 'compliance',   label: 'Compliance',     model: 'Opus' },
-  { key: 'readiness',    label: 'DPP Readiness',  model: 'Haiku' },
-  { key: 'hitl-wait',    label: 'HITL 검토',      model: 'Human' },
-  { key: 'action',       label: 'Action',         model: 'Haiku' },
+const stages = [
+  { key: 'supervisor',   label: '지혜',   model: 'Coordinator' },
+  { key: 'extraction',   label: '은진',   model: 'Gateway' },
+  { key: 'verification', label: '은진',   model: 'Verifier' },
+  { key: 'geo-analysis', label: '영수',   model: 'Geo Audit' },
+  { key: 'compliance',   label: '은지',   model: 'Analyst' },
+  { key: 'readiness',    label: '차윤',   model: 'Readiness' },
+  { key: 'hitl-wait',    label: 'HITL',   model: 'Human' },
+  { key: 'action',       label: '차윤',   model: 'Controller' },
 ];
 
 function stageIndex(stage: AgentStage): number {
