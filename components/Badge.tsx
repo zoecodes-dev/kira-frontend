@@ -10,11 +10,11 @@ interface BadgeProps {
 }
 
 const toneStyles: Record<BadgeTone, string> = {
-  ok:      'bg-signal-ok/15 text-emerald-300 border-signal-ok/30',
-  warn:    'bg-signal-warn/15 text-amber-300 border-signal-warn/30',
-  alert:   'bg-signal-alert/15 text-red-300 border-signal-alert/30',
-  info:    'bg-signal-info/15 text-blue-300 border-signal-info/30',
-  neutral: 'bg-ink-700/50 text-ink-300 border-ink-600',
+  ok:      'bg-signal-ok/10 text-emerald-700 border-signal-ok/40',
+  warn:    'bg-signal-warn/10 text-amber-700 border-signal-warn/40',
+  alert:   'bg-signal-alert/10 text-red-700 border-signal-alert/40',
+  info:    'bg-signal-info/10 text-blue-700 border-signal-info/40',
+  neutral: 'bg-ink-800 text-ink-300 border-ink-700',
 };
 
 const dotColors: Record<BadgeTone, string> = {

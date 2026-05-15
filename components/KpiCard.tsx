@@ -21,10 +21,10 @@ const toneStyles = {
 
 const valueColors = {
   default: 'text-ink-50',
-  ok: 'text-emerald-400',
-  warn: 'text-amber-400',
-  alert: 'text-red-400',
-  info: 'text-blue-400',
+  ok: 'text-emerald-700',
+  warn: 'text-amber-700',
+  alert: 'text-red-700',
+  info: 'text-blue-700',
 };
 
 export default function KpiCard({ label, value, unit, delta, icon: Icon, tone = 'default', hint }: KpiCardProps) {
@@ -46,8 +46,8 @@ export default function KpiCard({ label, value, unit, delta, icon: Icon, tone = 
         {delta && (
           <span className={clsx(
             'text-[11px] num-mono',
-            delta.trend === 'up' && 'text-emerald-400',
-            delta.trend === 'down' && 'text-red-400',
+            delta.trend === 'up' && 'text-emerald-700',
+            delta.trend === 'down' && 'text-red-700',
             delta.trend === 'neutral' && 'text-ink-400'
           )}>
             {delta.trend === 'up' && '↑ '}

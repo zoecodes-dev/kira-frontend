@@ -26,7 +26,6 @@ const config: Config = {
           50:  '#000000',   // 가장 진한 텍스트
         },
         accent: {
-          // 차분한 청록 (의료/규제 분위기)
           DEFAULT: '#0F766E',
           50:  '#F0FDFA',
           100: '#CCFBF1',
@@ -37,10 +36,10 @@ const config: Config = {
           900: '#134E4A',
         },
         signal: {
-          ok:    '#15803D',
-          warn:  '#B45309',
-          alert: '#B91C1C',
-          info:  '#1D4ED8',
+          ok:    '#065F46',  // 진한 녹색
+          warn:  '#92400E',  // 진한 주황
+          alert: '#991B1B',  // 진한 빨강
+          info:  '#1E3A8A',  // 진한 파랑
         },
       },
       borderRadius: { 'xs': '2px' },
