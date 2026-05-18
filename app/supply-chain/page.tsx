@@ -1,68 +1,205 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import SupplyChainMap from '@/components/SupplyChainMap';
+import SupplierDetailModal from '@/components/SupplierDetailModal';
 import { suppliers, supplyEdges, Supplier } from '@/lib/data';
-import { MapPin, Award, AlertCircle, TrendingUp, Layers, FileSearch } from 'lucide-react';
+import {
+  getSupplierExtended, getIncomingPOs, getOutgoingPOs, getCompleteness,
+  type ViewerRole, tier1ViewerSupplierId, getVisibleSupplierIds
+} from '@/lib/supplier-detail-data';
+import {
+  MapPin, AlertCircle, Search, Filter, Eye, Users, ChevronDown,
+  X, Building2, CheckCircle2, AlertTriangle, Clock
+} from 'lucide-react';
+import clsx from 'clsx';
+
+type StatusFilter = 'all' | 'verified' | 'pending' | 'review' | 'violation';
+type TierFilter = 'all' | 1 | 2 | 3;
 
 export default function SupplyChainPage() {
-  const [selected, setSelected] = useState<Supplier | null>(null);
+  const [openSupplier, setOpenSupplier] = useState<Supplier | null>(null);
+  const [viewerRole, setViewerRole] = useState<ViewerRole>('owner_esg');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [tierFilter, setTierFilter] = useState<TierFilter>('all');
+  const [countryFilter, setCountryFilter] = useState<string>('all');
 
-  // 통계
-  const verifiedCount = suppliers.filter(s => s.status === 'verified').length;
-  const violationCount = suppliers.filter(s => s.status === 'violation').length;
-  const reviewCount = suppliers.filter(s => s.status === 'review').length;
-  const pendingCount = suppliers.filter(s => s.status === 'pending').length;
+  // 권한 시뮬레이션: 1차 협력사 시점에서 보이는 노드 집합
+  const visibleIds = useMemo(
+    () => getVisibleSupplierIds(viewerRole, supplyEdges),
+    [viewerRole]
+  );
+
+  // 검색·필터링된 협력사
+  const filteredSuppliers = useMemo(() => {
+    return suppliers.filter(s => {
+      // 권한 시뮬 마스킹
+      if (!visibleIds.has(s.id)) return false;
+
+      // 상태
+      if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+
+      // Tier
+      if (tierFilter !== 'all' && s.tier !== tierFilter) return false;
+
+      // 국가
+      if (countryFilter !== 'all' && s.country !== countryFilter) return false;
+
+      // 검색어 (협력사명, ID, 역할, 광물, 지역)
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const haystack = [
+          s.name, s.id, s.role, s.region, s.country,
+          ...s.material,
+          ...(s.certifications || []),
+        ].join(' ').toLowerCase();
+        // 부품/HS코드/PO 검색도 포함
+        const ext = getSupplierExtended(s.id);
+        const allPos = [...getIncomingPOs(s.id), ...getOutgoingPOs(s.id)];
+        const poHay = allPos.map(po => `${po.poNumber} ${po.supplierPartCode} ${po.originalPartCode}`).join(' ').toLowerCase();
+        if (!haystack.includes(q) && !poHay.includes(q) && !(ext?.ceoName.toLowerCase().includes(q))) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [searchQuery, statusFilter, tierFilter, countryFilter, visibleIds]);
+
+  // 통계 (마스킹된 협력사 제외)
+  const visibleSuppliers = suppliers.filter(s => visibleIds.has(s.id));
+  const verifiedCount  = visibleSuppliers.filter(s => s.status === 'verified').length;
+  const violationCount = visibleSuppliers.filter(s => s.status === 'violation').length;
+  const reviewCount    = visibleSuppliers.filter(s => s.status === 'review').length;
+  const pendingCount   = visibleSuppliers.filter(s => s.status === 'pending').length;
+
+  // 국가 옵션 (실제 데이터에서 추출)
+  const countries = Array.from(new Set(suppliers.map(s => s.country))).sort();
+
+  const filtersActive =
+    statusFilter !== 'all' || tierFilter !== 'all' || countryFilter !== 'all' || searchQuery !== '';
 
   return (
     <>
-      <PageHeader 
+      <PageHeader
         title="공급망 맵"
         description="N차 협력사 추적 · 시연 데이터 10개사 (전체 운영: 187개사)"
         badge="시연용 샘플"
+        actions={
+          <PermissionToggle viewerRole={viewerRole} onChange={setViewerRole} />
+        }
       />
 
-      <div className="p-8 space-y-6">
-        {/* 상단 통계 */}
+      <div className="p-8 space-y-5">
+        {/* === 상단 통계 === */}
         <div className="grid grid-cols-4 gap-4">
-          <StatTile label="검증 완료" count={verifiedCount} total={suppliers.length} tone="ok" />
-          <StatTile label="검토 대기" count={pendingCount} total={suppliers.length} tone="info" />
-          <StatTile label="추가 확인 필요" count={reviewCount} total={suppliers.length} tone="warn" />
-          <StatTile label="규제 위반" count={violationCount} total={suppliers.length} tone="alert" />
+          <StatTile label="검증 완료" count={verifiedCount} total={visibleSuppliers.length} tone="ok" />
+          <StatTile label="검토 대기" count={pendingCount}  total={visibleSuppliers.length} tone="info" />
+          <StatTile label="추가 확인 필요" count={reviewCount} total={visibleSuppliers.length} tone="warn" />
+          <StatTile label="규제 위반" count={violationCount} total={visibleSuppliers.length} tone="alert" />
         </div>
 
-        {/* 메인: 공급망 맵 + 상세 패널 */}
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-          <Card 
-            className="xl:col-span-3" 
-            title="공급망 추적도"
-            subtitle="좌측(Tier 3 원자재) → 우측(Tier 1 셀 제조) 흐름"
-            action={
-              <div className="text-[11px] text-ink-400 num-mono">
-                노드 {suppliers.length}개 · 연결 {supplyEdges.length}개
+        {/* === 검색 & 필터 바 === */}
+        <Card>
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+            {/* 검색창 */}
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="협력사명·PO번호·부품코드·HS코드·국가·담당자 검색..."
+                className="w-full pl-9 pr-9 py-2 rounded-xs bg-ink-900 border border-ink-700 text-sm text-ink-100 placeholder:text-ink-500 focus:border-accent-500 outline-none"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-500 hover:text-ink-200"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* 필터 칩 */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <FilterChip label="상태" value={statusFilter} onChange={(v) => setStatusFilter(v as StatusFilter)}
+                options={[
+                  { v: 'all',       label: '전체' },
+                  { v: 'verified',  label: '검증 완료' },
+                  { v: 'pending',   label: '검토 대기' },
+                  { v: 'review',    label: '추가 확인' },
+                  { v: 'violation', label: '규제 위반' },
+                ]} />
+              <FilterChip label="Tier" value={String(tierFilter)} onChange={(v) => setTierFilter(v === 'all' ? 'all' : Number(v) as TierFilter)}
+                options={[
+                  { v: 'all', label: '전체' },
+                  { v: '1',   label: 'T1 (직거래)' },
+                  { v: '2',   label: 'T2 (소재)' },
+                  { v: '3',   label: 'T3 (광산·정제)' },
+                ]} />
+              <FilterChip label="국가" value={countryFilter} onChange={(v) => setCountryFilter(v)}
+                options={[{ v: 'all', label: '전체' }, ...countries.map(c => ({ v: c, label: c }))]} />
+
+              {filtersActive && (
+                <button
+                  onClick={() => {
+                    setSearchQuery(''); setStatusFilter('all'); setTierFilter('all'); setCountryFilter('all');
+                  }}
+                  className="text-[11px] text-accent-400 hover:text-accent-300 flex items-center gap-1 px-2 py-1"
+                >
+                  <X className="w-3 h-3" /> 필터 초기화
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 검색 결과 카운트 */}
+          {filtersActive && (
+            <div className="mt-3 pt-3 border-t border-ink-700/60 text-[11px] text-ink-400">
+              검색 결과: <span className="num-mono text-ink-200 font-medium">{filteredSuppliers.length}</span>개 협력사
+              {viewerRole === 'tier1_supplier' && (
+                <span className="ml-3 text-blue-700">
+                  · 1차 협력사 시점에서 보이는 노드만 표시 (전체 {suppliers.length}개 중 {visibleSuppliers.length}개 접근 가능)
+                </span>
+              )}
+            </div>
+          )}
+        </Card>
+
+        {/* === 풀폭 공급망 맵 === */}
+        <Card
+          title="공급망 추적도"
+          subtitle={viewerRole === 'tier1_supplier'
+            ? `1차 협력사 시점 — 직상위·직하위만 표시 (옆 라인 마스킹)`
+            : `좌측(Tier 3 원자재) → 우측(Tier 1 셀 제조) 흐름`}
+          action={
+            <div className="text-[11px] text-ink-400 num-mono">
+              노드 {visibleSuppliers.length}/{suppliers.length}개 · 연결 {supplyEdges.length}개
+            </div>
+          }
+        >
+          {viewerRole === 'tier1_supplier' && (
+            <div className="mb-3 rounded-xs border border-blue-700/30 bg-blue-500/5 p-2.5 flex items-start gap-2">
+              <Eye className="w-3.5 h-3.5 text-blue-700 shrink-0 mt-0.5" />
+              <div className="text-[11px] text-ink-200 leading-relaxed">
+                <span className="font-semibold text-blue-700">권한 시뮬레이션 활성</span> ·
+                Hanyang Cell Manufacturing 시점에서 접근 가능한 협력사만 보입니다.
+                옆 라인 협력사는 클릭해도 정보가 차단됩니다.
               </div>
-            }
-          >
-            <SupplyChainMap onSelectNode={setSelected} selectedId={selected?.id} />
-          </Card>
+            </div>
+          )}
+          <SupplyChainMap onSelectNode={(s) => setOpenSupplier(s)} selectedId={openSupplier?.id} />
+        </Card>
 
-          {/* 우측 상세 패널 */}
-          <Card 
-            title={selected ? '협력사 상세' : '노드를 선택하세요'}
-            subtitle={selected ? selected.id : '맵에서 협력사를 클릭하면 정보가 표시됩니다'}
-            className="xl:col-span-1"
-          >
-            {selected ? <SupplierDetail supplier={selected} /> : <EmptyDetailState />}
-          </Card>
-        </div>
-
-        {/* 하단: 협력사 테이블 */}
-        <Card 
+        {/* === 협력사 테이블 === */}
+        <Card
           title="협력사 목록"
-          subtitle="시연용 10개사 전체"
+          subtitle={filtersActive ? `필터 적용 — ${filteredSuppliers.length}개` : '시연용 10개사 전체'}
         >
           <div className="overflow-x-auto -mx-5">
             <table className="w-full text-sm">
@@ -73,74 +210,188 @@ export default function SupplyChainPage() {
                   <th className="text-left font-medium px-3 py-3">역할</th>
                   <th className="text-left font-medium px-3 py-3">소재지</th>
                   <th className="text-right font-medium px-3 py-3">탄소집약도</th>
-                  <th className="text-right font-medium px-3 py-3">FEOC 지분</th>
+                  <th className="text-right font-medium px-3 py-3">완성도</th>
                   <th className="text-left font-medium px-3 py-3">상태</th>
                   <th className="text-right font-medium px-5 py-3">최근 검증</th>
                 </tr>
               </thead>
               <tbody>
-                {suppliers
+                {filteredSuppliers
                   .sort((a, b) => a.tier - b.tier)
-                  .map(s => (
-                  <tr 
-                    key={s.id} 
-                    className="border-b border-ink-700/40 hover:bg-ink-800/40 cursor-pointer"
-                    onClick={() => setSelected(s)}
-                  >
-                    <td className="px-5 py-3">
-                      <div className="font-medium text-ink-100">{s.name}</div>
-                      <div className="text-[10px] text-ink-500 num-mono">{s.id}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className="text-xs num-mono px-1.5 py-0.5 rounded-xs bg-ink-700 text-ink-200">
-                        T{s.tier}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-xs text-ink-200">{s.role}</td>
-                    <td className="px-3 py-3 text-xs text-ink-300">{s.country} · {s.region}</td>
-                    <td className="px-3 py-3 text-right text-xs num-mono text-ink-200">
-                      {s.carbonIntensity}
-                      <span className="text-ink-500 ml-0.5">kg</span>
-                    </td>
-                    <td className="px-3 py-3 text-right text-xs num-mono">
-                      {s.feocOwnership !== undefined 
-                        ? <span className={s.feocOwnership > 25 ? 'text-red-400' : 'text-amber-400'}>{s.feocOwnership}%</span>
-                        : <span className="text-ink-500">—</span>}
-                    </td>
-                    <td className="px-3 py-3">
-                      <StatusBadge status={s.status} />
-                    </td>
-                    <td className="px-5 py-3 text-right text-[11px] num-mono text-ink-400">
-                      {s.lastVerified}
+                  .map(s => {
+                    const comp = getCompleteness(s.id);
+                    return (
+                      <tr
+                        key={s.id}
+                        className="border-b border-ink-700/40 hover:bg-ink-800/40 cursor-pointer"
+                        onClick={() => setOpenSupplier(s)}
+                      >
+                        <td className="px-5 py-3">
+                          <div className="font-medium text-ink-100">{s.name}</div>
+                          <div className="text-[10px] text-ink-500 num-mono">{s.id}</div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className="text-xs num-mono px-1.5 py-0.5 rounded-xs bg-ink-700 text-ink-200">
+                            T{s.tier}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-xs text-ink-200">{s.role}</td>
+                        <td className="px-3 py-3 text-xs text-ink-300">{s.country} · {s.region}</td>
+                        <td className="px-3 py-3 text-right text-xs num-mono text-ink-200">
+                          {s.carbonIntensity}
+                          <span className="text-ink-500 ml-0.5">kg</span>
+                        </td>
+                        <td className="px-3 py-3 text-right text-xs num-mono">
+                          {comp ? (
+                            <span className={clsx(
+                              comp.completionRate >= 90 ? 'text-emerald-700' :
+                              comp.completionRate >= 70 ? 'text-amber-700' : 'text-red-700'
+                            )}>
+                              {comp.completionRate}%
+                            </span>
+                          ) : (
+                            <span className="text-ink-500">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          <StatusBadge status={s.status} />
+                        </td>
+                        <td className="px-5 py-3 text-right text-xs text-ink-300 num-mono">
+                          {s.lastVerified}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                {filteredSuppliers.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-5 py-12 text-center text-xs text-ink-500">
+                      <Search className="w-6 h-6 mx-auto mb-2 text-ink-600" />
+                      검색 조건에 맞는 협력사가 없습니다
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
         </Card>
       </div>
+
+      {/* === 협력사 상세 모달 === */}
+      <SupplierDetailModal
+        supplier={openSupplier}
+        onClose={() => setOpenSupplier(null)}
+        viewerRole={viewerRole}
+        onSelectSupplier={(s) => setOpenSupplier(s)}
+      />
     </>
   );
 }
 
-// === 통계 타일 ===
-function StatTile({ label, count, total, tone }: any) {
-  const toneStyles: any = {
-    ok:    { border: 'border-emerald-700/30', bg: 'bg-emerald-500/5', text: 'text-emerald-400', bar: 'bg-emerald-500' },
-    info:  { border: 'border-blue-700/30', bg: 'bg-blue-500/5', text: 'text-blue-400', bar: 'bg-blue-500' },
-    warn:  { border: 'border-amber-700/30', bg: 'bg-amber-500/5', text: 'text-amber-400', bar: 'bg-amber-500' },
-    alert: { border: 'border-red-700/30', bg: 'bg-red-500/5', text: 'text-red-400', bar: 'bg-red-500' },
-  };
-  const t = toneStyles[tone];
-  const pct = (count / total) * 100;
+// =====================================================
+// 권한 시뮬레이션 토글
+// =====================================================
+function PermissionToggle({ viewerRole, onChange }: { viewerRole: ViewerRole; onChange: (r: ViewerRole) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold">시점 시뮬</div>
+      <div className="flex rounded-xs border border-ink-700 p-0.5 bg-ink-900/60">
+        <button
+          onClick={() => onChange('owner_esg')}
+          className={clsx(
+            'text-[11px] px-2.5 py-1 rounded-xs transition-colors flex items-center gap-1',
+            viewerRole === 'owner_esg'
+              ? 'bg-accent-700 text-white font-medium'
+              : 'text-ink-400 hover:text-ink-200'
+          )}
+        >
+          <Building2 className="w-3 h-3" />
+          원청 ESG
+        </button>
+        <button
+          onClick={() => onChange('tier1_supplier')}
+          className={clsx(
+            'text-[11px] px-2.5 py-1 rounded-xs transition-colors flex items-center gap-1',
+            viewerRole === 'tier1_supplier'
+              ? 'bg-blue-700 text-white font-medium'
+              : 'text-ink-400 hover:text-ink-200'
+          )}
+        >
+          <Users className="w-3 h-3" />
+          1차 협력사
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================
+// 필터 칩 (드롭다운 형식)
+// =====================================================
+function FilterChip({ label, value, options, onChange }: any) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o: any) => o.v === value);
+  const isActive = value !== 'all';
 
   return (
-    <div className={`rounded-sm border ${t.border} ${t.bg} p-4`}>
-      <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-2">{label}</div>
-      <div className="flex items-baseline gap-2 mb-3">
-        <span className={`text-3xl font-semibold num-mono ${t.text}`}>{count}</span>
-        <span className="text-xs text-ink-400">/ {total}개사</span>
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={clsx(
+          'flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-xs border transition-colors',
+          isActive
+            ? 'border-accent-700/40 bg-accent-700/10 text-accent-300'
+            : 'border-ink-700 hover:border-ink-600 text-ink-300'
+        )}
+      >
+        <Filter className="w-3 h-3" />
+        <span className="text-ink-400">{label}:</span>
+        <span className="font-medium">{current?.label}</span>
+        <ChevronDown className="w-3 h-3" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute top-full left-0 mt-1 z-20 min-w-[160px] rounded-xs border border-ink-700 bg-ink-800 shadow-lg py-1">
+            {options.map((opt: any) => (
+              <button
+                key={opt.v}
+                onClick={() => { onChange(opt.v); setOpen(false); }}
+                className={clsx(
+                  'w-full text-left text-[11px] px-3 py-1.5 hover:bg-ink-700/60 transition-colors',
+                  opt.v === value ? 'text-accent-400 font-medium' : 'text-ink-200'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// =====================================================
+// 통계 타일
+// =====================================================
+function StatTile({ label, count, total, tone }: any) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  const t: any = {
+    ok:    { bar: 'bg-emerald-700',  text: 'text-emerald-700',  icon: CheckCircle2 },
+    info:  { bar: 'bg-blue-700',     text: 'text-blue-700',     icon: Clock },
+    warn:  { bar: 'bg-amber-700',    text: 'text-amber-700',    icon: AlertCircle },
+    alert: { bar: 'bg-red-700',      text: 'text-red-700',      icon: AlertTriangle },
+  }[tone];
+  const Icon = t.icon;
+  return (
+    <div className="rounded-sm border border-ink-700 bg-ink-800/40 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] uppercase tracking-wider text-ink-400">{label}</span>
+        <Icon className={clsx('w-3.5 h-3.5', t.text)} />
+      </div>
+      <div className="flex items-baseline gap-1.5 mb-2">
+        <span className={clsx('text-3xl font-semibold num-mono', t.text)}>{count}</span>
+        <span className="text-xs text-ink-500 num-mono">/ {total}</span>
       </div>
       <div className="h-1 bg-ink-700 rounded-xs overflow-hidden">
         <div className={`h-full ${t.bar}`} style={{ width: `${pct}%` }} />
@@ -149,139 +400,16 @@ function StatTile({ label, count, total, tone }: any) {
   );
 }
 
-// === 상태 배지 ===
+// =====================================================
+// 상태 배지
+// =====================================================
 function StatusBadge({ status }: { status: any }) {
   const map: any = {
-    verified:  { tone: 'ok', label: '검증 완료' },
-    pending:   { tone: 'info', label: '검토 대기' },
-    review:    { tone: 'warn', label: '추가 확인' },
+    verified:  { tone: 'ok',    label: '검증 완료' },
+    pending:   { tone: 'info',  label: '검토 대기' },
+    review:    { tone: 'warn',  label: '추가 확인' },
     violation: { tone: 'alert', label: '규제 위반' },
   };
-  const m = map[status];
+  const m = map[status] || map.pending;
   return <Badge tone={m.tone} dot>{m.label}</Badge>;
-}
-
-// === 협력사 상세 패널 ===
-function SupplierDetail({ supplier }: { supplier: Supplier }) {
-  // 이 노드와 연결된 엣지
-  const incoming = supplyEdges.filter(e => e.to === supplier.id);
-  const outgoing = supplyEdges.filter(e => e.from === supplier.id);
-  
-  return (
-    <div className="space-y-4">
-      {/* 기본 정보 */}
-      <div>
-        <div className="flex items-center gap-2 mb-2">
-          <StatusBadge status={supplier.status} />
-          <Badge tone="neutral">{`T${supplier.tier}`}</Badge>
-        </div>
-        <h3 className="text-base font-semibold text-ink-50 mb-0.5">{supplier.name}</h3>
-        <p className="text-xs text-ink-400">{supplier.role}</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <DetailField icon={MapPin} label="소재지" value={`${supplier.country} · ${supplier.region}`} />
-        <DetailField icon={Layers} label="취급 광물" value={supplier.material.join(', ')} />
-        <DetailField icon={TrendingUp} label="탄소집약도" value={`${supplier.carbonIntensity} kgCO₂eq/kg`} />
-        {supplier.feocOwnership !== undefined && (
-          <DetailField 
-            icon={AlertCircle} 
-            label="FEOC 지분" 
-            value={`${supplier.feocOwnership}%`}
-            alert={supplier.feocOwnership > 25}
-          />
-        )}
-      </div>
-
-      {/* 좌표 */}
-      <div className="rounded-xs border border-ink-700 bg-ink-900/40 p-3">
-        <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-1.5 flex items-center gap-1.5">
-          <MapPin className="w-3 h-3" /> 좌표 (PostGIS 검증 대상)
-        </div>
-        <div className="num-mono text-xs text-ink-200">
-          {supplier.coordinates[1].toFixed(4)}°N, {supplier.coordinates[0].toFixed(4)}°E
-        </div>
-        {supplier.status === 'violation' && (
-          <div className="mt-2 text-[11px] text-red-400 flex items-start gap-1.5">
-            <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
-            <span>UFLPA 제재 지역 폴리곤 내부 좌표 — Geo-Analysis 에이전트가 위반으로 판정</span>
-          </div>
-        )}
-      </div>
-
-      {/* 인증 */}
-      {supplier.certifications.length > 0 && (
-        <div>
-          <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-2 flex items-center gap-1.5">
-            <Award className="w-3 h-3" /> 보유 인증
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {supplier.certifications.map(c => (
-              <span key={c} className="text-[10px] px-2 py-0.5 rounded-xs bg-accent-700/15 text-accent-300 border border-accent-700/30">
-                {c}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 공급 관계 */}
-      {(incoming.length > 0 || outgoing.length > 0) && (
-        <div className="pt-3 border-t border-ink-700">
-          <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-2">공급 관계</div>
-          {incoming.length > 0 && (
-            <div className="mb-2">
-              <div className="text-[10px] text-ink-500 mb-1">받는 광물 ({incoming.length})</div>
-              {incoming.map((e, i) => {
-                const src = suppliers.find(s => s.id === e.from);
-                return (
-                  <div key={i} className="text-[11px] text-ink-300 flex items-center justify-between py-0.5">
-                    <span>← {src?.name}</span>
-                    <span className="num-mono text-ink-500">{e.volume}t</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {outgoing.length > 0 && (
-            <div>
-              <div className="text-[10px] text-ink-500 mb-1">공급 ({outgoing.length})</div>
-              {outgoing.map((e, i) => {
-                const dst = suppliers.find(s => s.id === e.to);
-                return (
-                  <div key={i} className="text-[11px] text-ink-300 flex items-center justify-between py-0.5">
-                    <span>→ {dst?.name}</span>
-                    <span className="num-mono text-ink-500">{e.volume}t</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DetailField({ icon: Icon, label, value, alert }: any) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-0.5 flex items-center gap-1">
-        <Icon className="w-3 h-3" /> {label}
-      </div>
-      <div className={`text-xs ${alert ? 'text-red-400' : 'text-ink-100'}`}>{value}</div>
-    </div>
-  );
-}
-
-function EmptyDetailState() {
-  return (
-    <div className="py-12 text-center">
-      <FileSearch className="w-10 h-10 text-ink-600 mx-auto mb-3" strokeWidth={1.5} />
-      <p className="text-xs text-ink-400">
-        좌측 맵에서 협력사 노드를 클릭하면<br/>
-        해당 협력사의 상세 정보가 표시됩니다
-      </p>
-    </div>
-  );
 }
