@@ -36,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <div className="space-y-0.5 mt-1">
                   <NavLink href="/" iconName="activity" label="대시보드" subtitle="전체 현황" />
                   <NavLink href="/supply-chain" iconName="network" label="공급망 맵" subtitle="N차 협력사 추적" />
+                  <NavLink href="/bom" iconName="git-branch" label="BOM 관리" subtitle="제품 부품 트리" />
                   <NavLink href="/queue" iconName="list-checks" label="검증 대기열" subtitle="LangGraph 진행 상황" />
                 </div>
               </div>
@@ -69,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <div className="w-1.5 h-1.5 rounded-full bg-signal-ok pulse-soft" />
                 <div className="text-xs text-ink-200">정상 운영 중</div>
               </div>
-              <div className="text-[10px] text-ink-400 mt-2 num-mono">v0.4.2 · 2026.05.14</div>
+              <div className="text-[10px] text-ink-400 mt-2 num-mono">v0.4.3 · 2026.05.17</div>
             </div>
           </aside>
 

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Activity, Network, ListChecks, FileBadge, ShieldCheck,
-  UserCheck, Upload
+  UserCheck, Upload, GitBranch
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -16,6 +16,7 @@ const icons: Record<string, any> = {
   'shield-check': ShieldCheck,
   'user-check': UserCheck,
   upload: Upload,
+  'git-branch': GitBranch,
 };
 
 interface NavLinkProps {
@@ -35,8 +36,8 @@ export default function NavLink({ href, iconName, label, subtitle }: NavLinkProp
       href={href}
       className={clsx(
         'flex items-center gap-3 px-3 py-2.5 rounded-sm transition-colors group',
-        isActive 
-          ? 'bg-accent-700/15 text-ink-50' 
+        isActive
+          ? 'bg-accent-700/15 text-ink-50'
           : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
       )}
     >
