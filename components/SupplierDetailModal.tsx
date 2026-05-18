@@ -1,28 +1,29 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Supplier, supplyEdges, suppliers } from '@/lib/data';
+import { Supplier, supplyEdges } from '@/lib/data';
 import {
   getSupplierExtended, getContacts, getFactories, getCertifications,
   getProcesses, getCompleteness, getRemindLogs, getIncomingPOs, getOutgoingPOs,
-  getPart, type ViewerRole, tier1ViewerSupplierId
+  getPart, type ViewerRole, tier1ViewerSupplierId,
+  regulationMeta, type Regulation
 } from '@/lib/supplier-detail-data';
 import {
-  X, Building2, Factory, Truck, ShieldCheck, Workflow, Database, GitFork,
-  Mail, Phone, Globe, MapPin, Calendar, Hash, DollarSign, Layers,
-  CheckCircle2, AlertCircle, AlertTriangle, Clock, ArrowDown, ArrowUp,
-  ExternalLink, Send, FileText, Award, EyeOff, Eye
+  X, Building2, Factory, Truck, Database,
+  Mail, Phone, MapPin, Calendar, Hash, DollarSign, Layers,
+  CheckCircle2, AlertCircle, ArrowDown, ArrowUp,
+  ExternalLink, Send, Award, EyeOff, PieChart
 } from 'lucide-react';
 import Badge from './Badge';
 import clsx from 'clsx';
 
-// 탭 순서: 위험 우선 (데이터 완성도 → 공급 부품 → 인증 → 공장 → 관계 → 기업·담당자)
+// 탭 순서: 위험 우선 (데이터 완성도 → 공급 부품 → 인증 → 공장 → 기업·담당자)
+// '상하위 관계'는 협력사 포털(/portal)로 이동 — 협력사 본인이 자기 직상위/직하위만 보는 화면
 type TabKey =
   | 'completeness' // 데이터 완성도·리마인드 (위험 신호)
   | 'parts'        // 공급 부품·PO (실사 핵심)
   | 'cert'         // 인증·증빙·공정
   | 'factory'      // 공장(사업장)
-  | 'relation'     // 상하위 협력사
   | 'company';     // 기업·담당자 (메타정보)
 
 interface ModalProps {
@@ -147,7 +148,6 @@ export default function SupplierDetailModal({ supplier, onClose, viewerRole, onS
               <TabButton active={activeTab === 'parts'}        onClick={() => setActiveTab('parts')}        icon={Truck}      label="공급 부품·PO" badge={incomingPOs.length + outgoingPOs.length} />
               <TabButton active={activeTab === 'cert'}         onClick={() => setActiveTab('cert')}         icon={Award}      label="인증·공정" badge={certs.length} />
               <TabButton active={activeTab === 'factory'}      onClick={() => setActiveTab('factory')}      icon={Factory}    label="공장" badge={factoryList.length} />
-              <TabButton active={activeTab === 'relation'}     onClick={() => setActiveTab('relation')}     icon={GitFork}    label="상하위 관계" />
               <TabButton active={activeTab === 'company'}      onClick={() => setActiveTab('company')}      icon={Building2}  label="기업·담당자" />
             </div>
 
@@ -167,9 +167,6 @@ export default function SupplierDetailModal({ supplier, onClose, viewerRole, onS
               )}
               {activeTab === 'completeness' && (
                 <CompletenessTab completeness={completeness} reminds={reminds} contacts={contacts} />
-              )}
-              {activeTab === 'relation' && (
-                <RelationTab supplier={supplier} viewerRole={viewerRole} onSelectSupplier={(s) => { onSelectSupplier(s); }} />
               )}
             </div>
 
@@ -332,16 +329,36 @@ function FactoryCard({ factory, tone }: { factory: any; tone: 'hq' | 'prod' }) {
     processing: '가공·정제',
     mining: '광산',
   };
+  const destLabel: Record<string, string> = {
+    EU: 'EU 납품',
+    US: '미국 납품',
+    BOTH: 'EU + 미국 동시',
+    KR: '국내 납품',
+  };
+  const destTone: Record<string, 'ok' | 'info' | 'warn' | 'neutral'> = {
+    EU: 'ok',
+    US: 'info',
+    BOTH: 'warn',
+    KR: 'neutral',
+  };
+
+  const hasSupplyInfo = factory.destination && factory.supplyRatioPercent != null;
+
   return (
     <div className={clsx(
       'rounded-xs border p-3',
       tone === 'hq' ? 'border-blue-700/30 bg-blue-500/5' : 'border-ink-700/60 bg-ink-900/40'
     )}>
       <div className="flex items-start justify-between gap-3 mb-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Factory className={clsx('w-4 h-4', tone === 'hq' ? 'text-blue-700' : 'text-accent-500')} strokeWidth={1.8} />
           <span className="text-sm font-medium text-ink-100">{factory.factoryName}</span>
           <Badge tone={tone === 'hq' ? 'info' : 'neutral'} size="sm">{roleLabel[factory.factoryRole]}</Badge>
+          {factory.destination && (
+            <Badge tone={destTone[factory.destination]} size="sm">
+              {destLabel[factory.destination]}
+            </Badge>
+          )}
           {!factory.isActive && <Badge tone="alert" size="sm">가동중지</Badge>}
         </div>
         {factory.monthlyCapacity && (
@@ -350,6 +367,7 @@ function FactoryCard({ factory, tone }: { factory: any; tone: 'hq' | 'prod' }) {
           </span>
         )}
       </div>
+
       <div className="space-y-1 pl-6">
         <div className="text-[11px] text-ink-300 flex items-start gap-1.5">
           <MapPin className="w-3 h-3 text-ink-500 shrink-0 mt-0.5" />
@@ -363,8 +381,96 @@ function FactoryCard({ factory, tone }: { factory: any; tone: 'hq' | 'prod' }) {
           가동 <span className="num-mono">{factory.operatingPeriodFrom}</span>
           {factory.operatingPeriodTo ? <> ~ <span className="num-mono">{factory.operatingPeriodTo}</span></> : <span className="text-emerald-700"> ~ 현재</span>}
         </div>
+        {factory.destinationDetail && (
+          <div className="text-[11px] text-ink-300 flex items-center gap-1.5">
+            <Truck className="w-3 h-3 text-ink-500" />
+            <span>{factory.destinationDetail}</span>
+          </div>
+        )}
       </div>
+
+      {/* 공급 비율 시각화 — 팀원 코드 컨셉 흡수 */}
+      {hasSupplyInfo && (
+        <div className="mt-3 pl-6 pr-2">
+          <div className="flex items-baseline justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <PieChart className="w-3 h-3 text-ink-500" />
+              <span className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold">
+                이 부품 공급 비율
+              </span>
+              {factory.supplyQuantity && (
+                <span className="text-[10px] text-ink-500 num-mono">· {factory.supplyQuantity}</span>
+              )}
+            </div>
+            <span className={clsx(
+              'text-2xl font-bold num-mono leading-none',
+              factory.supplyRatioPercent === 100 ? 'text-emerald-700' :
+              factory.supplyRatioPercent >= 50 ? 'text-blue-700' :
+              'text-amber-700'
+            )}>
+              {factory.supplyRatioPercent}%
+            </span>
+          </div>
+          <div className="h-1.5 bg-ink-700 rounded-xs overflow-hidden">
+            <div
+              className={clsx(
+                'h-full transition-all',
+                factory.supplyRatioPercent === 100 ? 'bg-emerald-700' :
+                factory.supplyRatioPercent >= 50 ? 'bg-blue-700' :
+                'bg-amber-700'
+              )}
+              style={{ width: `${factory.supplyRatioPercent}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 적용 규제 배지 */}
+      {factory.applicableRegulations && factory.applicableRegulations.length > 0 && (
+        <div className="mt-3 pl-6 pr-2">
+          <div className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold mb-1.5">
+            적용 규제
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {factory.applicableRegulations.map((reg: Regulation) => (
+              <RegulationChip key={reg} reg={reg} />
+            ))}
+          </div>
+          {factory.hiddenRegulations && factory.hiddenRegulations.length > 0 && (
+            <div className="mt-1.5 text-[10px] text-ink-500 flex items-center gap-1">
+              <EyeOff className="w-2.5 h-2.5" />
+              자동 숨김: {factory.hiddenRegulations.map((r: Regulation) => regulationMeta[r]?.label).join(', ')}
+              <span className="text-ink-600">(다른 시장 규제)</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+// 규제 배지 컴포넌트
+function RegulationChip({ reg }: { reg: Regulation }) {
+  const meta = regulationMeta[reg];
+  if (!meta) return null;
+  const colorMap: Record<string, string> = {
+    emerald: 'bg-emerald-500/10 border-emerald-700/30 text-emerald-700',
+    teal:    'bg-teal-500/10 border-teal-700/30 text-teal-700',
+    amber:   'bg-amber-500/10 border-amber-700/30 text-amber-700',
+    orange:  'bg-orange-500/10 border-orange-700/30 text-orange-700',
+    blue:    'bg-blue-500/10 border-blue-700/30 text-blue-700',
+    purple:  'bg-purple-500/10 border-purple-700/30 text-purple-700',
+  };
+  return (
+    <span
+      className={clsx(
+        'text-[10px] num-mono px-1.5 py-0.5 rounded-xs border font-semibold',
+        colorMap[meta.color] || colorMap.blue
+      )}
+      title={meta.description}
+    >
+      {meta.label}
+    </span>
   );
 }
 
@@ -673,91 +779,6 @@ function CompletenessTab({ completeness, reminds, contacts }: any) {
         )}
       </Section>
     </div>
-  );
-}
-
-// =====================================================
-// 탭: 상하위 협력사
-// =====================================================
-function RelationTab({ supplier, viewerRole, onSelectSupplier }: any) {
-  const parents = supplyEdges
-    .filter(e => e.from === supplier.id)
-    .map(e => ({ ...e, supplier: suppliers.find(s => s.id === e.to) }));
-  const children = supplyEdges
-    .filter(e => e.to === supplier.id)
-    .map(e => ({ ...e, supplier: suppliers.find(s => s.id === e.from) }));
-
-  return (
-    <div className="space-y-5">
-      {viewerRole === 'tier1_supplier' && (
-        <div className="rounded-xs border border-blue-700/30 bg-blue-500/5 p-3 flex items-start gap-2">
-          <Eye className="w-3.5 h-3.5 text-blue-700 shrink-0 mt-0.5" />
-          <div className="text-[11px] text-ink-200 leading-relaxed">
-            <span className="font-semibold text-blue-700">1차 협력사 시점</span> — 직상위(원청)와 직하위 협력사만 표시됩니다.
-            옆 라인 협력사는 차단됩니다.
-          </div>
-        </div>
-      )}
-
-      {/* 직상위 (받는 쪽) */}
-      <Section
-        title={`직상위 협력사 (${parents.length}개)`}
-        subtitle="이 협력사가 납품하는 대상"
-        icon={ArrowUp}
-      >
-        <div className="space-y-1.5">
-          {parents.length === 0 ? (
-            <div className="text-xs text-ink-500 py-3 text-center rounded-xs bg-ink-900/30 border border-ink-700/40">
-              직상위 협력사 없음 (최상위 또는 원청 직거래)
-            </div>
-          ) : parents.map((p, i) => (
-            <RelationCard key={i} edge={p} onClick={() => p.supplier && onSelectSupplier(p.supplier)} />
-          ))}
-        </div>
-      </Section>
-
-      {/* 직하위 (보내는 쪽) */}
-      <Section
-        title={`직하위 협력사 (${children.length}개)`}
-        subtitle="이 협력사에 납품하는 협력사"
-        icon={ArrowDown}
-      >
-        <div className="space-y-1.5">
-          {children.length === 0 ? (
-            <div className="text-xs text-ink-500 py-3 text-center rounded-xs bg-ink-900/30 border border-ink-700/40">
-              직하위 협력사 없음 (최말단 광산/원료)
-            </div>
-          ) : children.map((c, i) => (
-            <RelationCard key={i} edge={c} onClick={() => c.supplier && onSelectSupplier(c.supplier)} />
-          ))}
-        </div>
-      </Section>
-    </div>
-  );
-}
-
-function RelationCard({ edge, onClick }: { edge: any; onClick: () => void }) {
-  if (!edge.supplier) return null;
-  const s = edge.supplier;
-  return (
-    <button
-      onClick={onClick}
-      className="w-full text-left rounded-xs border border-ink-700/60 bg-ink-900/40 hover:bg-ink-800/60 hover:border-accent-700/40 p-2.5 transition-colors group"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <Badge tone="neutral" size="sm">{`T${s.tier}`}</Badge>
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-ink-100 truncate group-hover:text-accent-400">{s.name}</div>
-            <div className="text-[10px] text-ink-500 num-mono">{s.id} · {s.role}</div>
-          </div>
-        </div>
-        <div className="text-right shrink-0">
-          <div className="text-[11px] num-mono text-ink-200">{edge.material}</div>
-          <div className="text-[10px] num-mono text-ink-400">{edge.volume} t/월</div>
-        </div>
-      </div>
-    </button>
   );
 }
 

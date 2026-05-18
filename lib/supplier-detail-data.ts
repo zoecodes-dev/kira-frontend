@@ -95,7 +95,11 @@ export const supplierContacts: SupplierContact[] = [
 
 // ============================================================
 // 3. 공장(사업장) - 본사 vs 생산 공장 분리
+// 팀원 코드 컨셉 흡수: 공장별 납품처(EU/US/BOTH) + 적용 규제 + 공급 비율
 // ============================================================
+export type Regulation = 'EUDR' | 'CSDDD' | 'UFLPA' | 'IRA' | 'EU_BATTERY' | 'CBAM' | 'EUDR_FSC';
+export type Destination = 'EU' | 'US' | 'BOTH' | 'KR';
+
 export interface Factory {
   factoryId: string;
   supplierId: string;
@@ -105,51 +109,81 @@ export interface Factory {
   country: string;
   region: string;
   coordinates: [number, number];     // [lng, lat]
-  operatingPeriodFrom: string;       // 가동 시작일
-  operatingPeriodTo: string | null;  // 가동 종료일 (null = 운영중)
-  monthlyCapacity?: string;          // 월 생산능력
+  operatingPeriodFrom: string;
+  operatingPeriodTo: string | null;
+  monthlyCapacity?: string;
   isActive: boolean;
+  // 신규: 정의서 + 팀원 코드 컨셉
+  destination?: Destination;          // 이 공장이 납품하는 시장 (본사는 없음)
+  destinationDetail?: string;         // "BMW 폴란드 (EU)", "GM 테네시 (US)" 등 상세
+  applicableRegulations?: Regulation[]; // 적용 규제 목록
+  hiddenRegulations?: Regulation[];   // 자동 숨김 규제 (다른 시장 규제)
+  supplyRatioPercent?: number;        // 같은 부품 공급 중 이 공장의 비율 (분할 납품 시)
+  supplyQuantity?: string;            // "50개", "480 kg" 등
 }
 
 export const factories: Factory[] = [
-  // Hanyang Cell
+  // Hanyang Cell — T1 (셀·모듈·팩 통합 제조)
   { factoryId: 'F-001', supplierId: 'S-CELL-001', factoryName: '한양셀 본사', factoryRole: 'headquarters', address: '서울특별시 강남구 테헤란로 152', country: 'KR', region: '서울 강남', coordinates: [127.0397, 37.4998], operatingPeriodFrom: '2008-03-15', operatingPeriodTo: null, isActive: true },
-  { factoryId: 'F-002', supplierId: 'S-CELL-001', factoryName: '청주 1공장 (NCM811 셀)', factoryRole: 'production', address: '충북 청주시 흥덕구 오송생명로 200', country: 'KR', region: '충북 청주', coordinates: [127.4914, 36.6424], operatingPeriodFrom: '2018-06-01', operatingPeriodTo: null, monthlyCapacity: '2.4 GWh', isActive: true },
-  { factoryId: 'F-003', supplierId: 'S-CELL-001', factoryName: '청주 2공장 (모듈/팩 조립)', factoryRole: 'production', address: '충북 청주시 흥덕구 오송생명로 220', country: 'KR', region: '충북 청주', coordinates: [127.4920, 36.6418], operatingPeriodFrom: '2020-09-15', operatingPeriodTo: null, monthlyCapacity: '1.8 GWh', isActive: true },
+  { factoryId: 'F-002', supplierId: 'S-CELL-001', factoryName: '청주 1공장 (NCM811 셀)', factoryRole: 'production', address: '충북 청주시 흥덕구 오송생명로 200', country: 'KR', region: '충북 청주', coordinates: [127.4914, 36.6424], operatingPeriodFrom: '2018-06-01', operatingPeriodTo: null, monthlyCapacity: '2.4 GWh', isActive: true,
+    destination: 'BOTH', destinationDetail: 'BMW 폴란드 + GM 테네시', applicableRegulations: ['EUDR', 'UFLPA', 'IRA', 'CSDDD', 'EU_BATTERY'], hiddenRegulations: [], supplyRatioPercent: 60, supplyQuantity: '1.44 GWh/월' },
+  { factoryId: 'F-003', supplierId: 'S-CELL-001', factoryName: '청주 2공장 (모듈/팩 조립)', factoryRole: 'production', address: '충북 청주시 흥덕구 오송생명로 220', country: 'KR', region: '충북 청주', coordinates: [127.4920, 36.6418], operatingPeriodFrom: '2020-09-15', operatingPeriodTo: null, monthlyCapacity: '1.8 GWh', isActive: true,
+    destination: 'BOTH', destinationDetail: 'BMW 폴란드 + GM 테네시', applicableRegulations: ['EUDR', 'UFLPA', 'IRA', 'CSDDD', 'EU_BATTERY'], hiddenRegulations: [], supplyRatioPercent: 40, supplyQuantity: '720 MWh/월' },
 
-  // POS Cathode
+  // POS Cathode — T3 (양극재, 분할 납품 65% : 35%)
   { factoryId: 'F-004', supplierId: 'S-CAM-001',  factoryName: 'POS 양극재 본사', factoryRole: 'headquarters', address: '경북 포항시 남구 동해안로 1080', country: 'KR', region: '경북 포항', coordinates: [129.3435, 36.0190], operatingPeriodFrom: '2012-05-20', operatingPeriodTo: null, isActive: true },
-  { factoryId: 'F-005', supplierId: 'S-CAM-001',  factoryName: '포항 양극재 공장', factoryRole: 'production', address: '경북 포항시 남구 효자동 산 1-1', country: 'KR', region: '경북 포항', coordinates: [129.3290, 36.0085], operatingPeriodFrom: '2013-11-10', operatingPeriodTo: null, monthlyCapacity: '850 t', isActive: true },
-  { factoryId: 'F-006', supplierId: 'S-CAM-001',  factoryName: '광양 양극재 2공장', factoryRole: 'production', address: '전남 광양시 광양항만로 200',     country: 'KR', region: '전남 광양', coordinates: [127.7012, 34.9358], operatingPeriodFrom: '2021-04-05', operatingPeriodTo: null, monthlyCapacity: '620 t', isActive: true },
+  { factoryId: 'F-005', supplierId: 'S-CAM-001',  factoryName: '포항 양극재 공장', factoryRole: 'production', address: '경북 포항시 남구 효자동 산 1-1', country: 'KR', region: '경북 포항', coordinates: [129.3290, 36.0085], operatingPeriodFrom: '2013-11-10', operatingPeriodTo: null, monthlyCapacity: '850 t', isActive: true,
+    destination: 'EU', destinationDetail: '한양셀 → BMW 폴란드 (EU)', applicableRegulations: ['EUDR', 'CSDDD', 'EU_BATTERY'], hiddenRegulations: ['UFLPA', 'IRA'], supplyRatioPercent: 65, supplyQuantity: '550 t/월' },
+  { factoryId: 'F-006', supplierId: 'S-CAM-001',  factoryName: '광양 양극재 2공장', factoryRole: 'production', address: '전남 광양시 광양항만로 200',     country: 'KR', region: '전남 광양', coordinates: [127.7012, 34.9358], operatingPeriodFrom: '2021-04-05', operatingPeriodTo: null, monthlyCapacity: '620 t', isActive: true,
+    destination: 'US', destinationDetail: '한양셀 → GM 테네시 (US)', applicableRegulations: ['UFLPA', 'IRA', 'CSDDD'], hiddenRegulations: ['EUDR', 'EUDR_FSC'], supplyRatioPercent: 35, supplyQuantity: '300 t/월' },
 
-  // Yantai Cathode (옌타이)
+  // Yantai Cathode — T3 (단일 공장 100%)
   { factoryId: 'F-007', supplierId: 'S-CAM-002',  factoryName: 'Yantai Cathode HQ', factoryRole: 'headquarters', address: '山东省烟台市开发区长江路168号', country: 'CN', region: '산둥성 옌타이', coordinates: [121.4480, 37.4634], operatingPeriodFrom: '2015-08-12', operatingPeriodTo: null, isActive: true },
-  { factoryId: 'F-008', supplierId: 'S-CAM-002',  factoryName: 'Yantai NCA Line A',    factoryRole: 'production', address: '山东省烟台市福山区工业园路58号', country: 'CN', region: '산둥성 옌타이', coordinates: [121.4395, 37.4988], operatingPeriodFrom: '2016-03-22', operatingPeriodTo: null, monthlyCapacity: '420 t', isActive: true },
+  { factoryId: 'F-008', supplierId: 'S-CAM-002',  factoryName: 'Yantai NCA Line A',    factoryRole: 'production', address: '山东省烟台市福山区工业园路58号', country: 'CN', region: '산둥성 옌타이', coordinates: [121.4395, 37.4988], operatingPeriodFrom: '2016-03-22', operatingPeriodTo: null, monthlyCapacity: '420 t', isActive: true,
+    destination: 'US', destinationDetail: '한양셀 → GM 테네시 (US)', applicableRegulations: ['UFLPA', 'IRA', 'CSDDD'], hiddenRegulations: ['EUDR'], supplyRatioPercent: 100, supplyQuantity: '420 t/월' },
 
-  // Mitsui Anode (오사카)
+  // Mitsui Anode — T3 (음극재, 단일 공장 100%)
   { factoryId: 'F-009', supplierId: 'S-ANO-001',  factoryName: '三井アノード本社', factoryRole: 'headquarters', address: '大阪府大阪市中央区淡路町2-1', country: 'JP', region: '오사카',     coordinates: [135.5023, 34.6937], operatingPeriodFrom: '1995-06-01', operatingPeriodTo: null, isActive: true },
-  { factoryId: 'F-010', supplierId: 'S-ANO-001',  factoryName: '神戸黒鉛工場',       factoryRole: 'production', address: '兵庫県神戸市灘区高羽町1-12', country: 'JP', region: '효고 고베',  coordinates: [135.2317, 34.7100], operatingPeriodFrom: '2001-04-10', operatingPeriodTo: null, monthlyCapacity: '380 t', isActive: true },
+  { factoryId: 'F-010', supplierId: 'S-ANO-001',  factoryName: '神戸黒鉛工場',       factoryRole: 'production', address: '兵庫県神戸市灘区高羽町1-12', country: 'JP', region: '효고 고베',  coordinates: [135.2317, 34.7100], operatingPeriodFrom: '2001-04-10', operatingPeriodTo: null, monthlyCapacity: '380 t', isActive: true,
+    destination: 'BOTH', destinationDetail: '한양셀 → 전 시장', applicableRegulations: ['EUDR', 'UFLPA', 'CSDDD', 'EU_BATTERY'], hiddenRegulations: ['IRA'], supplyRatioPercent: 100, supplyQuantity: '380 t/월' },
 
-  // QZ Precursor (광저우)
+  // QZ Precursor — T4 (단일 공장 100%)
   { factoryId: 'F-011', supplierId: 'S-PRE-001',  factoryName: 'QZ Precursor HQ', factoryRole: 'headquarters', address: '广东省广州市天河区珠江新城A-101', country: 'CN', region: '광둥성 광저우', coordinates: [113.3245, 23.1184], operatingPeriodFrom: '2010-04-22', operatingPeriodTo: null, isActive: true },
-  { factoryId: 'F-012', supplierId: 'S-PRE-001',  factoryName: '광저우 전구체 공장', factoryRole: 'production', address: '广东省广州市黄埔区开发大道188号', country: 'CN', region: '광둥성 광저우', coordinates: [113.4583, 23.1056], operatingPeriodFrom: '2011-09-15', operatingPeriodTo: null, monthlyCapacity: '720 t', isActive: true },
+  { factoryId: 'F-012', supplierId: 'S-PRE-001',  factoryName: '광저우 전구체 공장', factoryRole: 'production', address: '广东省广州市黄埔区开发大道188号', country: 'CN', region: '광둥성 광저우', coordinates: [113.4583, 23.1056], operatingPeriodFrom: '2011-09-15', operatingPeriodTo: null, monthlyCapacity: '720 t', isActive: true,
+    destination: 'BOTH', destinationDetail: '양극재사 → 한양셀 → 전 시장', applicableRegulations: ['UFLPA', 'IRA', 'CSDDD', 'EU_BATTERY'], hiddenRegulations: ['EUDR'], supplyRatioPercent: 100, supplyQuantity: '720 t/월' },
 
-  // Pilbara Refining (호주)
+  // Pilbara Refining — T4 (리튬 정제, 단일)
   { factoryId: 'F-013', supplierId: 'S-REF-001',  factoryName: 'Pilbara Refining HQ', factoryRole: 'headquarters', address: '450 St Georges Tce, Perth WA 6000', country: 'AU', region: '호주 퍼스',   coordinates: [115.8605, -31.9523], operatingPeriodFrom: '1988-07-12', operatingPeriodTo: null, isActive: true },
-  { factoryId: 'F-014', supplierId: 'S-REF-001',  factoryName: 'Pilgangoora 정제소', factoryRole: 'processing',    address: 'Pilgangoora, Pilbara WA 6753',     country: 'AU', region: '호주 필바라', coordinates: [118.9050, -21.2580], operatingPeriodFrom: '1992-03-08', operatingPeriodTo: null, monthlyCapacity: '1,250 t LiOH', isActive: true },
+  { factoryId: 'F-014', supplierId: 'S-REF-001',  factoryName: 'Pilgangoora 정제소', factoryRole: 'processing',    address: 'Pilgangoora, Pilbara WA 6753',     country: 'AU', region: '호주 필바라', coordinates: [118.9050, -21.2580], operatingPeriodFrom: '1992-03-08', operatingPeriodTo: null, monthlyCapacity: '1,250 t LiOH', isActive: true,
+    destination: 'BOTH', destinationDetail: '양극재사 → 한양셀 → 전 시장', applicableRegulations: ['EUDR', 'CSDDD', 'EU_BATTERY', 'CBAM'], hiddenRegulations: ['UFLPA'], supplyRatioPercent: 100, supplyQuantity: '1,250 t/월' },
 
-  // Ganzhou Rare Metals (간저우)
-  { factoryId: 'F-015', supplierId: 'S-REF-002',  factoryName: 'Ganzhou Rare Metals', factoryRole: 'processing',  address: '江西省赣州市经济开发区金岭东路', country: 'CN', region: '장시성 간저우', coordinates: [114.9352, 25.8312], operatingPeriodFrom: '2005-11-18', operatingPeriodTo: null, monthlyCapacity: '420 t CoSO4', isActive: true },
+  // Ganzhou Rare Metals — T4 (코발트 정제, 중국·FEOC 우려)
+  { factoryId: 'F-015', supplierId: 'S-REF-002',  factoryName: 'Ganzhou Rare Metals', factoryRole: 'processing',  address: '江西省赣州市经济开发区金岭东路', country: 'CN', region: '장시성 간저우', coordinates: [114.9352, 25.8312], operatingPeriodFrom: '2005-11-18', operatingPeriodTo: null, monthlyCapacity: '420 t CoSO4', isActive: true,
+    destination: 'EU', destinationDetail: '양극재사 → 한양셀 → BMW 폴란드', applicableRegulations: ['EUDR', 'CSDDD', 'EU_BATTERY'], hiddenRegulations: ['UFLPA', 'IRA'], supplyRatioPercent: 100, supplyQuantity: '420 t/월' },
 
-  // Nori Mining (필리핀)
-  { factoryId: 'F-016', supplierId: 'S-MINE-001', factoryName: 'Nori Nickel Mine', factoryRole: 'mining', address: 'Surigao del Norte, Mindanao', country: 'PH', region: '필리핀 수리가오', coordinates: [125.5050, 9.8480], operatingPeriodFrom: '2003-06-22', operatingPeriodTo: null, monthlyCapacity: '850 t Ni', isActive: true },
+  // Nori Mining — T5 (필리핀 광산)
+  { factoryId: 'F-016', supplierId: 'S-MINE-001', factoryName: 'Nori Nickel Mine', factoryRole: 'mining', address: 'Surigao del Norte, Mindanao', country: 'PH', region: '필리핀 수리가오', coordinates: [125.5050, 9.8480], operatingPeriodFrom: '2003-06-22', operatingPeriodTo: null, monthlyCapacity: '850 t Ni', isActive: true,
+    destination: 'BOTH', destinationDetail: 'QZ 전구체 → 전 시장', applicableRegulations: ['EUDR', 'CSDDD'], hiddenRegulations: ['UFLPA', 'IRA'], supplyRatioPercent: 100, supplyQuantity: '850 t/월' },
 
-  // Kat Cobalt (콩고)
-  { factoryId: 'F-017', supplierId: 'S-MINE-002', factoryName: 'Katanga Cobalt Mine', factoryRole: 'mining', address: 'Kolwezi, Lualaba Province', country: 'CD', region: '콩고 카탕가', coordinates: [25.4664, -10.7167], operatingPeriodFrom: '2014-01-15', operatingPeriodTo: null, monthlyCapacity: '320 t Co', isActive: true },
+  // Kat Cobalt — T5 (콩고 광산, 인권 이슈)
+  { factoryId: 'F-017', supplierId: 'S-MINE-002', factoryName: 'Katanga Cobalt Mine', factoryRole: 'mining', address: 'Kolwezi, Lualaba Province', country: 'CD', region: '콩고 카탕가', coordinates: [25.4664, -10.7167], operatingPeriodFrom: '2014-01-15', operatingPeriodTo: null, monthlyCapacity: '320 t Co', isActive: true,
+    destination: 'EU', destinationDetail: 'Ganzhou → 한양셀 → BMW 폴란드', applicableRegulations: ['EUDR', 'CSDDD'], hiddenRegulations: ['UFLPA', 'IRA'], supplyRatioPercent: 100, supplyQuantity: '320 t/월' },
 
-  // SdA Lithium (칠레)
-  { factoryId: 'F-018', supplierId: 'S-MINE-003', factoryName: 'Salar de Atacama Plant', factoryRole: 'mining', address: 'Salar de Atacama, Antofagasta', country: 'CL', region: '칠레 아타카마', coordinates: [-68.2350, -23.5050], operatingPeriodFrom: '2010-08-08', operatingPeriodTo: null, monthlyCapacity: '180 t LiOH', isActive: true },
+  // SdA Lithium — T5 (칠레 리튬 광산)
+  { factoryId: 'F-018', supplierId: 'S-MINE-003', factoryName: 'Salar de Atacama Plant', factoryRole: 'mining', address: 'Salar de Atacama, Antofagasta', country: 'CL', region: '칠레 아타카마', coordinates: [-68.2350, -23.5050], operatingPeriodFrom: '2010-08-08', operatingPeriodTo: null, monthlyCapacity: '180 t LiOH', isActive: true,
+    destination: 'BOTH', destinationDetail: 'Pilbara → 전 시장', applicableRegulations: ['EUDR', 'CSDDD', 'CBAM'], hiddenRegulations: ['UFLPA', 'IRA'], supplyRatioPercent: 100, supplyQuantity: '180 t/월' },
 ];
+
+// 규제별 라벨 + 색상 메타
+export const regulationMeta: Record<Regulation, { label: string; description: string; color: 'emerald' | 'teal' | 'amber' | 'orange' | 'blue' | 'purple' }> = {
+  EUDR:       { label: 'EUDR',       description: 'EU 산림파괴방지법',                color: 'emerald' },
+  EUDR_FSC:   { label: 'FSC',        description: 'EUDR 부속 — FSC 인증',             color: 'emerald' },
+  CSDDD:      { label: 'CSDDD',      description: 'EU 공급망 실사지침 (인권)',        color: 'teal' },
+  UFLPA:      { label: 'UFLPA',      description: '미국 위구르 강제노동방지법',        color: 'amber' },
+  IRA:        { label: 'IRA',        description: '미국 인플레이션감축법 (FEOC)',     color: 'orange' },
+  EU_BATTERY: { label: 'EU 배터리법', description: 'EU 2023/1542',                     color: 'blue' },
+  CBAM:       { label: 'CBAM',       description: 'EU 탄소국경조정',                  color: 'purple' },
+};
 
 // ============================================================
 // 4. 인증서 (만료일 추적)

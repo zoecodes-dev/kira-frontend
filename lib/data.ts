@@ -345,12 +345,17 @@ export const batchesInProgress: BatchInProgress[] = [
 ];
 
 // === DPP 발행 이력 ===
+// DPP는 "특정 시리얼의 배터리 팩 인스턴스"에 발행됨
+// productId = 모델 코드, serialNumber = 개별 인스턴스, producedAt = 생산 시점, producedAtFactoryId = 생산 공장
 export interface DPP {
   id: string;
-  productId: string;
+  productId: string;            // 모델 코드 (BAT-NCM811-100Ah)
+  serialNumber: string;         // 개별 시리얼 (SN-2026-...)
   modelName: string;
   manufacturer: string;
-  issuedAt: string;
+  producedAtFactoryId: string;  // 어느 공장에서 생산
+  producedAt: string;           // 생산 일시
+  issuedAt: string;             // DPP 발행 일시
   destination: 'US' | 'EU' | 'KR';
   status: 'issued' | 'revoked' | 'pending';
   carbonFootprint: number;
@@ -360,11 +365,38 @@ export interface DPP {
 }
 
 export const dppRecords: DPP[] = [
-  { id: 'DPP-2026-04982', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', manufacturer: 'Hanyang Cell Manufacturing', issuedAt: '2026-05-14 09:47', destination: 'EU', status: 'issued', carbonFootprint: 84.3, recycledContent: { Co: 18, Ni: 8, Li: 7 }, capacity: '100Ah / 3.7V', approvedBy: '김정민 ESG팀장' },
-  { id: 'DPP-2026-04981', productId: 'BAT-NCA-80Ah',    modelName: 'Standard NCA 80Ah',    manufacturer: 'Hanyang Cell Manufacturing', issuedAt: '2026-05-14 08:23', destination: 'EU', status: 'issued', carbonFootprint: 91.7, recycledContent: { Co: 16, Ni: 6, Li: 6 }, capacity: '80Ah / 3.7V',  approvedBy: '김정민 ESG팀장' },
-  { id: 'DPP-2026-04980', productId: 'BAT-LFP-120Ah',   modelName: 'LFP Power 120Ah',      manufacturer: 'Hanyang Cell Manufacturing', issuedAt: '2026-05-13 17:14', destination: 'EU', status: 'issued', carbonFootprint: 67.2, recycledContent: { Co: 0,  Ni: 0, Li: 9 }, capacity: '120Ah / 3.2V', approvedBy: '박서연 ESG팀장' },
-  { id: 'DPP-2026-04979', productId: 'BAT-NCM622-90Ah', modelName: 'NCM622 90Ah',          manufacturer: 'Hanyang Cell Manufacturing', issuedAt: '2026-05-13 15:48', destination: 'US', status: 'issued', carbonFootprint: 78.9, recycledContent: { Co: 17, Ni: 7, Li: 6 }, capacity: '90Ah / 3.7V',  approvedBy: '박서연 ESG팀장' },
-  { id: 'DPP-2026-04978', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', manufacturer: 'Hanyang Cell Manufacturing', issuedAt: '2026-05-13 14:02', destination: 'EU', status: 'issued', carbonFootprint: 85.1, recycledContent: { Co: 19, Ni: 8, Li: 7 }, capacity: '100Ah / 3.7V', approvedBy: '김정민 ESG팀장' },
+  { id: 'DPP-2026-04982', productId: 'BAT-NCM811-100Ah', serialNumber: 'SN-2026-A1-082413', modelName: 'Premium NCM811 100Ah', manufacturer: 'Hanyang Cell Manufacturing', producedAtFactoryId: 'F-003', producedAt: '2026-05-12 14:22', issuedAt: '2026-05-14 09:47', destination: 'EU', status: 'issued', carbonFootprint: 84.3, recycledContent: { Co: 18, Ni: 8, Li: 7 }, capacity: '100Ah / 3.7V', approvedBy: '김정민 ESG팀장' },
+  { id: 'DPP-2026-04981', productId: 'BAT-NCA-80Ah',    serialNumber: 'SN-2026-A2-082398', modelName: 'Standard NCA 80Ah',    manufacturer: 'Hanyang Cell Manufacturing', producedAtFactoryId: 'F-003', producedAt: '2026-05-11 09:08', issuedAt: '2026-05-14 08:23', destination: 'EU', status: 'issued', carbonFootprint: 91.7, recycledContent: { Co: 16, Ni: 6, Li: 6 }, capacity: '80Ah / 3.7V',  approvedBy: '김정민 ESG팀장' },
+  { id: 'DPP-2026-04980', productId: 'BAT-LFP-120Ah',   serialNumber: 'SN-2026-A3-082375', modelName: 'LFP Power 120Ah',      manufacturer: 'Hanyang Cell Manufacturing', producedAtFactoryId: 'F-002', producedAt: '2026-05-10 16:45', issuedAt: '2026-05-13 17:14', destination: 'EU', status: 'issued', carbonFootprint: 67.2, recycledContent: { Co: 0,  Ni: 0, Li: 9 }, capacity: '120Ah / 3.2V', approvedBy: '박서연 ESG팀장' },
+  { id: 'DPP-2026-04979', productId: 'BAT-NCM622-90Ah', serialNumber: 'SN-2026-A1-082341', modelName: 'NCM622 90Ah',          manufacturer: 'Hanyang Cell Manufacturing', producedAtFactoryId: 'F-002', producedAt: '2026-05-09 11:18', issuedAt: '2026-05-13 15:48', destination: 'US', status: 'issued', carbonFootprint: 78.9, recycledContent: { Co: 17, Ni: 7, Li: 6 }, capacity: '90Ah / 3.7V',  approvedBy: '박서연 ESG팀장' },
+  { id: 'DPP-2026-04978', productId: 'BAT-NCM811-100Ah', serialNumber: 'SN-2026-A1-082319', modelName: 'Premium NCM811 100Ah', manufacturer: 'Hanyang Cell Manufacturing', producedAtFactoryId: 'F-003', producedAt: '2026-05-08 13:55', issuedAt: '2026-05-13 14:02', destination: 'EU', status: 'issued', carbonFootprint: 85.1, recycledContent: { Co: 19, Ni: 8, Li: 7 }, capacity: '100Ah / 3.7V', approvedBy: '김정민 ESG팀장' },
+];
+
+// === 제품 인스턴스 (검색·드릴다운용) ===
+// DPP가 발행 안 된 것도 포함 — 생산은 됐지만 검증 중인 팩
+export interface ProductInstance {
+  serialNumber: string;
+  productId: string;
+  modelName: string;
+  producedAtFactoryId: string;
+  producedAt: string;
+  destination: 'US' | 'EU' | 'KR';
+  dppStatus: 'issued' | 'pending' | 'in_progress' | 'not_started';
+  dppId?: string;
+}
+
+export const productInstances: ProductInstance[] = [
+  // 이미 DPP 발행된 것들 (dppRecords와 1:1 매칭)
+  { serialNumber: 'SN-2026-A1-082413', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-12 14:22', destination: 'EU', dppStatus: 'issued', dppId: 'DPP-2026-04982' },
+  { serialNumber: 'SN-2026-A2-082398', productId: 'BAT-NCA-80Ah',    modelName: 'Standard NCA 80Ah',    producedAtFactoryId: 'F-003', producedAt: '2026-05-11 09:08', destination: 'EU', dppStatus: 'issued', dppId: 'DPP-2026-04981' },
+  { serialNumber: 'SN-2026-A3-082375', productId: 'BAT-LFP-120Ah',   modelName: 'LFP Power 120Ah',      producedAtFactoryId: 'F-002', producedAt: '2026-05-10 16:45', destination: 'EU', dppStatus: 'issued', dppId: 'DPP-2026-04980' },
+  { serialNumber: 'SN-2026-A1-082341', productId: 'BAT-NCM622-90Ah', modelName: 'NCM622 90Ah',          producedAtFactoryId: 'F-002', producedAt: '2026-05-09 11:18', destination: 'US', dppStatus: 'issued', dppId: 'DPP-2026-04979' },
+  { serialNumber: 'SN-2026-A1-082319', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-08 13:55', destination: 'EU', dppStatus: 'issued', dppId: 'DPP-2026-04978' },
+  // 발행 진행 중
+  { serialNumber: 'SN-2026-A1-082427', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-13 10:32', destination: 'EU', dppStatus: 'in_progress' },
+  { serialNumber: 'SN-2026-A1-082451', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-14 08:15', destination: 'US', dppStatus: 'in_progress' },
+  // 발행 대기
+  { serialNumber: 'SN-2026-A2-082468', productId: 'BAT-NCA-80Ah',    modelName: 'Standard NCA 80Ah',    producedAtFactoryId: 'F-003', producedAt: '2026-05-14 11:42', destination: 'EU', dppStatus: 'pending' },
 ];
 
 // === 감사 추적 로그 (Provenance) ===
