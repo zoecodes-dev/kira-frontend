@@ -1,60 +1,91 @@
 // 실제 시스템에서는 PostgreSQL + Neo4j(향후)에서 가져올 데이터
 // 데모용 목업 - 10개 협력사로 단순화한 N차 공급망
+//
+// Tier 정의 (물품 추적 관점 - 부품의 단계):
+//   T1 = Pack/Module (완제품 직전)
+//   T2 = Cell
+//   T3 = 양극재/음극재 (활물질)
+//   T4 = 전구체 / 정제물 (Refined)
+//   T5 = 원광/원료 (광산 채굴)
+//
+// 한 협력사가 여러 Tier 부품을 다룰 수 있음 → tiers 배열 사용
+// 호환을 위해 tier (단일값)은 "주된 Tier"로 유지
 
-export type Tier = 1 | 2 | 3;
+export type Tier = 1 | 2 | 3 | 4 | 5;
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type SupplierStatus = 'verified' | 'pending' | 'violation' | 'review';
 
 export interface Supplier {
   id: string;
   name: string;
-  tier: Tier;
-  role: string;        // 광산, 제련소, 전구체 등
+  tier: Tier;          // 주된 Tier (호환 유지)
+  tiers: Tier[];       // 이 협력사가 다루는 모든 Tier (한 협력사 = 여러 Tier)
+  role: string;
   country: string;
   region: string;
-  coordinates: [number, number]; // [lng, lat]
+  coordinates: [number, number];
   status: SupplierStatus;
   risk: RiskLevel;
   material: string[];
-  parentIds: string[]; // 이 노드에 공급하는 상위(=하위 tier) 노드들 — 사실은 자식. 아래 edges 사용.
+  parentIds: string[];
   certifications: string[];
   lastVerified: string;
-  carbonIntensity: number; // kgCO2eq/kg
-  feocOwnership?: number;  // FEOC 지분율 %
+  carbonIntensity: number;
+  feocOwnership?: number;
 }
 
 export interface SupplyEdge {
-  from: string; // tier가 더 높은(=상류) 노드
-  to: string;   // tier가 더 낮은(=하류) 노드
+  from: string;
+  to: string;
   material: string;
-  volume: number; // 톤/월
+  volume: number;
 }
 
-// === 10개 협력사 (시연용) ===
+// Tier별 한글 라벨
+export const tierLabels: Record<Tier, string> = {
+  1: 'Pack/Module',
+  2: 'Cell',
+  3: '활물질',
+  4: '전구체·정제',
+  5: '원광',
+};
+
+export const tierShortLabels: Record<Tier, string> = {
+  1: 'Pack',
+  2: 'Cell',
+  3: '활물질',
+  4: '정제',
+  5: '광산',
+};
+
+// === 10개 협력사 ===
 export const suppliers: Supplier[] = [
-  // Tier 1 - 셀 제조사 (당사 직거래)
+  // T1 - Pack/Module/Cell 통합 제조 (Hanyang은 셀+모듈+팩 다 함)
   {
     id: 'S-CELL-001',
     name: 'Hanyang Cell Manufacturing',
     tier: 1,
-    role: '셀 제조',
+    tiers: [1, 2],       // Pack/Module + Cell 둘 다
+    role: '셀·모듈·팩 통합 제조',
     country: 'KR',
     region: '충북 청주',
     coordinates: [127.4914, 36.6424],
     status: 'verified',
     risk: 'low',
-    material: ['리튬이온 셀'],
+    material: ['NCM811 셀', '모듈', '팩'],
     parentIds: [],
     certifications: ['ISO 14001', 'IATF 16949'],
     lastVerified: '2026-05-10',
     carbonIntensity: 12.4,
   },
-  // Tier 2 - 양극재
+
+  // T3 - 양극재 활물질
   {
     id: 'S-CAM-001',
     name: 'POS Cathode Materials',
-    tier: 2,
-    role: '양극재 (NCM)',
+    tier: 3,
+    tiers: [3],
+    role: '양극재 (NCM811)',
     country: 'KR',
     region: '경북 포항',
     coordinates: [129.3435, 36.0190],
@@ -69,7 +100,8 @@ export const suppliers: Supplier[] = [
   {
     id: 'S-CAM-002',
     name: 'Yantai Cathode Tech',
-    tier: 2,
+    tier: 3,
+    tiers: [3],
     role: '양극재 (NCA)',
     country: 'CN',
     region: '산둥성 옌타이',
@@ -82,11 +114,12 @@ export const suppliers: Supplier[] = [
     lastVerified: '2026-04-22',
     carbonIntensity: 24.1,
   },
-  // Tier 2 - 음극재
+  // T3 - 음극재 활물질
   {
     id: 'S-ANO-001',
     name: 'Mitsui Anode Industries',
-    tier: 2,
+    tier: 3,
+    tiers: [3],
     role: '음극재 (흑연)',
     country: 'JP',
     region: '오사카',
@@ -99,12 +132,14 @@ export const suppliers: Supplier[] = [
     lastVerified: '2026-05-05',
     carbonIntensity: 8.3,
   },
-  // Tier 3 - 전구체 (Precursor)
+
+  // T4 - 전구체 (활물질 직전 단계)
   {
     id: 'S-PRE-001',
     name: 'Quzhou Precursor Co.',
-    tier: 3,
-    role: '전구체',
+    tier: 4,
+    tiers: [4],
+    role: '전구체 (NCM)',
     country: 'CN',
     region: '저장성 취저우',
     coordinates: [118.8587, 28.9700],
@@ -116,11 +151,49 @@ export const suppliers: Supplier[] = [
     lastVerified: '2026-04-15',
     carbonIntensity: 31.2,
   },
-  // Tier 3 - 광산 / 제련소
+  // T4 - 정제소 (광물 정제)
+  {
+    id: 'S-REF-001',
+    name: 'Pohang Refining Works',
+    tier: 4,
+    tiers: [4],
+    role: '리튬 정제',
+    country: 'KR',
+    region: '경북 포항',
+    coordinates: [129.3656, 36.0322],
+    status: 'verified',
+    risk: 'low',
+    material: ['수산화리튬'],
+    parentIds: [],
+    certifications: ['IRMA-75', 'ResponsibleSteel'],
+    lastVerified: '2026-05-09',
+    carbonIntensity: 9.8,
+  },
+  {
+    id: 'S-REF-002',
+    name: 'Ganzhou Rare Metals',
+    tier: 4,
+    tiers: [4],
+    role: '코발트 정제',
+    country: 'CN',
+    region: '장시성 간저우',
+    coordinates: [114.9352, 25.8312],
+    status: 'pending',
+    risk: 'medium',
+    material: ['황산코발트'],
+    parentIds: [],
+    certifications: ['ISO 14001'],
+    lastVerified: '2026-04-28',
+    carbonIntensity: 28.5,
+    feocOwnership: 22.0,
+  },
+
+  // T5 - 광산 (최말단)
   {
     id: 'S-MINE-001',
     name: 'Sulawesi Nickel Mine',
-    tier: 3,
+    tier: 5,
+    tiers: [5],
     role: '니켈 광산',
     country: 'ID',
     region: '술라웨시',
@@ -137,7 +210,8 @@ export const suppliers: Supplier[] = [
   {
     id: 'S-MINE-002',
     name: 'Katanga Cobalt Mining',
-    tier: 3,
+    tier: 5,
+    tiers: [5],
     role: '코발트 광산',
     country: 'CD',
     region: '카탕가',
@@ -153,7 +227,8 @@ export const suppliers: Supplier[] = [
   {
     id: 'S-MINE-003',
     name: 'Xinjiang Mineral Resources',
-    tier: 3,
+    tier: 5,
+    tiers: [5],
     role: '망간/리튬 광산',
     country: 'CN',
     region: '신장 위구르 자치구',
@@ -166,57 +241,28 @@ export const suppliers: Supplier[] = [
     lastVerified: '2026-05-12',
     carbonIntensity: 52.7,
   },
-  {
-    id: 'S-REF-001',
-    name: 'Pohang Refining Works',
-    tier: 3,
-    role: '리튬 제련소',
-    country: 'KR',
-    region: '경북 포항',
-    coordinates: [129.3656, 36.0322],
-    status: 'verified',
-    risk: 'low',
-    material: ['수산화리튬'],
-    parentIds: [],
-    certifications: ['IRMA-75', 'ResponsibleSteel'],
-    lastVerified: '2026-05-09',
-    carbonIntensity: 9.8,
-  },
-  {
-    id: 'S-REF-002',
-    name: 'Ganzhou Rare Metals',
-    tier: 3,
-    role: '코발트 제련소',
-    country: 'CN',
-    region: '장시성 간저우',
-    coordinates: [114.9352, 25.8312],
-    status: 'pending',
-    risk: 'medium',
-    material: ['황산코발트'],
-    parentIds: [],
-    certifications: ['ISO 14001'],
-    lastVerified: '2026-04-28',
-    carbonIntensity: 28.5,
-    feocOwnership: 22.0,
-  },
 ];
 
-// === 공급망 엣지 (누가 누구에게 공급하는가) ===
+// === 공급망 엣지 (T5 → T4 → T3 → T2/T1 흐름) ===
 export const supplyEdges: SupplyEdge[] = [
-  // Tier 3 → Tier 2 (전구체로 흘러감)
+  // T5 광산 → T4 전구체/정제
   { from: 'S-MINE-001', to: 'S-PRE-001', material: '니켈 원광', volume: 320 },
+  { from: 'S-MINE-001', to: 'S-REF-002', material: '니켈 원광', volume: 95 },
   { from: 'S-MINE-002', to: 'S-PRE-001', material: '코발트 원광', volume: 85 },
   { from: 'S-MINE-002', to: 'S-REF-002', material: '코발트 원광', volume: 142 },
   { from: 'S-MINE-003', to: 'S-PRE-001', material: '망간/리튬', volume: 67 },
+
+  // T4 정제 → T4 전구체 (정제물이 전구체 원료가 됨)
   { from: 'S-REF-002', to: 'S-PRE-001', material: '황산코발트', volume: 210 },
+
+  // T4 정제 → T3 활물질 (수산화리튬은 활물질로 직접)
   { from: 'S-REF-001', to: 'S-CAM-001', material: '수산화리튬', volume: 480 },
   { from: 'S-REF-001', to: 'S-CAM-002', material: '수산화리튬', volume: 290 },
 
-  // Tier 3 → Tier 2 (제련소로 흘러감)
-  { from: 'S-MINE-001', to: 'S-REF-002', material: '니켈 원광', volume: 95 },
-
-  // Tier 2 → Tier 1 (셀 제조사로)
+  // T4 전구체 → T3 활물질
   { from: 'S-PRE-001', to: 'S-CAM-002', material: 'NCM 전구체', volume: 380 },
+
+  // T3 활물질 → T1 셀/모듈/팩 (Hanyang은 셀+모듈+팩 통합)
   { from: 'S-CAM-001', to: 'S-CELL-001', material: 'NCM811 양극재', volume: 520 },
   { from: 'S-CAM-002', to: 'S-CELL-001', material: 'NCA 양극재', volume: 310 },
   { from: 'S-ANO-001', to: 'S-CELL-001', material: '음극재', volume: 410 },
@@ -229,8 +275,8 @@ export const kpis = {
   violations: 3,
   approvedDPP: 36,
   avgProcessingMinutes: 4.2,
-  totalSuppliers: 187, // 실제 운영 시 전체 협력사 수
-  displayedSuppliers: 10, // 시연 화면에 표시되는 수
+  totalSuppliers: 187,
+  displayedSuppliers: 10,
   complianceRate: 92.3,
 };
 
@@ -254,15 +300,15 @@ export const dailyProcessing = [
 
 // === 규제별 위반 분포 ===
 export const violationsByRegulation = [
-  { regulation: 'UFLPA',     count: 12, percent: 38 },
-  { regulation: 'IRA/FEOC',  count: 8,  percent: 25 },
-  { regulation: 'EU Battery', count: 7, percent: 22 },
-  { regulation: 'CSDDD',     count: 5,  percent: 15 },
-  { regulation: 'EUDR', count: 4, percent: 12 },
+  { regulation: 'UFLPA',      count: 12, percent: 38 },
+  { regulation: 'IRA/FEOC',   count: 8,  percent: 25 },
+  { regulation: 'EU Battery', count: 7,  percent: 22 },
+  { regulation: 'CSDDD',      count: 5,  percent: 15 },
+  { regulation: 'EUDR',       count: 4,  percent: 12 },
 ];
 
 // === 현재 처리 중인 배치들 (LangGraph 진행 상황) ===
-export type AgentStage = 
+export type AgentStage =
   | 'queued'
   | 'supervisor'
   | 'extraction'
@@ -288,89 +334,14 @@ export interface BatchInProgress {
 }
 
 export const batchesInProgress: BatchInProgress[] = [
-  {
-    id: 'B-2026051401',
-    batchId: 'LOT-NCM-240514-A',
-    supplier: 'POS Cathode Materials',
-    receivedAt: '2026-05-14 09:12',
-    destination: 'EU',
-    currentStage: 'completed',
-    stageStartedAt: '2026-05-14 09:18',
-    agentModel: 'Opus',
-    confidence: 0.96,
-  },
-  {
-    id: 'B-2026051402',
-    batchId: 'LOT-NCA-240514-B',
-    supplier: 'Yantai Cathode Tech',
-    receivedAt: '2026-05-14 09:34',
-    destination: 'US',
-    currentStage: 'compliance',
-    stageStartedAt: '2026-05-14 09:41',
-    agentModel: 'Opus',
-    confidence: 0.87,
-  },
-  {
-    id: 'B-2026051403',
-    batchId: 'LOT-PRE-240514-C',
-    supplier: 'Quzhou Precursor Co.',
-    receivedAt: '2026-05-14 10:02',
-    destination: 'US',
-    currentStage: 'hitl-wait',
-    stageStartedAt: '2026-05-14 10:18',
-    agentModel: 'Opus',
-    confidence: 0.74,
-  },
-  {
-    id: 'B-2026051404',
-    batchId: 'LOT-MIN-240514-D',
-    supplier: 'Xinjiang Mineral Resources',
-    receivedAt: '2026-05-14 10:21',
-    destination: 'US',
-    currentStage: 'rejected',
-    stageStartedAt: '2026-05-14 10:29',
-    agentModel: 'Opus',
-    confidence: 0.99,
-  },
-  {
-    id: 'B-2026051405',
-    batchId: 'LOT-COB-240514-E',
-    supplier: 'Ganzhou Rare Metals',
-    receivedAt: '2026-05-14 10:45',
-    destination: 'EU',
-    currentStage: 'geo-analysis',
-    stageStartedAt: '2026-05-14 10:48',
-    agentModel: 'Sonnet',
-  },
-  {
-    id: 'B-2026051406',
-    batchId: 'LOT-LI-240514-F',
-    supplier: 'Pohang Refining Works',
-    receivedAt: '2026-05-14 11:03',
-    destination: 'US',
-    currentStage: 'verification',
-    stageStartedAt: '2026-05-14 11:05',
-  },
-  {
-    id: 'B-2026051407',
-    batchId: 'LOT-NCM-240514-G',
-    supplier: 'POS Cathode Materials',
-    receivedAt: '2026-05-14 11:18',
-    destination: 'EU',
-    currentStage: 'extraction',
-    stageStartedAt: '2026-05-14 11:20',
-    agentModel: 'Sonnet',
-  },
-  {
-    id: 'B-2026051408',
-    batchId: 'LOT-ANO-240514-H',
-    supplier: 'Mitsui Anode Industries',
-    receivedAt: '2026-05-14 11:32',
-    destination: 'EU',
-    currentStage: 'supervisor',
-    stageStartedAt: '2026-05-14 11:33',
-    agentModel: 'Haiku',
-  },
+  { id: 'B-2026051401', batchId: 'LOT-NCM-240514-A', supplier: 'POS Cathode Materials',   receivedAt: '2026-05-14 09:12', destination: 'EU', currentStage: 'completed',    stageStartedAt: '2026-05-14 09:18', agentModel: 'Opus',   confidence: 0.96 },
+  { id: 'B-2026051402', batchId: 'LOT-NCA-240514-B', supplier: 'Yantai Cathode Tech',     receivedAt: '2026-05-14 09:34', destination: 'US', currentStage: 'compliance',   stageStartedAt: '2026-05-14 09:41', agentModel: 'Opus',   confidence: 0.87 },
+  { id: 'B-2026051403', batchId: 'LOT-PRE-240514-C', supplier: 'Quzhou Precursor Co.',    receivedAt: '2026-05-14 10:02', destination: 'US', currentStage: 'hitl-wait',    stageStartedAt: '2026-05-14 10:18', agentModel: 'Opus',   confidence: 0.74 },
+  { id: 'B-2026051404', batchId: 'LOT-MIN-240514-D', supplier: 'Xinjiang Mineral Resources', receivedAt: '2026-05-14 10:21', destination: 'US', currentStage: 'rejected',     stageStartedAt: '2026-05-14 10:29', agentModel: 'Opus',   confidence: 0.99 },
+  { id: 'B-2026051405', batchId: 'LOT-COB-240514-E', supplier: 'Ganzhou Rare Metals',     receivedAt: '2026-05-14 10:45', destination: 'EU', currentStage: 'geo-analysis', stageStartedAt: '2026-05-14 10:48', agentModel: 'Sonnet' },
+  { id: 'B-2026051406', batchId: 'LOT-LI-240514-F',  supplier: 'Pohang Refining Works',   receivedAt: '2026-05-14 11:03', destination: 'US', currentStage: 'verification', stageStartedAt: '2026-05-14 11:05' },
+  { id: 'B-2026051407', batchId: 'LOT-NCM-240514-G', supplier: 'POS Cathode Materials',   receivedAt: '2026-05-14 11:18', destination: 'EU', currentStage: 'extraction',   stageStartedAt: '2026-05-14 11:20', agentModel: 'Sonnet' },
+  { id: 'B-2026051408', batchId: 'LOT-ANO-240514-H', supplier: 'Mitsui Anode Industries', receivedAt: '2026-05-14 11:32', destination: 'EU', currentStage: 'supervisor',   stageStartedAt: '2026-05-14 11:33', agentModel: 'Haiku' },
 ];
 
 // === DPP 발행 이력 ===
@@ -382,78 +353,18 @@ export interface DPP {
   issuedAt: string;
   destination: 'US' | 'EU' | 'KR';
   status: 'issued' | 'revoked' | 'pending';
-  carbonFootprint: number; // kgCO2eq
+  carbonFootprint: number;
   recycledContent: { Co: number; Ni: number; Li: number };
   capacity: string;
   approvedBy: string;
 }
 
 export const dppRecords: DPP[] = [
-  {
-    id: 'DPP-2026-04982',
-    productId: 'BAT-NCM811-100Ah',
-    modelName: 'Premium NCM811 100Ah',
-    manufacturer: 'Hanyang Cell Manufacturing',
-    issuedAt: '2026-05-14 09:47',
-    destination: 'EU',
-    status: 'issued',
-    carbonFootprint: 84.3,
-    recycledContent: { Co: 18, Ni: 8, Li: 7 },
-    capacity: '100Ah / 3.7V',
-    approvedBy: '김정민 ESG팀장',
-  },
-  {
-    id: 'DPP-2026-04981',
-    productId: 'BAT-NCA-80Ah',
-    modelName: 'Standard NCA 80Ah',
-    manufacturer: 'Hanyang Cell Manufacturing',
-    issuedAt: '2026-05-14 08:23',
-    destination: 'EU',
-    status: 'issued',
-    carbonFootprint: 91.7,
-    recycledContent: { Co: 16, Ni: 6, Li: 6 },
-    capacity: '80Ah / 3.7V',
-    approvedBy: '김정민 ESG팀장',
-  },
-  {
-    id: 'DPP-2026-04980',
-    productId: 'BAT-LFP-120Ah',
-    modelName: 'LFP Power 120Ah',
-    manufacturer: 'Hanyang Cell Manufacturing',
-    issuedAt: '2026-05-13 17:14',
-    destination: 'EU',
-    status: 'issued',
-    carbonFootprint: 67.2,
-    recycledContent: { Co: 0, Ni: 0, Li: 9 },
-    capacity: '120Ah / 3.2V',
-    approvedBy: '박서연 ESG팀장',
-  },
-  {
-    id: 'DPP-2026-04979',
-    productId: 'BAT-NCM622-90Ah',
-    modelName: 'NCM622 90Ah',
-    manufacturer: 'Hanyang Cell Manufacturing',
-    issuedAt: '2026-05-13 15:48',
-    destination: 'US',
-    status: 'issued',
-    carbonFootprint: 78.9,
-    recycledContent: { Co: 17, Ni: 7, Li: 6 },
-    capacity: '90Ah / 3.7V',
-    approvedBy: '박서연 ESG팀장',
-  },
-  {
-    id: 'DPP-2026-04978',
-    productId: 'BAT-NCM811-100Ah',
-    modelName: 'Premium NCM811 100Ah',
-    manufacturer: 'Hanyang Cell Manufacturing',
-    issuedAt: '2026-05-13 14:02',
-    destination: 'EU',
-    status: 'issued',
-    carbonFootprint: 85.1,
-    recycledContent: { Co: 19, Ni: 8, Li: 7 },
-    capacity: '100Ah / 3.7V',
-    approvedBy: '김정민 ESG팀장',
-  },
+  { id: 'DPP-2026-04982', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', manufacturer: 'Hanyang Cell Manufacturing', issuedAt: '2026-05-14 09:47', destination: 'EU', status: 'issued', carbonFootprint: 84.3, recycledContent: { Co: 18, Ni: 8, Li: 7 }, capacity: '100Ah / 3.7V', approvedBy: '김정민 ESG팀장' },
+  { id: 'DPP-2026-04981', productId: 'BAT-NCA-80Ah',    modelName: 'Standard NCA 80Ah',    manufacturer: 'Hanyang Cell Manufacturing', issuedAt: '2026-05-14 08:23', destination: 'EU', status: 'issued', carbonFootprint: 91.7, recycledContent: { Co: 16, Ni: 6, Li: 6 }, capacity: '80Ah / 3.7V',  approvedBy: '김정민 ESG팀장' },
+  { id: 'DPP-2026-04980', productId: 'BAT-LFP-120Ah',   modelName: 'LFP Power 120Ah',      manufacturer: 'Hanyang Cell Manufacturing', issuedAt: '2026-05-13 17:14', destination: 'EU', status: 'issued', carbonFootprint: 67.2, recycledContent: { Co: 0,  Ni: 0, Li: 9 }, capacity: '120Ah / 3.2V', approvedBy: '박서연 ESG팀장' },
+  { id: 'DPP-2026-04979', productId: 'BAT-NCM622-90Ah', modelName: 'NCM622 90Ah',          manufacturer: 'Hanyang Cell Manufacturing', issuedAt: '2026-05-13 15:48', destination: 'US', status: 'issued', carbonFootprint: 78.9, recycledContent: { Co: 17, Ni: 7, Li: 6 }, capacity: '90Ah / 3.7V',  approvedBy: '박서연 ESG팀장' },
+  { id: 'DPP-2026-04978', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', manufacturer: 'Hanyang Cell Manufacturing', issuedAt: '2026-05-13 14:02', destination: 'EU', status: 'issued', carbonFootprint: 85.1, recycledContent: { Co: 19, Ni: 8, Li: 7 }, capacity: '100Ah / 3.7V', approvedBy: '김정민 ESG팀장' },
 ];
 
 // === 감사 추적 로그 (Provenance) ===
@@ -472,106 +383,11 @@ export interface AuditEntry {
 }
 
 export const sampleAuditTrail: AuditEntry[] = [
-  {
-    step: 1,
-    timestamp: '2026-05-14 10:21:03',
-    nodeType: 'agent',
-    nodeName: '지혜 (Pipeline Coordinator)',
-    model: 'claude-haiku-4-5-20251001',
-    promptVersion: 'v2.3.1',
-    durationMs: 412,
-    inputHash: 'a3f8b2...c91d',
-    outputHash: '7e2c44...b8a1',
-    decision: 'destination=US → UFLPA 경로 라우팅',
-  },
-  {
-    step: 2,
-    timestamp: '2026-05-14 10:21:08',
-    nodeType: 'agent',
-    nodeName: '은진 (Data Gateway)',
-    model: 'claude-sonnet-4-6',
-    promptVersion: 'v3.1.0',
-    durationMs: 3284,
-    inputHash: '7e2c44...b8a1',
-    outputHash: '9f1a8e...d723',
-    decision: 'PDF 4페이지 구조화 완료, 망간 23% 추출',
-    citations: ['invoice_p2_line14', 'spec_p3_table2'],
-  },
-  {
-    step: 3,
-    timestamp: '2026-05-14 10:21:12',
-    nodeType: 'tool',
-    nodeName: 'verify_citation()',
-    durationMs: 87,
-    inputHash: '9f1a8e...d723',
-    outputHash: '9f1a8e...d723',
-    decision: 'citation 매칭 통과 (4/4)',
-  },
-  {
-    step: 4,
-    timestamp: '2026-05-14 10:21:13',
-    nodeType: 'tool',
-    nodeName: 'check_pdf_integrity()',
-    durationMs: 142,
-    inputHash: '9f1a8e...d723',
-    outputHash: '9f1a8e...d723',
-    decision: '메타데이터 정상, 수정 이력 없음',
-  },
-  {
-    step: 5,
-    timestamp: '2026-05-14 10:21:15',
-    nodeType: 'agent',
-    nodeName: '영수 (Geo Audit)',
-    model: 'claude-sonnet-4-6',
-    promptVersion: 'v2.8.4',
-    durationMs: 5621,
-    inputHash: '9f1a8e...d723',
-    outputHash: '4b7d92...e15c',
-    decision: '3차 광산 좌표 [87.6177, 43.7928] 신장 폴리곤 내부 확인',
-  },
-  {
-    step: 6,
-    timestamp: '2026-05-14 10:21:22',
-    nodeType: 'tool',
-    nodeName: 'verify_xinjiang_polygon()',
-    durationMs: 38,
-    inputHash: '4b7d92...e15c',
-    outputHash: '4b7d92...e15c',
-    decision: 'inside=true, distance_to_boundary=124km',
-  },
-  {
-    step: 7,
-    timestamp: '2026-05-14 10:21:25',
-    nodeType: 'agent',
-    nodeName: '은지 (Regulatory Analyst)',
-    model: 'claude-opus-4-7',
-    promptVersion: 'v4.0.2',
-    durationMs: 8104,
-    inputHash: '4b7d92...e15c',
-    outputHash: 'c8e3f1...a92b',
-    decision: 'VIOLATION · UFLPA §3(a)(1) 적용',
-    citations: ['uflpa_section_3a1', 'cbp_guidance_2024'],
-  },
-  {
-    step: 8,
-    timestamp: '2026-05-14 10:21:34',
-    nodeType: 'agent',
-    nodeName: 'Action',
-    model: '차윤 (Automation Controller)',
-    promptVersion: 'v1.9.0',
-    durationMs: 612,
-    inputHash: 'c8e3f1...a92b',
-    outputHash: 'f2a9b8...4e07',
-    decision: 'MES 출고 잠금 트리거, 협력사 통지 메일 초안 생성',
-  },
-  {
-    step: 9,
-    timestamp: '2026-05-14 10:21:35',
-    nodeType: 'human',
-    nodeName: 'HITL 검토',
-    durationMs: 0,
-    inputHash: 'f2a9b8...4e07',
-    outputHash: 'f2a9b8...4e07',
-    decision: '대기 중 (ESG팀장 승인 필요)',
-  },
+  { step: 1, timestamp: '2026-05-14 09:12:03.124', nodeType: 'agent', nodeName: 'Supervisor',  model: 'claude-opus-4-7',    promptVersion: 'v2.1.4', durationMs: 847,  inputHash: '0x7a3f...c812', outputHash: '0xa9e1...4f02', decision: 'route_to_extraction' },
+  { step: 2, timestamp: '2026-05-14 09:12:04.812', nodeType: 'tool',  nodeName: 'parse_pdf',                                                            durationMs: 1623, inputHash: '0xa9e1...4f02', outputHash: '0xb284...7d91' },
+  { step: 3, timestamp: '2026-05-14 09:12:06.451', nodeType: 'agent', nodeName: 'Extraction',  model: 'claude-sonnet-4-6',  promptVersion: 'v1.8.2', durationMs: 2104, inputHash: '0xb284...7d91', outputHash: '0xc739...8e42', decision: 'extracted_24_fields' },
+  { step: 4, timestamp: '2026-05-14 09:12:08.589', nodeType: 'tool',  nodeName: 'verify_citation',                                                       durationMs: 442,  inputHash: '0xc739...8e42', outputHash: '0xd182...9a17' },
+  { step: 5, timestamp: '2026-05-14 09:12:09.058', nodeType: 'agent', nodeName: 'Verification', model: 'claude-opus-4-7',   promptVersion: 'v3.0.1', durationMs: 1876, inputHash: '0xd182...9a17', outputHash: '0xe491...2c83', decision: 'confidence_0.96', citations: ['IRMA-75 cert #IRMA-2024-2201'] },
+  { step: 6, timestamp: '2026-05-14 09:12:10.967', nodeType: 'agent', nodeName: 'Compliance',   model: 'claude-opus-4-7',   promptVersion: 'v4.2.0', durationMs: 3201, inputHash: '0xe491...2c83', outputHash: '0xf623...5b41', decision: 'all_passed', citations: ['EU 2023/1542 Art.7', 'UFLPA Sec.3', 'IRA §30D'] },
+  { step: 7, timestamp: '2026-05-14 09:12:14.218', nodeType: 'agent', nodeName: 'Action',       model: 'claude-haiku-4-5',  promptVersion: 'v1.4.0', durationMs: 1012, inputHash: '0xf623...5b41', outputHash: '0x1a87...9f53', decision: 'issue_dpp' },
 ];

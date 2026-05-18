@@ -16,19 +16,21 @@ import {
 import Badge from './Badge';
 import clsx from 'clsx';
 
+// 탭 순서: 위험 우선 (데이터 완성도 → 공급 부품 → 인증 → 공장 → 관계 → 기업·담당자)
 type TabKey =
-  | 'company'      // 기업·담당자
+  | 'completeness' // 데이터 완성도·리마인드 (위험 신호)
+  | 'parts'        // 공급 부품·PO (실사 핵심)
+  | 'cert'         // 인증·증빙·공정
   | 'factory'      // 공장(사업장)
-  | 'parts'        // 공급 부품 (PO·HS·원산지·공정)
-  | 'cert'         // 인증·증빙
-  | 'completeness' // 데이터 완성도·리마인드
-  | 'relation';    // 상하위 협력사 (권한 시뮬)
+  | 'relation'     // 상하위 협력사
+  | 'company';     // 기업·담당자 (메타정보)
 
 interface ModalProps {
   supplier: Supplier | null;
   onClose: () => void;
   viewerRole: ViewerRole;
   onSelectSupplier: (s: Supplier) => void;
+  initialTab?: TabKey;            // 외부에서 특정 탭으로 점프 (검색 결과 → PO 탭 등)
 }
 
 const providerTypeLabel: Record<string, string> = {
@@ -43,8 +45,13 @@ const countryNames: Record<string, string> = {
   ZA: '남아공', DE: '독일', US: '미국', PH: '필리핀', CD: '콩고민주공화국',
 };
 
-export default function SupplierDetailModal({ supplier, onClose, viewerRole, onSelectSupplier }: ModalProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>('company');
+export default function SupplierDetailModal({ supplier, onClose, viewerRole, onSelectSupplier, initialTab }: ModalProps) {
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab ?? 'completeness');
+
+  // 외부에서 initialTab 변경 시 (검색 결과 클릭) 활성 탭 동기화
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab, supplier?.id]);
 
   // ESC 키로 닫기
   useEffect(() => {
@@ -96,12 +103,17 @@ export default function SupplierDetailModal({ supplier, onClose, viewerRole, onS
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <StatusBadge status={supplier.status} />
-              <Badge tone="neutral">{`Tier ${supplier.tier}`}</Badge>
+              {/* Tier 배지: 여러 Tier를 다루면 모두 표시 */}
+              <div className="flex items-center gap-0.5">
+                {supplier.tiers.map(t => (
+                  <Badge key={t} tone="neutral">{`T${t}`}</Badge>
+                ))}
+              </div>
               {ext && <Badge tone="info">{providerTypeLabel[ext.providerType]}</Badge>}
               <span className="text-[10px] text-ink-400 num-mono">{supplier.id}</span>
             </div>
             <h2 className="text-xl font-semibold text-ink-50 tracking-tight">{supplier.name}</h2>
-            <div className="text-xs text-ink-400 mt-0.5 flex items-center gap-3">
+            <div className="text-xs text-ink-400 mt-0.5 flex items-center gap-3 flex-wrap">
               <span>{supplier.role}</span>
               <span>·</span>
               <span>{countryNames[supplier.country] || supplier.country} · {supplier.region}</span>
@@ -129,14 +141,14 @@ export default function SupplierDetailModal({ supplier, onClose, viewerRole, onS
           <MaskedView onClose={onClose} />
         ) : (
           <>
-            {/* ===== 탭 ===== */}
+            {/* ===== 탭 (위험 우선 순서) ===== */}
             <div className="border-b border-ink-700 px-6 flex items-center gap-1 overflow-x-auto shrink-0">
-              <TabButton active={activeTab === 'company'}      onClick={() => setActiveTab('company')}      icon={Building2}  label="기업·담당자" />
-              <TabButton active={activeTab === 'factory'}      onClick={() => setActiveTab('factory')}      icon={Factory}    label="공장" badge={factoryList.length} />
+              <TabButton active={activeTab === 'completeness'} onClick={() => setActiveTab('completeness')} icon={Database}   label="데이터·리마인드" alert={completeness && completeness.completionRate < 80} />
               <TabButton active={activeTab === 'parts'}        onClick={() => setActiveTab('parts')}        icon={Truck}      label="공급 부품·PO" badge={incomingPOs.length + outgoingPOs.length} />
               <TabButton active={activeTab === 'cert'}         onClick={() => setActiveTab('cert')}         icon={Award}      label="인증·공정" badge={certs.length} />
-              <TabButton active={activeTab === 'completeness'} onClick={() => setActiveTab('completeness')} icon={Database}   label="데이터·리마인드" alert={completeness && completeness.completionRate < 80} />
+              <TabButton active={activeTab === 'factory'}      onClick={() => setActiveTab('factory')}      icon={Factory}    label="공장" badge={factoryList.length} />
               <TabButton active={activeTab === 'relation'}     onClick={() => setActiveTab('relation')}     icon={GitFork}    label="상하위 관계" />
+              <TabButton active={activeTab === 'company'}      onClick={() => setActiveTab('company')}      icon={Building2}  label="기업·담당자" />
             </div>
 
             {/* ===== 본문 ===== */}

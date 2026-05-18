@@ -184,6 +184,12 @@ export const certifications: Certification[] = [
 
 // ============================================================
 // 5. 부품 (5계층 트리) — 협력사 상세에서 활용
+// Tier 정의 (data.ts와 일치):
+//   T1 = Pack/Module
+//   T2 = Cell
+//   T3 = 활물질 (양극재/음극재)
+//   T4 = 전구체·정제
+//   T5 = 원광
 // ============================================================
 export type TierLevel = 1 | 2 | 3 | 4 | 5;
 
@@ -191,7 +197,7 @@ export interface Part {
   id: string;
   partCode: string;
   partName: string;
-  tierLevel: TierLevel;     // 1=Pack 2=Module 3=Cell 4=전구체 5=광물
+  tierLevel: TierLevel;
   parentPartId: string | null;
   hsCode: string;
   materialType: string;
@@ -202,15 +208,15 @@ export interface Part {
 
 export const parts: Part[] = [
   { id: 'PRT-001', partCode: 'PACK-NCM811-100Ah',  partName: 'NCM811 배터리 팩',    tierLevel: 1, parentPartId: null,      hsCode: '850760', materialType: 'Pack Assembly',           functionPurpose: 'EV 구동용 통합 배터리 팩 (BMS/냉각/케이싱 포함)', unitPrice: 8420.00, purchaseUnit: 'EA' },
-  { id: 'PRT-002', partCode: 'MOD-NCM811-12S',     partName: 'NCM811 모듈 (12셀)',  tierLevel: 2, parentPartId: 'PRT-001', hsCode: '850760', materialType: 'Module Assembly',         functionPurpose: '12개 셀의 직렬 조립체',                            unitPrice: 612.50,  purchaseUnit: 'EA' },
-  { id: 'PRT-003', partCode: 'BMS-V3-100Ah',       partName: 'BMS 컨트롤러',         tierLevel: 2, parentPartId: 'PRT-001', hsCode: '853710', materialType: 'Electronic Module',       functionPurpose: '셀 전압/온도 모니터링',                            unitPrice: 142.00,  purchaseUnit: 'EA' },
-  { id: 'PRT-004', partCode: 'CELL-NCM811-100Ah',  partName: 'NCM811 셀',           tierLevel: 3, parentPartId: 'PRT-002', hsCode: '850760', materialType: 'Li-ion Cell',             functionPurpose: '리튬이온 단위 셀 (100Ah, 3.7V)',                   unitPrice: 48.75,   purchaseUnit: 'EA' },
-  { id: 'PRT-005', partCode: 'CAM-NCM811',         partName: 'NCM811 양극재',        tierLevel: 4, parentPartId: 'PRT-004', hsCode: '282200', materialType: 'Cathode Active Material', functionPurpose: 'Ni 80%·Co 10%·Mn 10% 층상구조',                  unitPrice: 28.40,   purchaseUnit: 'kg' },
-  { id: 'PRT-006', partCode: 'ANO-GRAPHITE',       partName: '천연흑연 음극재',       tierLevel: 4, parentPartId: 'PRT-004', hsCode: '380110', materialType: 'Anode Active Material',   functionPurpose: 'Li 이온 삽입/탈리용 흑연 음극',                     unitPrice: 8.20,    purchaseUnit: 'kg' },
+  { id: 'PRT-002', partCode: 'MOD-NCM811-12S',     partName: 'NCM811 모듈 (12셀)',  tierLevel: 1, parentPartId: 'PRT-001', hsCode: '850760', materialType: 'Module Assembly',         functionPurpose: '12개 셀의 직렬 조립체',                            unitPrice: 612.50,  purchaseUnit: 'EA' },
+  { id: 'PRT-003', partCode: 'BMS-V3-100Ah',       partName: 'BMS 컨트롤러',         tierLevel: 1, parentPartId: 'PRT-001', hsCode: '853710', materialType: 'Electronic Module',       functionPurpose: '셀 전압/온도 모니터링',                            unitPrice: 142.00,  purchaseUnit: 'EA' },
+  { id: 'PRT-004', partCode: 'CELL-NCM811-100Ah',  partName: 'NCM811 셀',           tierLevel: 2, parentPartId: 'PRT-002', hsCode: '850760', materialType: 'Li-ion Cell',             functionPurpose: '리튬이온 단위 셀 (100Ah, 3.7V)',                   unitPrice: 48.75,   purchaseUnit: 'EA' },
+  { id: 'PRT-005', partCode: 'CAM-NCM811',         partName: 'NCM811 양극재',        tierLevel: 3, parentPartId: 'PRT-004', hsCode: '282200', materialType: 'Cathode Active Material', functionPurpose: 'Ni 80%·Co 10%·Mn 10% 층상구조',                  unitPrice: 28.40,   purchaseUnit: 'kg' },
+  { id: 'PRT-006', partCode: 'ANO-GRAPHITE',       partName: '천연흑연 음극재',       tierLevel: 3, parentPartId: 'PRT-004', hsCode: '380110', materialType: 'Anode Active Material',   functionPurpose: 'Li 이온 삽입/탈리용 흑연 음극',                     unitPrice: 8.20,    purchaseUnit: 'kg' },
   { id: 'PRT-007', partCode: 'PRE-NCM',            partName: 'NCM 전구체',           tierLevel: 4, parentPartId: 'PRT-005', hsCode: '282200', materialType: 'Precursor',               functionPurpose: 'Ni-Co-Mn 수산화물',                                 unitPrice: 14.80,   purchaseUnit: 'kg' },
   { id: 'PRT-008', partCode: 'MIN-NI',             partName: '니켈 원광',            tierLevel: 5, parentPartId: 'PRT-007', hsCode: '260400', materialType: 'Raw Mineral',             functionPurpose: '양극재 주요 구성 원소',                              unitPrice: 18.50,   purchaseUnit: 'kg' },
-  { id: 'PRT-009', partCode: 'MIN-CO',             partName: '황산코발트',           tierLevel: 5, parentPartId: 'PRT-007', hsCode: '283322', materialType: 'Refined Mineral',         functionPurpose: '양극재 안정성 확보',                                 unitPrice: 32.80,   purchaseUnit: 'kg' },
-  { id: 'PRT-010', partCode: 'MIN-LI',             partName: '수산화리튬',           tierLevel: 5, parentPartId: 'PRT-005', hsCode: '282520', materialType: 'Refined Mineral',         functionPurpose: '리튬이온 셀 전하 운반',                              unitPrice: 84.50,   purchaseUnit: 'kg' },
+  { id: 'PRT-009', partCode: 'MIN-CO',             partName: '황산코발트',           tierLevel: 4, parentPartId: 'PRT-007', hsCode: '283322', materialType: 'Refined Mineral',         functionPurpose: '양극재 안정성 확보 (정제물)',                        unitPrice: 32.80,   purchaseUnit: 'kg' },
+  { id: 'PRT-010', partCode: 'MIN-LI',             partName: '수산화리튬',           tierLevel: 4, parentPartId: 'PRT-005', hsCode: '282520', materialType: 'Refined Mineral',         functionPurpose: '리튬이온 셀 전하 운반 (정제물)',                      unitPrice: 84.50,   purchaseUnit: 'kg' },
   { id: 'PRT-011', partCode: 'MIN-MN',             partName: '망간 원광',            tierLevel: 5, parentPartId: 'PRT-007', hsCode: '260200', materialType: 'Raw Mineral',             functionPurpose: '양극재 구조 안정화',                                 unitPrice: 4.20,    purchaseUnit: 'kg' },
 ];
 

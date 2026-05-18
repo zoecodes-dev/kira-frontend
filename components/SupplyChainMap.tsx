@@ -1,244 +1,233 @@
 'use client';
 
 import { useState } from 'react';
-import { suppliers, supplyEdges, Supplier, SupplierStatus, RiskLevel } from '@/lib/data';
-import Badge from './Badge';
+import { suppliers, supplyEdges, Supplier, SupplierStatus, Tier, tierShortLabels } from '@/lib/data';
 import clsx from 'clsx';
 
 // === 노드 좌표 (수동 레이아웃) ===
-// 좌→우: Tier 3 (광산/제련) → Tier 2 (소재) → Tier 1 (셀)
+// 좌→우: T5 광산 → T4 전구체·정제 → T3 활물질 → T2 셀 → T1 Pack/Module
+// (T1·T2가 Hanyang 한 곳에 통합되어 있어서 가장 오른쪽 컬럼에 배치)
 const layout: Record<string, { x: number; y: number }> = {
-  // Tier 3 (왼쪽)
-  'S-MINE-001': { x: 100, y: 100 },  // 인니 니켈
-  'S-MINE-002': { x: 100, y: 200 },  // DRC 코발트
-  'S-MINE-003': { x: 100, y: 300 },  // 신장 (위반)
-  'S-REF-001':  { x: 100, y: 400 },  // 포항 리튬
-  'S-REF-002':  { x: 100, y: 500 },  // 간저우 코발트
-  'S-PRE-001':  { x: 400, y: 200 },  // 취저우 전구체 (중간)
-  
-  // Tier 2 (가운데-오른쪽)
-  'S-CAM-001':  { x: 700, y: 250 },  // POS 양극재
-  'S-CAM-002':  { x: 700, y: 350 },  // 옌타이 양극재
-  'S-ANO-001':  { x: 700, y: 450 },  // Mitsui 음극재
-  
-  // Tier 1 (오른쪽 끝)
-  'S-CELL-001': { x: 1050, y: 350 }, // Hanyang 셀
+  // T5 광산 (왼쪽 끝)
+  'S-MINE-001': { x: 80,  y: 110 }, // 인니 니켈
+  'S-MINE-002': { x: 80,  y: 280 }, // DRC 코발트
+  'S-MINE-003': { x: 80,  y: 450 }, // 신장 (위반)
+
+  // T4 전구체/정제 (정제는 위, 전구체는 가운데 살짝 오른쪽)
+  'S-REF-001':  { x: 320, y: 110 }, // 포항 리튬 정제
+  'S-REF-002':  { x: 320, y: 280 }, // 간저우 코발트 정제
+  'S-PRE-001':  { x: 320, y: 450 }, // 취저우 전구체
+
+  // T3 활물질
+  'S-CAM-001':  { x: 580, y: 130 }, // POS 양극재
+  'S-CAM-002':  { x: 580, y: 290 }, // 옌타이 양극재
+  'S-ANO-001':  { x: 580, y: 450 }, // Mitsui 음극재
+
+  // T1+T2 셀·모듈·팩 통합 (오른쪽 끝)
+  'S-CELL-001': { x: 980, y: 290 }, // Hanyang
 };
+
+// 컬럼 헤더 위치 (퍼센트)
+const columnHeaders = [
+  { left: '4%',   tier: 5, label: '원광' },
+  { left: '24%',  tier: 4, label: '전구체·정제' },
+  { left: '46%',  tier: 3, label: '활물질' },
+  { left: '78%',  tier: 1, label: 'Cell · Module · Pack' },
+];
 
 const statusColors: Record<SupplierStatus, { stroke: string; fill: string; text: string }> = {
-  verified:  { stroke: '#10B981', fill: '#10B98110', text: '#34D399' },
-  pending:   { stroke: '#3B82F6', fill: '#3B82F610', text: '#60A5FA' },
-  review:    { stroke: '#F59E0B', fill: '#F59E0B10', text: '#FBBF24' },
-  violation: { stroke: '#EF4444', fill: '#EF444415', text: '#F87171' },
-};
-
-const tierLabels: Record<number, string> = {
-  1: 'Tier 1',
-  2: 'Tier 2',
-  3: 'Tier 3',
+  verified:  { stroke: '#10B981', fill: '#10B98115', text: '#34D399' },
+  pending:   { stroke: '#3B82F6', fill: '#3B82F615', text: '#60A5FA' },
+  review:    { stroke: '#F59E0B', fill: '#F59E0B15', text: '#FBBF24' },
+  violation: { stroke: '#EF4444', fill: '#EF444420', text: '#F87171' },
 };
 
 interface Props {
   onSelectNode?: (supplier: Supplier | null) => void;
   selectedId?: string | null;
+  highlightIds?: Set<string>;  // 검색 결과 하이라이트
+  maskedIds?: Set<string>;     // 권한 시뮬 마스킹 (보이지만 흐리게)
 }
 
-export default function SupplyChainMap({ onSelectNode, selectedId }: Props) {
+export default function SupplyChainMap({ onSelectNode, selectedId, highlightIds, maskedIds }: Props) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // 선택된 노드와 연결된 엣지 강조
   const isEdgeHighlighted = (from: string, to: string) => {
     if (!selectedId && !hoveredId) return false;
     const active = selectedId || hoveredId;
     return from === active || to === active;
   };
 
+  // 마스킹 여부
+  const isMasked = (id: string) => maskedIds?.has(id) ?? false;
+  // 검색 매치 여부 (highlightIds가 있으면 그것만 강조, 없으면 모두 normal)
+  const isHighlighted = (id: string) => highlightIds ? highlightIds.has(id) : true;
+
   return (
     <div className="relative w-full">
-      {/* Tier 라벨 */}
+      {/* 컬럼 헤더 */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-2 left-[8.5%] text-[10px] uppercase tracking-wider text-ink-400 font-medium">
-          Tier 3 · 광산 / 제련
-        </div>
-        <div className="absolute top-2 left-[35%] text-[10px] uppercase tracking-wider text-ink-400 font-medium">
-          전구체
-        </div>
-        <div className="absolute top-2 left-[60%] text-[10px] uppercase tracking-wider text-ink-400 font-medium">
-          Tier 2 · 소재
-        </div>
-        <div className="absolute top-2 right-[5%] text-[10px] uppercase tracking-wider text-ink-400 font-medium">
-          Tier 1 · 셀 제조
-        </div>
+        {columnHeaders.map(col => (
+          <div key={col.tier}
+            className="absolute top-2 text-[10px] uppercase tracking-wider text-ink-400 font-medium"
+            style={{ left: col.left }}
+          >
+            <span className="num-mono text-accent-500 mr-1">T{col.tier}</span>
+            · {col.label}
+          </div>
+        ))}
       </div>
 
-      <svg viewBox="0 0 1200 620" className="w-full h-auto" style={{ minHeight: '600px' }}>
-        <defs>
-          {/* 화살표 마커 */}
-          <marker id="arrowMap" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" strokeWidth="1.5" strokeLinecap="round"/>
-          </marker>
-          <marker id="arrowMapAlert" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M2 1L8 5L2 9" fill="none" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round"/>
-          </marker>
+      <svg viewBox="0 0 1100 560" className="w-full">
+        {/* 엣지 */}
+        <g>
+          {supplyEdges.map((edge, i) => {
+            const from = layout[edge.from];
+            const to = layout[edge.to];
+            if (!from || !to) return null;
 
-          {/* Tier 구분 배경 */}
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#E5E8EC" strokeWidth="0.5"/>          </pattern>
-        </defs>
+            const highlighted = isEdgeHighlighted(edge.from, edge.to);
+            const dimmed = isMasked(edge.from) || isMasked(edge.to);
 
-        <rect width="1200" height="620" fill="url(#grid)" opacity="0.4"/>
+            // 베지에 곡선
+            const midX = (from.x + to.x) / 2;
+            const path = `M ${from.x + 70} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x - 70} ${to.y}`;
 
-        {/* Tier 영역 (희미한 가이드) */}
-        <rect x="40" y="40" width="180" height="540" fill="#EF444408" stroke="#EF444420" strokeWidth="0.5" strokeDasharray="4 3" rx="4"/>
-        <rect x="320" y="40" width="180" height="540" fill="#F59E0B08" stroke="#F59E0B20" strokeWidth="0.5" strokeDasharray="4 3" rx="4"/>
-        <rect x="620" y="40" width="180" height="540" fill="#3B82F608" stroke="#3B82F620" strokeWidth="0.5" strokeDasharray="4 3" rx="4"/>
-        <rect x="970" y="40" width="180" height="540" fill="#10B98108" stroke="#10B98120" strokeWidth="0.5" strokeDasharray="4 3" rx="4"/>
-
-        {/* 엣지 (공급 관계) */}
-        {supplyEdges.map((edge, i) => {
-          const from = layout[edge.from];
-          const to = layout[edge.to];
-          if (!from || !to) return null;
-
-          const fromSupplier = suppliers.find(s => s.id === edge.from);
-          const isAlert = fromSupplier?.status === 'violation';
-          const highlighted = isEdgeHighlighted(edge.from, edge.to);
-          
-          const startX = from.x + 80;
-          const startY = from.y + 30;
-          const endX = to.x - 5;
-          const endY = to.y + 30;
-          
-          // 베지어 곡선
-          const midX = (startX + endX) / 2;
-          const path = `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`;
-
-          return (
-            <g key={i}>
-              <path
-                d={path}
-                fill="none"
-                stroke={isAlert ? '#EF4444' : '#3A4250'}
-                strokeWidth={highlighted ? 2 : isAlert ? 1.2 : 0.8}
-                strokeDasharray={isAlert ? '4 3' : 'none'}
-                opacity={highlighted ? 1 : (selectedId || hoveredId) ? 0.15 : isAlert ? 0.7 : 0.5}
-                markerEnd={isAlert ? 'url(#arrowMapAlert)' : 'url(#arrowMap)'}
-                style={{ transition: 'all 0.2s' }}
-              />
-              {/* 엣지 라벨 (호버 시) */}
-              {highlighted && (
-                <text 
-                  x={midX} 
-                  y={(startY + endY) / 2 - 4} 
-                  fill="#B8BEC4" 
-                  fontSize="9" 
-                  fontFamily="JetBrains Mono"
-                  textAnchor="middle"
-                >
-                  {edge.material} · {edge.volume}t/월
-                </text>
-              )}
-            </g>
-          );
-        })}
-
-        {/* 노드 (협력사) */}
-        {suppliers.map(supplier => {
-          const pos = layout[supplier.id];
-          if (!pos) return null;
-          const colors = statusColors[supplier.status];
-          const isSelected = selectedId === supplier.id;
-          const isHovered = hoveredId === supplier.id;
-          const isDimmed = (selectedId || hoveredId) && !isSelected && !isHovered &&
-            !supplyEdges.some(e => 
-              (e.from === supplier.id && (e.to === selectedId || e.to === hoveredId)) ||
-              (e.to === supplier.id && (e.from === selectedId || e.from === hoveredId))
+            return (
+              <g key={i}>
+                <path
+                  d={path}
+                  fill="none"
+                  stroke={highlighted ? '#14B8A6' : '#3F4957'}
+                  strokeWidth={highlighted ? 1.8 : 1}
+                  strokeDasharray={dimmed ? '4 4' : 'none'}
+                  opacity={dimmed ? 0.25 : (highlighted ? 1 : 0.45)}
+                />
+                {highlighted && (
+                  <text
+                    x={midX}
+                    y={(from.y + to.y) / 2 - 6}
+                    fill="#5EEAD4"
+                    fontSize="9"
+                    textAnchor="middle"
+                    className="num-mono"
+                  >
+                    {edge.material} · {edge.volume}t
+                  </text>
+                )}
+              </g>
             );
+          })}
+        </g>
 
-          return (
-            <g 
-              key={supplier.id}
-              transform={`translate(${pos.x}, ${pos.y})`}
-              style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
-              opacity={isDimmed ? 0.3 : 1}
-              onMouseEnter={() => setHoveredId(supplier.id)}
-              onMouseLeave={() => setHoveredId(null)}
-              onClick={() => onSelectNode?.(isSelected ? null : supplier)}
-            >
-              {/* 위험 노드 펄스 */}
-              {supplier.status === 'violation' && (
-                <circle cx="40" cy="30" r="50" fill="#EF4444" opacity="0.15">
-                  <animate attributeName="r" values="40;55;40" dur="2s" repeatCount="indefinite"/>
-                  <animate attributeName="opacity" values="0.2;0;0.2" dur="2s" repeatCount="indefinite"/>
-                </circle>
-              )}
+        {/* 노드 */}
+        <g>
+          {suppliers.map(s => {
+            const pos = layout[s.id];
+            if (!pos) return null;
 
-              {/* 노드 박스 */}
-              <rect
-                x="0"
-                y="0"
-                width="80"
-                height="60"
-                rx="3"
-                fill={isSelected ? colors.fill : '#FFFFFF'}
-                stroke={colors.stroke}
-                strokeWidth={isSelected || isHovered ? 2 : 1}
-              />
+            const colors = statusColors[s.status];
+            const isSelected = s.id === selectedId;
+            const isHovered = s.id === hoveredId;
+            const masked = isMasked(s.id);
+            const highlighted = isHighlighted(s.id);
 
-              {/* 좌측 컬러 바 */}
-              <rect x="0" y="0" width="3" height="60" fill={colors.stroke} rx="1"/>
+            // 마스킹된 노드는 흐리게, 검색에서 빠진 노드도 흐리게
+            const opacity = masked ? 0.35 : (highlighted ? 1 : 0.4);
 
-              {/* Tier 라벨 */}
-              <text x="74" y="11" fill={colors.text} fontSize="8" textAnchor="end" fontWeight="600">
-                T{supplier.tier}
-              </text>
+            return (
+              <g
+                key={s.id}
+                transform={`translate(${pos.x - 70}, ${pos.y - 32})`}
+                className="cursor-pointer transition-opacity"
+                style={{ opacity }}
+                onMouseEnter={() => setHoveredId(s.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                onClick={() => onSelectNode?.(s)}
+              >
+                {/* 외곽 강조 (선택/호버/검색 매치) */}
+                {(isSelected || isHovered || (highlightIds?.has(s.id))) && !masked && (
+                  <rect
+                    x={-4} y={-4}
+                    width={148} height={72}
+                    rx={2}
+                    fill="none"
+                    stroke={highlightIds?.has(s.id) ? '#14B8A6' : colors.stroke}
+                    strokeWidth={2}
+                    opacity={0.6}
+                  />
+                )}
 
-              {/* 회사명 (한 줄 또는 두 줄) */}
-              <text x="8" y="22" fill="#EEF1F4" fontSize="9" fontWeight="600">
-                {truncate(supplier.name, 14)}
-              </text>
-              <text x="8" y="34" fill="#8A9199" fontSize="8">
-                {supplier.role}
-              </text>
-              <text x="8" y="48" fill="#5A6470" fontSize="7" fontFamily="JetBrains Mono">
-                {supplier.country} · {truncate(supplier.region, 12)}
-              </text>
+                {/* 카드 */}
+                <rect
+                  width={140} height={64}
+                  rx={2}
+                  fill={colors.fill}
+                  stroke={colors.stroke}
+                  strokeWidth={isSelected ? 1.8 : 1}
+                />
 
-              {/* 상태 점 */}
-              <circle cx="74" cy="52" r="2.5" fill={colors.stroke}/>
-            </g>
-          );
-        })}
+                {/* Tier 배지 */}
+                <g transform="translate(8, 8)">
+                  <rect width={30} height={14} rx={2} fill="#1F2937" />
+                  <text x={15} y={10} fill="#E5E7EB" fontSize="8" textAnchor="middle" className="num-mono" fontWeight="600">
+                    T{s.tier}{s.tiers.length > 1 ? `+${s.tiers.length - 1}` : ''}
+                  </text>
+                </g>
 
-        {/* 범례 */}
-        <g transform="translate(40, 590)">
-          <rect width="1120" height="20" fill="#0F1419" stroke="#252B33" rx="2"/>
-          <g transform="translate(12, 13)" fontSize="9" fontFamily="Pretendard">
-            <circle cx="0" cy="-1" r="3" fill="#10B981"/>
-            <text x="8" y="2" fill="#B8BEC4">검증 완료</text>
-            
-            <circle cx="80" cy="-1" r="3" fill="#3B82F6"/>
-            <text x="88" y="2" fill="#B8BEC4">검토 대기</text>
-            
-            <circle cx="170" cy="-1" r="3" fill="#F59E0B"/>
-            <text x="178" y="2" fill="#B8BEC4">추가 확인</text>
-            
-            <circle cx="260" cy="-1" r="3" fill="#EF4444"/>
-            <text x="268" y="2" fill="#B8BEC4">규제 위반</text>
-            
-            <line x1="360" y1="-1" x2="380" y2="-1" stroke="#EF4444" strokeWidth="1.2" strokeDasharray="3 2"/>
-            <text x="388" y="2" fill="#B8BEC4">위반 광물 흐름</text>
-            
-            <text x="900" y="2" fill="#5A6470" fontFamily="JetBrains Mono">
-              노드를 클릭하면 상세 정보가 표시됩니다
-            </text>
-          </g>
+                {/* 상태 도트 */}
+                <circle cx={130} cy={15} r={3.5} fill={colors.stroke} />
+
+                {/* 협력사 이름 */}
+                <text x={8} y={36} fill="#F3F4F6" fontSize="10" fontWeight="600">
+                  {truncate(s.name, 18)}
+                </text>
+
+                {/* 역할 */}
+                <text x={8} y={48} fill={colors.text} fontSize="9">
+                  {truncate(s.role, 22)}
+                </text>
+
+                {/* 국가 */}
+                <text x={8} y={58} fill="#9CA3AF" fontSize="8" className="num-mono">
+                  {s.country} · {truncate(s.region, 14)}
+                </text>
+
+                {/* 마스킹 오버레이 */}
+                {masked && (
+                  <g>
+                    <rect width={140} height={64} rx={2} fill="#0F1419" opacity={0.65} />
+                    <text x={70} y={36} fill="#9CA3AF" fontSize="9" textAnchor="middle" className="num-mono">
+                      접근 권한 없음
+                    </text>
+                  </g>
+                )}
+              </g>
+            );
+          })}
         </g>
       </svg>
+
+      {/* 범례 */}
+      <div className="absolute bottom-2 right-2 flex items-center gap-3 text-[10px] text-ink-400 bg-ink-900/70 backdrop-blur px-2.5 py-1.5 rounded-xs border border-ink-700">
+        <LegendDot color="#10B981" label="검증" />
+        <LegendDot color="#3B82F6" label="대기" />
+        <LegendDot color="#F59E0B" label="확인" />
+        <LegendDot color="#EF4444" label="위반" />
+      </div>
     </div>
   );
 }
 
-function truncate(text: string, max: number) {
-  return text.length > max ? text.slice(0, max - 1) + '…' : text;
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
