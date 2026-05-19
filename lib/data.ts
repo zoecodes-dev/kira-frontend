@@ -14,7 +14,7 @@ export interface Supplier {
   country: string;
   region: string;
   coordinates: [number, number];
-  status: 'verified' | 'pending' | 'review' | 'violation';
+  status: SupplierStatus;
   risk: 'low' | 'medium' | 'high' | 'critical';
   material: string[];
   parentIds: string[];
