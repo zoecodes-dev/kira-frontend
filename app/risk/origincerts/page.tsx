@@ -112,8 +112,8 @@ function CertCard({ cert }: { cert: OriginCertificate }) {
             {/* 협력사 */}
             <div className="flex items-center gap-1.5 mb-0.5">
               <span className="text-sm">{countryFlag[cert.originCountry] || '🌐'}</span>
-              <span className="text-xs font-semibold text-ink-100 truncate">{name.en}</span>
-              {name.ko && <span className="text-[10px] text-ink-500">{name.ko}</span>}
+              <span className="text-xs font-semibold text-ink-100 truncate">{name?.nameEn ?? ''}</span>
+              {name?.nameKo && <span className="text-[10px] text-ink-500">{name.nameKo}</span>}
             </div>
             {/* 증명서 번호 */}
             <div className="text-[10px] text-ink-500 num-mono">{cert.certNumber}</div>
@@ -175,8 +175,8 @@ export default function OriginCertsPage() {
       list = list.filter(c => {
         const name = getSupplierName(c.supplierId);
         return (
-          name.en.toLowerCase().includes(q) ||
-          (name.ko || '').includes(q) ||
+          (name?.nameEn ?? '').toLowerCase().includes(q) ||
+          (name?.nameKo || '').includes(q) ||
           c.certNumber.toLowerCase().includes(q) ||
           c.issuingAuthority.toLowerCase().includes(q)
         );
