@@ -981,6 +981,8 @@ export function getRemindLogs(supplierId: string): RemindLog[] {
 // ============================================================
 // 10. 부품 (5계층 트리) — 기존 유지
 // ============================================================
+export type TierLevel = 1 | 2 | 3 | 4 | 5;
+
 export interface Part {
   id: string;
   partCode: string;
