@@ -4,7 +4,7 @@ import { useState } from 'react';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
-import { sampleAuditTrail, AuditEntry } from '@/lib/data';
+import { auditTrail as sampleAuditTrail, AuditEntry } from '@/lib/data';
 import { Search, Bot, Wrench, User, ChevronDown, ChevronRight, Hash, Clock } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -100,16 +100,16 @@ function SummaryStat({ label, value, unit }: any) {
 
 function AuditEntryRow({ entry, expanded, onToggle }: { entry: AuditEntry; expanded: boolean; onToggle: () => void }) {
   const typeStyles = {
-    agent: { icon: Bot, bg: 'bg-accent-700/20', text: 'text-accent-300', border: 'border-accent-700/40' },
-    tool:  { icon: Wrench, bg: 'bg-blue-700/20', text: 'text-blue-300', border: 'border-blue-700/40' },
-    human: { icon: User, bg: 'bg-amber-700/20', text: 'text-amber-300', border: 'border-amber-700/40' },
+    agent: { icon: Bot,    bg: 'bg-accent-700/20', text: 'text-accent-300', border: 'border-accent-700/40' },
+    tool:  { icon: Wrench, bg: 'bg-blue-700/20',   text: 'text-blue-300',   border: 'border-blue-700/40' },
+    human: { icon: User,   bg: 'bg-amber-700/20',  text: 'text-amber-300',  border: 'border-amber-700/40' },
   };
   const style = typeStyles[entry.nodeType];
   const Icon = style.icon;
 
   return (
     <div className={clsx('rounded-xs border transition-colors', 
-      expanded ? `${style.border}` : 'border-ink-700/60'
+      expanded ? `${style.border} bg-ink-800/40` : 'border-ink-700/60'
     )}>
       <button
         onClick={onToggle}
@@ -131,7 +131,7 @@ function AuditEntryRow({ entry, expanded, onToggle }: { entry: AuditEntry; expan
             <span className="text-sm font-medium text-ink-100">{entry.nodeName}</span>
             {entry.model && (
               <span className="text-[10px] num-mono px-1.5 py-0.5 rounded-xs bg-ink-700 text-ink-400">
-                {entry.model.replace('claude-', '').split('-').slice(0, 2).join('-')}
+                {entry.model}
               </span>
             )}
             {entry.promptVersion && (
@@ -152,9 +152,9 @@ function AuditEntryRow({ entry, expanded, onToggle }: { entry: AuditEntry; expan
           </div>
         </div>
 
-        {expanded ? 
-          <ChevronDown className="w-4 h-4 text-ink-400 shrink-0" /> : 
-          <ChevronRight className="w-4 h-4 text-ink-400 shrink-0" />
+        {expanded
+          ? <ChevronDown className="w-4 h-4 text-ink-400 shrink-0" />
+          : <ChevronRight className="w-4 h-4 text-ink-400 shrink-0" />
         }
       </button>
 
@@ -167,7 +167,7 @@ function AuditEntryRow({ entry, expanded, onToggle }: { entry: AuditEntry; expan
             <KV label="타임스탬프" value={entry.timestamp} mono />
             <KV label="소요 시간" value={`${entry.durationMs} ms`} mono />
           </div>
-          
+
           {entry.decision && (
             <div className="mt-3 pt-3 border-t border-ink-700/60">
               <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-1">의사결정 내용</div>
