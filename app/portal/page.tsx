@@ -8,7 +8,7 @@ import {
   Upload, FileText, CheckCircle2, AlertCircle, Info,
   FileCheck, X, Plus, MapPin, Hash, DollarSign,
   Truck, Building2, ArrowRight, ArrowUp, ArrowDown,
-  EyeOff, Factory, Workflow, ChevronDown
+  Factory, ChevronDown
 } from 'lucide-react';
 import { suppliers, supplyEdges } from '@/lib/data';
 import {
@@ -123,9 +123,9 @@ export default function SupplierPortalPage() {
         <div className="rounded-sm border border-blue-700/30 bg-blue-500/5 p-4 flex items-start gap-3">
           <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
           <div className="text-xs text-ink-200 leading-relaxed">
-            <span className="font-semibold text-blue-300">원청사로부터 데이터 요청을 받았습니다.</span>{' '}
-            아래 PO/송장 번호를 선택하여 해당 부품의 스펙·공장·탄소배출·광물 정보를 입력해 주세요.
-            공장 선택 시 납품처(EU/미국)에 따라 필요한 규제 서류만 표시됩니다.
+            <span className="font-semibold text-blue-300">원청사로부터 데이터 요청이 도착했습니다.</span>{' '}
+            아래 PO/송장 번호를 확인하고, 해당 부품의 스펙·공장·탄소배출·광물 정보를 입력해 주세요.
+            공장의 납품 시장에 따라 필요한 규제 서류 항목이 안내됩니다.
           </div>
         </div>
 
@@ -165,9 +165,10 @@ export default function SupplierPortalPage() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      {/* 1줄: PO번호 + 부품 + 상태 */}
+                      {/* 1줄: 원청 PO번호(메인) + 상태 + 공장 */}
                       <div className="flex items-center gap-3 flex-wrap mb-1.5">
-                        <span className="text-sm font-semibold num-mono text-accent-400">{po.poNumber}</span>
+                        <span className="text-sm font-semibold num-mono text-accent-400">{po.originalPoNumber}</span>
+                        <span className="text-[10px] text-ink-500 num-mono">원청 PO</span>
                         <PoStatusBadge status={po.status} />
                         {factory && (
                           <span className="text-[11px] text-ink-400 flex items-center gap-1">
@@ -177,19 +178,25 @@ export default function SupplierPortalPage() {
                         )}
                       </div>
 
-                      {/* 2줄: 협력사 코드 → 원청 코드 매핑 (정의서 ③) */}
+                      {/* 2줄: 우리 송장 번호 */}
+                      <div className="flex items-center gap-2 mb-1.5 text-[11px]">
+                        <span className="text-ink-500 num-mono">우리 송장:</span>
+                        <span className="num-mono text-ink-200">{po.supplierInvoiceNumber}</span>
+                      </div>
+
+                      {/* 3줄: 부품 코드 매핑 (우리 코드 ↔ 원청 코드) */}
                       <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[10px] text-ink-500">우리 코드</span>
                         <span className="text-[11px] num-mono text-ink-200">{po.supplierPartCode}</span>
                         <ArrowRight className="w-3 h-3 text-ink-500" />
+                        <span className="text-[10px] text-ink-500">원청 코드</span>
                         <span className="text-[11px] num-mono text-accent-500 font-semibold">{po.originalPartCode}</span>
                         <span className="text-[10px] text-ink-500">({part?.partName})</span>
                       </div>
 
-                      {/* 3줄: 수량·비율·납기 */}
+                      {/* 4줄: 수량·단가·납기 */}
                       <div className="flex items-center gap-3 text-[10px] text-ink-400 num-mono">
                         <span>{po.quantity.toLocaleString()} {po.unit}</span>
-                        <span>·</span>
-                        <span className="text-blue-700">공급 비율 {po.supplyRatio}%</span>
                         <span>·</span>
                         <span>$ {po.unitPrice}/{part?.purchaseUnit || po.unit}</span>
                         <span>·</span>
@@ -214,8 +221,8 @@ export default function SupplierPortalPage() {
         {/* ===== STEP 2: 공장 선택 → 공장별 규제 차등 표시 ===== */}
         {selectedPoIds.size > 0 && myFactories.length > 0 && (
           <Card
-            title="공장별 입력 (납품처 기준 규제 자동 차등)"
-            subtitle="공장을 선택하면 그 공장의 납품처(EU/미국)에 따라 필요한 항목만 표시됩니다"
+            title="공장별 입력"
+            subtitle="공장을 선택하면 해당 공장 납품 시장의 규제 항목이 안내됩니다"
           >
             {/* 공장 탭 */}
             <div className="flex gap-2 mb-4 flex-wrap">
@@ -254,9 +261,9 @@ export default function SupplierPortalPage() {
               })}
             </div>
 
-            {/* 선택된 공장 상세 */}
+            {/* 선택된 공장 상세 (공장 변경 시 입력 상태 초기화) */}
             {selectedFactory && (
-              <FactoryFieldsPanel factory={selectedFactory} />
+              <FactoryFieldsPanel key={selectedFactory.factoryId} factory={selectedFactory} />
             )}
           </Card>
         )}
@@ -324,30 +331,22 @@ export default function SupplierPortalPage() {
               </div>
             </Card>
 
-            {/* === 내 직상위·직하위 협력사 (정의서 ② 권한 제어 시뮬) === */}
+            {/* === 거래처 (직상위·직하위) === */}
             <Card
-              title="내 직상위·직하위 협력사"
-              subtitle="보안상 직상위(납품처)와 직하위(원료처) 협력사만 조회 가능합니다"
+              title="거래처"
+              subtitle="납품처와 원료 공급처 현황"
             >
-              <div className="rounded-xs border border-amber-700/30 bg-amber-500/5 p-2.5 mb-3 flex items-start gap-2">
-                <EyeOff className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
-                <div className="text-[11px] text-ink-200 leading-relaxed">
-                  <span className="font-semibold text-amber-700">권한 제어 활성</span> ·
-                  옆 라인 협력사(다른 N차사)와 다이렉트 원청사 정보는 표시되지 않습니다.
-                </div>
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
                 {/* 직상위 (이 협력사가 납품하는 대상) */}
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold mb-2 flex items-center gap-1.5">
                     <ArrowUp className="w-3 h-3 text-accent-500" />
-                    직상위 ({parents.length})
+                    납품처 ({parents.length})
                   </div>
                   <div className="space-y-1.5">
                     {parents.length === 0 ? (
                       <div className="text-[11px] text-ink-500 py-2 px-2.5 rounded-xs bg-ink-900/30 border border-ink-700/40">
-                        직상위 없음
+                        등록된 납품처 없음
                       </div>
                     ) : parents.map((p, i) => (
                       <div key={i} className="rounded-xs border border-ink-700/60 bg-ink-900/40 p-2.5">
@@ -363,16 +362,16 @@ export default function SupplierPortalPage() {
                   </div>
                 </div>
 
-                {/* 직하위 (이 협력사에 납품하는 협력사) */}
+                {/* 직하위 (원료 공급처) */}
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold mb-2 flex items-center gap-1.5">
                     <ArrowDown className="w-3 h-3 text-accent-500" />
-                    직하위 ({children.length})
+                    원료 공급처 ({children.length})
                   </div>
                   <div className="space-y-1.5">
                     {children.length === 0 ? (
                       <div className="text-[11px] text-ink-500 py-2 px-2.5 rounded-xs bg-ink-900/30 border border-ink-700/40">
-                        직하위 없음 (최말단)
+                        등록된 공급처 없음
                       </div>
                     ) : children.map((c, i) => (
                       <div key={i} className="rounded-xs border border-ink-700/60 bg-ink-900/40 p-2.5">
@@ -524,21 +523,13 @@ function FactoryFieldsPanel({ factory }: { factory: any }) {
         </div>
       </div>
 
-      {/* 적용 규제 + 자동 숨김 */}
+      {/* 적용 규제 */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold">적용 규제:</span>
+        <span className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold">이 공장 적용 규제:</span>
         {factory.applicableRegulations?.map((reg: Regulation) => (
           <RegulationChipInline key={reg} reg={reg} />
         ))}
       </div>
-      {factory.hiddenRegulations && factory.hiddenRegulations.length > 0 && (
-        <div className="text-[10px] text-ink-500 flex items-center gap-1.5">
-          <EyeOff className="w-3 h-3" />
-          <span>자동 숨김:</span>
-          {factory.hiddenRegulations.map((r: Regulation) => regulationMeta[r]?.label).join(', ')}
-          <span className="text-ink-600">— 이 공장은 {factory.destination === 'EU' ? '미국' : factory.destination === 'US' ? 'EU' : '해당 시장'} 비납품 공장입니다</span>
-        </div>
-      )}
 
       {/* 입력 필드 목록 */}
       <div className="space-y-1.5">
