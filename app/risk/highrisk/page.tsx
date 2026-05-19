@@ -103,8 +103,8 @@ function SupplierRiskRow({ profile }: { profile: SupplierRiskProfile }) {
         {/* 협력사 정보 */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-ink-100 truncate">{name.en}</span>
-            {name.ko && <span className="text-xs text-ink-400">{name.ko}</span>}
+            <span className="text-sm font-semibold text-ink-100 truncate">{name?.nameEn ?? ''}</span>
+            {name?.nameKo && <span className="text-xs text-ink-400">{name.nameKo}</span>}
             {profile.isHighRiskFlag && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs border border-red-700/30 bg-red-500/10 text-[9px] text-red-500 font-semibold uppercase tracking-wider">
                 <Flag className="w-2.5 h-2.5" /> 고위험
@@ -192,13 +192,13 @@ function RiskMatrix({ profiles }: { profiles: SupplierRiskProfile[] }) {
                       return (
                         <Link key={p.supplierId} href={`/suppliers/${p.supplierId}/esg`}>
                           <div
-                            title={name.en}
+                            title={name?.nameEn ?? ''}
                             className={clsx(
                               'w-6 h-6 rounded-xs flex items-center justify-center text-[9px] font-bold cursor-pointer border hover:scale-110 transition-transform',
                               rm.bg, rm.border, rm.text,
                             )}
                           >
-                            {name.en.slice(0, 2).toUpperCase()}
+                            {(name?.nameEn ?? '').slice(0, 2).toUpperCase()}
                           </div>
                         </Link>
                       );
