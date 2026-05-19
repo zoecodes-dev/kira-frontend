@@ -87,116 +87,119 @@ export default function SupplierPortalPage() {
   const togglePO = (poId: string) => {
     setSelectedPoIds(prev => {
       const next = new Set(prev);
-      if (next.has(poId)) next.delete(poId);
-      else next.add(poId);
+      next.has(poId) ? next.delete(poId) : next.add(poId);
       return next;
     });
   };
 
+  const stepOrder: Step[] = ['po-select', 'materials', 'documents', 'review'];
+  const currentIdx = stepOrder.indexOf(currentStep);
+
   return (
     <>
       <PageHeader
-        title="협력사 데이터 제출"
-        description={`${viewerName} · ${viewerSupplierId}`}
-        badge="협력사 포털"
+        title="협력사 포털"
+        description="PO 기반 데이터 제출 · 공장별 규제 차등 입력"
+        badge="협력사"
         actions={
-          <ViewerToggle viewerSupplierId={viewerSupplierId} onChange={setViewerSupplierId} />
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-ink-400">시점:</span>
+            <button
+              onClick={() => {
+                const next = viewerSupplierId === 'S-CAM-001' ? 'S-CELL-001' : 'S-CAM-001';
+                setViewerSupplierId(next);
+                setSelectedPoIds(new Set(purchaseOrders.filter(po => po.supplierId === next).slice(0, 2).map(po => po.poId)));
+              }}
+              className="text-xs px-3 py-1.5 rounded-xs border border-ink-600 hover:border-ink-500 text-ink-200 transition-colors"
+            >
+              {viewerSupplierId === 'S-CAM-001' ? 'POS Cathode' : 'Hanyang Cell'} ↔ 전환
+            </button>
+          </div>
         }
       />
 
-      <div className="p-8 max-w-6xl mx-auto space-y-6">
-
-        {/* 진행 단계 */}
-        <Card>
-          <div className="flex items-center">
-            <StepIndicator step="po-select" current={currentStep} label="PO/송장 선택" num={1} />
-            <StepConnector active={currentStep !== 'po-select'} />
-            <StepIndicator step="materials" current={currentStep} label="공장·부품 정보" num={2} />
-            <StepConnector active={['documents', 'review'].includes(currentStep)} />
-            <StepIndicator step="documents" current={currentStep} label="증빙 서류" num={3} />
-            <StepConnector active={currentStep === 'review'} />
-            <StepIndicator step="review" current={currentStep} label="제출 확인" num={4} />
-          </div>
-        </Card>
-
-        {/* 안내 박스 */}
-        <div className="rounded-sm border border-blue-700/30 bg-blue-500/5 p-4 flex items-start gap-3">
-          <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-          <div className="text-xs text-ink-200 leading-relaxed">
-            <span className="font-semibold text-blue-300">원청사로부터 데이터 요청이 도착했습니다.</span>{' '}
-            아래 PO/송장 번호를 확인하고, 해당 부품의 스펙·공장·탄소배출·광물 정보를 입력해 주세요.
-            공장의 납품 시장에 따라 필요한 규제 서류 항목이 안내됩니다.
-          </div>
+      <div className="p-8 space-y-6">
+        {/* 스텝 인디케이터 */}
+        <div className="flex items-center">
+          <StepIndicator step="po-select"  current={currentStep} label="PO 선택"    num="1" />
+          <StepConnector active={currentIdx > 0} />
+          <StepIndicator step="materials"  current={currentStep} label="원자재·공장" num="2" />
+          <StepConnector active={currentIdx > 1} />
+          <StepIndicator step="documents"  current={currentStep} label="증빙 서류"   num="3" />
+          <StepConnector active={currentIdx > 2} />
+          <StepIndicator step="review"     current={currentStep} label="검토·제출"   num="4" />
         </div>
 
-        {/* ===== STEP 1: PO 셀렉터 ===== */}
-        <Card
-          title="원청사 요청 PO/송장"
-          subtitle={`${incomingPOs.length}건의 요청이 도착했습니다. 처리할 PO를 선택하세요 (다중 선택 가능)`}
-          action={
-            <div className="text-[11px] text-ink-400 num-mono">
-              선택됨: {selectedPoIds.size}건
+        {/* 스텝 1: PO 선택 */}
+        {currentStep === 'po-select' && (
+          <div className="space-y-4">
+            {/* 공급망 관계 요약 */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xs border border-ink-700/60 bg-ink-900/30 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-2 flex items-center gap-1">
+                  <ArrowUp className="w-3 h-3" /> 직상위
+                </div>
+                {parents.length === 0 ? (
+                  <div className="text-[11px] text-ink-500">없음 (원청사)</div>
+                ) : parents.map(({ supplier: s, edge: e }) => (
+                  <div key={s!.id} className="text-[11px] text-ink-200 font-medium">{s!.name}</div>
+                ))}
+              </div>
+              <div className="rounded-xs border border-accent-500/30 bg-accent-500/5 p-3 flex flex-col items-center justify-center">
+                <Building2 className="w-4 h-4 text-accent-400 mb-1" />
+                <div className="text-xs font-semibold text-ink-100">{viewerName}</div>
+                <div className="text-[10px] text-ink-400">현재 시점</div>
+              </div>
+              <div className="rounded-xs border border-ink-700/60 bg-ink-900/30 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-2 flex items-center gap-1">
+                  <ArrowDown className="w-3 h-3" /> 직하위
+                </div>
+                {children.map(({ supplier: s }) => (
+                  <div key={s!.id} className="text-[11px] text-ink-200">{s!.name}</div>
+                ))}
+              </div>
             </div>
-          }
-        >
-          <div className="space-y-2">
-            {incomingPOs.map(po => {
-              const isSelected = selectedPoIds.has(po.poId);
-              const part = parts.find(p => p.id === po.partId);
-              const factory = factories.find(f => f.factoryId === po.factoryId);
-              return (
-                <button
-                  key={po.poId}
-                  onClick={() => togglePO(po.poId)}
-                  className={clsx(
-                    'w-full text-left rounded-xs border p-3 transition-colors',
-                    isSelected
-                      ? 'border-accent-700/50 bg-accent-500/5'
-                      : 'border-ink-700/60 bg-ink-900/40 hover:bg-ink-800/60'
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    {/* 체크박스 */}
-                    <div className={clsx(
-                      'w-4 h-4 rounded-xs border flex items-center justify-center shrink-0 mt-0.5',
-                      isSelected ? 'bg-accent-700 border-accent-700' : 'border-ink-600'
-                    )}>
-                      {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
-                    </div>
 
-                    <div className="flex-1 min-w-0">
-                      {/* 1줄: 원청 PO번호(메인) + 상태 + 공장 */}
-                      <div className="flex items-center gap-3 flex-wrap mb-1.5">
-                        <span className="text-sm font-semibold num-mono text-accent-400">{po.originalPoNumber}</span>
-                        <span className="text-[10px] text-ink-500 num-mono">원청 PO</span>
-                        <PoStatusBadge status={po.status} />
-                        {factory && (
-                          <span className="text-[11px] text-ink-400 flex items-center gap-1">
-                            <Factory className="w-3 h-3" />
-                            {factory.factoryName}
-                          </span>
-                        )}
+            <Card title="요청된 PO 목록" subtitle="원청사로부터 데이터 제출 요청된 발주">
+              <div className="space-y-2">
+                {incomingPOs.map(po => {
+                  const part = parts.find(p => p.id === po.partId);
+                  const isSelected = selectedPoIds.has(po.poId);
+                  const statusMap: Record<string, { tone: any; label: string }> = {
+                    pending:    { tone: 'warn',    label: '응답 대기' },
+                    in_transit: { tone: 'info',    label: '운송 중' },
+                    delivered:  { tone: 'neutral', label: '인도' },
+                    verified:   { tone: 'ok',      label: '검증 완료' },
+                  };
+                  const sm = statusMap[po.status] || statusMap.pending;
+                  return (
+                    <button
+                      key={po.poId}
+                      onClick={() => togglePO(po.poId)}
+                      className={clsx(
+                        'w-full text-left rounded-xs border p-3 transition-colors',
+                        isSelected
+                          ? 'border-accent-500/40 bg-accent-500/8'
+                          : 'border-ink-700/60 bg-ink-900/30 hover:bg-ink-800/30'
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className={clsx(
+                            'w-4 h-4 rounded-xs border flex items-center justify-center shrink-0',
+                            isSelected ? 'bg-accent-700 border-accent-500' : 'border-ink-600'
+                          )}>
+                            {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold text-ink-100 num-mono">{po.poId}</div>
+                            <div className="text-[11px] text-ink-400 mt-0.5">{part?.partName || po.partId}</div>
+                          </div>
+                        </div>
+                        <Badge tone={sm.tone} size="sm">{sm.label}</Badge>
                       </div>
-
-                      {/* 2줄: 우리 송장 번호 */}
-                      <div className="flex items-center gap-2 mb-1.5 text-[11px]">
-                        <span className="text-ink-500 num-mono">우리 송장:</span>
-                        <span className="num-mono text-ink-200">{po.supplierInvoiceNumber}</span>
-                      </div>
-
-                      {/* 3줄: 부품 코드 매핑 (우리 코드 ↔ 원청 코드) */}
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-[10px] text-ink-500">우리 코드</span>
-                        <span className="text-[11px] num-mono text-ink-200">{po.supplierPartCode}</span>
-                        <ArrowRight className="w-3 h-3 text-ink-500" />
-                        <span className="text-[10px] text-ink-500">원청 코드</span>
-                        <span className="text-[11px] num-mono text-accent-500 font-semibold">{po.originalPartCode}</span>
-                        <span className="text-[10px] text-ink-500">({part?.partName})</span>
-                      </div>
-
-                      {/* 4줄: 수량·단가·납기 */}
-                      <div className="flex items-center gap-3 text-[10px] text-ink-400 num-mono">
-                        <span>{po.quantity.toLocaleString()} {po.unit}</span>
+                      <div className="flex items-center gap-3 mt-2 text-[10px] text-ink-500 num-mono ml-7">
+                        <span>{po.quantity} {part?.purchaseUnit || po.unit}</span>
                         <span>·</span>
                         <span>$ {po.unitPrice}/{part?.purchaseUnit || po.unit}</span>
                         <span>·</span>
@@ -205,300 +208,261 @@ export default function SupplierPortalPage() {
                         <span>원산지 {po.originCountry}</span>
                         <span className="ml-auto">납기 {po.deliveryDate}</span>
                       </div>
-                    </div>
+                    </button>
+                  );
+                })}
+                {incomingPOs.length === 0 && (
+                  <div className="py-6 text-center text-xs text-ink-500">
+                    요청된 PO가 없습니다
                   </div>
-                </button>
-              );
-            })}
-            {incomingPOs.length === 0 && (
-              <div className="py-6 text-center text-xs text-ink-500">
-                요청된 PO가 없습니다
+                )}
               </div>
-            )}
-          </div>
-        </Card>
+            </Card>
 
-        {/* ===== STEP 2: 공장 선택 → 공장별 규제 차등 표시 ===== */}
-        {selectedPoIds.size > 0 && myFactories.length > 0 && (
-          <Card
-            title="공장별 입력"
-            subtitle="공장을 선택하면 해당 공장 납품 시장의 규제 항목이 안내됩니다"
-          >
-            {/* 공장 탭 */}
-            <div className="flex gap-2 mb-4 flex-wrap">
-              {myFactories.map(f => {
-                const isActive = f.factoryId === selectedFactoryId;
-                const destLabel = f.destination === 'EU' ? 'EU' :
-                                  f.destination === 'US' ? '미국' :
-                                  f.destination === 'BOTH' ? 'EU+미국' : '국내';
-                const destTone = f.destination === 'EU' ? 'emerald' :
-                                 f.destination === 'US' ? 'amber' :
-                                 f.destination === 'BOTH' ? 'purple' : 'neutral';
-                return (
-                  <button
-                    key={f.factoryId}
-                    onClick={() => setSelectedFactoryId(f.factoryId)}
-                    className={clsx(
-                      'flex items-center gap-2 px-3 py-2 rounded-xs border transition-colors',
-                      isActive
-                        ? 'border-accent-700/50 bg-accent-500/10 text-accent-400'
-                        : 'border-ink-700 hover:border-ink-600 text-ink-300'
-                    )}
-                  >
-                    <Factory className="w-3.5 h-3.5" />
-                    <span className="text-xs font-medium">{f.factoryName}</span>
-                    <span className={clsx(
-                      'text-[9px] num-mono px-1.5 py-0.5 rounded-xs font-semibold border',
-                      destTone === 'emerald' && 'bg-emerald-500/10 border-emerald-700/30 text-emerald-700',
-                      destTone === 'amber'   && 'bg-amber-500/10 border-amber-700/30 text-amber-700',
-                      destTone === 'purple'  && 'bg-purple-500/10 border-purple-700/30 text-purple-700',
-                      destTone === 'neutral' && 'bg-ink-700 text-ink-300'
-                    )}>
-                      {destLabel}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setCurrentStep('materials')}
+                disabled={selectedPoIds.size === 0}
+                className={clsx(
+                  'px-6 py-2.5 rounded-xs text-sm font-semibold transition-colors',
+                  selectedPoIds.size > 0
+                    ? 'bg-accent-700 hover:bg-accent-600 text-white'
+                    : 'bg-ink-700 text-ink-500 cursor-not-allowed'
+                )}
+              >
+                다음: 원자재 · 공장 입력 →
+              </button>
             </div>
-
-            {/* 선택된 공장 상세 (공장 변경 시 입력 상태 초기화) */}
-            {selectedFactory && (
-              <FactoryFieldsPanel key={selectedFactory.factoryId} factory={selectedFactory} />
-            )}
-          </Card>
+          </div>
         )}
 
-        {/* ===== 메인 폼: 원자재 + 증빙 ===== */}
-        <div className="grid grid-cols-3 gap-6">
-          <div className="col-span-2 space-y-4">
-
-            {/* 원자재 정보 */}
-            <Card
-              title="원자재 구성 정보"
-              subtitle="배터리 단위 셀에 투입되는 광물별 정보"
-              action={
-                <button className="text-[11px] text-accent-400 hover:text-accent-300 flex items-center gap-1">
-                  <Plus className="w-3 h-3" /> 광물 추가
-                </button>
-              }
-            >
-              <div className="space-y-3">
-                {materials.map(m => (
-                  <div key={m.id} className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-3">
-                      <label className="text-[10px] uppercase tracking-wider text-ink-400">광물명</label>
-                      <input
-                        defaultValue={m.name}
-                        className="w-full mt-1 px-3 py-2 rounded-xs bg-ink-900 border border-ink-700 text-sm text-ink-100 focus:border-accent-500 outline-none"
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <label className="text-[10px] uppercase tracking-wider text-ink-400">투입량</label>
-                      <input
-                        defaultValue={m.amount}
-                        className="w-full mt-1 px-3 py-2 rounded-xs bg-ink-900 border border-ink-700 text-sm text-ink-100 num-mono focus:border-accent-500 outline-none"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="text-[10px] uppercase tracking-wider text-ink-400">단위</label>
-                      <select className="w-full mt-1 px-3 py-2 rounded-xs bg-ink-900 border border-ink-700 text-sm text-ink-100 focus:border-accent-500 outline-none">
-                        <option>kg</option><option>g</option><option>t</option>
-                      </select>
-                    </div>
-                    <div className="col-span-3">
-                      <label className="text-[10px] uppercase tracking-wider text-ink-400">재활용 함량 %</label>
-                      <input
-                        defaultValue={m.recycled}
-                        className="w-full mt-1 px-3 py-2 rounded-xs bg-ink-900 border border-ink-700 text-sm text-ink-100 num-mono focus:border-accent-500 outline-none"
-                      />
-                    </div>
-                    <button className="col-span-1 mt-5 text-ink-500 hover:text-red-400 flex justify-center">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-5 pt-4 border-t border-ink-700">
-                <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-3">
-                  EU 배터리법 2027년 의무 재활용 비율
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <ComplianceCheck metal="코발트" target={16} current={18} />
-                  <ComplianceCheck metal="니켈" target={6} current={8} />
-                  <ComplianceCheck metal="리튬" target={6} current={7} />
-                </div>
-              </div>
-            </Card>
-
-            {/* === 거래처 (직상위·직하위) === */}
-            <Card
-              title="거래처"
-              subtitle="납품처와 원료 공급처 현황"
-            >
-              <div className="grid grid-cols-2 gap-4">
-                {/* 직상위 (이 협력사가 납품하는 대상) */}
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold mb-2 flex items-center gap-1.5">
-                    <ArrowUp className="w-3 h-3 text-accent-500" />
-                    납품처 ({parents.length})
-                  </div>
-                  <div className="space-y-1.5">
-                    {parents.length === 0 ? (
-                      <div className="text-[11px] text-ink-500 py-2 px-2.5 rounded-xs bg-ink-900/30 border border-ink-700/40">
-                        등록된 납품처 없음
+        {/* 스텝 2: 원자재 + 공장별 규제 차등 */}
+        {currentStep === 'materials' && (
+          <div className="grid grid-cols-2 gap-6">
+            {/* 좌측: 원자재 */}
+            <div className="space-y-4">
+              <Card title="원자재 구성" subtitle="배터리 광물 구성 및 재활용 함량">
+                <div className="space-y-2">
+                  {materials.map(m => (
+                    <div key={m.id} className="rounded-xs border border-ink-700/60 bg-ink-900/30 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-ink-100">{m.name}</span>
+                        <span className="text-[10px] text-ink-400">{m.unit}</span>
                       </div>
-                    ) : parents.map((p, i) => (
-                      <div key={i} className="rounded-xs border border-ink-700/60 bg-ink-900/40 p-2.5">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <Badge tone="neutral" size="sm">T{p.supplier!.tier}</Badge>
-                          <span className="text-xs font-medium text-ink-100">{p.supplier!.name}</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-ink-500 mb-1">총량</div>
+                          <input
+                            defaultValue={m.amount}
+                            className="w-full bg-ink-800 border border-ink-600 rounded-xs px-2 py-1.5 text-xs text-ink-100 focus:outline-none focus:border-accent-500"
+                          />
                         </div>
-                        <div className="text-[10px] text-ink-400 num-mono">
-                          {p.edge.material} · {p.edge.volume} t/월
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-ink-500 mb-1">재활용 함량 %</div>
+                          <input
+                            defaultValue={m.recycled}
+                            className="w-full bg-ink-800 border border-ink-600 rounded-xs px-2 py-1.5 text-xs text-ink-100 focus:outline-none focus:border-accent-500"
+                          />
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
+              </Card>
 
-                {/* 직하위 (원료 공급처) */}
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold mb-2 flex items-center gap-1.5">
-                    <ArrowDown className="w-3 h-3 text-accent-500" />
-                    원료 공급처 ({children.length})
-                  </div>
-                  <div className="space-y-1.5">
-                    {children.length === 0 ? (
-                      <div className="text-[11px] text-ink-500 py-2 px-2.5 rounded-xs bg-ink-900/30 border border-ink-700/40">
-                        등록된 공급처 없음
+              <Card title="탄소발자국" subtitle="kgCO₂eq/kg — EU 배터리법 Art.7 기준">
+                <div className="space-y-3">
+                  {['Scope 1 (직접 배출)', 'Scope 2 (전력)', 'Scope 3 (업스트림)'].map((s, i) => (
+                    <div key={i}>
+                      <div className="text-[10px] text-ink-400 mb-1">{s}</div>
+                      <div className="relative">
+                        <input
+                          defaultValue={['4.2', '8.7', '12.1'][i]}
+                          className="w-full bg-ink-800 border border-ink-600 rounded-xs px-3 py-2 text-xs text-ink-100 focus:outline-none focus:border-accent-500 pr-24"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-ink-400">kgCO₂eq/kg</span>
                       </div>
-                    ) : children.map((c, i) => (
-                      <div key={i} className="rounded-xs border border-ink-700/60 bg-ink-900/40 p-2.5">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <Badge tone="neutral" size="sm">T{c.supplier!.tier}</Badge>
-                          <span className="text-xs font-medium text-ink-100">{c.supplier!.name}</span>
-                        </div>
-                        <div className="text-[10px] text-ink-400 num-mono">
-                          {c.edge.material} · {c.edge.volume} t/월
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            </Card>
-
-            {/* 탄소발자국 */}
-            <Card title="탄소발자국" subtitle="생산 1kg당 CO₂ 환산 배출량">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-ink-400">측정 방식</label>
-                  <select className="w-full mt-1 px-3 py-2 rounded-xs bg-ink-900 border border-ink-700 text-sm text-ink-100 focus:border-accent-500 outline-none">
-                    <option>실측값 (자체 측정)</option>
-                    <option>제3자 검증값</option>
-                    <option>EU 기본 계수 사용</option>
-                  </select>
+                <div className="mt-3 text-[11px] text-ink-400">
+                  ※ 자체 측정값을 제출하지 못하는 경우 EU 기본 계수를 자동 적용합니다 (단, 평가에서 불리할 수 있음)
                 </div>
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-ink-400">배출량</label>
-                  <div className="relative mt-1">
-                    <input
-                      defaultValue="18.7"
-                      className="w-full px-3 py-2 rounded-xs bg-ink-900 border border-ink-700 text-sm text-ink-100 num-mono focus:border-accent-500 outline-none pr-24"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-ink-400">kgCO₂eq/kg</span>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 text-[11px] text-ink-400">
-                ※ 자체 측정값을 제출하지 못하는 경우 EU 기본 계수를 자동 적용합니다 (단, 평가에서 불리할 수 있음)
-              </div>
-            </Card>
-          </div>
+              </Card>
+            </div>
 
-          {/* 우측 사이드: 증빙 + 제출 상태 */}
-          <div className="space-y-4">
-            <Card title="증빙 서류" subtitle="필수 PDF 첨부">
-              <button className="w-full border-2 border-dashed border-ink-600 hover:border-accent-500 rounded-sm p-6 mb-3 transition-colors group">
-                <Upload className="w-6 h-6 text-ink-400 group-hover:text-accent-400 mx-auto mb-2" strokeWidth={1.5} />
-                <div className="text-xs text-ink-200 font-medium mb-1">파일 선택 또는 끌어놓기</div>
-                <div className="text-[10px] text-ink-500">PDF · 최대 20MB · 디지털 서명 권장</div>
-              </button>
-
-              <div className="space-y-1.5">
-                {files.map(f => (
-                  <FileRow key={f.name} file={f} />
-                ))}
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-ink-700">
-                <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-2">필수 누락 항목</div>
-                <MissingItem label="공급자 선언서 (DoS)" />
-              </div>
-            </Card>
-
-            <Card>
-              <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-3">제출 준비 상태</div>
-              <div className="space-y-2">
-                <CheckRow label={`PO 선택 ${selectedPoIds.size}/${incomingPOs.length}`} ok={selectedPoIds.size > 0} warn={selectedPoIds.size === 0} />
-                <CheckRow label="공장별 입력" warn />
-                <CheckRow label="원자재 정보" ok />
-                <CheckRow label="탄소발자국" ok />
-                <CheckRow label="필수 증빙 3/4" warn />
-                <CheckRow label="디지털 서명" ok />
-              </div>
-
-              <button
-                disabled
-                className="w-full mt-4 py-2.5 rounded-xs bg-ink-700 text-ink-400 text-xs font-medium cursor-not-allowed"
+            {/* 우측: 공장별 규제 차등 입력 */}
+            <div className="space-y-4">
+              <Card
+                title="공장별 입력"
+                subtitle="공장을 선택하면 해당 공장 납품 시장의 규제 항목이 안내됩니다"
               >
-                필수 항목 완료 후 제출 가능
-              </button>
-              <div className="mt-2 text-[10px] text-ink-500 text-center">
-                제출 후 검증까지 평균 4분
-              </div>
-            </Card>
+                {/* 공장 탭 */}
+                <div className="flex gap-2 mb-4 flex-wrap">
+                  {myFactories.map(f => {
+                    const isActive = f.factoryId === selectedFactoryId;
+                    const destLabel = f.destination === 'EU' ? 'EU' :
+                                      f.destination === 'US' ? '미국' :
+                                      f.destination === 'BOTH' ? 'EU+미국' : '국내';
+                    const destTone = f.destination === 'EU' ? 'emerald' :
+                                     f.destination === 'US' ? 'amber' :
+                                     f.destination === 'BOTH' ? 'purple' : 'neutral';
+                    return (
+                      <button
+                        key={f.factoryId}
+                        onClick={() => setSelectedFactoryId(f.factoryId)}
+                        className={clsx(
+                          'flex items-center gap-2 px-3 py-2 rounded-xs border transition-colors',
+                          isActive
+                            ? 'border-accent-500/40 bg-accent-500/8 text-ink-100'
+                            : 'border-ink-700/60 bg-ink-900/30 text-ink-400 hover:text-ink-200'
+                        )}
+                      >
+                        <Factory className="w-3.5 h-3.5" />
+                        <span className="text-xs font-medium">{f.factoryName}</span>
+                        <Badge tone={destTone as any} size="sm">{destLabel}</Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 선택된 공장 규제 차등 패널 */}
+                {selectedFactory && <FactoryFieldsPanel factory={selectedFactory} />}
+              </Card>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* 스텝 3: 증빙 서류 */}
+        {currentStep === 'documents' && (
+          <div className="grid grid-cols-3 gap-6">
+            <div className="col-span-2 space-y-4">
+              <Card title="재활용 함량 검증" subtitle="EU 배터리법 의무 비율 대비">
+                <div className="grid grid-cols-3 gap-3">
+                  <ComplianceCheck metal="코발트 (Co)" target={16} current={18} />
+                  <ComplianceCheck metal="니켈 (Ni)" target={6} current={8} />
+                  <ComplianceCheck metal="리튬 (Li)" target={6} current={7} />
+                </div>
+              </Card>
+
+              <Card title="증빙 서류" subtitle="필수 PDF 첨부">
+                <button className="w-full border-2 border-dashed border-ink-600 hover:border-accent-500 rounded-sm p-6 mb-3 transition-colors group">
+                  <Upload className="w-6 h-6 text-ink-400 group-hover:text-accent-400 mx-auto mb-2" strokeWidth={1.5} />
+                  <div className="text-xs text-ink-200 font-medium mb-1">파일 선택 또는 끌어놓기</div>
+                  <div className="text-[10px] text-ink-500">PDF · 최대 20MB · 디지털 서명 권장</div>
+                </button>
+                <div className="space-y-1.5">
+                  {files.map(f => (
+                    <FileRow key={f.name} file={f} />
+                  ))}
+                </div>
+                <div className="mt-4 pt-3 border-t border-ink-700">
+                  <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-2">필수 누락 항목</div>
+                  <MissingItem label="공급자 선언서 (DoS)" />
+                </div>
+              </Card>
+            </div>
+
+            <div className="space-y-4">
+              <Card>
+                <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-3">제출 준비 상태</div>
+                <div className="space-y-2">
+                  <CheckRow label={`PO 선택 ${selectedPoIds.size}/${incomingPOs.length}`} ok={selectedPoIds.size > 0} warn={selectedPoIds.size === 0} />
+                  <CheckRow label="공장별 입력" warn />
+                  <CheckRow label="원자재 정보" ok />
+                  <CheckRow label="탄소발자국" ok />
+                  <CheckRow label="필수 증빙 3/4" warn />
+                  <CheckRow label="디지털 서명" ok />
+                </div>
+                <button
+                  disabled
+                  className="w-full mt-4 py-2.5 rounded-xs bg-ink-700 text-ink-400 text-xs font-medium cursor-not-allowed"
+                >
+                  필수 항목 완료 후 제출 가능
+                </button>
+                <div className="mt-2 text-[10px] text-ink-500 text-center">
+                  제출 후 검증까지 평균 4분
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {/* 스텝 내비게이션 */}
+        {currentStep !== 'po-select' && (
+          <div className="flex justify-between pt-2">
+            <button
+              onClick={() => setCurrentStep(stepOrder[currentIdx - 1])}
+              className="px-4 py-2 rounded-xs border border-ink-600 text-ink-200 text-xs hover:border-ink-500 transition-colors"
+            >
+              ← 이전
+            </button>
+            {currentStep !== 'documents' && (
+              <button
+                onClick={() => setCurrentStep(stepOrder[currentIdx + 1])}
+                className="px-6 py-2 rounded-xs bg-accent-700 hover:bg-accent-600 text-white text-xs font-semibold transition-colors"
+              >
+                다음 →
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </>
   );
 }
 
 // =====================================================
-// 공장별 규제 차등 패널 (팀원 코드 컨셉 흡수)
-// 공장의 destination에 따라 필요 필드만 표시, 다른 시장 규제는 자동 숨김
+// 공장별 규제 차등 패널 — 신규 6개 규제 포함 v2
 // =====================================================
 function FactoryFieldsPanel({ factory }: { factory: any }) {
-  // destination별 필드 정의
-  const fieldsByDestination: Record<string, Array<{ label: string; reg: Regulation | '공통'; type: 'upload' | 'input' }>> = {
+  // destination별 필드 정의 (v2 — 11개 규제 전체 커버)
+  const fieldsByDestination: Record<string, Array<{ label: string; reg: Regulation | '공통'; type: 'upload' | 'input'; required?: boolean }>> = {
     EU: [
-      { label: '원재료 GPS 좌표 (산림파괴 검증용)', reg: 'EUDR',  type: 'input' },
-      { label: 'FSC 인증서 (산림 인증)',           reg: 'EUDR_FSC', type: 'upload' },
-      { label: '인권 실사 보고서',                  reg: 'CSDDD', type: 'upload' },
-      { label: '재활용 함량 증빙',                  reg: 'EU_BATTERY', type: 'upload' },
-      { label: '원산지 증명서',                     reg: '공통',  type: 'upload' },
+      // 기존 EU 규제
+      { label: '원재료 GPS 좌표 (산림파괴 검증용)',    reg: 'EUDR',              type: 'input',  required: true },
+      { label: 'FSC 인증서 (산림 인증)',               reg: 'EUDR_FSC',          type: 'upload', required: true },
+      { label: '인권 실사 보고서',                      reg: 'CSDDD',             type: 'upload', required: true },
+      { label: '재활용 함량 증빙',                      reg: 'EU_BATTERY',        type: 'upload', required: true },
+      // 신규 추가 규제
+      { label: '분쟁광물 공급망 실사 보고서 (CMRT)',   reg: 'CONFLICT_MINERALS', type: 'upload', required: true },
+      { label: '탄소발자국 신고서 (Scope 1-3)',        reg: 'EU_BATTERY_ART7',   type: 'upload', required: true },
+      { label: 'Battery DDP 정책서',                  reg: 'EU_BATTERY_ART47',  type: 'upload', required: false },
+      { label: 'Notified Body 검증서',                reg: 'EU_BATTERY_ART47',  type: 'upload', required: false },
+      { label: 'CRMA 원산지별 공급 비율 증빙',         reg: 'CRMA',              type: 'input',  required: false },
+      { label: 'LkSG 인권 실사 요약서',               reg: 'LKSG',              type: 'upload', required: false },
+      { label: 'CBAM 탄소 함량 신고 데이터',           reg: 'CBAM',              type: 'upload', required: false },
+      // 공통
+      { label: '원산지 증명서',                         reg: '공통',              type: 'upload', required: true },
     ],
     US: [
-      { label: '원산지 증명서 (UFLPA 반증용)',    reg: 'UFLPA', type: 'upload' },
-      { label: '정련소 위치 + 공정 방식',         reg: 'UFLPA', type: 'input' },
-      { label: 'FEOC 직접 지분율 (%)',           reg: 'IRA',   type: 'input' },
-      { label: 'FEOC 간접 지분율 (%)',           reg: 'IRA',   type: 'input' },
-      { label: '인권 실사 보고서',                reg: 'CSDDD', type: 'upload' },
+      { label: '원산지 증명서 (UFLPA 반증용)',         reg: 'UFLPA', type: 'upload', required: true },
+      { label: '정련소 위치 + 공정 방식',              reg: 'UFLPA', type: 'input',  required: true },
+      { label: 'FEOC 직접 지분율 (%)',                reg: 'IRA',   type: 'input',  required: true },
+      { label: 'FEOC 간접 지분율 (%)',                reg: 'IRA',   type: 'input',  required: true },
+      { label: '인권 실사 보고서',                      reg: 'CSDDD', type: 'upload', required: false },
     ],
     BOTH: [
-      { label: '원재료 GPS 좌표',                 reg: 'EUDR',  type: 'input' },
-      { label: 'FSC 인증서',                      reg: 'EUDR_FSC', type: 'upload' },
-      { label: '원산지 증명서',                   reg: 'UFLPA', type: 'upload' },
-      { label: '정련소 위치',                     reg: 'UFLPA', type: 'input' },
-      { label: 'FEOC 지분율 (직+간접)',           reg: 'IRA',   type: 'input' },
-      { label: '인권 실사 보고서',                reg: 'CSDDD', type: 'upload' },
-      { label: '재활용 함량 증빙',                reg: 'EU_BATTERY', type: 'upload' },
+      // EU 필드
+      { label: '원재료 GPS 좌표',                      reg: 'EUDR',              type: 'input',  required: true },
+      { label: 'FSC 인증서',                           reg: 'EUDR_FSC',          type: 'upload', required: true },
+      { label: '인권 실사 보고서',                      reg: 'CSDDD',             type: 'upload', required: true },
+      { label: '재활용 함량 증빙',                      reg: 'EU_BATTERY',        type: 'upload', required: true },
+      { label: '분쟁광물 공급망 실사 보고서 (CMRT)',   reg: 'CONFLICT_MINERALS', type: 'upload', required: true },
+      { label: '탄소발자국 신고서 (Scope 1-3)',        reg: 'EU_BATTERY_ART7',   type: 'upload', required: true },
+      { label: 'CRMA 원산지별 공급 비율 증빙',         reg: 'CRMA',              type: 'input',  required: false },
+      { label: 'LkSG 인권 실사 요약서',               reg: 'LKSG',              type: 'upload', required: false },
+      { label: 'CBAM 탄소 함량 신고 데이터',           reg: 'CBAM',              type: 'upload', required: false },
+      // US 필드
+      { label: '원산지 증명서 (UFLPA 반증용)',         reg: 'UFLPA', type: 'upload', required: true },
+      { label: '정련소 위치',                           reg: 'UFLPA', type: 'input',  required: true },
+      { label: 'FEOC 지분율 (직+간접)',                reg: 'IRA',   type: 'input',  required: true },
+      // 공통
+      { label: '원산지 증명서',                         reg: '공통',  type: 'upload', required: true },
     ],
     KR: [
-      { label: '원산지 증명서',                   reg: '공통',  type: 'upload' },
-      { label: '품질 인증서',                     reg: '공통',  type: 'upload' },
+      { label: '원산지 증명서',                         reg: '공통',  type: 'upload', required: true },
+      { label: '품질 인증서',                           reg: '공통',  type: 'upload', required: true },
     ],
   };
 
@@ -506,6 +470,8 @@ function FactoryFieldsPanel({ factory }: { factory: any }) {
   const [completed, setCompleted] = useState<Record<number, boolean>>({});
   const toggle = (idx: number) => setCompleted(prev => ({ ...prev, [idx]: !prev[idx] }));
   const completedCount = Object.values(completed).filter(Boolean).length;
+  const requiredCount = fields.filter(f => f.required).length;
+  const completedRequiredCount = fields.filter((f, i) => f.required && !!completed[i]).length;
 
   return (
     <div className="space-y-3">
@@ -550,8 +516,11 @@ function FactoryFieldsPanel({ factory }: { factory: any }) {
                 : <MapPin className="w-3.5 h-3.5 text-ink-500 shrink-0" />
               }
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-ink-100">{f.label}</div>
-                {isDone && <div className="text-[10px] text-emerald-700 font-semibold">완료 ✓</div>}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-ink-100">{f.label}</span>
+                  {f.required && <span className="text-[9px] text-red-400 font-semibold">필수</span>}
+                </div>
+                {isDone && <div className="text-[10px] text-emerald-500 font-semibold">완료 ✓</div>}
               </div>
               <RegulationChipInline reg={f.reg as Regulation} />
               <button
@@ -573,7 +542,7 @@ function FactoryFieldsPanel({ factory }: { factory: any }) {
       {/* 진행률 */}
       <div className="pt-3 border-t border-ink-700/60">
         <div className="flex items-center justify-between mb-1.5 text-[11px]">
-          <span className="text-ink-400">진행률</span>
+          <span className="text-ink-400">진행률 (필수 {completedRequiredCount}/{requiredCount})</span>
           <span className="num-mono text-ink-200 font-semibold">
             {completedCount} / {fields.length}
           </span>
@@ -589,11 +558,11 @@ function FactoryFieldsPanel({ factory }: { factory: any }) {
   );
 }
 
-// 규제 칩 (인라인용)
+// ─── 인라인 규제 칩 ──────────────────────────────────────────
 function RegulationChipInline({ reg }: { reg: Regulation | '공통' }) {
   if (reg === '공통') {
     return (
-      <span className="text-[9px] num-mono px-1.5 py-0.5 rounded-xs border bg-ink-700 border-ink-600 text-ink-300 font-semibold">
+      <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-xs border border-ink-600/60 text-[9px] text-ink-400 font-medium">
         공통
       </span>
     );
@@ -601,76 +570,28 @@ function RegulationChipInline({ reg }: { reg: Regulation | '공통' }) {
   const meta = regulationMeta[reg];
   if (!meta) return null;
   const colorMap: Record<string, string> = {
-    emerald: 'bg-emerald-500/10 border-emerald-700/30 text-emerald-700',
-    teal:    'bg-teal-500/10 border-teal-700/30 text-teal-700',
-    amber:   'bg-amber-500/10 border-amber-700/30 text-amber-700',
-    orange:  'bg-orange-500/10 border-orange-700/30 text-orange-700',
-    blue:    'bg-blue-500/10 border-blue-700/30 text-blue-700',
-    purple:  'bg-purple-500/10 border-purple-700/30 text-purple-700',
+    emerald: 'border-emerald-700/30 bg-emerald-500/8 text-emerald-600',
+    teal:    'border-teal-700/30 bg-teal-500/8 text-teal-600',
+    amber:   'border-amber-700/30 bg-amber-500/8 text-amber-600',
+    orange:  'border-orange-700/30 bg-orange-500/8 text-orange-600',
+    blue:    'border-blue-700/30 bg-blue-500/8 text-blue-600',
+    cyan:    'border-cyan-700/30 bg-cyan-500/8 text-cyan-600',
+    purple:  'border-purple-700/30 bg-purple-500/8 text-purple-600',
+    red:     'border-red-700/30 bg-red-500/8 text-red-600',
+    violet:  'border-violet-700/30 bg-violet-500/8 text-violet-600',
+    slate:   'border-slate-700/30 bg-slate-500/8 text-slate-500',
   };
   return (
-    <span
-      className={clsx(
-        'text-[9px] num-mono px-1.5 py-0.5 rounded-xs border font-semibold',
-        colorMap[meta.color] || colorMap.blue
-      )}
-      title={meta.description}
-    >
+    <span className={clsx(
+      'shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-xs border text-[9px] font-semibold',
+      colorMap[meta.color] || 'border-ink-600 text-ink-400',
+    )}>
       {meta.label}
     </span>
   );
 }
 
-// === 시점 토글 (정의서 ② 시연용) ===
-function ViewerToggle({ viewerSupplierId, onChange }: { viewerSupplierId: PortalViewer; onChange: (v: PortalViewer) => void }) {
-  const options: { id: PortalViewer; label: string; hint: string }[] = [
-    { id: 'S-CAM-001',  label: 'POS Cathode 시점',  hint: 'T3 양극재 협력사' },
-    { id: 'S-CELL-001', label: 'Hanyang Cell 시점', hint: 'T1 1차 협력사' },
-  ];
-  const [open, setOpen] = useState(false);
-  const current = options.find(o => o.id === viewerSupplierId);
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-xs border border-ink-700 hover:border-ink-600 text-[11px] text-ink-300"
-      >
-        <Building2 className="w-3 h-3" />
-        <span className="text-ink-400">로그인:</span>
-        <span className="font-medium text-ink-100">{current?.label}</span>
-        <ChevronDown className="w-3 h-3" />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full right-0 mt-1 z-20 min-w-[220px] rounded-xs border border-ink-700 bg-ink-800 shadow-lg py-1">
-            {options.map(opt => (
-              <button
-                key={opt.id}
-                onClick={() => { onChange(opt.id); setOpen(false); }}
-                className={clsx(
-                  'w-full text-left px-3 py-2 hover:bg-ink-700/60 transition-colors',
-                  opt.id === viewerSupplierId && 'bg-ink-700/40'
-                )}
-              >
-                <div className={clsx(
-                  'text-xs font-medium',
-                  opt.id === viewerSupplierId ? 'text-accent-400' : 'text-ink-100'
-                )}>
-                  {opt.label}
-                </div>
-                <div className="text-[10px] text-ink-500 num-mono">{opt.hint}</div>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// === Helpers ===
+// ─── 헬퍼 컴포넌트 ───────────────────────────────────────────
 function StepIndicator({ step, current, label, num }: any) {
   const stepOrder: Step[] = ['po-select', 'materials', 'documents', 'review'];
   const currentIdx = stepOrder.indexOf(current);
@@ -704,15 +625,46 @@ function StepConnector({ active }: { active: boolean }) {
   return <div className={clsx('flex-1 h-px mx-3', active ? 'bg-accent-700/50' : 'bg-ink-700')} />;
 }
 
-function PoStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { tone: any; label: string }> = {
-    pending:    { tone: 'warn',    label: '응답 대기' },
-    in_transit: { tone: 'info',    label: '운송 중' },
-    delivered:  { tone: 'neutral', label: '인도' },
-    verified:   { tone: 'ok',      label: '검증 완료' },
+function FileRow({ file }: { file: UploadedFile }) {
+  const statusMap = {
+    uploaded:   { icon: FileText,  color: 'text-ink-400',     label: '업로드됨' },
+    validating: { icon: AlertCircle, color: 'text-amber-500', label: '검증 중' },
+    valid:      { icon: FileCheck, color: 'text-emerald-500', label: '유효' },
+    error:      { icon: X,         color: 'text-red-500',     label: '오류' },
   };
-  const m = map[status] || map.pending;
-  return <Badge tone={m.tone} size="sm">{m.label}</Badge>;
+  const sm = statusMap[file.status];
+  const Icon = sm.icon;
+  return (
+    <div className="flex items-center gap-3 px-3 py-2 rounded-xs border border-ink-700/60 bg-ink-900/30">
+      <Icon className={clsx('w-3.5 h-3.5 shrink-0', sm.color)} />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-ink-100 truncate">{file.name}</div>
+        <div className="text-[10px] text-ink-500">{file.type} · {file.size}</div>
+      </div>
+      <span className={clsx('text-[10px] font-medium', sm.color)}>{sm.label}</span>
+    </div>
+  );
+}
+
+function MissingItem({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-[11px] text-red-400">
+      <AlertCircle className="w-3 h-3 shrink-0" />
+      {label}
+    </div>
+  );
+}
+
+function CheckRow({ label, ok, warn }: { label: string; ok?: boolean; warn?: boolean }) {
+  const icon = ok ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> :
+               warn ? <AlertCircle className="w-3.5 h-3.5 text-amber-500" /> :
+               <Info className="w-3.5 h-3.5 text-ink-500" />;
+  return (
+    <div className="flex items-center gap-2 text-[11px]">
+      {icon}
+      <span className={ok ? 'text-ink-300' : warn ? 'text-amber-400' : 'text-ink-500'}>{label}</span>
+    </div>
+  );
 }
 
 function ComplianceCheck({ metal, target, current }: any) {
@@ -724,57 +676,11 @@ function ComplianceCheck({ metal, target, current }: any) {
     )}>
       <div className="text-[10px] text-ink-400 mb-1">{metal}</div>
       <div className="flex items-baseline justify-between">
-        <span className={clsx('text-lg font-semibold num-mono', ok ? 'text-emerald-700' : 'text-amber-700')}>
+        <span className={clsx('text-lg font-semibold num-mono', ok ? 'text-emerald-400' : 'text-amber-400')}>
           {current}%
         </span>
-        <span className="text-[10px] text-ink-500 num-mono">/ {target}%</span>
+        <span className="text-[9px] text-ink-500">의무 {target}%</span>
       </div>
-    </div>
-  );
-}
-
-function FileRow({ file }: { file: UploadedFile }) {
-  const statusConfig: any = {
-    uploaded:   { icon: FileText, color: 'text-ink-400', bg: 'bg-ink-800' },
-    validating: { icon: FileText, color: 'text-blue-700', bg: 'bg-blue-500/10' },
-    valid:      { icon: FileCheck, color: 'text-emerald-700', bg: 'bg-emerald-500/10' },
-    error:      { icon: AlertCircle, color: 'text-red-700', bg: 'bg-red-500/10' },
-  };
-  const cfg = statusConfig[file.status];
-  const Icon = cfg.icon;
-
-  return (
-    <div className={clsx('flex items-center gap-2 p-2 rounded-xs', cfg.bg)}>
-      <Icon className={clsx('w-4 h-4 shrink-0', cfg.color)} strokeWidth={1.8} />
-      <div className="flex-1 min-w-0">
-        <div className="text-[11px] font-medium text-ink-100 truncate">{file.name}</div>
-        <div className="text-[10px] text-ink-500 num-mono">{file.type} · {file.size}</div>
-      </div>
-      {file.status === 'validating' && (
-        <div className="text-[10px] text-blue-700 num-mono shrink-0">검증 중</div>
-      )}
-      {file.status === 'valid' && (
-        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-      )}
-    </div>
-  );
-}
-
-function MissingItem({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-2 text-[11px] text-amber-700">
-      <AlertCircle className="w-3 h-3" />
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function CheckRow({ label, ok, warn }: any) {
-  return (
-    <div className="flex items-center justify-between text-xs">
-      <span className="text-ink-300">{label}</span>
-      {ok && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />}
-      {warn && <AlertCircle className="w-3.5 h-3.5 text-amber-700" />}
     </div>
   );
 }
