@@ -324,7 +324,7 @@ export default function DashboardPage() {
             </div>
 
             <Link
-              href="/supply-chain"
+              href="/supply-chain/product-map"
               className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-xs bg-accent-700/20 border border-accent-700/30 text-accent-300 text-xs font-medium hover:bg-accent-700/30 transition-colors"
             >
               공급망 맵 열기 <ArrowRight className="w-3.5 h-3.5" />
