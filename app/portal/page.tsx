@@ -18,7 +18,7 @@ import {
   Truck, Building2, ArrowRight, ArrowUp, ArrowDown,
   Factory, ChevronDown,
 } from 'lucide-react';
-import { suppliers, supplyEdges, purchaseOrders as allPOs } from '@/lib/data';
+import { suppliers, supplyEdges } from '@/lib/data';
 import {
   purchaseOrders, parts, factories, supplierContacts,
   tier1ViewerSupplierId, regulationMeta, type Regulation,
