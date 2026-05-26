@@ -88,7 +88,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <div className="space-y-0.5 mt-1">
               <NavLink href="/submission-status" iconName="bar-chart" label="입력 현황" subtitle="제출률·기한 초과" />
               <NavLink href="/submission-review" iconName="clipboard-check" label="제출 자료 검토" subtitle="승인·반려·재요청" />
-              <NavLink href="/portal" iconName="upload" label="협력사 포털" subtitle="업로드·자가평가" />
+              <NavLink href="/portal" iconName="upload" label="제출 포털 미리보기" subtitle="원청사용 확인 화면" />
             </div>
           </div>
 
