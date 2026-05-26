@@ -409,9 +409,9 @@ export default function SupplierPage() {
             <div className="flex items-start gap-3">
               <ShieldCheck className="mt-0.5 h-5 w-5 text-amber-800" />
               <div>
-                <div className="text-sm font-bold text-amber-900">원청사용 민감정보 제외</div>
+                <div className="text-sm font-bold text-amber-900">표시 범위 안내</div>
                 <p className="mt-2 text-xs leading-5 text-amber-800">
-                  전체 협력사 목록, 타 협력사 연락처, PO 단가 비교, 내부 HITL 판단 및 감사 로그는 표시하지 않습니다.
+                  내 회사 정보와 직접 연결된 공급망만 표시합니다. 타 협력사 연락처, PO 단가 비교, 내부 판단 및 감사 로그는 표시하지 않습니다.
                 </p>
               </div>
             </div>
