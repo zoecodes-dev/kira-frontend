@@ -40,11 +40,13 @@ const layout: Record<string, { x: number; y: number }> = {
   'S-CELL-001': { x: 840, y: 290 },
 };
 
+const mapFont = 'Inter, Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
 const statusColors: Record<SupplierStatus, { stroke: string; fill: string; text: string; glow: string }> = {
-  verified:  { stroke: '#10B981', fill: '#10B98112', text: '#34D399', glow: '#10B98130' },
-  pending:   { stroke: '#3B82F6', fill: '#3B82F612', text: '#60A5FA', glow: '#3B82F630' },
-  review:    { stroke: '#F59E0B', fill: '#F59E0B12', text: '#FBBF24', glow: '#F59E0B30' },
-  violation: { stroke: '#EF4444', fill: '#EF444420', text: '#F87171', glow: '#EF444440' },
+  verified:  { stroke: '#059669', fill: '#FFFFFF', text: '#047857', glow: '#10B98122' },
+  pending:   { stroke: '#2563EB', fill: '#FFFFFF', text: '#1D4ED8', glow: '#3B82F622' },
+  review:    { stroke: '#D97706', fill: '#FFFFFF', text: '#B45309', glow: '#F59E0B24' },
+  violation: { stroke: '#DC2626', fill: '#FFFFFF', text: '#B91C1C', glow: '#EF444422' },
 };
 
 const columnHeaders = [
@@ -901,7 +903,12 @@ function InlineMap({
         ))}
       </div>
 
-      <svg viewBox="0 0 980 520" className="w-full" style={{ minHeight: 320 }}>
+      <svg viewBox="0 0 980 520" className="w-full" style={{ minHeight: 320, fontFamily: mapFont }}>
+        <defs>
+          <filter id="product-map-shadow" x="-12%" y="-18%" width="124%" height="136%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#0F172A" floodOpacity="0.10" />
+          </filter>
+        </defs>
         {/* 엣지 */}
         {supplyEdges.map((edge, i) => {
           const from = layout[edge.from];
@@ -917,12 +924,12 @@ function InlineMap({
             <g key={i}>
               <path
                 d={path} fill="none"
-                stroke={active ? '#14B8A6' : '#3F4957'}
+                stroke={active ? '#0F766E' : '#CBD5E1'}
                 strokeWidth={active ? 2 : 1}
-                opacity={dimmed ? 0.12 : (active ? 1 : 0.45)}
+                opacity={dimmed ? 0.14 : (active ? 1 : 0.7)}
               />
               {active && (
-                <text x={midX} y={(from.y + to.y) / 2 - 7} fill="#5EEAD4" fontSize="9" textAnchor="middle" fontFamily="'JetBrains Mono', monospace">
+                <text x={midX} y={(from.y + to.y) / 2 - 7} fill="#0F766E" fontSize="9" fontWeight="700" textAnchor="middle">
                   {edge.material} · {edge.volume}t
                 </text>
               )}
@@ -941,10 +948,12 @@ function InlineMap({
           const dimmed     = focusIds ? !focusIds.has(s.id) : false;
           const opacity    = dimmed ? 0.18 : 1;
 
+          const name = getSupplierName(s.id);
+
           return (
             <g
               key={s.id}
-              transform={`translate(${pos.x - 68}, ${pos.y - 30})`}
+              transform={`translate(${pos.x - 68}, ${pos.y - 26})`}
               style={{ cursor: 'pointer', opacity }}
               onMouseEnter={() => setHovered(s.id)}
               onMouseLeave={() => setHovered(null)}
@@ -952,14 +961,14 @@ function InlineMap({
             >
               {/* 선택/호버 글로우 */}
               {(isSelected || isHov) && (
-                <rect x={-4} y={-4} width={144} height={72} rx={3} fill={c.glow} />
+                <rect x={-6} y={-6} width={148} height={64} rx={6} fill={c.glow} />
               )}
               {/* 카드 */}
-              <rect width={136} height={64} rx={2} fill={c.fill} stroke={c.stroke} strokeWidth={isSelected ? 2 : 1} />
+              <rect width={136} height={52} rx={5} fill={c.fill} stroke={c.stroke} strokeWidth={isSelected ? 2 : 1} filter="url(#product-map-shadow)" />
 
               {/* Tier 배지 */}
-              <rect x={6} y={6} width={26} height={13} rx={2} fill="#1F2937" />
-              <text x={19} y={16} fill="#E5E7EB" fontSize="8" textAnchor="middle" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+              <rect x={6} y={6} width={26} height={13} rx={2} fill="#F1F5F9" stroke="#CBD5E1" />
+              <text x={19} y={16} fill="#334155" fontSize="8" textAnchor="middle" fontWeight="800" fontFamily="'JetBrains Mono', monospace">
                 T{s.tier}
               </text>
 
@@ -967,18 +976,13 @@ function InlineMap({
               <circle cx={124} cy={13} r={3.5} fill={c.stroke} />
 
               {/* 이름 */}
-              <text x={6} y={34} fill="#F3F4F6" fontSize="9.5" fontWeight="600">
-                {truncate(s.name, 17)}
+              <text x={6} y={34} fill="#0F172A" fontSize="10" fontWeight="800">
+                {truncate(name?.shortNameEn ?? s.name, 17)}
               </text>
 
-              {/* 역할 */}
-              <text x={6} y={46} fill={c.text} fontSize="8.5">
-                {truncate(s.role, 20)}
-              </text>
-
-              {/* 국가·지역 */}
-              <text x={6} y={57} fill="#9CA3AF" fontSize="8" fontFamily="'JetBrains Mono', monospace">
-                {s.country} · {truncate(s.region, 12)}
+              {/* 상태 */}
+              <text x={6} y={46} fill={c.text} fontSize="8.8" fontWeight="800">
+                {s.status === 'verified' ? '검증 완료' : s.status === 'violation' ? '위반 확인' : s.status === 'review' ? '검토 중' : '대기'}
               </text>
             </g>
           );
@@ -1199,7 +1203,7 @@ function ProductMapContent() {
           </div>
 
           {/* 맵 */}
-          <div className="rounded-sm border border-ink-700 bg-ink-800/20 overflow-hidden">
+          <div className="rounded-sm border border-ink-700 bg-white overflow-hidden shadow-control">
             <InlineMap
               selectedId={selectedSupplier?.id ?? null}
               focusIds={focusIds}
@@ -1208,7 +1212,7 @@ function ProductMapContent() {
           </div>
 
           {/* Tier 통계 하단 */}
-          <div className="mt-4 grid grid-cols-5 gap-2">
+          <div className="hidden mt-4 grid-cols-5 gap-2">
             {([5,4,3,2,1] as Tier[]).map(tier => {
               const count = suppliers.filter(s => s.tiers.includes(tier)).length;
               return (

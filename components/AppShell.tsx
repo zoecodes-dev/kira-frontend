@@ -63,9 +63,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               물질·자재 관리
             </div>
             <div className="space-y-0.5 mt-1">
-              <NavLink href="/materials" iconName="flask" label="물질 관리" subtitle="조성·인증·규제" />
-              <NavLink href="/risk/origin-certs" iconName="file-search" label="원산지 증명서" subtitle="FTA·IRA·UFLPA" />
-              <NavLink href="/materials/regulation-results" iconName="shield-check" label="규제 검증 결과" subtitle="자재별 판정" />
+              <NavLink
+                href="/materials"
+                iconName="flask"
+                label="자재·규제 데이터"
+                subtitle="조성·인증·규제"
+                subItems={[
+                  { href: '/materials', label: '물질 관리' },
+                  { href: '/risk/origin-certs', label: '원산지 증명서' },
+                  { href: '/materials/regulation-results', label: '규제 검증 결과' },
+                ]}
+              />
             </div>
           </div>
 
@@ -74,10 +82,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               공급망 관리
             </div>
             <div className="space-y-0.5 mt-1">
-              <NavLink href="/supply-chain/product-map" iconName="network" label="제품별 공급망 맵" subtitle="조회 전용 탐색" />
-              <NavLink href="/supply-chain/request-map" iconName="send" label="입력 요청 맵" subtitle="자료 요청 지정" />
-              <NavLink href="/due-diligence" iconName="clipboard-list" label="공급망 실사 관리" subtitle="보고서·개선조치" />
-              <NavLink href="/risk/actions" iconName="kanban" label="리스크 조치 보드" subtitle="조치 상태 추적" />
+              <NavLink
+                href="/supply-chain/product-map"
+                iconName="network"
+                label="공급망 워크스페이스"
+                subtitle="맵·요청·실사"
+                subItems={[
+                  { href: '/supply-chain/product-map', label: '제품별 공급망 맵' },
+                  { href: '/supply-chain/request-map', label: '입력 요청 맵' },
+                  { href: '/due-diligence', label: '공급망 실사 관리' },
+                  { href: '/risk/actions', label: '리스크 조치 보드' },
+                ]}
+              />
             </div>
           </div>
 
@@ -86,9 +102,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               입력 데이터
             </div>
             <div className="space-y-0.5 mt-1">
-              <NavLink href="/submission-status" iconName="bar-chart" label="입력 현황" subtitle="제출률·기한 초과" />
-              <NavLink href="/submission-review" iconName="clipboard-check" label="제출 자료 검토" subtitle="승인·반려·재요청" />
-              <NavLink href="/portal" iconName="upload" label="제출 포털 미리보기" subtitle="원청사용 확인 화면" />
+              <NavLink
+                href="/submission-status"
+                iconName="bar-chart"
+                label="제출 데이터 관리"
+                subtitle="제출·검토·포털"
+                subItems={[
+                  { href: '/submission-status', label: '입력 현황' },
+                  { href: '/submission-review', label: '제출 자료 검토' },
+                  { href: '/portal', label: '제출 포털 미리보기' },
+                ]}
+              />
             </div>
           </div>
 
@@ -97,9 +121,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               DPP 발행
             </div>
             <div className="space-y-0.5 mt-1">
-              <NavLink href="/dpp/readiness" iconName="layers" label="DPP Readiness" subtitle="발행 조건·blocker" />
-              <NavLink href="/hitl" iconName="user-check" label="HITL 검토" subtitle="회색지대 판단" />
-              <NavLink href="/dpp" iconName="file-badge" label="DPP 발행 이력" subtitle="여권 관리" />
+              <NavLink
+                href="/dpp/readiness"
+                iconName="layers"
+                label="발행 준비"
+                subtitle="준비도·검토·이력"
+                subItems={[
+                  { href: '/dpp/readiness', label: 'DPP Readiness' },
+                  { href: '/hitl', label: 'HITL 검토' },
+                  { href: '/dpp', label: 'DPP 발행 이력' },
+                ]}
+              />
             </div>
           </div>
 
@@ -117,8 +149,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               감사·추적
             </div>
             <div className="space-y-0.5 mt-1">
-              <NavLink href="/audit" iconName="shield-check" label="감사 추적" subtitle="Provenance 조회" />
-              <NavLink href="/audit/package" iconName="package" label="감사 패키지" subtitle="증거 묶음" />
+              <NavLink
+                href="/audit"
+                iconName="shield-check"
+                label="증적 관리"
+                subtitle="추적·증거 묶음"
+                subItems={[
+                  { href: '/audit', label: '감사 추적' },
+                  { href: '/audit/package', label: '감사 패키지' },
+                ]}
+              />
             </div>
           </div>
         </nav>

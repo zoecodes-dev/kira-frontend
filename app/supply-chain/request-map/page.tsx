@@ -25,6 +25,8 @@ type FilterMode = 'all' | 'overdue' | 'in_progress' | 'completed' | 'not_request
 // ─── 입력 요청 상태 파생 ─────────────────────────────────────
 type RequestStatus = 'completed' | 'in_progress' | 'overdue' | 'not_requested' | 'sent';
 
+const mapFont = 'Inter, Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
 interface SupplierSubmissionState {
   supplierId: string;
   completionRate: number;
@@ -92,11 +94,11 @@ const statusStyle: Record<RequestStatus, {
   stroke: string; fill: string; text: string;
   barColor: string; label: string; dotColor: string;
 }> = {
-  completed:     { stroke: '#10B981', fill: '#10B98112', text: '#34D399', barColor: '#10B981', label: '제출 완료',    dotColor: '#10B981' },
-  in_progress:   { stroke: '#3B82F6', fill: '#3B82F612', text: '#60A5FA', barColor: '#3B82F6', label: '입력 중',      dotColor: '#3B82F6' },
-  sent:          { stroke: '#A855F7', fill: '#A855F712', text: '#C084FC', barColor: '#A855F7', label: '요청 발송',    dotColor: '#A855F7' },
-  overdue:       { stroke: '#EF4444', fill: '#EF444420', text: '#F87171', barColor: '#EF4444', label: '기한 초과',    dotColor: '#EF4444' },
-  not_requested: { stroke: '#6B7280', fill: '#6B728010', text: '#9CA3AF', barColor: '#6B7280', label: '요청 미발송',  dotColor: '#6B7280' },
+  completed:     { stroke: '#059669', fill: '#FFFFFF', text: '#047857', barColor: '#059669', label: '제출 완료',    dotColor: '#059669' },
+  in_progress:   { stroke: '#2563EB', fill: '#FFFFFF', text: '#1D4ED8', barColor: '#2563EB', label: '입력 중',      dotColor: '#2563EB' },
+  sent:          { stroke: '#7C3AED', fill: '#FFFFFF', text: '#6D28D9', barColor: '#7C3AED', label: '요청 발송',    dotColor: '#7C3AED' },
+  overdue:       { stroke: '#DC2626', fill: '#FFFFFF', text: '#B91C1C', barColor: '#DC2626', label: '기한 초과',    dotColor: '#DC2626' },
+  not_requested: { stroke: '#64748B', fill: '#FFFFFF', text: '#475569', barColor: '#64748B', label: '요청 미발송',  dotColor: '#64748B' },
 };
 
 function truncate(s: string, max: number) {
@@ -147,7 +149,12 @@ function RequestMap({
         ))}
       </div>
 
-      <svg viewBox="0 0 960 520" className="w-full" style={{ minHeight: 300 }}>
+      <svg viewBox="0 0 960 520" className="w-full" style={{ minHeight: 300, fontFamily: mapFont }}>
+        <defs>
+          <filter id="request-map-shadow" x="-12%" y="-18%" width="124%" height="136%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#0F172A" floodOpacity="0.10" />
+          </filter>
+        </defs>
         {/* 엣지 */}
         {supplyEdges.map((edge, i) => {
           const from = layout[edge.from];
@@ -160,9 +167,9 @@ function RequestMap({
           const path = `M ${from.x + 66} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x - 66} ${to.y}`;
           return (
             <path key={i} d={path} fill="none"
-              stroke={active ? '#14B8A6' : '#3F4957'}
+              stroke={active ? '#0F766E' : '#CBD5E1'}
               strokeWidth={active ? 1.8 : 1}
-              opacity={dimmed ? 0.1 : (active ? 1 : 0.4)}
+              opacity={dimmed ? 0.12 : (active ? 1 : 0.7)}
             />
           );
         })}
@@ -179,12 +186,9 @@ function RequestMap({
           const dimmed     = isDimmed(s.id);
           const name       = getSupplierName(s.id);
 
-          // 진행률 바 너비 (카드 내부 128px 기준)
-          const barW = Math.round((pct / 100) * 128);
-
           return (
             <g key={s.id}
-              transform={`translate(${pos.x - 66}, ${pos.y - 36})`}
+              transform={`translate(${pos.x - 66}, ${pos.y - 28})`}
               style={{ cursor: 'pointer', opacity: dimmed ? 0.18 : 1 }}
               onMouseEnter={() => setHovered(s.id)}
               onMouseLeave={() => setHovered(null)}
@@ -192,65 +196,41 @@ function RequestMap({
             >
               {/* 선택 글로우 */}
               {(isSelected || isHov) && (
-                <rect x={-4} y={-4} width={140} height={80} rx={3}
+                <rect x={-5} y={-5} width={142} height={66} rx={6}
                   fill="none" stroke={style.stroke} strokeWidth={2} opacity={0.5}
                 />
               )}
 
               {/* 카드 본체 */}
-              <rect width={132} height={72} rx={2}
+              <rect width={132} height={56} rx={5}
                 fill={style.fill} stroke={style.stroke}
                 strokeWidth={isSelected ? 2 : 1}
+                filter="url(#request-map-shadow)"
               />
 
-              {/* 상단: 상태 라벨 + 퍼센트 */}
-              <text x={6} y={14} fill={style.text} fontSize="8" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+              {/* 협력사 이름 */}
+              <text x={8} y={17} fill="#0F172A" fontSize="10" fontWeight="800">
+                {truncate(name?.shortNameEn ?? s.name, 16)}
+              </text>
+
+              {/* 상태 + 완성도 */}
+              <text x={8} y={34} fill={style.text} fontSize="8.8" fontWeight="800">
                 {style.label}
               </text>
-              <text x={126} y={14} fill={style.text} fontSize="9" fontWeight="700"
-                textAnchor="end" fontFamily="'JetBrains Mono', monospace"
-              >
+              <text x={124} y={34} fill="#334155" fontSize="9" fontWeight="800" textAnchor="end">
                 {pct}%
               </text>
 
               {/* 진행률 바 */}
-              <rect x={6} y={18} width={120} height={3} rx={1} fill="#374151" />
-              <rect x={6} y={18} width={Math.round((pct / 100) * 120)} height={3} rx={1} fill={style.barColor} />
-
-              {/* 협력사 이름 */}
-              <text x={6} y={34} fill="#F3F4F6" fontSize="9.5" fontWeight="600">
-                {truncate(name?.shortNameEn ?? s.name, 16)}
-              </text>
-
-              {/* 역할 */}
-              <text x={6} y={46} fill="#9CA3AF" fontSize="8.5">
-                {truncate(s.role, 19)}
-              </text>
-
-              {/* 국가 + 누락 항목 수 */}
-              <text x={6} y={58} fill="#6B7280" fontSize="8" fontFamily="'JetBrains Mono', monospace">
-                {s.country}
-              </text>
-              {(st?.missingCount ?? 0) > 0 && (
-                <>
-                  <rect x={56} y={50} width={70} height={12} rx={2} fill="#EF444420" />
-                  <text x={91} y={59} fill="#F87171" fontSize="8" textAnchor="middle" fontFamily="'JetBrains Mono', monospace">
-                    누락 {st?.missingCount}항목
-                  </text>
-                </>
-              )}
-
-              {/* 기한초과 경고 아이콘 */}
-              {st?.overdueCount > 0 && (
-                <text x={120} y={58} fill="#F87171" fontSize="10" textAnchor="middle">⚠</text>
-              )}
+              <rect x={8} y={42} width={116} height={4} rx={2} fill="#E2E8F0" />
+              <rect x={8} y={42} width={Math.round((pct / 100) * 116)} height={4} rx={2} fill={style.barColor} />
             </g>
           );
         })}
       </svg>
 
       {/* 범례 */}
-      <div className="absolute bottom-2 right-2 flex items-center gap-3 text-[10px] text-ink-400 bg-white/80 backdrop-blur px-3 py-1.5 rounded-xs border border-ink-700">
+      <div className="absolute bottom-2 right-2 flex items-center gap-3 text-[10px] text-ink-400 bg-white/90 backdrop-blur px-3 py-1.5 rounded-xs border border-ink-700">
         {(Object.entries(statusStyle) as [RequestStatus, typeof statusStyle[RequestStatus]][]).map(([key, s]) => (
           <div key={key} className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.dotColor }} />
@@ -470,6 +450,7 @@ export default function RequestMapPage() {
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [sentNotification, setSentNotification] = useState<string | null>(null);
+  const [showTable, setShowTable] = useState(false);
 
   const states = useMemo(() => buildSubmissionStates(), []);
   const stateMap = useMemo(() => {
@@ -584,7 +565,7 @@ export default function RequestMapPage() {
             </div>
 
             {/* 맵 */}
-            <div className="rounded-sm border border-ink-700 bg-ink-800/20 overflow-hidden">
+            <div className="rounded-sm border border-ink-700 bg-white overflow-hidden shadow-control">
               <RequestMap
                 states={states}
                 selectedId={selectedSupplier?.id ?? null}
@@ -594,12 +575,23 @@ export default function RequestMapPage() {
             </div>
 
             {/* 요청 현황 테이블 */}
-            <div className="mt-4 rounded-sm border border-ink-700 bg-ink-800/30 overflow-hidden">
-              <div className="px-4 py-3 border-b border-ink-700 flex items-center justify-between">
-                <span className="text-xs font-semibold text-ink-200">전체 협력사 입력 현황</span>
-                <span className="text-[10px] text-ink-500 num-mono">{states.length}개사</span>
-              </div>
-              <div className="overflow-x-auto">
+            <div className="mt-4 rounded-sm border border-ink-700 bg-white shadow-control overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowTable(value => !value)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-ink-800"
+              >
+                <div>
+                  <div className="text-xs font-bold text-ink-100">전체 협력사 입력 현황</div>
+                  <div className="mt-0.5 text-[10px] text-ink-500">필요할 때 목록으로 열어 확인합니다</div>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] text-ink-500 num-mono">
+                  {states.length}개사
+                  <ChevronRight className={clsx('h-3.5 w-3.5 transition-transform', showTable && 'rotate-90')} />
+                </div>
+              </button>
+              {showTable && (
+                <div className="overflow-x-auto border-t border-ink-700">
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-ink-700/60">
@@ -668,7 +660,8 @@ export default function RequestMapPage() {
                     })}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              )}
             </div>
           </div>
 

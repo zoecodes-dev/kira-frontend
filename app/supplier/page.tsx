@@ -166,7 +166,7 @@ function SupplierSidebar({
         <div className="text-[11px] font-semibold text-ink-500">접속 권한</div>
         <div className="mt-1 flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-signal-ok" />
-          <span className="text-xs font-semibold text-ink-200">협력사 제한 보기</span>
+          <span className="text-xs font-semibold text-ink-200">내 회사 기준 보기</span>
         </div>
       </div>
     </aside>
@@ -355,10 +355,10 @@ export default function SupplierPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h1 className="text-2xl font-bold tracking-tight">협력사 업무공간</h1>
-                    <Badge tone="info">제한 보기</Badge>
+                    <Badge tone="info">내 회사 기준</Badge>
                   </div>
                   <p className="mt-1 text-sm text-ink-500">
-                    본인 회사와 직접 연결된 공급망 관계, 제출 요청, 보완 항목만 표시합니다.
+                    내 회사 정보, 원청 요청 자료, 직접 연결된 공급망만 확인합니다.
                   </p>
                 </div>
               </div>
@@ -400,7 +400,7 @@ export default function SupplierPage() {
               </div>
               <div className="rounded-xs border border-ink-700 bg-ink-800 p-3">
                 <div className="text-[11px] font-semibold text-ink-500">공개 범위</div>
-                <div className="mt-1 text-sm font-bold text-accent-700">본인 + 직접 연결</div>
+                  <div className="mt-1 text-sm font-bold text-accent-700">내 회사 + 직접 연결</div>
               </div>
             </div>
           </div>
@@ -411,7 +411,7 @@ export default function SupplierPage() {
               <div>
                 <div className="text-sm font-bold text-amber-900">표시 범위 안내</div>
                 <p className="mt-2 text-xs leading-5 text-amber-800">
-                  내 회사 정보와 직접 연결된 공급망만 표시합니다. 타 협력사 연락처, PO 단가 비교, 내부 판단 및 감사 로그는 표시하지 않습니다.
+                  내 회사와 직접 연결된 공급망만 표시합니다. 타 협력사 연락처, PO 단가, 내부 판단 로그는 표시하지 않습니다.
                 </p>
               </div>
             </div>
@@ -459,7 +459,7 @@ export default function SupplierPage() {
         </section>
 
         <section className="grid grid-cols-[1fr_1fr] gap-4">
-          <Card title="오늘 먼저 처리할 일" subtitle="원청 요청과 제출 기한 기준으로 우선순위를 정리합니다">
+          <Card title="오늘 먼저 처리할 일" subtitle="제출 기한이 가까운 원청 요청만 모았습니다">
             <div className="space-y-2">
               {requestItems.slice(0, 3).map(item => (
                 <button
@@ -497,7 +497,7 @@ export default function SupplierPage() {
         </section>
 
         <section className="grid grid-cols-[0.9fr_1.1fr] gap-4">
-          <Card title="직접 연결 공급망" subtitle="업체를 클릭하면 상세 정보가 오른쪽에 표시됩니다">
+          <Card title="직접 연결 공급망" subtitle="내 회사와 직접 연결된 업체만 표시합니다">
             <div className="space-y-3">
               <div className="rounded-xs border border-ink-700 bg-ink-800 p-3">
                 <div className="mb-2 text-xs font-bold text-ink-500">Parent / 상위 관계</div>

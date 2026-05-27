@@ -189,7 +189,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="대시보드"
-        description="오늘 조치가 필요한 규제 리스크, 제출 지연, HITL 대기 항목을 한 화면에서 확인합니다"
+        description="오늘 처리해야 할 리스크, 제출 지연, 승인 대기 항목만 먼저 보여줍니다"
         badge="실시간 관제"
         actions={
           <div className="flex items-center gap-2 text-xs text-ink-400 num-mono">
@@ -255,12 +255,12 @@ export default function DashboardPage() {
       ══════════════════════════════════════════════════════════ */}
       {activeTab === 'overview' && (
         <div className="p-8 space-y-8">
-          <section className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
+          <section className="grid grid-cols-1 xl:grid-cols-[1.5fr_0.9fr] gap-4">
             <div className="rounded-sm border border-red-200 bg-white shadow-control overflow-hidden">
               <div className="px-5 py-4 border-b border-red-100 bg-red-50/70 flex items-center justify-between">
                 <div>
                   <h2 className="text-base font-bold text-red-900">오늘 먼저 봐야 할 조치</h2>
-                  <p className="mt-1 text-xs text-red-700">위반, HITL, 제출 지연처럼 업무 중단을 만들 수 있는 항목을 우선 배치했습니다</p>
+                  <p className="mt-1 text-xs text-red-700">업무 중단 가능성이 큰 항목만 먼저 배치했습니다</p>
                 </div>
                 <Badge tone="alert" size="md">{kpis.violations + hitlWaiting}건</Badge>
               </div>
@@ -290,8 +290,8 @@ export default function DashboardPage() {
             </div>
 
             <div className="rounded-sm border border-ink-700 bg-white shadow-control p-5">
-              <h2 className="text-base font-bold text-ink-100">운영 기준</h2>
-              <p className="mt-1 text-xs text-ink-500 leading-5">관제 화면은 상태 설명보다 조치 우선순위를 먼저 보여줍니다.</p>
+              <h2 className="text-base font-bold text-ink-100">운영 요약</h2>
+              <p className="mt-1 text-xs text-ink-500 leading-5">평균 처리와 발행 가능성을 짧게 확인합니다.</p>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="rounded-xs border border-ink-700 bg-ink-800 p-3">
                   <div className="text-[11px] text-ink-500">평균 처리</div>
@@ -302,10 +302,9 @@ export default function DashboardPage() {
                   <div className="mt-1 text-2xl font-bold num-mono text-emerald-800">{kpis.complianceRate}<span className="ml-1 text-xs text-ink-500">%</span></div>
                 </div>
               </div>
-              <div className="mt-4 rounded-xs border border-ink-700 bg-ink-800 p-3">
-                <div className="text-xs font-semibold text-ink-100">현재 판단</div>
-                <div className="mt-1 text-xs text-ink-500 leading-5">위반 감지와 HITL 대기 항목이 남아 있어 DPP 발행 전 수동 검토가 필요합니다.</div>
-              </div>
+              <button onClick={() => setActiveTab('dpp-ready')} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xs border border-accent-100 bg-accent-50 px-3 py-2.5 text-xs font-bold text-accent-800 hover:border-accent-600">
+                발행 준비 상태 보기 <ArrowRight className="h-3.5 w-3.5" />
+              </button>
             </div>
           </section>
 
@@ -349,7 +348,7 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <section className="hidden grid-cols-1 lg:grid-cols-3 gap-4">
             <Card
               title="일별 처리량 추이" subtitle="최근 14일 · 처리 / 승인 / 위반" className="lg:col-span-2"
               action={
@@ -426,7 +425,7 @@ export default function DashboardPage() {
               action={<Link href="/queue" className="flex items-center gap-1 text-[11px] text-accent-400 hover:text-accent-300">전체 보기 <ArrowRight className="w-3 h-3" /></Link>}
             >
               <div className="space-y-0">
-                {batchesInProgress.slice(0, 5).map(batch => <BatchRow key={batch.id} batch={batch} />)}
+                {batchesInProgress.slice(0, 4).map(batch => <BatchRow key={batch.id} batch={batch} />)}
               </div>
             </Card>
 
@@ -438,23 +437,6 @@ export default function DashboardPage() {
                 <Stat label="Tier 3 (광산/제련)" value="6" unit="개사" tone="warn" />
                 <div className="pt-2 mt-1 border-t border-ink-700">
                   <Stat label="고위험 노드" value="2" unit="개사" tone="alert" hint="UFLPA · FEOC" />
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-ink-700">
-                <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-2">규제 커버리지</div>
-                <div className="flex flex-wrap gap-1">
-                  {[
-                    { label: 'UFLPA',          region: 'US' }, { label: 'IRA/FEOC',      region: 'US' },
-                    { label: 'EU 배터리법',     region: 'EU' }, { label: 'CSDDD',         region: 'EU' },
-                    { label: 'EUDR',            region: 'EU' }, { label: 'Conflict Minerals', region: 'EU' },
-                    { label: 'CRMA',            region: 'EU' }, { label: 'CBAM',          region: 'EU' },
-                    { label: 'Art.47',          region: 'EU' }, { label: 'Art.7',         region: 'EU' },
-                    { label: 'LkSG',            region: 'DE' },
-                  ].map(r => (
-                    <span key={r.label} className={clsx('px-1.5 py-0.5 rounded-xs border text-[9px] font-semibold', regionColor[r.region] || 'border-ink-600 text-ink-400')}>
-                      {r.label}
-                    </span>
-                  ))}
                 </div>
               </div>
               <Link href="/supply-chain/product-map" className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-xs bg-accent-700/20 border border-accent-700/30 text-accent-300 text-xs font-medium hover:bg-accent-700/30 transition-colors">
