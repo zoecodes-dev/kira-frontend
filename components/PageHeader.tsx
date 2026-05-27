@@ -1,3 +1,6 @@
+import Link from 'next/link';
+import { LogOut } from 'lucide-react';
+
 interface PageHeaderProps {
   title: string;
   description: string;
@@ -20,7 +23,16 @@ export default function PageHeader({ title, description, badge, actions }: PageH
           </div>
           <p className="text-sm text-ink-500 leading-5">{description}</p>
         </div>
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
+        <div className="flex items-center gap-2">
+          {actions}
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            로그아웃
+          </Link>
+        </div>
       </div>
     </header>
   );

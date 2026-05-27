@@ -363,7 +363,7 @@ export default function SupplierPage() {
                 </div>
               </div>
               <Link
-                href="/login"
+                href="/"
                 className="inline-flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
               >
                 <LogOut className="h-3.5 w-3.5" />

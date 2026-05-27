@@ -10,13 +10,11 @@
 
 'use client';
 
-import { useState } from 'react';
-import PageHeader from '@/components/PageHeader';
-import KpiCard from '@/components/KpiCard';
+import { useEffect, useState } from 'react';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import {
-  kpis, dailyProcessing, violationsByRegulation,
+  kpis, violationsByRegulation,
   batchesInProgress, dppRecords, suppliers,
 } from '@/lib/data';
 import {
@@ -24,11 +22,8 @@ import {
 } from '@/lib/supplier-detail-data';
 import {
   Layers, AlertTriangle, CheckCircle2, Clock, ShieldAlert,
-  ArrowRight, Activity, AlertCircle,
+  ArrowRight, Activity, AlertCircle, Bot, FileText, Bell, CalendarDays, LogOut, ChevronDown,
 } from 'lucide-react';
-import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
-} from 'recharts';
 import Link from 'next/link';
 import clsx from 'clsx';
 
@@ -38,13 +33,6 @@ const regionColor: Record<string, string> = {
   US: 'border-amber-700/30 bg-amber-500/8 text-amber-500',
   DE: 'border-slate-700/30 bg-slate-500/8 text-slate-400',
 };
-
-function barColor(percent: number): string {
-  if (percent >= 30) return 'bg-red-500';
-  if (percent >= 20) return 'bg-orange-500';
-  if (percent >= 10) return 'bg-amber-500';
-  return 'bg-blue-500';
-}
 
 const stageMeta: Record<string, { label: string; color: string }> = {
   queued:         { label: '대기',         color: 'text-ink-400' },
@@ -74,6 +62,13 @@ const riskLevelColor: Record<string, string> = {
   medium:   'border-amber-700/30 bg-amber-500/8 text-amber-500',
   high:     'border-red-700/30 bg-red-500/8 text-red-500',
   critical: 'border-red-700/40 bg-red-500/12 text-red-600 font-bold',
+};
+
+const supplierStatusMeta = {
+  verified: { label: '검증 완료', className: 'border-emerald-100 bg-emerald-50 text-emerald-700' },
+  pending: { label: '자료 대기', className: 'border-blue-100 bg-blue-50 text-blue-700' },
+  review: { label: '추가 확인', className: 'border-amber-100 bg-amber-50 text-amber-700' },
+  violation: { label: '규제 위반', className: 'border-red-100 bg-red-50 text-red-700' },
 };
 
 // ── 탭 정의 ──────────────────────────────────────────────────────
@@ -141,22 +136,6 @@ function BatchRow({ batch }: { batch: any }) {
   );
 }
 
-function Stat({ label, value, unit, tone, hint }: any) {
-  const colors: Record<string, string> = {
-    info: 'text-blue-400', warn: 'text-amber-400', alert: 'text-red-400',
-  };
-  return (
-    <div className="flex items-center justify-between py-1.5">
-      <span className="text-xs text-ink-400">{label}</span>
-      <div className="text-right">
-        <span className={clsx('text-sm font-semibold num-mono', colors[tone] || 'text-ink-100')}>{value}</span>
-        <span className="text-[11px] text-ink-500 ml-1">{unit}</span>
-        {hint && <div className="text-[10px] text-ink-500">{hint}</div>}
-      </div>
-    </div>
-  );
-}
-
 function EmptyState({ label }: { label: string }) {
   return (
     <div className="flex items-center justify-center py-12 text-xs text-ink-500 border border-dashed border-ink-700/40 rounded-xs">
@@ -165,15 +144,131 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
+function CompactMetric({
+  label,
+  value,
+  unit,
+  icon: Icon,
+  tone = 'default',
+  hint,
+  delta,
+  deltaGood = true,
+  deltaDirection = 'up',
+  onClick,
+}: {
+  label: string;
+  value: string | number;
+  unit?: string;
+  icon: any;
+  tone?: 'default' | 'ok' | 'warn' | 'alert' | 'info';
+  hint?: string;
+  delta?: string;
+  deltaGood?: boolean;
+  deltaDirection?: 'up' | 'down';
+  onClick?: () => void;
+}) {
+  const toneClass = {
+    default: 'border-ink-700 bg-white text-ink-100',
+    ok: 'border-emerald-100 bg-emerald-50/70 text-emerald-800',
+    warn: 'border-amber-100 bg-amber-50/80 text-amber-800',
+    alert: 'border-red-100 bg-red-50/80 text-red-800',
+    info: 'border-blue-100 bg-blue-50/80 text-blue-800',
+  }[tone];
+
+  const iconClass = {
+    default: 'bg-slate-100 text-slate-700',
+    ok: 'bg-emerald-100 text-emerald-700',
+    warn: 'bg-amber-100 text-amber-700',
+    alert: 'bg-red-100 text-red-700',
+    info: 'bg-blue-100 text-blue-700',
+  }[tone];
+
+  const graphColor = {
+    default: '#64748B',
+    ok: '#059669',
+    warn: '#F59E0B',
+    alert: '#EF4444',
+    info: '#2563EB',
+  }[tone];
+
+  const Component = onClick ? 'button' : 'div';
+
+  return (
+    <Component
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={clsx(
+        'min-h-[120px] rounded-sm border p-4 text-left shadow-control transition-colors',
+        toneClass,
+        onClick && 'hover:border-accent-600 hover:shadow-panel'
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className={clsx('flex h-11 w-11 shrink-0 items-center justify-center rounded-full', iconClass)}>
+          <Icon className="h-5 w-5" strokeWidth={2.1} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-[11px] font-bold text-current">{label}</div>
+          {hint && <div className="mt-0.5 text-[10px] font-medium text-ink-500">{hint}</div>}
+          <div className="mt-2 flex items-baseline gap-1">
+            <span className="text-[34px] font-bold leading-none tracking-tight num-mono text-ink-100">{value}</span>
+            {unit && <span className="text-xs font-semibold text-ink-500">{unit}</span>}
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div>
+          {delta && (
+            <div className={clsx('text-[11px] font-bold num-mono', deltaGood ? 'text-emerald-700' : 'text-red-700')}>
+              {deltaDirection === 'up' ? '▲' : '▼'} {delta}
+            </div>
+          )}
+          <div className="mt-0.5 text-[10px] text-ink-500">지난달 대비</div>
+        </div>
+        <svg width="76" height="28" viewBox="0 0 76 28" className="shrink-0">
+          <path
+            d={
+              deltaDirection === 'up'
+                ? 'M2 24 C10 17 14 19 20 15 S31 18 37 10 48 12 55 7 66 8 74 2'
+                : 'M2 5 C10 10 15 8 21 13 S33 10 39 17 49 15 56 21 66 20 74 25'
+            }
+            fill="none"
+            stroke={graphColor}
+            strokeWidth="2"
+          />
+        </svg>
+      </div>
+    </Component>
+  );
+}
+
 // ── 메인 페이지 ────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
 
-  const inProgressCount = batchesInProgress.filter(
-    b => b.currentStage !== 'completed' && b.currentStage !== 'rejected'
-  ).length;
+  const handleTabChange = (tab: TabKey) => {
+    setActiveTab(tab);
+    if (typeof window === 'undefined') return;
+
+    const url = tab === 'overview' ? '/dashboard' : `/dashboard?tab=${tab}`;
+    if (window.location.pathname + window.location.search !== url) {
+      window.history.pushState({ tab }, '', url);
+    }
+  };
+
+  useEffect(() => {
+    const syncTabFromUrl = () => {
+      const tab = new URLSearchParams(window.location.search).get('tab') as TabKey | null;
+      const nextTab = tab && TABS.some(item => item.key === tab) ? tab : 'overview';
+      setActiveTab(nextTab);
+    };
+
+    syncTabFromUrl();
+    window.addEventListener('popstate', syncTabFromUrl);
+    return () => window.removeEventListener('popstate', syncTabFromUrl);
+  }, []);
+
   const hitlWaiting = batchesInProgress.filter(b => b.currentStage === 'hitl-wait').length;
-  const totalViolations = violationsByRegulation.reduce((s, v) => s + v.count, 0);
   const euViolations = violationsByRegulation.filter(v => v.region === 'EU' || v.region === 'DE').reduce((s, v) => s + v.count, 0);
   const usViolations = violationsByRegulation.filter(v => v.region === 'US').reduce((s, v) => s + v.count, 0);
 
@@ -184,265 +279,283 @@ export default function DashboardPage() {
   const pendingList = supplierCompleteness.filter(c => c.completionRate < 80);
   const dppReadyList = dppRecords.filter(d => d.status === 'issued');
   const hitlList = batchesInProgress.filter(b => b.currentStage === 'hitl-wait');
+  const missingFieldCount = supplierCompleteness.reduce((sum, item) => sum + item.missingFields.length, 0);
+  const verifiedSuppliers = suppliers.filter(s => s.status === 'verified').length;
+  const highRiskSuppliers = suppliers.filter(s => s.risk === 'high' || s.risk === 'critical').length;
+  const averageCompleteness = Math.round(
+    supplierCompleteness.reduce((sum, item) => sum + item.completionRate, 0) / supplierCompleteness.length
+  );
 
   return (
     <>
-      <PageHeader
-        title="대시보드"
-        description="오늘 처리해야 할 리스크, 제출 지연, 승인 대기 항목만 먼저 보여줍니다"
-        badge="실시간 관제"
-        actions={
-          <div className="flex items-center gap-2 text-xs text-ink-400 num-mono">
-            <Activity className="w-3.5 h-3.5 text-accent-500" />
-            마지막 갱신 14:23:17
+      <header className="sticky top-0 z-10 border-b border-ink-700 bg-white/95 px-6 py-4 shadow-control backdrop-blur">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-end gap-6">
+            <h1 className="text-2xl font-bold tracking-tight text-ink-100">대시보드</h1>
+            <p className="pb-1 text-sm font-medium text-ink-500">KIRA Battery DPP Traceability Platform</p>
           </div>
-        }
-      />
-
-      {/* ── 탭 네비게이션 ── */}
-      <div className="border-b border-ink-700 bg-white px-8 shadow-control">
-        <div className="flex items-center gap-1 overflow-x-auto">
-          {TABS.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={clsx(
-                'flex items-center gap-2 px-4 py-3 border-b-2 transition-colors whitespace-nowrap text-[13px] font-semibold',
-                activeTab === tab.key
-                  ? 'border-accent-600 text-accent-800'
-                  : 'border-transparent text-ink-500 hover:text-ink-200 hover:border-ink-600'
-              )}
-            >
-              {tab.label}
-              {/* 탭별 카운트 배지 */}
-              {tab.key === 'today-batches' && batchesInProgress.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-xs bg-accent-500/15 text-accent-500 num-mono">
-                  {batchesInProgress.length}
-                </span>
-              )}
-              {tab.key === 'violation-cases' && violationCases.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-xs bg-red-500/15 text-red-400 num-mono">
-                  {violationCases.length}
-                </span>
-              )}
-              {tab.key === 'high-risk'  && highRiskList.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-xs bg-red-500/15 text-red-400 num-mono">
-                  {highRiskList.length}
-                </span>
-              )}
-              {tab.key === 'pending'    && pendingList.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-xs bg-amber-500/15 text-amber-400 num-mono">
-                  {pendingList.length}
-                </span>
-              )}
-              {tab.key === 'dpp-ready' && dppReadyList.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-xs bg-emerald-500/15 text-emerald-400 num-mono">
-                  {dppReadyList.length}
-                </span>
-              )}
-              {tab.key === 'hitl-queue' && hitlList.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-xs bg-red-500/15 text-red-400 num-mono">
-                  {hitlList.length}
-                </span>
-              )}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 rounded-xs border border-ink-700 bg-white px-4 py-2 text-sm font-semibold text-ink-100 shadow-control">
+              <span className="num-mono">2026.05.27</span>
+              <CalendarDays className="h-4 w-4 text-ink-500" />
+            </div>
+            <button className="relative flex h-10 w-10 items-center justify-center rounded-xs border border-ink-700 bg-white text-ink-100 shadow-control">
+              <Bell className="h-4 w-4" />
+              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">3</span>
             </button>
-          ))}
+            <Link href="/" className="flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700">
+              <LogOut className="h-3.5 w-3.5" />
+              로그아웃
+            </Link>
+            <button className="flex items-center gap-2 rounded-xs bg-accent-900 px-4 py-2 text-xs font-bold text-white shadow-control">
+              전체 공급망
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* ══════════════════════════════════════════════════════════
           탭 1 — Overview (기존 대시보드 내용 그대로)
       ══════════════════════════════════════════════════════════ */}
       {activeTab === 'overview' && (
-        <div className="p-8 space-y-8">
-          <section className="grid grid-cols-1 xl:grid-cols-[1.5fr_0.9fr] gap-4">
-            <div className="rounded-sm border border-red-200 bg-white shadow-control overflow-hidden">
-              <div className="px-5 py-4 border-b border-red-100 bg-red-50/70 flex items-center justify-between">
+        <div className="space-y-4 bg-ink-800 p-5">
+          <section className="grid grid-cols-5 gap-4">
+            <CompactMetric label="Traceability Coverage" value={92} unit="%" icon={Activity} tone="ok" hint="원산지 추적 가능 비율" delta="7%" deltaGood onClick={() => handleTabChange('dpp-ready')} />
+            <CompactMetric label="High Risk Region" value={highRiskSuppliers + 16} icon={ShieldAlert} tone="alert" hint="고위험 지역 연결 업체" delta="3" deltaGood={false} deltaDirection="up" onClick={() => handleTabChange('high-risk')} />
+            <CompactMetric label="Missing Documents" value={missingFieldCount} icon={FileText} tone="warn" hint="원산지/인증 문서 누락 업체" delta="5" deltaGood deltaDirection="down" onClick={() => handleTabChange('pending')} />
+            <CompactMetric label="Due Diligence Alerts" value={kpis.violations + hitlWaiting + 3} icon={AlertTriangle} tone="alert" hint="EUDR/CSDDD 검토 필요 건수" delta="2" deltaGood deltaDirection="down" onClick={() => handleTabChange('violation-cases')} />
+            <CompactMetric label="ESG Compliance Score" value="84.2" icon={CheckCircle2} tone="ok" hint="규제 대응 종합 점수" delta="4.3" deltaGood onClick={() => handleTabChange('dpp-ready')} />
+          </section>
+
+          <section className="grid grid-cols-[1.35fr_0.85fr_1fr] gap-3">
+            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
+              <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
                 <div>
-                  <h2 className="text-base font-bold text-red-900">오늘 먼저 봐야 할 조치</h2>
-                  <p className="mt-1 text-xs text-red-700">업무 중단 가능성이 큰 항목만 먼저 배치했습니다</p>
+                  <h2 className="text-sm font-bold text-ink-100">협력사 현황</h2>
+                  <p className="mt-0.5 text-[11px] text-ink-500">상태, 국가, 티어, 데이터 완성도</p>
                 </div>
-                <Badge tone="alert" size="md">{kpis.violations + hitlWaiting}건</Badge>
+                <Link href="/suppliers" className="text-[11px] font-bold text-accent-700">전체 보기</Link>
               </div>
-              <div className="divide-y divide-ink-700">
-                {[
-                  { label: '규제 위반 감지', value: `${kpis.violations}건`, detail: `EU ${euViolations} · US ${usViolations}`, tone: 'text-red-800', action: '케이스 확인', tab: 'violation-cases' as TabKey },
-                  { label: 'HITL 검토 대기', value: `${hitlWaiting}건`, detail: 'ESG 담당자 승인 필요', tone: 'text-amber-800', action: '검토 열기', tab: 'hitl-queue' as TabKey },
-                  { label: '입력 미완료 협력사', value: `${pendingList.length}개사`, detail: '완성도 80% 미만 또는 SLA 초과', tone: 'text-blue-800', action: '대상 확인', tab: 'pending' as TabKey },
-                ].map(item => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => setActiveTab(item.tab)}
-                    className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-ink-800 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-ink-100">{item.label}</div>
-                      <div className="mt-1 text-xs text-ink-500">{item.detail}</div>
-                    </div>
-                    <div className={`text-xl font-bold num-mono ${item.tone}`}>{item.value}</div>
-                    <div className="text-xs font-semibold text-accent-700 flex items-center gap-1">
-                      {item.action} <ArrowRight className="w-3.5 h-3.5" />
-                    </div>
-                  </button>
-                ))}
+              <div className="px-4 py-3">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-ink-700 text-left text-[10px] font-bold text-ink-500">
+                      <th className="pb-2">업체명</th>
+                      <th className="pb-2">국가</th>
+                      <th className="pb-2">상태</th>
+                      <th className="pb-2 text-right">완성도</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink-700/70">
+                    {suppliers.slice(0, 6).map(supplier => {
+                      const name = getSupplierName(supplier.id);
+                      const completeness = supplierCompleteness.find(item => item.supplierId === supplier.id)?.completionRate ?? 100;
+                      const status = supplierStatusMeta[supplier.status];
+                      return (
+                        <tr key={supplier.id}>
+                          <td className="py-2 pr-3">
+                            <Link href={`/suppliers/${supplier.id}/info`} className="font-bold text-ink-100 hover:text-accent-700">
+                              {name?.shortNameEn ?? supplier.name}
+                            </Link>
+                            <div className="mt-0.5 text-[10px] text-ink-500">T{supplier.tier} · {supplier.role}</div>
+                          </td>
+                          <td className="py-2 pr-3 text-ink-400 num-mono">{supplier.country}</td>
+                          <td className="py-2 pr-3">
+                            <span className={clsx('inline-flex rounded-xs border px-1.5 py-0.5 text-[10px] font-bold', status.className)}>
+                              {status.label}
+                            </span>
+                          </td>
+                          <td className="py-2 text-right">
+                            <span className="font-bold text-ink-200 num-mono">{completeness}%</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            <div className="rounded-sm border border-ink-700 bg-white shadow-control p-5">
-              <h2 className="text-base font-bold text-ink-100">운영 요약</h2>
-              <p className="mt-1 text-xs text-ink-500 leading-5">평균 처리와 발행 가능성을 짧게 확인합니다.</p>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xs border border-ink-700 bg-ink-800 p-3">
-                  <div className="text-[11px] text-ink-500">평균 처리</div>
-                  <div className="mt-1 text-2xl font-bold num-mono text-ink-100">{kpis.avgProcessingMinutes}<span className="ml-1 text-xs text-ink-500">분</span></div>
-                </div>
-                <div className="rounded-xs border border-ink-700 bg-ink-800 p-3">
-                  <div className="text-[11px] text-ink-500">DPP 승인율</div>
-                  <div className="mt-1 text-2xl font-bold num-mono text-emerald-800">{kpis.complianceRate}<span className="ml-1 text-xs text-ink-500">%</span></div>
-                </div>
+            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
+              <div className="border-b border-ink-700 px-4 py-3">
+                <h2 className="text-sm font-bold text-ink-100">컴플라이언스 상태</h2>
+                <p className="mt-0.5 text-[11px] text-ink-500">규제/문서/리스크 완료율</p>
               </div>
-              <button onClick={() => setActiveTab('dpp-ready')} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xs border border-accent-100 bg-accent-50 px-3 py-2.5 text-xs font-bold text-accent-800 hover:border-accent-600">
-                발행 준비 상태 보기 <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </section>
-
-          <section>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard
-                label="오늘 처리 배치"
-                value={kpis.todayBatches}
-                unit="건"
-                icon={Layers}
-                delta={{ value: '+8 어제 대비', trend: 'up' }}
-                onClick={() => setActiveTab('today-batches')}
-              />
-              <KpiCard
-                label="발행 완료 DPP"
-                value={kpis.approvedDPP}
-                unit="건"
-                icon={CheckCircle2}
-                tone="ok"
-                hint={`승인율 ${kpis.complianceRate}%`}
-                onClick={() => setActiveTab('dpp-ready')}
-              />
-              <KpiCard
-                label="HITL 검토 대기"
-                value={hitlWaiting}
-                unit="건"
-                icon={Clock}
-                tone="warn"
-                hint="ESG팀장 승인 필요"
-                onClick={() => setActiveTab('hitl-queue')}
-              />
-              <KpiCard
-                label="위반 감지"
-                value={kpis.violations}
-                unit="건"
-                icon={ShieldAlert}
-                tone="alert"
-                hint={`EU ${euViolations} · US ${usViolations}`}
-                onClick={() => setActiveTab('violation-cases')}
-              />
-            </div>
-          </section>
-
-          <section className="hidden grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card
-              title="일별 처리량 추이" subtitle="최근 14일 · 처리 / 승인 / 위반" className="lg:col-span-2"
-              action={
-                <div className="flex items-center gap-3 text-[11px] text-ink-400">
-                  <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-xs bg-accent-500" />처리</span>
-                  <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-xs bg-emerald-500" />승인</span>
-                  <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-xs bg-red-500" />위반</span>
-                </div>
-              }
-            >
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={dailyProcessing} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="g-processed" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#14B8A6" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="#14B8A6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E8EC" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fill: '#4B5563', fontSize: 11, fontFamily: 'JetBrains Mono' }} axisLine={{ stroke: '#C4CAD0' }} tickLine={false} />
-                    <YAxis tick={{ fill: '#8A9199', fontSize: 11, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #E5E8EC', color: '#1F2937', borderRadius: '2px', fontSize: '12px', fontFamily: 'JetBrains Mono' }} />
-                    <Area type="monotone" dataKey="processed"  stroke="#14B8A6" strokeWidth={1.5} fill="url(#g-processed)" />
-                    <Area type="monotone" dataKey="approved"   stroke="#10B981" strokeWidth={1.5} fill="none" />
-                    <Area type="monotone" dataKey="violations" stroke="#EF4444" strokeWidth={1.5} fill="none" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            <Card title="규제별 위반 분포" subtitle={`이번 달 누계 · 총 ${totalViolations}건`}>
-              <div className="flex gap-2 mb-4">
-                {[
-                  { label: '전체',  count: totalViolations, color: 'text-ink-200' },
-                  { label: 'EU/DE', count: euViolations,    color: 'text-blue-400' },
-                  { label: 'US',    count: usViolations,    color: 'text-amber-400' },
-                ].map(t => (
-                  <div key={t.label} className="flex-1 text-center rounded-xs border border-ink-700/60 bg-ink-900/30 py-1.5">
-                    <div className={clsx('text-sm font-bold num-mono', t.color)}>{t.count}</div>
-                    <div className="text-[9px] text-ink-500 uppercase tracking-wider">{t.label}</div>
+              <div className="p-4">
+                <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border-[14px] border-emerald-500 border-r-blue-500 bg-white">
+                  <div className="text-center">
+                    <div className="text-[10px] font-bold text-ink-500">종합</div>
+                    <div className="text-2xl font-bold text-ink-100 num-mono">82%</div>
                   </div>
-                ))}
-              </div>
-              <div className="space-y-2.5 overflow-y-auto max-h-80">
-                {violationsByRegulation.map(item => (
-                  <div key={item.regulation}>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium text-ink-200">{item.regulation}</span>
-                        <span className={clsx('inline-flex items-center px-1 py-0.5 rounded-xs border text-[9px] font-semibold', regionColor[item.region] || 'border-ink-600 text-ink-400')}>{item.region}</span>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {[
+                    { label: '원산지 추적', value: 92, color: 'bg-emerald-500' },
+                    { label: 'Due Diligence', value: 81, color: 'bg-blue-500' },
+                    { label: '문서 검증', value: averageCompleteness, color: 'bg-purple-500' },
+                    { label: 'Risk Assessment', value: 79, color: 'bg-orange-500' },
+                  ].map(item => (
+                    <div key={item.label}>
+                      <div className="mb-1 flex justify-between text-[11px]">
+                        <span className="font-semibold text-ink-200">{item.label}</span>
+                        <span className="font-bold text-ink-100 num-mono">{item.value}%</span>
                       </div>
-                      <span className="text-[11px] num-mono text-ink-400">{item.count}건</span>
+                      <div className="h-1.5 rounded-full bg-ink-700">
+                        <div className={clsx('h-full rounded-full', item.color)} style={{ width: `${item.value}%` }} />
+                      </div>
                     </div>
-                    <div className="h-1.5 bg-ink-700 rounded-xs overflow-hidden">
-                      <div className={clsx('h-full transition-all', barColor(item.percent))} style={{ width: `${Math.min(100, item.percent * 2.5)}%` }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
+              <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
+                <div>
+                  <h2 className="text-sm font-bold text-ink-100">AI 공급망 인사이트</h2>
+                  <p className="mt-0.5 text-[11px] text-ink-500">오늘 우선순위 요약</p>
+                </div>
+                <Bot className="h-4 w-4 text-accent-700" />
+              </div>
+              <div className="p-4">
+                <div className="rounded-sm border border-accent-100 bg-accent-50 p-3">
+                  <p className="text-sm leading-6 text-ink-100">
+                    고위험 협력사 {highRiskSuppliers}개사와 누락 문서 {missingFieldCount}건이 DPP 발행 가능성에 영향을 줍니다.
+                    Katanga Cobalt, Ganzhou Rare Metals를 우선 확인하세요.
+                  </p>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {[
+                    { label: '우선 조치', value: '원산지 증빙 재요청', tone: 'text-red-700' },
+                    { label: '검토 포인트', value: 'FEOC / UFLPA 교차 확인', tone: 'text-amber-700' },
+                    { label: '다음 화면', value: '입력 요청 맵 미제출 필터', tone: 'text-accent-700' },
+                  ].map(item => (
+                    <div key={item.label} className="flex items-center gap-2 rounded-xs border border-ink-700 bg-ink-800 px-3 py-2">
+                      <AlertCircle className={clsx('h-3.5 w-3.5', item.tone)} />
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold text-ink-500">{item.label}</div>
+                        <div className="truncate text-xs font-bold text-ink-100">{item.value}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="grid grid-cols-[1fr_0.95fr_1fr] gap-3">
+            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
+              <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
+                <h2 className="text-sm font-bold text-ink-100">공급망 활동 타임라인</h2>
+                <Link href="/queue" className="text-[11px] font-bold text-accent-700">전체 보기</Link>
+              </div>
+              <div className="px-4 py-2">
+                {[
+                  { time: '09:30', title: 'FSC 인증 만료 감지', desc: 'Ganzhou Rare Metals 증빙 보완 필요', tone: 'bg-emerald-500', pill: 'Ganzhou Rare' },
+                  { time: '10:18', title: 'HITL 검토 대기', desc: 'Quzhou Precursor 원산지 증빙 검토', tone: 'bg-blue-500', pill: 'Quzhou' },
+                  { time: '11:05', title: '리튬 정제 자료 추출 완료', desc: 'Pilbara Refining Works 자동 처리', tone: 'bg-purple-500', pill: 'Pilbara' },
+                  { time: '11:20', title: '고위험 지역 Alert 발생', desc: 'FEOC / UFLPA 교차 확인 필요', tone: 'bg-red-500', pill: 'Ganzhou' },
+                  { time: '14:05', title: '공급망 변경 감지', desc: '신규 하위 공급업체 추가', tone: 'bg-orange-500', pill: 'POS Cathode' },
+                ].map(item => (
+                  <div key={`${item.time}-${item.title}`} className="flex gap-3 border-b border-ink-700/70 py-2.5 last:border-0">
+                    <span className="w-10 shrink-0 text-[10px] font-bold leading-4 text-ink-500 num-mono">{item.time}</span>
+                    <div className="flex flex-col items-center">
+                      <span className={clsx('h-2.5 w-2.5 rounded-full', item.tone)} />
+                      <span className="h-full w-px bg-ink-700" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-xs font-bold text-ink-100">{item.title}</span>
+                        <span className="rounded-full bg-accent-50 px-2 py-0.5 text-[10px] font-bold text-accent-700">{item.pill}</span>
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px] text-ink-500">{item.desc}</div>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="mt-4 pt-3 border-t border-ink-700">
-                <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-2">평균 처리 시간</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-semibold num-mono text-accent-400">{kpis.avgProcessingMinutes}</span>
-                  <span className="text-xs text-ink-400">분 / 배치</span>
+            </div>
+
+            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
+              <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
+                <h2 className="text-sm font-bold text-ink-100">고위험 국가/지역 현황</h2>
+                <Link href="/supply-chain/product-map" className="text-[11px] font-bold text-accent-700">전체 보기</Link>
+              </div>
+              <div className="p-4">
+                <div className="rounded-sm border border-ink-700 bg-white">
+                  <div className="grid grid-cols-[0.7fr_1fr_0.9fr_0.9fr] border-b border-ink-700 px-3 py-2 text-[10px] font-bold text-ink-500">
+                    <span>국가/지역</span>
+                    <span>위험도</span>
+                    <span className="text-right">연결 업체</span>
+                    <span className="text-right">변동</span>
+                  </div>
+                  <div className="divide-y divide-ink-700 text-xs">
+                  {[
+                    { country: 'CN', label: '중국·신장/간저우', risk: '고위험', reason: 'FEOC / UFLPA 검토', count: 12, change: '▲ 3', color: 'text-red-600', dot: 'bg-red-500' },
+                    { country: 'CD', label: '콩고·카탕가', risk: '고위험', reason: '분쟁광물 실사 필요', count: 8, change: '▲ 1', color: 'text-red-600', dot: 'bg-red-500' },
+                    { country: 'ID', label: '인도네시아·술라웨시', risk: '중위험', reason: '니켈 원산지 보완', count: 5, change: '▼ 1', color: 'text-orange-600', dot: 'bg-orange-500' },
+                    { country: 'AU', label: '호주·필바라', risk: '저위험', reason: '리튬 정제 검증 완료', count: 3, change: '0', color: 'text-emerald-600', dot: 'bg-emerald-500' },
+                  ].map(item => (
+                    <div key={item.country} className="grid grid-cols-[0.7fr_1fr_0.9fr_0.9fr] items-center px-3 py-2">
+                      <div>
+                        <div className="font-bold text-ink-100 num-mono">{item.country}</div>
+                        <div className="mt-0.5 text-[10px] text-ink-500">{item.label}</div>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={clsx('h-2 w-2 rounded-full', item.dot)} />
+                          <span className={clsx('font-bold', item.color)}>{item.risk}</span>
+                        </div>
+                        <div className="mt-0.5 text-[10px] text-ink-500">{item.reason}</div>
+                      </div>
+                      <span className="text-right font-bold num-mono text-ink-100">{item.count}개사</span>
+                      <span className={clsx('text-right font-bold num-mono', item.color)}>{item.change}</span>
+                    </div>
+                  ))}
+                  </div>
                 </div>
               </div>
-            </Card>
-          </section>
+            </div>
 
-          <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card
-              title="실시간 처리 현황" subtitle={`현재 ${inProgressCount}건이 LangGraph에서 처리 중`} className="lg:col-span-2"
-              action={<Link href="/queue" className="flex items-center gap-1 text-[11px] text-accent-400 hover:text-accent-300">전체 보기 <ArrowRight className="w-3 h-3" /></Link>}
-            >
-              <div className="space-y-0">
-                {batchesInProgress.slice(0, 4).map(batch => <BatchRow key={batch.id} batch={batch} />)}
+            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
+              <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
+                <h2 className="text-sm font-bold text-ink-100">문서 현황 요약</h2>
+                <Link href="/submission-status" className="text-[11px] font-bold text-accent-700">전체 보기</Link>
               </div>
-            </Card>
-
-            <Card title="공급망 한눈에 보기" subtitle={`${kpis.displayedSuppliers}개 협력사 시연 데이터`}>
-              <div className="space-y-1">
-                <Stat label="총 협력사"       value="187" unit="개사" />
-                <Stat label="Tier 1 (직거래)" value="1"   unit="개사" />
-                <Stat label="Tier 2 (소재)"   value="3"   unit="개사" tone="info" />
-                <Stat label="Tier 3 (광산/제련)" value="6" unit="개사" tone="warn" />
-                <div className="pt-2 mt-1 border-t border-ink-700">
-                  <Stat label="고위험 노드" value="2" unit="개사" tone="alert" hint="UFLPA · FEOC" />
+              <div className="grid grid-cols-[0.82fr_1fr] gap-4 p-4">
+                <div className="flex items-center justify-center">
+                  <div
+                    className="flex h-32 w-32 items-center justify-center rounded-full"
+                    style={{ background: 'conic-gradient(#22C55E 0 52%, #8B5CF6 52% 73%, #3B82F6 73% 88%, #CBD5E1 88% 100%)' }}
+                  >
+                    <div className="flex h-20 w-20 flex-col items-center justify-center rounded-full bg-white text-center shadow-control">
+                      <span className="text-[10px] font-bold text-ink-500">전체 문서</span>
+                      <span className="text-xl font-bold text-ink-100 num-mono">1,248</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    { label: '인증서', value: 642, pct: '51%', color: 'text-emerald-600' },
+                    { label: '원산지 증빙', value: 342, pct: '27%', color: 'text-blue-600' },
+                    { label: 'DDS / 보고서', value: 156, pct: '12%', color: 'text-purple-600' },
+                    { label: '기타 문서', value: 108, pct: '9%', color: 'text-slate-500' },
+                  ].map(item => (
+                    <div key={item.label} className="flex items-center justify-between rounded-xs border border-ink-700 bg-white px-3 py-2">
+                      <span className="text-xs font-bold text-ink-100">{item.label}</span>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-ink-100 num-mono">{item.value}</span>
+                        <span className={clsx('ml-2 text-[10px] font-bold', item.color)}>{item.pct}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={() => handleTabChange('pending')} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xs border border-red-100 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    문서 누락: {missingFieldCount}건
+                  </button>
                 </div>
               </div>
-              <Link href="/supply-chain/product-map" className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-xs bg-accent-700/20 border border-accent-700/30 text-accent-300 text-xs font-medium hover:bg-accent-700/30 transition-colors">
-                공급망 맵 열기 <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </Card>
+            </div>
           </section>
         </div>
       )}
