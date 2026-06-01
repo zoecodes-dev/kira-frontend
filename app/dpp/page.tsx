@@ -3,6 +3,7 @@
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
+import TopStatCard from '@/components/TopStatCard';
 import { dppRecords } from '@/lib/data';
 import { FileBadge, Download, Eye, QrCode } from 'lucide-react';
 
@@ -35,17 +36,7 @@ export default function DppPage() {
 }
 
 function SimpleStat({ label, value, unit, tone }: any) {
-  return (
-    <div className="rounded-sm border border-ink-700 bg-ink-800/40 p-4">
-      <div className="text-[10px] uppercase tracking-wider text-ink-400 mb-2">{label}</div>
-      <div className="flex items-baseline gap-1.5">
-        <span className={`text-3xl font-semibold num-mono ${tone === 'info' ? 'text-blue-400' : 'text-ink-50'}`}>
-          {value}
-        </span>
-        <span className="text-xs text-ink-400">{unit}</span>
-      </div>
-    </div>
-  );
+  return <TopStatCard label={label} value={value} unit={unit} tone={tone ?? 'neutral'} />;
 }
 
 function DppCard({ dpp }: { dpp: any }) {

@@ -124,6 +124,59 @@ export function getSupplierExtended(supplierId: string) {
 }
 
 // ============================================================
+// 2-1. Provider Type CTI 상세 정보
+// MOCK: 백엔드 supplier_*_details 응답 스키마를 프론트 표시용으로 축약한 예시 데이터.
+// ============================================================
+export type ProviderType = SupplierExtended['providerType'];
+
+export type SupplierCtiDetails =
+  | {
+      providerType: 'manufacturer';
+      productionLine: string;
+      annualCapacity: string;
+      qualitySystem: string;
+      processTraceability: string;
+    }
+  | {
+      providerType: 'recycler';
+      recyclingMethod: string;
+      annualRecoveredMaterial: string;
+      wastePermitId: string;
+      recoveryRate: number;
+    }
+  | {
+      providerType: 'trader';
+      disclosureCompleteness: number;
+      disclosedUpstreamCount: number;
+      declaredMaterialScope: string;
+      readinessInput: string;
+    }
+  | {
+      providerType: 'miner';
+      mineCoordinates: [number, number] | null;
+      concessionId: string;
+      extractedMinerals: string[];
+      geoVerificationStatus: string;
+    };
+
+export const supplierCtiDetails: Record<string, SupplierCtiDetails> = {
+  'S-CELL-001': { providerType: 'manufacturer', productionLine: 'NCM/NCA Cell Assembly Line A·B', annualCapacity: '7.2 GWh', qualitySystem: 'IATF 16949 / ISO 9001', processTraceability: 'Lot-BOM-PO 단위 연결' },
+  'S-CAM-001':  { providerType: 'manufacturer', productionLine: 'Cathode Active Material Line 1·2', annualCapacity: '48,000 t/y', qualitySystem: 'ISO 9001 / ISO 14001', processTraceability: 'Batch-precursor-origin 연결' },
+  'S-CAM-002':  { providerType: 'manufacturer', productionLine: 'NCA Cathode Line YT-3', annualCapacity: '22,000 t/y', qualitySystem: 'ISO 9001', processTraceability: 'Batch 단위 일부 추적' },
+  'S-ANO-001':  { providerType: 'manufacturer', productionLine: 'Graphite Anode Coating Line', annualCapacity: '36,000 t/y', qualitySystem: 'ISO 9001 / ISO 45001', processTraceability: 'Lot-source-country 연결' },
+  'S-PRE-001':  { providerType: 'manufacturer', productionLine: 'Precursor Co-precipitation Line', annualCapacity: '31,000 t/y', qualitySystem: 'ISO 9001', processTraceability: 'Batch-refinery-origin 연결' },
+  'S-REF-001':  { providerType: 'manufacturer', productionLine: 'Nickel Refining Line WA-2', annualCapacity: '58,000 t/y', qualitySystem: 'ISO 14001 / Responsible Minerals', processTraceability: 'Refining batch-mine 연결' },
+  'S-REF-002':  { providerType: 'manufacturer', productionLine: 'Cobalt Refining Line GZ-1', annualCapacity: '18,000 t/y', qualitySystem: 'ISO 9001', processTraceability: 'Batch 단위 원산지 신고' },
+  'S-MINE-001': { providerType: 'miner', mineCoordinates: [-2.5489, 121.9957], concessionId: 'ID-ESDM-NCL-2018-042', extractedMinerals: ['니켈'], geoVerificationStatus: '위성·광권 대조 백엔드 검증 대기' },
+  'S-MINE-002': { providerType: 'miner', mineCoordinates: [-10.7167, 25.4667], concessionId: 'CD-DGRAD-COB-2014-018', extractedMinerals: ['코발트'], geoVerificationStatus: '고위험 지역 좌표 백엔드 검증 대기' },
+  'S-MINE-003': { providerType: 'miner', mineCoordinates: [-23.5000, -68.2500], concessionId: 'CL-SII-LIO-2010-071', extractedMinerals: ['리튬'], geoVerificationStatus: '염호 좌표 백엔드 검증 대기' },
+};
+
+export function getCtiDetails(supplierId: string): SupplierCtiDetails | null {
+  return supplierCtiDetails[supplierId] ?? null;
+}
+
+// ============================================================
 // 3. 담당자 연락처 (공장 담당자 포함)
 // ============================================================
 export interface SupplierContact {

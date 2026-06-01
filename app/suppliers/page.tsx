@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Clock,
   Mail,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react';
 import Badge from '@/components/Badge';
 import PageHeader from '@/components/PageHeader';
+import TopStatCard from '@/components/TopStatCard';
 import { suppliers, type Supplier, type Tier } from '@/lib/data';
 import {
   getCompleteness,
@@ -32,12 +34,16 @@ import {
 type StatusFilter = 'all' | 'verified' | 'pending' | 'review' | 'violation';
 type RiskFilter = 'all' | 'low' | 'medium' | 'high' | 'critical';
 type TierFilter = 'all' | Tier;
+type CountryFilter = 'all' | keyof typeof countryName;
 type FeocFilter = 'all' | 'eligible' | 'ineligible' | 'under_review' | 'unknown';
+type InputFilter = 'all' | 'complete' | 'in_progress' | 'partial' | 'missing';
+type ContactFilter = 'all' | 'registered' | 'missing';
 type SummaryFilter = 'all' | 'verified' | 'high-risk' | 'sla-overdue';
+type SupplierFilter = 'all' | Supplier['id'];
 
-const statusMeta: Record<string, { label: string; tone: 'ok' | 'warn' | 'alert' | 'info'; dot: string }> = {
-  verified: { label: '검증 완료', tone: 'ok', dot: 'bg-signal-ok' },
-  pending: { label: '검토 대기', tone: 'info', dot: 'bg-signal-info' },
+const statusMeta: Record<string, { label: string; tone: 'ok' | 'warn' | 'alert' | 'info' | 'neutral'; dot: string }> = {
+  verified: { label: '검증 완료', tone: 'info', dot: 'bg-signal-info' },
+  pending: { label: '검토 대기', tone: 'neutral', dot: 'bg-ink-400' },
   review: { label: '추가 확인', tone: 'warn', dot: 'bg-signal-warn' },
   violation: { label: '규제 위반', tone: 'alert', dot: 'bg-signal-alert' },
 };
@@ -68,10 +74,10 @@ const countryName: Record<string, string> = {
 };
 
 function completenessMeta(rate: number) {
-  if (rate >= 100) return { label: '제출 완료', tone: 'ok' as const, bar: 'bg-emerald-600', text: 'text-emerald-800' };
-  if (rate >= 80) return { label: '입력 중', tone: 'info' as const, bar: 'bg-blue-600', text: 'text-blue-800' };
-  if (rate >= 50) return { label: '부분 제출', tone: 'warn' as const, bar: 'bg-amber-500', text: 'text-amber-800' };
-  return { label: '미제출', tone: 'alert' as const, bar: 'bg-red-600', text: 'text-red-800' };
+  if (rate >= 100) return { label: '제출 완료', tone: 'info' as const, bar: 'bg-blue-600', text: 'text-blue-800', filter: 'complete' as const };
+  if (rate >= 80) return { label: '입력 중', tone: 'ok' as const, bar: 'bg-emerald-600', text: 'text-emerald-800', filter: 'in_progress' as const };
+  if (rate >= 50) return { label: '부분 제출', tone: 'warn' as const, bar: 'bg-amber-500', text: 'text-amber-800', filter: 'partial' as const };
+  return { label: '미제출', tone: 'alert' as const, bar: 'bg-red-600', text: 'text-red-800', filter: 'missing' as const };
 }
 
 function getRegulationWarnings(missingFields: string[]) {
@@ -214,7 +220,7 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
       <td className="px-5 py-4 align-top text-right">
         <Link
           href={`/suppliers/${supplier.id}/info`}
-          className="inline-flex items-center gap-1 rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:text-accent-700"
+          className="inline-flex items-center gap-1 whitespace-nowrap rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:text-accent-700"
         >
           상세
           <ChevronRight className="h-3.5 w-3.5" />
@@ -241,40 +247,8 @@ function SummaryCard({
   active?: boolean;
   onClick?: () => void;
 }) {
-  const toneClass = {
-    default: 'border-ink-700 bg-white text-ink-100',
-    ok: 'border-emerald-300 bg-emerald-50 text-emerald-900',
-    warn: 'border-amber-300 bg-amber-50 text-amber-900',
-    alert: 'border-red-300 bg-red-50 text-red-900',
-    info: 'border-blue-300 bg-blue-50 text-blue-900',
-  }[tone];
-  const Component = onClick ? 'button' : 'div';
-
-  return (
-    <Component
-      type={onClick ? 'button' : undefined}
-      onClick={onClick}
-      className={clsx(
-        'w-full rounded-sm border p-4 text-left shadow-control transition-colors',
-        toneClass,
-        onClick && 'cursor-pointer hover:border-accent-600 hover:shadow-panel focus:outline-none focus:ring-2 focus:ring-accent-500/30',
-        active && 'border-accent-600 ring-1 ring-accent-500/30'
-      )}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-xs font-semibold text-ink-500">{label}</div>
-          <div className="mt-2 flex items-baseline gap-1">
-            <span className="num-mono text-3xl font-bold tracking-tight">{value}</span>
-            <span className="text-xs font-medium text-ink-500">{hint}</span>
-          </div>
-        </div>
-        <div className="flex h-8 w-8 items-center justify-center rounded-xs border border-white/70 bg-white/70">
-          <Icon className="h-4 w-4 text-current" strokeWidth={1.8} />
-        </div>
-      </div>
-    </Component>
-  );
+  const mappedTone = tone === 'default' ? 'info' : tone;
+  return <TopStatCard label={label} value={value} unit={hint} tone={mappedTone} active={active} onClick={onClick} />;
 }
 
 function Select({
@@ -304,20 +278,64 @@ function Select({
   );
 }
 
+function HeaderFilter({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { v: string; label: string }[];
+}) {
+  const selected = options.find(option => option.v === value)?.label ?? '전체';
+  return (
+    <label className="relative inline-flex max-w-full cursor-pointer items-center gap-1.5 text-[11px] font-bold text-ink-500">
+      {label && <span className="truncate">{label}</span>}
+      <span className={clsx(
+        'inline-flex max-w-[96px] items-center gap-1 rounded-xs px-1 py-0.5 text-[11px] font-bold',
+        value === 'all' ? 'text-ink-400' : 'bg-accent-50 text-accent-800',
+      )}>
+        {value !== 'all' && <span className="truncate">{selected}</span>}
+        <ChevronDown className="h-3 w-3 shrink-0" />
+      </span>
+      <select
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        className="absolute inset-0 cursor-pointer opacity-0"
+        aria-label={label || '위험도'}
+      >
+        {options.map(option => (
+          <option key={option.v} value={option.v}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function SuppliersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
   const [tierFilter, setTierFilter] = useState<TierFilter>('all');
+  const [countryFilter, setCountryFilter] = useState<CountryFilter>('all');
   const [feocFilter, setFeocFilter] = useState<FeocFilter>('all');
+  const [inputFilter, setInputFilter] = useState<InputFilter>('all');
+  const [contactFilter, setContactFilter] = useState<ContactFilter>('all');
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all');
+  const [supplierFilter, setSupplierFilter] = useState<SupplierFilter>('all');
 
   const resetDetailFilters = () => {
     setSearch('');
     setStatusFilter('all');
     setRiskFilter('all');
     setTierFilter('all');
+    setCountryFilter('all');
     setFeocFilter('all');
+    setInputFilter('all');
+    setContactFilter('all');
+    setSupplierFilter('all');
   };
 
   const applySummaryFilter = (value: SummaryFilter) => {
@@ -333,14 +351,23 @@ export default function SuppliersPage() {
     return suppliers.filter(supplier => {
       const remindLogs = getRemindLogs(supplier.id);
       const isSlaOver = remindLogs.some(log => log.status === 'overdue');
+      const contacts = getContacts(supplier.id);
 
       if (summaryFilter === 'verified' && supplier.status !== 'verified') return false;
       if (summaryFilter === 'high-risk' && supplier.risk !== 'high' && supplier.risk !== 'critical') return false;
       if (summaryFilter === 'sla-overdue' && !isSlaOver) return false;
 
+      if (supplierFilter !== 'all' && supplier.id !== supplierFilter) return false;
       if (statusFilter !== 'all' && supplier.status !== statusFilter) return false;
       if (riskFilter !== 'all' && supplier.risk !== riskFilter) return false;
       if (tierFilter !== 'all' && !supplier.tiers.includes(tierFilter as Tier)) return false;
+      if (countryFilter !== 'all' && supplier.country !== countryFilter) return false;
+
+      const completeness = getCompleteness(supplier.id);
+      const inputState = completenessMeta(completeness?.completionRate ?? 0).filter;
+      if (inputFilter !== 'all' && inputState !== inputFilter) return false;
+      if (contactFilter === 'registered' && contacts.length === 0) return false;
+      if (contactFilter === 'missing' && contacts.length > 0) return false;
 
       const risk = getRiskProfile(supplier.id);
       if (feocFilter !== 'all' && risk?.feocStatus !== feocFilter) return false;
@@ -348,7 +375,6 @@ export default function SuppliersPage() {
       if (!q) return true;
 
       const name = getSupplierName(supplier.id);
-      const contacts = getContacts(supplier.id);
       const haystack = [
         supplier.id,
         supplier.name,
@@ -365,7 +391,7 @@ export default function SuppliersPage() {
 
       return haystack.includes(q);
     });
-  }, [feocFilter, riskFilter, search, statusFilter, summaryFilter, tierFilter]);
+  }, [contactFilter, countryFilter, feocFilter, inputFilter, riskFilter, search, statusFilter, summaryFilter, supplierFilter, tierFilter]);
 
   const highRiskCount = suppliers.filter(supplier => supplier.risk === 'high' || supplier.risk === 'critical').length;
   const overdueCount = suppliers.filter(supplier => getRemindLogs(supplier.id).some(log => log.status === 'overdue')).length;
@@ -501,19 +527,102 @@ export default function SuppliersPage() {
             <div className="flex items-center gap-2 text-[11px] text-ink-500">
               <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-signal-alert" />규제 위반</span>
               <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-signal-warn" />추가 확인</span>
-              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-signal-ok" />검증 완료</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-ink-400" />검토 대기</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-signal-info" />검증 완료</span>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1160px]">
+            <table className="w-full min-w-[1080px] table-fixed">
+              <colgroup>
+                <col className="w-[25%]" />
+                <col className="w-[10%]" />
+                <col className="w-[10%]" />
+                <col className="w-[15%]" />
+                <col className="w-[19%]" />
+                <col className="w-[13%]" />
+                <col className="w-[72px]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-ink-700 bg-white">
-                  {['협력사', 'Tier · 역할', '국가', '상태 · 위험도', '입력 현황', '주 담당자', ''].map(header => (
-                    <th key={header} className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
-                      {header}
-                    </th>
-                  ))}
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
+                    <HeaderFilter
+                      label="협력사"
+                      value={supplierFilter}
+                      onChange={value => { clearSummaryFilter(); setSupplierFilter(value as SupplierFilter); }}
+                      options={[
+                        { v: 'all', label: '전체' },
+                        ...suppliers.map(supplier => ({
+                          v: supplier.id,
+                          label: getSupplierName(supplier.id)?.nameEn ?? supplier.name,
+                        })),
+                      ]}
+                    />
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
+                    <HeaderFilter
+                      label="Tier · 역할"
+                      value={String(tierFilter)}
+                      onChange={value => { clearSummaryFilter(); setTierFilter(value === 'all' ? 'all' : Number(value) as Tier); }}
+                      options={[
+                        { v: 'all', label: '전체' },
+                        { v: '1', label: 'T1' },
+                        { v: '2', label: 'T2' },
+                        { v: '3', label: 'T3' },
+                        { v: '4', label: 'T4' },
+                        { v: '5', label: 'T5' },
+                      ]}
+                    />
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
+                    <HeaderFilter
+                      label="국가"
+                      value={countryFilter}
+                      onChange={value => { clearSummaryFilter(); setCountryFilter(value as CountryFilter); }}
+                      options={[{ v: 'all', label: '전체' }, ...Object.entries(countryName).map(([v, label]) => ({ v, label }))]}
+                    />
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
+                    <HeaderFilter
+                      label="상태 · 위험도"
+                      value={statusFilter}
+                      onChange={value => { clearSummaryFilter(); setStatusFilter(value as StatusFilter); }}
+                      options={[
+                        { v: 'all', label: '전체' },
+                        { v: 'verified', label: '검증 완료' },
+                        { v: 'review', label: '추가 확인' },
+                        { v: 'pending', label: '검토 대기' },
+                        { v: 'violation', label: '규제 위반' },
+                      ]}
+                    />
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
+                    <HeaderFilter
+                      label="입력 현황"
+                      value={inputFilter}
+                      onChange={value => { clearSummaryFilter(); setInputFilter(value as InputFilter); }}
+                      options={[
+                        { v: 'all', label: '전체' },
+                        { v: 'complete', label: '제출 완료' },
+                        { v: 'in_progress', label: '입력 중' },
+                        { v: 'partial', label: '부분 제출' },
+                        { v: 'missing', label: '미제출' },
+                      ]}
+                    />
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
+                    <HeaderFilter
+                      label="주 담당자"
+                      value={contactFilter}
+                      onChange={value => { clearSummaryFilter(); setContactFilter(value as ContactFilter); }}
+                      options={[
+                        { v: 'all', label: '전체' },
+                        { v: 'registered', label: '등록' },
+                        { v: 'missing', label: '미등록' },
+                      ]}
+                    />
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500" />
                 </tr>
               </thead>
               <tbody>

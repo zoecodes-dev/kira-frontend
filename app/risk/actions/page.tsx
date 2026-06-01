@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
+import TopStatCard from '@/components/TopStatCard';
 import { getSupplierName, parts } from '@/lib/supplier-detail-data';
 import {
   AlertTriangle, ArrowRight, CheckCircle2, Clock3, FileWarning,
@@ -256,13 +257,7 @@ export default function RiskActionsPage() {
 }
 
 function Metric({ label, value, unit, tone }: { label: string; value: number; unit: string; tone: 'neutral' | 'ok' | 'warn' | 'alert' }) {
-  const color = { neutral: 'text-ink-200', ok: 'text-emerald-400', warn: 'text-amber-400', alert: 'text-red-400' }[tone];
-  return (
-    <div className="rounded-xs border border-ink-700/60 bg-ink-900/40 p-4">
-      <div className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold">{label}</div>
-      <div className={clsx('text-2xl font-bold num-mono mt-2', color)}>{value}<span className="text-sm text-ink-500 ml-1">{unit}</span></div>
-    </div>
-  );
+  return <TopStatCard label={label} value={value} unit={unit} tone={tone} />;
 }
 
 function InfoRow({ label, value, alert }: { label: string; value: string; alert?: boolean }) {

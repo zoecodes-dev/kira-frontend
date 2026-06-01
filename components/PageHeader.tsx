@@ -6,11 +6,12 @@ interface PageHeaderProps {
   description: string;
   badge?: string;
   actions?: React.ReactNode;
+  sticky?: boolean;
 }
 
-export default function PageHeader({ title, description, badge, actions }: PageHeaderProps) {
+export default function PageHeader({ title, description, badge, actions, sticky = true }: PageHeaderProps) {
   return (
-    <header className="border-b border-ink-700 px-8 py-5 bg-white/95 backdrop-blur sticky top-0 z-10 shadow-control">
+    <header className={`border-b border-ink-700 px-8 py-5 bg-white/95 backdrop-blur shadow-control ${sticky ? 'sticky top-0 z-10' : ''}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-3 mb-1.5">

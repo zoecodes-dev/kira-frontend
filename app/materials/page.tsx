@@ -2,12 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import PageHeader from '@/components/PageHeader';
-import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import {
   parts, purchaseOrders, getSupplierName, getFactories,
 } from '@/lib/supplier-detail-data';
-import { AlertTriangle, Atom, CheckCircle2, FileText, FlaskConical, Upload } from 'lucide-react';
+import { ArrowRight, Atom, FileText, FlaskConical, Upload } from 'lucide-react';
 import clsx from 'clsx';
 
 const materialProfiles = [
@@ -122,22 +121,37 @@ export default function MaterialsPage() {
         badge="P0"
       />
 
-      <div className="p-8 space-y-6">
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <Metric label="관리 자재" value={stats.total} unit="개" tone="neutral" />
-          <Metric label="적합" value={stats.compliant} unit="개" tone="ok" />
-          <Metric label="검토 필요" value={stats.review} unit="개" tone="warn" />
-          <Metric label="위반 의심" value={stats.risk} unit="개" tone="alert" />
+      <div className="p-8 space-y-7">
+        <div className="rounded-sm border border-ink-700 bg-white shadow-control px-5 py-4">
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <div className="text-sm font-semibold text-ink-100">자재 규제 데이터 운영 현황</div>
+              <div className="text-xs text-ink-500 mt-1">자재 목록에서 항목을 선택하면 조성, 규제 판정, 증빙과 관련 PO를 한 화면에서 확인합니다</div>
+            </div>
+            <div className="grid grid-cols-4 gap-6 shrink-0">
+              <Metric label="관리 자재" value={stats.total} unit="개" tone="neutral" />
+              <Metric label="적합" value={stats.compliant} unit="개" tone="ok" />
+              <Metric label="검토 필요" value={stats.review} unit="개" tone="warn" />
+              <Metric label="위반 의심" value={stats.risk} unit="개" tone="alert" />
+            </div>
+          </div>
         </div>
 
-        <Card title="규제 요약 배너" subtitle="자재별 적용 규제와 판정 결과를 한눈에 표시">
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+        <section className="rounded-sm border border-ink-700 bg-white shadow-control">
+          <div className="flex items-center justify-between gap-4 border-b border-ink-700 px-5 py-3">
+            <div>
+              <h2 className="text-sm font-semibold text-ink-100">선택 자재 규제 요약</h2>
+              <p className="text-xs text-ink-500 mt-0.5">적용 여부와 검토 사유를 가벼운 상태 라인으로 표시합니다</p>
+            </div>
+            <Badge tone={statusMeta[selected.status].tone}>{statusMeta[selected.status].label}</Badge>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-5 divide-y lg:divide-y-0 lg:divide-x divide-ink-700">
             {['EU_BATTERY', 'IRA', 'UFLPA', 'CONFLICT_MINERALS', 'CRMA'].map(code => {
               const related = selected.regulations.find(item => item.code === code);
               return (
-                <div key={code} className="rounded-xs border border-ink-700/60 bg-ink-900/40 p-3">
-                  <div className="text-[10px] uppercase tracking-wider text-ink-500">{code}</div>
-                  <div className="mt-2">
+                <div key={code} className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[11px] font-semibold text-ink-300 num-mono">{code}</div>
                     <Badge tone={related ? resultTone[related.result as keyof typeof resultTone] : 'neutral'}>
                       {related ? related.result : 'not applied'}
                     </Badge>
@@ -147,103 +161,126 @@ export default function MaterialsPage() {
               );
             })}
           </div>
-        </Card>
+        </section>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.5fr] gap-6">
-          <Card title="자재 목록" subtitle="제품/BOM/부품 기준으로 물질 조성과 증빙을 관리">
-            <div className="space-y-2">
+        <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6 items-start">
+          <section className="rounded-sm border border-ink-700 bg-white shadow-control overflow-hidden">
+            <div className="px-5 py-4 border-b border-ink-700">
+              <h2 className="text-sm font-semibold text-ink-100">자재 목록</h2>
+              <p className="text-xs text-ink-500 mt-1">제품/BOM/부품 기준 관리</p>
+            </div>
+            <div className="divide-y divide-ink-700">
               {materialProfiles.map(profile => {
                 const part = parts.find(item => item.id === profile.partId);
                 const poCount = purchaseOrders.filter(po => po.partId === profile.partId).length;
+                const active = selectedPartId === profile.partId;
                 return (
                   <button
                     key={profile.partId}
                     onClick={() => setSelectedPartId(profile.partId)}
                     className={clsx(
-                      'w-full rounded-xs border p-3 text-left transition-colors',
-                      selectedPartId === profile.partId
-                        ? 'border-accent-500/70 bg-accent-500/8'
-                        : 'border-ink-700/60 bg-ink-900/30 hover:bg-ink-800/40',
+                      'w-full px-5 py-4 text-left transition-colors',
+                      active ? 'bg-accent-50' : 'bg-white hover:bg-ink-800',
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-sm font-semibold text-ink-100 truncate">{part?.partName ?? profile.partId}</div>
-                        <div className="text-[11px] text-ink-500 truncate">{part?.partCode} · HS {part?.hsCode}</div>
+                        <div className="flex items-center gap-2">
+                          <div className={clsx('h-2 w-2 rounded-full shrink-0',
+                            profile.status === 'compliant' ? 'bg-signal-ok' :
+                            profile.status === 'needs_review' ? 'bg-signal-warn' : 'bg-signal-alert',
+                          )} />
+                          <div className="text-sm font-semibold text-ink-100 truncate">{part?.partName ?? profile.partId}</div>
+                        </div>
+                        <div className="mt-1 text-[11px] text-ink-500 truncate">{part?.partCode} · HS {part?.hsCode}</div>
                       </div>
-                      <Badge tone={statusMeta[profile.status as keyof typeof statusMeta].tone}>{statusMeta[profile.status as keyof typeof statusMeta].label}</Badge>
+                      <ArrowRight className={clsx('w-4 h-4 mt-0.5 shrink-0', active ? 'text-accent-700' : 'text-ink-600')} />
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      <Mini label="원천" value={profile.source} />
-                      <Mini label="증빙" value={`${profile.evidence.length}건`} />
-                      <Mini label="PO" value={`${poCount}건`} />
+                    <div className="mt-3 flex items-center gap-3 text-[11px] text-ink-500">
+                      <span>{profile.source}</span>
+                      <span className="divider-dot">{profile.evidence.length} 증빙</span>
+                      <span className="divider-dot">{poCount} PO</span>
                     </div>
                   </button>
                 );
               })}
             </div>
-          </Card>
+          </section>
 
           <div className="space-y-6">
-            <Card
-              title={selectedPart?.partName ?? selected.partId}
-              subtitle={`${selectedPart?.partCode ?? ''} · ${selectedPart?.materialType ?? ''}`}
-              action={<Badge tone={statusMeta[selected.status].tone}>{statusMeta[selected.status].label}</Badge>}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-                <Mini label="HS Code" value={selectedPart?.hsCode ?? '-'} />
-                <Mini label="구매 단위" value={selectedPart?.purchaseUnit ?? '-'} />
-                <Mini label="데이터 원천" value={selected.source} />
+            <section className="rounded-sm border border-ink-700 bg-white shadow-panel">
+              <div className="px-6 py-5 border-b border-ink-700">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-[11px] font-semibold text-ink-500 num-mono">
+                      <FlaskConical className="w-3.5 h-3.5" />
+                      {selectedPart?.partCode ?? selected.partId}
+                    </div>
+                    <h2 className="text-xl font-semibold text-ink-100 mt-2">{selectedPart?.partName ?? selected.partId}</h2>
+                    <p className="text-xs text-ink-500 mt-1">{selectedPart?.materialType ?? '자재'} · 데이터 원천 {selected.source}</p>
+                  </div>
+                  <Badge tone={statusMeta[selected.status].tone} size="md">{statusMeta[selected.status].label}</Badge>
+                </div>
+
+                <div className="mt-5 grid grid-cols-3 gap-6 border-t border-ink-700 pt-4">
+                  <InlineMeta label="HS Code" value={selectedPart?.hsCode ?? '-'} />
+                  <InlineMeta label="구매 단위" value={selectedPart?.purchaseUnit ?? '-'} />
+                  <InlineMeta label="관련 PO" value={`${relatedPOs.length}건`} />
+                </div>
               </div>
 
-              <div className="space-y-3">
-                {selected.components.map(component => (
-                  <div key={component.name} className="rounded-xs border border-ink-700/60 bg-ink-900/30 p-3">
-                    <div className="flex items-center justify-between gap-4 mb-2">
-                      <div className="flex items-center gap-2">
-                        <Atom className="w-3.5 h-3.5 text-accent-500" />
-                        <div className="text-sm font-semibold text-ink-100">{component.name}</div>
+              <div className="px-6 py-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-ink-100">물질 조성</h3>
+                  <span className="text-xs text-ink-500">{selected.components.length}개 구성 성분</span>
+                </div>
+                <div className="space-y-4">
+                  {selected.components.map(component => (
+                    <div key={component.name}>
+                      <div className="flex items-center justify-between gap-4 mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Atom className="w-3.5 h-3.5 text-accent-700 shrink-0" />
+                          <div className="text-sm font-semibold text-ink-100 truncate">{component.name}</div>
+                          <div className="text-[11px] text-ink-500">원산지 {component.origin}</div>
+                        </div>
+                        <div className="text-sm font-bold text-ink-100 num-mono">{component.ratio}%</div>
                       </div>
-                      <div className="text-sm font-bold text-ink-100 num-mono">{component.ratio}%</div>
+                      <div className="h-2 rounded-full bg-ink-800 overflow-hidden">
+                        <div className="h-full bg-accent-600 rounded-full" style={{ width: `${component.ratio}%` }} />
+                      </div>
+                      <div className="mt-1 text-[11px] text-ink-500">재활용 함량 {component.recycled}%</div>
                     </div>
-                    <div className="h-1.5 rounded-full bg-ink-700 overflow-hidden">
-                      <div className="h-full bg-accent-500 rounded-full" style={{ width: `${component.ratio}%` }} />
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-ink-500">
-                      <span>원산지: {component.origin}</span>
-                      <span>재활용 함량: {component.recycled}%</span>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </Card>
+            </section>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card title="업로드 증빙" subtitle="물질 조성·MSDS·CoA·시험성적서">
-                <div className="space-y-2">
+              <SupportPanel title="업로드 증빙" subtitle="물질 조성·MSDS·CoA·시험성적서">
+                <div className="divide-y divide-ink-700">
                   {selected.evidence.map(file => (
-                    <div key={file} className="flex items-center justify-between rounded-xs border border-ink-700/60 bg-ink-900/30 px-3 py-2">
+                    <div key={file} className="flex items-center justify-between gap-3 py-3">
                       <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <FileText className="w-3.5 h-3.5 text-accent-700 shrink-0" />
                         <span className="text-xs text-ink-200 truncate">{file}</span>
                       </div>
                       <Badge tone="ok">검토 가능</Badge>
                     </div>
                   ))}
-                  <button className="w-full rounded-xs border border-dashed border-ink-700 px-3 py-2 text-xs text-ink-400 hover:text-ink-200 hover:bg-ink-800/40 transition-colors">
-                    <Upload className="inline w-3.5 h-3.5 mr-1" />
-                    증빙 추가 업로드
-                  </button>
                 </div>
-              </Card>
+                <button className="mt-3 inline-flex items-center gap-1.5 rounded-xs border border-dashed border-ink-600 px-3 py-2 text-xs font-semibold text-ink-400 hover:text-ink-100 hover:bg-ink-800 transition-colors">
+                  <Upload className="w-3.5 h-3.5" />
+                  증빙 추가 업로드
+                </button>
+              </SupportPanel>
 
-              <Card title="관련 PO·협력사" subtitle="승인 결과가 반영될 납품 관계">
-                <div className="space-y-2">
+              <SupportPanel title="관련 PO·협력사" subtitle="승인 결과가 반영될 납품 관계">
+                <div className="divide-y divide-ink-700">
                   {relatedPOs.map(po => {
                     const supplier = getSupplierName(po.supplierId);
                     const factory = getFactories(po.supplierId).find(f => f.factoryId === po.factoryId);
                     return (
-                      <div key={po.poId} className="rounded-xs border border-ink-700/60 bg-ink-900/30 p-3">
+                      <div key={po.poId} className="py-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-xs font-semibold text-ink-100 num-mono">{po.poId}</div>
                           <Badge tone={po.status === 'verified' ? 'ok' : po.status === 'pending' ? 'warn' : 'info'}>{po.status}</Badge>
@@ -254,7 +291,7 @@ export default function MaterialsPage() {
                     );
                   })}
                 </div>
-              </Card>
+              </SupportPanel>
             </div>
           </div>
         </div>
@@ -271,18 +308,30 @@ function Metric({ label, value, unit, tone }: { label: string; value: number; un
     alert: 'text-red-400',
   }[tone];
   return (
-    <div className="rounded-xs border border-ink-700/60 bg-ink-900/40 p-4">
+    <div>
       <div className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold">{label}</div>
-      <div className={clsx('text-2xl font-bold num-mono mt-2', color)}>{value}<span className="text-sm text-ink-500 ml-1">{unit}</span></div>
+      <div className={clsx('text-xl font-bold num-mono mt-1', color)}>{value}<span className="text-xs text-ink-500 ml-1">{unit}</span></div>
     </div>
   );
 }
 
-function Mini({ label, value }: { label: string; value: string }) {
+function InlineMeta({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xs border border-ink-700/60 bg-ink-900/40 p-2">
-      <div className="text-[10px] text-ink-500">{label}</div>
-      <div className="text-xs font-semibold text-ink-100 mt-1 truncate">{value}</div>
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold">{label}</div>
+      <div className="text-sm font-semibold text-ink-100 mt-1 truncate">{value}</div>
     </div>
+  );
+}
+
+function SupportPanel({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-sm border border-ink-700 bg-white shadow-control px-5 py-4">
+      <div className="mb-2">
+        <h3 className="text-sm font-semibold text-ink-100">{title}</h3>
+        <p className="text-xs text-ink-500 mt-1">{subtitle}</p>
+      </div>
+      <div>{children}</div>
+    </section>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import PageHeader from '@/components/PageHeader';
+import TopStatCard from '@/components/TopStatCard';
 import Link from 'next/link';
 import { suppliers } from '@/lib/data';
 import {
@@ -44,18 +45,7 @@ function KpiTile({ label, value, unit, icon: Icon, tone }: {
   label: string; value: number; unit: string; icon: any;
   tone: 'ok' | 'warn' | 'critical' | 'neutral';
 }) {
-  const toneColor = { ok: 'text-emerald-400', warn: 'text-amber-400', critical: 'text-red-400', neutral: 'text-ink-300' }[tone];
-  return (
-    <div className="rounded-xs border border-ink-700/60 bg-ink-900/40 p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className={clsx('w-3.5 h-3.5', toneColor)} />
-        <span className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold">{label}</span>
-      </div>
-      <div className={clsx('text-2xl font-bold num-mono', toneColor)}>
-        {value}<span className="text-sm text-ink-400 ml-1">{unit}</span>
-      </div>
-    </div>
-  );
+  return <TopStatCard label={label} value={value} unit={unit} tone={tone} />;
 }
 
 // ─── 만료 타임라인 바 ─────────────────────────────────────────

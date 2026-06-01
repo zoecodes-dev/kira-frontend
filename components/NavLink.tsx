@@ -41,6 +41,9 @@ const icons: Record<string, any> = {
 interface SubItem {
   href: string;
   label: string;
+  matchPattern?: string;
+  children?: SubItem[];
+  disabled?: boolean;
 }
 
 interface NavLinkProps {
@@ -53,7 +56,13 @@ interface NavLinkProps {
 
 export default function NavLink({ href, iconName, label, subtitle, subItems }: NavLinkProps) {
   const pathname = usePathname();
-  const hasActiveSubItem = subItems?.some(sub => pathname === sub.href || pathname.startsWith(sub.href + '/')) ?? false;
+  const isSubActive = (sub: SubItem) => {
+    if (sub.children?.some(isSubActive)) return true;
+    if (sub.matchPattern && new RegExp(sub.matchPattern).test(pathname)) return true;
+    if (sub.href === '/suppliers') return pathname === '/suppliers';
+    return pathname === sub.href || pathname.startsWith(sub.href + '/');
+  };
+  const hasActiveSubItem = subItems?.some(isSubActive) ?? false;
   const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href) || hasActiveSubItem;
   const Icon = icons[iconName] ?? Activity;
   const mainClassName = clsx(
@@ -122,20 +131,51 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
       {subItems && open && (
         <div className="ml-11 mt-1 space-y-0.5 border-l border-ink-700 pl-3">
           {subItems.map(sub => {
-            const subActive = pathname === sub.href || pathname.startsWith(sub.href + '/');
+            const subActive = isSubActive(sub);
             return (
-              <Link
-                key={sub.href}
-                href={sub.href}
-                className={clsx(
-                  'block px-2 py-1.5 rounded-xs text-[12px] transition-colors',
-                  subActive
-                    ? 'text-accent-800 bg-accent-50 font-semibold'
-                    : 'text-ink-500 hover:text-ink-200 hover:bg-ink-800'
+              <div key={sub.href}>
+                <Link
+                  href={sub.href}
+                  className={clsx(
+                    'block px-2 py-1.5 rounded-xs text-[12px] transition-colors',
+                    subActive
+                      ? 'text-accent-800 bg-accent-50 font-semibold'
+                      : 'text-ink-500 hover:text-ink-200 hover:bg-ink-800'
+                  )}
+                >
+                  {sub.label}
+                </Link>
+                {sub.children && subActive && (
+                  <div className="ml-3 mt-0.5 space-y-0.5 border-l border-ink-700 pl-2">
+                    {sub.children.map(child => {
+                      const childActive = isSubActive(child);
+                      const childClassName = clsx(
+                        'block rounded-xs px-2 py-1.5 text-[12px] transition-colors',
+                        childActive
+                          ? 'bg-accent-50 text-accent-800 font-semibold'
+                          : 'text-ink-500 hover:bg-ink-800 hover:text-ink-200',
+                        child.disabled && 'cursor-default hover:bg-transparent hover:text-ink-500'
+                      );
+                      if (child.disabled) {
+                        return (
+                          <span key={child.href} className={childClassName}>
+                            {child.label}
+                          </span>
+                        );
+                      }
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={childClassName}
+                        >
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
-              >
-                {sub.label}
-              </Link>
+              </div>
             );
           })}
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import PageHeader from '@/components/PageHeader';
+import TopStatCard from '@/components/TopStatCard';
 import Link from 'next/link';
 import {
   suppliers, supplyEdges, type Supplier, type SupplierStatus,
@@ -434,15 +435,13 @@ function SubmissionPanel({
 function StatCard({ label, value, color, icon: Icon }: {
   label: string; value: number; color: string; icon: any;
 }) {
-  return (
-    <div className="rounded-sm border border-ink-700 bg-ink-800/40 p-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] uppercase tracking-wider text-ink-400">{label}</span>
-        <Icon className="w-3.5 h-3.5 text-ink-500" />
-      </div>
-      <div className={clsx('text-2xl font-semibold num-mono', color)}>{value}</div>
-    </div>
-  );
+  const tone =
+    color.includes('emerald') ? 'ok' :
+    color.includes('red') ? 'alert' :
+    color.includes('purple') ? 'purple' :
+    color.includes('blue') ? 'info' :
+    'neutral';
+  return <TopStatCard label={label} value={value} tone={tone} />;
 }
 
 // ─── 메인 ────────────────────────────────────────────────────

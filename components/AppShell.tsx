@@ -50,8 +50,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 label="협력사 목록"
                 subtitle="전체 협력사"
                 subItems={[
-                  { href: '/suppliers', label: '전체 목록' },
-                  { href: '/suppliers/general', label: '협력사 일반정보' },
+                  {
+                    href: '/suppliers',
+                    label: '전체 목록',
+                    children: [
+                      { href: '/suppliers/S-CELL-001/info', label: '협력사 세부 정보', matchPattern: '^/suppliers/[^/]+/', disabled: true },
+                    ],
+                  },
                   { href: '/suppliers/reliability', label: '협력사 신뢰성 평가' },
                   { href: '/risk/high-risk', label: '고위험 협력사' },
                 ]}
@@ -181,7 +186,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-x-auto min-w-0">
+      <main className={`flex-1 min-w-0 ${pathname === '/risk/high-risk' ? 'overflow-x-clip' : 'overflow-x-auto'}`}>
         {children}
       </main>
     </div>
