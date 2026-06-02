@@ -76,7 +76,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 subtitle="조성·인증·규제"
                 subItems={[
                   { href: '/materials', label: '물질 관리' },
-                  { href: '/risk/origin-certs', label: '원산지 증명서' },
+                  { href: '/risk/origin-certs', label: '원산지 증명서 만료 관리' },
                   { href: '/materials/regulation-results', label: '규제 검증 결과' },
                 ]}
               />
