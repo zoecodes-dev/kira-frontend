@@ -7,7 +7,7 @@ import {
   getSupplierName, originCertificates, type OriginCertificate,
 } from '@/lib/supplier-detail-data';
 import {
-  AlertCircle, Search, X,
+  AlertCircle, ChevronDown, ChevronRight, FileCheck, Search, SlidersHorizontal, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -33,14 +33,18 @@ const countryFlag: Record<string, string> = {
   PH: '🇵🇭', CD: '🇨🇩', ID: '🇮🇩',
 };
 
-// ─── 만료까지 남은 일수 계산 ──────────────────────────────────
+const countryName: Record<string, string> = {
+  KR: '한국', CN: '중국', JP: '일본', AU: '호주', CL: '칠레',
+  PH: '필리핀', CD: '콩고', ID: '인도네시아',
+};
+
 function daysUntilExpiry(expiresAt: string): number {
   return Math.ceil((new Date(expiresAt).getTime() - new Date('2026-05-19').getTime()) / 86400000);
 }
 
 // ─── KPI 타일 ─────────────────────────────────────────────────
-function KpiTile({ label, value, status, onClick }: {
-  label: string; value: number; status: CertificateStatus; onClick: () => void;
+function KpiTile({ label, value, status, active, onClick }: {
+  label: string; value: number; status: CertificateStatus; active: boolean; onClick: () => void;
 }) {
   const style = {
     valid:         { card: 'border-emerald-300 bg-emerald-50/45 hover:bg-emerald-50', value: 'text-emerald-700' },
@@ -53,7 +57,15 @@ function KpiTile({ label, value, status, onClick }: {
     <button
       type="button"
       onClick={onClick}
-      className={clsx('w-full rounded-xs border px-4 py-3 text-left shadow-control transition-colors', style.card)}
+      className={clsx(
+        'w-full rounded-xs border px-4 py-3 text-left shadow-control transition-colors',
+        style.card,
+        active && 'ring-2 ring-offset-1',
+        active && status === 'valid' && 'ring-emerald-400',
+        active && status === 'expiring_soon' && 'ring-amber-400',
+        active && status === 'expired' && 'ring-red-400',
+        active && status === 'under_review' && 'ring-blue-400',
+      )}
     >
       <div className="flex items-center justify-between gap-4">
         <span className="text-sm font-bold text-ink-100">{label}</span>
@@ -66,17 +78,85 @@ function KpiTile({ label, value, status, onClick }: {
   );
 }
 
-// ─── 만료 타임라인 바 ─────────────────────────────────────────
-function ExpiryBar({ cert }: { cert: OriginCertificate }) {
-  const days = daysUntilExpiry(cert.expiresAt);
-  const issuedDays = Math.ceil(
-    (new Date('2026-05-19').getTime() - new Date(cert.issuedAt).getTime()) / 86400000
+// ─── 상태 정렬 순서 ────────────────────────────────────────────
+const statusOrder: Record<CertificateStatus, number> = {
+  expired: 0,
+  expiring_soon: 1,
+  valid: 2,
+  under_review: 3,
+};
+
+// ─── 툴바 Select ──────────────────────────────────────────────
+function Select({
+  label, value, onChange, options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { v: string; label: string }[];
+}) {
+  return (
+    <label className="flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 shadow-control">
+      <span className="text-[11px] font-semibold text-ink-500">{label}</span>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="num-mono bg-transparent text-[11px] font-semibold text-ink-200 outline-none"
+      >
+        {options.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+      </select>
+    </label>
   );
+}
+
+// ─── 테이블 헤더 필터 ─────────────────────────────────────────
+function HeaderFilter({
+  label, value, onChange, options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { v: string; label: string }[];
+}) {
+  const selected = options.find(o => o.v === value)?.label ?? '전체';
+  return (
+    <label className="relative inline-flex max-w-full cursor-pointer items-center gap-1.5 text-[11px] font-bold text-ink-500">
+      {label && <span className="truncate">{label}</span>}
+      <span className={clsx(
+        'inline-flex max-w-[96px] items-center gap-1 rounded-xs px-1 py-0.5 text-[11px] font-bold',
+        value === 'all' ? 'text-ink-400' : 'bg-accent-50 text-accent-800',
+      )}>
+        {value !== 'all' && <span className="truncate">{selected}</span>}
+        <ChevronDown className="h-3 w-3 shrink-0" />
+      </span>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="absolute inset-0 cursor-pointer opacity-0"
+        aria-label={label}
+      >
+        {options.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+      </select>
+    </label>
+  );
+}
+
+// ─── 테이블 행 ────────────────────────────────────────────────
+function CertRow({ cert }: { cert: OriginCertificate }) {
+  const name = getSupplierName(cert.supplierId);
+  const sm = statusMeta[cert.status];
+  const ctm = certTypeMeta[cert.certType] ?? { label: cert.certType, color: 'text-ink-300' };
+  const days = daysUntilExpiry(cert.expiresAt);
+  const flag = countryFlag[cert.originCountry] ?? '🌐';
+  const country = countryName[cert.originCountry] ?? cert.originCountry;
+
   const totalDays = Math.ceil(
     (new Date(cert.expiresAt).getTime() - new Date(cert.issuedAt).getTime()) / 86400000
   );
+  const issuedDays = Math.ceil(
+    (new Date('2026-05-19').getTime() - new Date(cert.issuedAt).getTime()) / 86400000
+  );
   const progressPct = Math.min(100, Math.max(0, (issuedDays / totalDays) * 100));
-
   const barColor =
     cert.status === 'expired'       ? 'bg-red-500' :
     cert.status === 'expiring_soon' ? 'bg-amber-500' :
@@ -84,84 +164,103 @@ function ExpiryBar({ cert }: { cert: OriginCertificate }) {
     'bg-emerald-500';
 
   return (
-    <div>
-      <div className="h-1.5 bg-ink-700 rounded-full overflow-hidden">
-        <div className={clsx('h-full transition-all', barColor)} style={{ width: `${progressPct}%` }} />
-      </div>
-      <div className="flex justify-between mt-2 text-[13px] text-ink-500">
-        <span>{cert.issuedAt}</span>
-        <span className={days < 0 ? 'text-red-400' : days < 60 ? 'text-amber-400' : 'text-ink-500'}>
-          {days < 0 ? `${Math.abs(days)}일 초과` : `${days}일 남음`}
-        </span>
-        <span>{cert.expiresAt}</span>
-      </div>
-    </div>
-  );
-}
-
-// ─── 증명서 카드 ──────────────────────────────────────────────
-function CertCard({ cert }: { cert: OriginCertificate }) {
-  const name = getSupplierName(cert.supplierId);
-  const sm = statusMeta[cert.status];
-  const ctm = certTypeMeta[cert.certType] || { label: cert.certType, color: 'text-ink-300' };
-  const days = daysUntilExpiry(cert.expiresAt);
-
-  return (
-    <Link href={`/suppliers/${cert.supplierId}/origin`} className="block h-full">
-      <div className={clsx(
-        'flex h-full flex-col p-5 rounded-sm border shadow-control transition-all cursor-pointer group hover:shadow-panel',
-        cert.status === 'expired'       ? 'border-red-300 bg-red-50/55 hover:border-red-400' :
-        cert.status === 'expiring_soon' ? 'border-amber-300 bg-amber-50/55 hover:border-amber-400' :
-        'border-ink-700 bg-white hover:border-ink-600',
-      )}>
-        <div className="flex items-start justify-between gap-5 mb-4">
-          <div className="flex-1 min-w-0">
-            {/* 협력사 */}
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-lg">{countryFlag[cert.originCountry] || '🌐'}</span>
-              <span className="text-base font-bold text-ink-100 truncate">{name?.nameEn ?? ''}</span>
-              {name?.nameKo && <span className="text-sm text-ink-500 truncate">{name.nameKo}</span>}
-            </div>
-            {/* 증명서 번호 */}
-            <div className="text-sm text-ink-400 num-mono">{cert.certNumber}</div>
-            <div className="mt-1 text-sm text-ink-500">{cert.issuingAuthority}</div>
-          </div>
-          <div className="shrink-0 text-right space-y-1.5">
-            <div className={clsx('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xs border text-sm font-bold', sm.badge)}>
-              <div className={clsx('w-1.5 h-1.5 rounded-full', sm.dot)} />
-              {sm.label}
-            </div>
-            <div className={clsx('text-sm font-semibold', ctm.color)}>{ctm.label}</div>
+    <tr className="group border-b border-ink-700 bg-white transition-colors hover:bg-ink-800">
+      {/* 협력사 */}
+      <td className="px-5 py-4 align-top">
+        <div className="flex items-start gap-2">
+          <span className="mt-0.5 text-base">{flag}</span>
+          <div className="min-w-0">
+            <Link
+              href={`/suppliers/${cert.supplierId}/origin`}
+              className="block truncate text-sm font-bold text-ink-100 transition-colors group-hover:text-accent-700"
+            >
+              {name?.nameEn ?? cert.supplierId}
+            </Link>
+            {name?.nameKo && (
+              <div className="mt-0.5 truncate text-xs text-ink-500">{name.nameKo}</div>
+            )}
+            <div className="mt-0.5 text-[11px] text-ink-500 num-mono">{cert.supplierId}</div>
           </div>
         </div>
+      </td>
 
-        {/* 만료 타임라인 */}
-        <ExpiryBar cert={cert} />
+      {/* 증명서 번호 */}
+      <td className="px-5 py-4 align-top">
+        <div className="text-xs font-semibold text-ink-200 num-mono">{cert.certNumber}</div>
+        <div className="mt-0.5 text-[11px] text-ink-500 truncate">{cert.issuingAuthority}</div>
+      </td>
 
-        <div className="mt-3 flex min-h-8 items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-1.5">
-            {cert.coveredMinerals?.map(m => (
-              <span key={m} className="px-2.5 py-1 rounded-full border border-ink-700 bg-white text-xs text-ink-400">{m}</span>
+      {/* 유형 */}
+      <td className="px-5 py-4 align-top">
+        <span className={clsx('text-xs font-semibold', ctm.color)}>{ctm.label}</span>
+        <div className="mt-0.5 text-[11px] text-ink-500">{country}</div>
+      </td>
+
+      {/* 상태 */}
+      <td className="px-5 py-4 align-top">
+        <div className={clsx(
+          'inline-flex items-center gap-1.5 rounded-xs border px-2 py-0.5 text-xs font-bold',
+          sm.badge,
+        )}>
+          <span className={clsx('h-1.5 w-1.5 rounded-full', sm.dot)} />
+          {sm.label}
+        </div>
+        {(cert.status === 'expired' || cert.status === 'expiring_soon') && (
+          <div className={clsx(
+            'mt-1 flex items-center gap-1 text-[11px] font-semibold',
+            cert.status === 'expired' ? 'text-red-700' : 'text-amber-700',
+          )}>
+            <AlertCircle className="h-3 w-3 shrink-0" />
+            {days < 0 ? `${Math.abs(days)}일 초과` : `${days}일 남음`}
+          </div>
+        )}
+      </td>
+
+      {/* 만료일 + 진행 바 */}
+      <td className="px-5 py-4 align-top">
+        <div className="min-w-[140px]">
+          <div className="flex justify-between text-[11px] text-ink-500 mb-1">
+            <span>{cert.issuedAt}</span>
+            <span className={days < 0 ? 'text-red-500' : days < 60 ? 'text-amber-500' : 'text-ink-400'}>
+              {cert.expiresAt}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-ink-700 overflow-hidden">
+            <div className={clsx('h-full transition-all', barColor)} style={{ width: `${progressPct}%` }} />
+          </div>
+        </div>
+      </td>
+
+      {/* 광물 */}
+      <td className="px-5 py-4 align-top">
+        {cert.coveredMinerals && cert.coveredMinerals.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {cert.coveredMinerals.map(m => (
+              <span key={m} className="rounded-full border border-ink-700 bg-white px-2 py-0.5 text-[11px] text-ink-400">
+                {m}
+              </span>
             ))}
           </div>
-          {cert.status === 'expired' && (
-            <div className="flex shrink-0 items-center gap-1.5 rounded-xs bg-red-100/70 px-3 py-2 text-sm font-semibold text-red-700">
-              <AlertCircle className="w-3.5 h-3.5" />
-              갱신 즉시 필요
-            </div>
-          )}
-          {cert.status === 'expiring_soon' && (
-            <div className="flex shrink-0 items-center gap-1.5 rounded-xs bg-amber-100/70 px-3 py-2 text-sm font-semibold text-amber-700">
-              <AlertCircle className="w-3.5 h-3.5" />
-              {days >= 0 ? `${days}일 이내 갱신 권장` : '갱신 일정 확인 필요'}
-            </div>
-          )}
-        </div>
-      </div>
-    </Link>
+        ) : (
+          <span className="text-[11px] text-ink-600">—</span>
+        )}
+      </td>
+
+      {/* 액션 */}
+      <td className="px-5 py-4 align-top text-right">
+        <Link
+          href={`/suppliers/${cert.supplierId}/origin`}
+          className="inline-flex items-center gap-1 whitespace-nowrap rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:text-accent-700"
+        >
+          상세
+          <ChevronRight className="h-3.5 w-3.5" />
+        </Link>
+      </td>
+    </tr>
   );
 }
 
+// ─── 모달 ─────────────────────────────────────────────────────
 function CertificateModal({ status, certs, onClose }: {
   status: CertificateStatus;
   certs: OriginCertificate[];
@@ -174,7 +273,7 @@ function CertificateModal({ status, certs, onClose }: {
         aria-modal="true"
         aria-label={`${statusMeta[status].label} 인증서 목록`}
         className="max-h-[80vh] w-full max-w-3xl overflow-hidden rounded-sm border border-ink-700 bg-white shadow-panel"
-        onClick={event => event.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-6 py-5">
           <div>
@@ -189,20 +288,20 @@ function CertificateModal({ status, certs, onClose }: {
           <div className="divide-y divide-ink-700 rounded-sm border border-ink-700">
             {certs.map(cert => {
               const name = getSupplierName(cert.supplierId);
-              const ctm = certTypeMeta[cert.certType] || { label: cert.certType, color: 'text-ink-300' };
+              const ctm = certTypeMeta[cert.certType] ?? { label: cert.certType, color: 'text-ink-300' };
               return (
                 <div key={cert.certId} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-ink-800">
                   <div className="min-w-0">
-                    <Link href={`/suppliers/${cert.supplierId}/info`} className="text-base font-bold text-ink-100 hover:text-accent-700">
-                      {countryFlag[cert.originCountry] || '🌐'} {name?.nameEn ?? cert.supplierId}
+                    <Link href={`/suppliers/${cert.supplierId}/info`} className="text-sm font-bold text-ink-100 hover:text-accent-700">
+                      {countryFlag[cert.originCountry] ?? '🌐'} {name?.nameEn ?? cert.supplierId}
                     </Link>
-                    <div className="mt-1 text-sm text-ink-500">{name?.nameKo} · {cert.issuingAuthority}</div>
+                    <div className="mt-1 text-xs text-ink-500">{name?.nameKo} · {cert.issuingAuthority}</div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <Link href={`/suppliers/${cert.supplierId}/origin`} className="text-sm font-semibold num-mono text-accent-700 hover:underline">
+                    <Link href={`/suppliers/${cert.supplierId}/origin`} className="text-xs font-semibold num-mono text-accent-700 hover:underline">
                       {cert.certNumber}
                     </Link>
-                    <div className={clsx('mt-1 text-sm font-semibold', ctm.color)}>{ctm.label}</div>
+                    <div className={clsx('mt-1 text-xs font-semibold', ctm.color)}>{ctm.label}</div>
                   </div>
                 </div>
               );
@@ -221,8 +320,10 @@ function CertificateModal({ status, certs, onClose }: {
 export default function OriginCertsPage() {
   const [modalStatus, setModalStatus] = useState<CertificateStatus | null>(null);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'expired' | 'expiring_soon'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | CertificateStatus>('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [countryFilter, setCountryFilter] = useState('all');
+  const [mineralFilter, setMineralFilter] = useState('all');
 
   const allCerts = originCertificates;
 
@@ -232,23 +333,32 @@ export default function OriginCertsPage() {
     expired:       allCerts.filter(c => c.status === 'expired').length,
     under_review:  allCerts.filter(c => c.status === 'under_review').length,
   }), [allCerts]);
-  const matchesSearch = (cert: OriginCertificate) => {
+
+  const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return true;
-    const name = getSupplierName(cert.supplierId);
-    return (
-      (name?.nameEn ?? '').toLowerCase().includes(q) ||
-      (name?.nameKo ?? '').toLowerCase().includes(q) ||
-      cert.certNumber.toLowerCase().includes(q) ||
-      cert.issuingAuthority.toLowerCase().includes(q)
-    );
-  };
-  const matchesType = (cert: OriginCertificate) => typeFilter === 'all' || cert.certType === typeFilter;
-  const matchesStatus = (cert: OriginCertificate) => statusFilter === 'all' || cert.status === statusFilter;
-  const expiredCerts = allCerts.filter(cert => cert.status === 'expired' && matchesSearch(cert) && matchesType(cert) && matchesStatus(cert));
-  const expiringSoonCerts = allCerts.filter(cert => cert.status === 'expiring_soon' && matchesSearch(cert) && matchesType(cert) && matchesStatus(cert));
-  const modalCerts = modalStatus ? allCerts.filter(cert => cert.status === modalStatus) : [];
+    return allCerts
+      .filter(cert => {
+        if (statusFilter !== 'all' && cert.status !== statusFilter) return false;
+        if (typeFilter !== 'all' && cert.certType !== typeFilter) return false;
+        if (countryFilter !== 'all' && cert.originCountry !== countryFilter) return false;
+        if (mineralFilter !== 'all' && !(cert.coveredMinerals ?? []).includes(mineralFilter)) return false;
+        if (!q) return true;
+        const name = getSupplierName(cert.supplierId);
+        return (
+          (name?.nameEn ?? '').toLowerCase().includes(q) ||
+          (name?.nameKo ?? '').toLowerCase().includes(q) ||
+          cert.certNumber.toLowerCase().includes(q) ||
+          cert.issuingAuthority.toLowerCase().includes(q) ||
+          cert.supplierId.toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+  }, [allCerts, search, statusFilter, typeFilter, countryFilter, mineralFilter]);
+
   const certTypes = [...new Set(allCerts.map(cert => cert.certType))];
+  const certCountries = [...new Set(allCerts.map(cert => cert.originCountry))];
+  const certMinerals = [...new Set(allCerts.flatMap(cert => cert.coveredMinerals ?? []))];
+  const modalCerts = modalStatus ? allCerts.filter(cert => cert.status === modalStatus) : [];
 
   return (
     <>
@@ -258,98 +368,183 @@ export default function OriginCertsPage() {
         badge="리스크"
       />
 
-      <div className="p-8 space-y-6">
+      <div className="space-y-6 p-8">
         {/* KPI */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiTile label="유효" value={countByStatus.valid} status="valid" onClick={() => setModalStatus('valid')} />
-          <KpiTile label="만료 임박" value={countByStatus.expiring_soon} status="expiring_soon" onClick={() => setModalStatus('expiring_soon')} />
-          <KpiTile label="만료" value={countByStatus.expired} status="expired" onClick={() => setModalStatus('expired')} />
-          <KpiTile label="검토 중" value={countByStatus.under_review} status="under_review" onClick={() => setModalStatus('under_review')} />
+          <KpiTile label="유효" value={countByStatus.valid} status="valid" active={statusFilter === 'valid'} onClick={() => setStatusFilter(s => s === 'valid' ? 'all' : 'valid')} />
+          <KpiTile label="만료 임박" value={countByStatus.expiring_soon} status="expiring_soon" active={statusFilter === 'expiring_soon'} onClick={() => setStatusFilter(s => s === 'expiring_soon' ? 'all' : 'expiring_soon')} />
+          <KpiTile label="만료" value={countByStatus.expired} status="expired" active={statusFilter === 'expired'} onClick={() => setStatusFilter(s => s === 'expired' ? 'all' : 'expired')} />
+          <KpiTile label="검토 중" value={countByStatus.under_review} status="under_review" active={statusFilter === 'under_review'} onClick={() => setStatusFilter(s => s === 'under_review' ? 'all' : 'under_review')} />
         </div>
 
-        <div className="rounded-sm border border-ink-700 bg-white p-4 shadow-control">
-          <div className="flex flex-col gap-3 lg:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-500" />
-            <input
-              type="text"
-              placeholder="협력사명 · 증명서 번호 · 발급기관 검색"
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-              className="w-full rounded-xs border border-ink-700 bg-white py-2.5 pl-9 pr-4 text-sm text-ink-100 placeholder-ink-500 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/10"
-            />
+        {/* 테이블 */}
+        <section className="rounded-sm border border-ink-700 bg-white shadow-control">
+          {/* 검색·필터 툴바 */}
+          <div className="border-b border-ink-700 bg-ink-800 px-5 py-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[280px] flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-500" />
+                <input
+                  type="text"
+                  placeholder="협력사명 · 증명서 번호 · 발급기관 검색"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full rounded-xs border border-ink-700 bg-white py-2.5 pl-9 pr-4 text-sm text-ink-100 placeholder-ink-500 shadow-control outline-none transition-colors focus:border-accent-600 focus:ring-2 focus:ring-accent-500/20"
+                />
+              </div>
+              <div className="flex items-center gap-2 text-xs font-semibold text-ink-500">
+                <SlidersHorizontal className="h-4 w-4" />
+                필터
+              </div>
+              <Select
+                label="상태"
+                value={statusFilter}
+                onChange={v => setStatusFilter(v as 'all' | CertificateStatus)}
+                options={[
+                  { v: 'all', label: '전체' },
+                  { v: 'expired', label: '만료' },
+                  { v: 'expiring_soon', label: '만료 임박' },
+                  { v: 'valid', label: '유효' },
+                  { v: 'under_review', label: '검토 중' },
+                ]}
+              />
+              <Select
+                label="유형"
+                value={typeFilter}
+                onChange={setTypeFilter}
+                options={[
+                  { v: 'all', label: '전체' },
+                  ...certTypes.map(t => ({ v: t, label: certTypeMeta[t]?.label ?? t })),
+                ]}
+              />
+              <Select
+                label="원산지"
+                value={countryFilter}
+                onChange={setCountryFilter}
+                options={[
+                  { v: 'all', label: '전체' },
+                  ...certCountries.map(c => ({ v: c, label: `${countryFlag[c] ?? ''} ${countryName[c] ?? c}` })),
+                ]}
+              />
+            </div>
           </div>
-          <div className="flex overflow-hidden rounded-xs border border-ink-700 bg-white">
-            {([
-              { value: 'all', label: '전체' },
-              { value: 'expired', label: '만료' },
-              { value: 'expiring_soon', label: '만료 임박' },
-            ] as const).map(option => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setStatusFilter(option.value)}
-                className={clsx(
-                  'px-3 py-2.5 text-sm font-semibold transition-colors',
-                  statusFilter === option.value ? 'bg-accent-50 text-accent-700' : 'text-ink-500 hover:bg-ink-800 hover:text-ink-300',
+
+          {/* 결과 수 */}
+          <div className="flex items-center justify-between border-b border-ink-700 px-5 py-3">
+            <div className="flex items-center gap-2 text-xs text-ink-500">
+              <FileCheck className="h-4 w-4 text-ink-400" />
+              <span>
+                전체 인증서 <strong className="num-mono text-ink-100">{filtered.length}</strong> / {allCerts.length}건 표시
+              </span>
+              {statusFilter !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('all')}
+                  className="ml-1 rounded-xs border border-ink-700 bg-white px-2 py-1 text-[11px] font-semibold text-ink-400 hover:border-accent-600 hover:text-accent-700"
+                >
+                  전체 보기
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-ink-500">
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />만료</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" />만료 임박</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" />검토 중</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" />유효</span>
+            </div>
+          </div>
+
+          {/* 테이블 */}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[960px] table-fixed">
+              <colgroup>
+                <col className="w-[22%]" />
+                <col className="w-[18%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[18%]" />
+                <col className="w-[12%]" />
+                <col className="w-[72px]" />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-ink-700 bg-white">
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
+                    <HeaderFilter
+                      label="협력사"
+                      value={statusFilter}
+                      onChange={v => setStatusFilter(v as 'all' | CertificateStatus)}
+                      options={[
+                        { v: 'all', label: '전체' },
+                        { v: 'valid', label: '유효' },
+                        { v: 'expiring_soon', label: '만료 임박' },
+                        { v: 'expired', label: '만료' },
+                        { v: 'under_review', label: '검토 중' },
+                      ]}
+                    />
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">증명서 번호</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
+                    <HeaderFilter
+                      label="유형"
+                      value={typeFilter}
+                      onChange={setTypeFilter}
+                      options={[
+                        { v: 'all', label: '전체' },
+                        ...certTypes.map(t => ({ v: t, label: certTypeMeta[t]?.label ?? t })),
+                      ]}
+                    />
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
+                    <HeaderFilter
+                      label="상태"
+                      value={statusFilter}
+                      onChange={v => setStatusFilter(v as 'all' | CertificateStatus)}
+                      options={[
+                        { v: 'all', label: '전체' },
+                        { v: 'expired', label: '만료' },
+                        { v: 'expiring_soon', label: '만료 임박' },
+                        { v: 'valid', label: '유효' },
+                        { v: 'under_review', label: '검토 중' },
+                      ]}
+                    />
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">발급 / 만료일</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
+                    <HeaderFilter
+                      label="광물"
+                      value={mineralFilter}
+                      onChange={setMineralFilter}
+                      options={[
+                        { v: 'all', label: '전체' },
+                        ...certMinerals.map(m => ({ v: m, label: m })),
+                      ]}
+                    />
+                  </th>
+                  <th className="px-5 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(cert => <CertRow key={cert.certId} cert={cert} />)}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-16 text-center text-sm text-ink-500">
+                      표시할 인증서가 없습니다.
+                    </td>
+                  </tr>
                 )}
-              >
-                {option.label}
-              </button>
-            ))}
+              </tbody>
+            </table>
           </div>
-          <select
-            value={typeFilter}
-            onChange={event => setTypeFilter(event.target.value)}
-            className="rounded-xs border border-ink-700 bg-white px-3 py-2.5 text-sm text-ink-300"
-          >
-            <option value="all">유형 전체</option>
-            {certTypes.map(type => (
-              <option key={type} value={type}>{certTypeMeta[type]?.label || type}</option>
-            ))}
-          </select>
-          </div>
-        </div>
-
-        {/* 만료 상태별 증명서 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <CertificateColumn title="만료" description="즉시 갱신이 필요한 인증서" tone="expired" certs={expiredCerts} />
-          <CertificateColumn title="만료 임박" description="갱신 일정을 우선 확인할 인증서" tone="expiring_soon" certs={expiringSoonCerts} />
-        </div>
+        </section>
       </div>
-      {modalStatus && <CertificateModal status={modalStatus} certs={modalCerts} onClose={() => setModalStatus(null)} />}
+
+      {modalStatus && (
+        <CertificateModal
+          status={modalStatus}
+          certs={modalCerts}
+          onClose={() => setModalStatus(null)}
+        />
+      )}
     </>
-  );
-}
-
-function CertificateColumn({ title, description, tone, certs }: {
-  title: string;
-  description: string;
-  tone: 'expired' | 'expiring_soon';
-  certs: OriginCertificate[];
-}) {
-  return (
-    <section className="rounded-sm border border-ink-700 bg-white shadow-control overflow-hidden">
-      <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
-        <div>
-          <h2 className="text-base font-bold text-ink-100">{title}</h2>
-          <p className="mt-1 text-sm text-ink-500">{description}</p>
-        </div>
-        <span className={clsx(
-          'rounded-xs border px-2.5 py-1 text-sm font-bold num-mono',
-          tone === 'expired' ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-700',
-        )}>
-          {certs.length}건
-        </span>
-      </div>
-      <div className="grid auto-rows-fr gap-3 p-4">
-        {certs.map(cert => <CertCard key={cert.certId} cert={cert} />)}
-        {certs.length === 0 && (
-          <div className="rounded-sm border border-dashed border-ink-700 px-4 py-10 text-center text-sm text-ink-500">
-            표시할 인증서가 없습니다.
-          </div>
-        )}
-      </div>
-    </section>
   );
 }

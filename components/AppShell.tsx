@@ -187,7 +187,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className={`flex-1 min-w-0 ${pathname === '/risk/high-risk' ? 'overflow-x-clip' : 'overflow-x-auto'}`}>
-        {children}
+        {pathname === '/dashboard' ? (
+          children
+        ) : (
+          <div className="max-w-[1600px] mx-auto w-full">
+            {children}
+          </div>
+        )}
       </main>
     </div>
   );
