@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
@@ -85,6 +86,9 @@ const statusMeta = {
   rejected: { label: '반려', tone: 'alert' as const },
 };
 
+const REQUEST_STATUS_STORAGE_KEY = 'kira-request-map-status';
+const REVIEWED_DATE = '2026-06-04';
+
 const resultMeta = {
   pass: { label: '통과', tone: 'ok' as const },
   review: { label: '확인 필요', tone: 'warn' as const },
@@ -92,19 +96,67 @@ const resultMeta = {
 };
 
 export default function SubmissionReviewPage() {
+  const router = useRouter();
+  const [submissionItems, setSubmissionItems] = useState(submissions);
   const [selectedId, setSelectedId] = useState(submissions[0].id);
-  const selected = submissions.find(item => item.id === selectedId) ?? submissions[0];
+  const [notice, setNotice] = useState<string | null>(null);
+  const selected = submissionItems.find(item => item.id === selectedId) ?? submissionItems[0];
   const supplier = getSupplierName(selected.supplierId);
   const primary = getContacts(selected.supplierId).find(c => c.isPrimary) ?? getContacts(selected.supplierId)[0];
   const relatedPOs = purchaseOrders.filter(po => po.supplierId === selected.supplierId).slice(0, 3);
   const overdueLogs = remindLogs.filter(log => log.supplierId === selected.supplierId && log.status === 'overdue');
 
   const stats = useMemo(() => ({
-    review: submissions.filter(item => item.status === 'review').length,
-    approved: submissions.filter(item => item.status === 'approved').length,
-    rework: submissions.filter(item => item.status === 'rework').length,
-    failedChecks: submissions.flatMap(item => item.checks).filter(check => check.result === 'fail').length,
-  }), []);
+    review: submissionItems.filter(item => item.status === 'review').length,
+    approved: submissionItems.filter(item => item.status === 'approved').length,
+    rework: submissionItems.filter(item => item.status === 'rework').length,
+    failedChecks: submissionItems.flatMap(item => item.checks).filter(check => check.result === 'fail').length,
+  }), [submissionItems]);
+
+  const syncRequestMapStatus = (nextSubmissionStatus: 'approved' | 'rework' | 'rejected') => {
+    const requestStatus = nextSubmissionStatus === 'approved' ? 'reviewed' : nextSubmissionStatus;
+
+    let stored: Record<string, unknown> = {};
+    try {
+      const raw = window.localStorage.getItem(REQUEST_STATUS_STORAGE_KEY);
+      stored = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+    } catch {
+      // Continue with the cookie write below.
+    }
+
+    const next = JSON.stringify({
+      ...stored,
+      [selected.supplierId]: {
+        status: requestStatus,
+        reviewedAt: requestStatus === 'reviewed' ? REVIEWED_DATE : undefined,
+      },
+    });
+
+    try {
+      window.localStorage.setItem(REQUEST_STATUS_STORAGE_KEY, next);
+    } catch {
+      // Cookie fallback still keeps the pages in sync.
+    }
+
+    try {
+      document.cookie = `${REQUEST_STATUS_STORAGE_KEY}=${encodeURIComponent(next)}; path=/; max-age=604800`;
+    } catch {
+      // UI state still updates even if localStorage is unavailable.
+    }
+
+    setSubmissionItems(current => current.map(item => (
+      item.id === selected.id ? { ...item, status: nextSubmissionStatus } : item
+    )));
+    setNotice(
+      requestStatus === 'reviewed'
+        ? 'request-map의 검토 대기를 검토 완료로 변경했습니다.'
+        : requestStatus === 'rework'
+          ? 'request-map 상태를 보완 요청으로 변경했습니다.'
+          : 'request-map 상태를 반려로 변경했습니다.',
+    );
+    window.setTimeout(() => setNotice(null), 2500);
+    router.push(`/supply-chain/request-map?syncSupplierId=${selected.supplierId}&syncStatus=${requestStatus}${requestStatus === 'reviewed' ? `&reviewedAt=${REVIEWED_DATE}` : ''}`);
+  };
 
   return (
     <>
@@ -113,6 +165,12 @@ export default function SubmissionReviewPage() {
         description="협력사가 업로드한 자료를 원청사가 승인, 반려, 보완 요청하는 화면"
         badge="P0"
       />
+
+      {notice && (
+        <div className="fixed right-6 bottom-6 z-50 rounded-xs border border-emerald-200 bg-white px-4 py-3 text-sm font-bold text-emerald-700 shadow-lg">
+          {notice}
+        </div>
+      )}
 
       <div className="p-8 space-y-6">
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -125,7 +183,7 @@ export default function SubmissionReviewPage() {
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.5fr] gap-6">
           <Card title="제출 건 목록" subtitle="요청 ID, 협력사, 유형, 마감일 기준 검토">
             <div className="space-y-2">
-              {submissions.map(item => {
+              {submissionItems.map(item => {
                 const name = getSupplierName(item.supplierId);
                 const failed = item.checks.some(check => check.result === 'fail');
                 return (
@@ -246,10 +304,10 @@ export default function SubmissionReviewPage() {
                   defaultValue={selected.status === 'rework' ? 'FEOC 직접 지분 25% 초과 가능성이 있어 최종 수익자 구조와 서명된 지분 공시 원본을 재제출 요청합니다.' : ''}
                 />
                 <div className="mt-4 grid grid-cols-2 gap-2">
-                  <ActionButton icon={CheckCircle2} label="승인" tone="ok" />
-                  <ActionButton icon={RefreshCw} label="보완 요청" tone="warn" />
-                  <ActionButton icon={XCircle} label="반려" tone="alert" />
-                  <ActionButton icon={Send} label="HITL 요청" tone="neutral" />
+                  <ActionButton icon={CheckCircle2} label="승인" tone="ok" onClick={() => syncRequestMapStatus('approved')} />
+                  <ActionButton icon={RefreshCw} label="보완 요청" tone="warn" onClick={() => syncRequestMapStatus('rework')} />
+                  <ActionButton icon={XCircle} label="반려" tone="alert" onClick={() => syncRequestMapStatus('rejected')} />
+                  <ActionButton icon={Send} label="HITL 요청" tone="neutral" onClick={() => syncRequestMapStatus('approved')} />
                 </div>
               </Card>
             </div>
@@ -273,7 +331,17 @@ function Mini({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ActionButton({ icon: Icon, label, tone }: { icon: any; label: string; tone: 'ok' | 'warn' | 'alert' | 'neutral' }) {
+function ActionButton({
+  icon: Icon,
+  label,
+  tone,
+  onClick,
+}: {
+  icon: any;
+  label: string;
+  tone: 'ok' | 'warn' | 'alert' | 'neutral';
+  onClick?: () => void;
+}) {
   const style = {
     ok: 'border-emerald-700/40 text-emerald-500 hover:bg-emerald-500/10',
     warn: 'border-amber-700/40 text-amber-400 hover:bg-amber-500/10',
@@ -281,7 +349,11 @@ function ActionButton({ icon: Icon, label, tone }: { icon: any; label: string; t
     neutral: 'border-ink-700 text-ink-300 hover:bg-ink-800',
   }[tone];
   return (
-    <button className={clsx('inline-flex items-center justify-center gap-2 rounded-xs border px-3 py-2 text-xs font-semibold transition-colors', style)}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx('inline-flex items-center justify-center gap-2 rounded-xs border px-3 py-2 text-xs font-semibold transition-colors', style)}
+    >
       <Icon className="w-3.5 h-3.5" />
       {label}
     </button>
