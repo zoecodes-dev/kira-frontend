@@ -75,7 +75,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 label="자재·규제 데이터"
                 subtitle="조성·인증·규제"
                 subItems={[
-                  { href: '/materials', label: '물질 관리' },
+                  { href: '/materials', label: '물질 관리', exact: true },
                   { href: '/risk/origin-certs', label: '원산지 증명서 만료 관리' },
                   { href: '/materials/regulation-results', label: '규제 검증 결과' },
                 ]}
@@ -94,8 +94,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 label="공급망 워크스페이스"
                 subtitle="맵·요청·실사"
                 subItems={[
-                  { href: '/supply-chain/product-map', label: '제품별 공급망 맵' },
-                  { href: '/supply-chain/request-map', label: '입력 요청 맵' },
+                  { href: '/supply-chain/product-map', label: '제품별 DPP 공급망 점검' },
+                  { href: '/supply-chain/request-map', label: '자료 요청 업무 보드' },
                   { href: '/due-diligence', label: '공급망 실사 관리' },
                   { href: '/risk/actions', label: '리스크 조치 보드' },
                 ]}
