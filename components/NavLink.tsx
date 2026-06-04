@@ -42,6 +42,7 @@ interface SubItem {
   href: string;
   label: string;
   matchPattern?: string;
+  exact?: boolean;
   children?: SubItem[];
   disabled?: boolean;
 }
@@ -59,6 +60,7 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
   const isSubActive = (sub: SubItem) => {
     if (sub.children?.some(isSubActive)) return true;
     if (sub.matchPattern && new RegExp(sub.matchPattern).test(pathname)) return true;
+    if (sub.exact) return pathname === sub.href;
     if (sub.href === '/suppliers') return pathname === '/suppliers';
     return pathname === sub.href || pathname.startsWith(sub.href + '/');
   };
