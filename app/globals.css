@@ -50,6 +50,65 @@ a {
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
+.supplier-detail-scope {
+  font-size: 15px;
+}
+
+.supplier-detail-scope .max-w-5xl {
+  max-width: 1180px;
+}
+
+.supplier-detail-scope [class*="bg-ink-900/"],
+.supplier-detail-scope [class*="bg-ink-800/"],
+.supplier-detail-scope [class~="bg-ink-800"] {
+  background-color: #FFFFFF;
+}
+
+.supplier-detail-scope [class~="text-[8px]"],
+.supplier-detail-scope [class~="text-[9px]"],
+.supplier-detail-scope [class~="text-[10px]"] {
+  font-size: 12px;
+  line-height: 1rem;
+}
+
+.supplier-detail-scope [class~="text-[11px]"],
+.supplier-detail-scope [class~="text-[12px]"],
+.supplier-detail-scope .text-xs {
+  font-size: 14px;
+  line-height: 1.25rem;
+}
+
+.supplier-detail-scope .text-sm {
+  font-size: 15px;
+  line-height: 1.375rem;
+}
+
+.supplier-detail-scope .text-base {
+  font-size: 18px;
+  line-height: 1.5rem;
+}
+
+.supplier-detail-scope .text-lg {
+  font-size: 21px;
+  line-height: 1.75rem;
+}
+
+.supplier-detail-scope .text-xl {
+  font-size: 25px;
+  line-height: 2rem;
+}
+
+.supplier-detail-scope h1[class] {
+  font-size: 22px;
+  line-height: 1.75rem;
+}
+
+.supplier-detail-scope h2[class],
+.supplier-detail-scope h3[class] {
+  font-size: 18px;
+  line-height: 1.5rem;
+}
+
 @keyframes pulse-soft {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
