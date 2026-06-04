@@ -63,7 +63,7 @@ export default function SupplierDetailLayout({ children }: { children: React.Rea
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-ink-800">
+    <div className="supplier-detail-scope flex min-h-screen flex-col bg-ink-800">
       <div className="shrink-0 border-b border-ink-700 bg-white px-8 py-5">
         <div className="mb-3 flex items-center gap-2 text-[11px] text-ink-500">
           <Link href="/suppliers" className="flex items-center gap-1 transition-colors hover:text-ink-200">
