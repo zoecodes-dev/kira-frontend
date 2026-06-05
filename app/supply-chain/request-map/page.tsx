@@ -738,11 +738,17 @@ export default function RequestMapPage() {
                         className={clsx(
                           'w-36 rounded-sm border p-3 text-center shadow-sm transition-all',
                           statusMeta[node.status].chip,
+                          node.supplierId === selected.supplierId && 'scale-[1.04] outline outline-2 outline-offset-2 outline-emerald-500 shadow-lg',
                           node.status === 'submitted' ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-control' : 'cursor-default',
                         )}
                       >
                         <div className="text-[10px] font-bold opacity-70">{statusMeta[node.status].label}</div>
                         <div className="mt-1 text-xs font-bold leading-4">{node.name}</div>
+                        {node.supplierId === selected.supplierId && (
+                          <div className="mt-2 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                            선택됨
+                          </div>
+                        )}
                       </button>
                       {index < selected.flow.length - 1 && <ArrowRight className="h-4 w-4 text-slate-300" />}
                     </div>
