@@ -95,7 +95,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 subtitle="맵·요청·실사"
                 subItems={[
                   { href: '/supply-chain/map', label: '공급망맵' },
-                  { href: '/supply-chain/bom-trace', label: 'BOM 기반 공급망 추적' },
                   { href: '/supply-chain/product-map', label: '제품별 DPP 공급망 점검' },
                   { href: '/supply-chain/request-map', label: '자료 요청 업무 보드' },
                   { href: '/due-diligence', label: '공급망 실사 관리' },
