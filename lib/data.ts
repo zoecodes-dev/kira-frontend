@@ -1,7 +1,7 @@
 // lib/data.ts — v2 (violationsByRegulation 11개 규제 확장)
 // 나머지 데이터(suppliers, supplyEdges, batches, dppRecords, productInstances, kpis)는 기존 그대로 유지
 
-export type Tier = 1 | 2 | 3 | 4 | 5;
+export type Tier = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export type SupplierStatus = 'verified' | 'pending' | 'review' | 'violation';
 
@@ -24,7 +24,8 @@ export interface Supplier {
 }
 
 export const tierShortLabels: Record<Tier, string> = {
-  1: 'Pack/Module', 2: 'Cell', 3: '활물질', 4: '전구체·정제', 5: '원광',
+  1: 'Pack', 2: 'Module', 3: 'Cell', 4: '활물질',
+  5: '전구체', 6: '제련·정제', 7: '원광',
 };
 
 export const suppliers: Supplier[] = [
@@ -303,3 +304,75 @@ export const auditTrail: AuditEntry[] = [
 ];
 
 export const sampleAuditTrail = auditTrail;
+
+// ============================================================
+// 신뢰성 평가 SSOT — lib/data.ts 에 추가
+// 목록 / 모달 / (구)reliability 페이지가 전부 이 데이터를 공유
+// ============================================================
+
+// ─── 1) lib/data.ts 하단에 붙여넣기 ──────────────────────────
+
+export type AssessmentStatus = 'approved' | 'review' | 'rework';
+
+export interface SelfAssessment {
+  supplierId: string;
+  selfRisk: 'low' | 'medium' | 'high';
+  score: number;              // ESG 종합 자가평가 점수 (0–100)
+  status: AssessmentStatus;
+  submittedAt: string;        // ISO date
+  owner: string;              // 평가 담당자
+}
+
+// 신뢰성 평가 체크리스트 항목 (증빙)
+export interface AssessmentDocItem {
+  label: string;
+  required: boolean;
+}
+
+export const assessmentChecklist: AssessmentDocItem[] = [
+  { label: '사업자등록증',     required: true },
+  { label: '행동강령 서약서',  required: true },
+  { label: '인권 정책',        required: true },
+  { label: '환경 협력 평가',   required: true },
+  { label: '안전 정책',        required: false },
+  { label: '공급망 자가 평가', required: true },
+];
+
+export const assessmentStatusMeta: Record<
+  AssessmentStatus,
+  { label: string; tone: 'ok' | 'info' | 'warn' }
+> = {
+  approved: { label: '승인',      tone: 'ok' },
+  review:   { label: '검토 중',   tone: 'info' },
+  rework:   { label: '보완 요청', tone: 'warn' },
+};
+
+// SSOT: 협력사별 신뢰성 자가평가
+export const selfAssessments: SelfAssessment[] = [
+  { supplierId: 'S-CELL-001', selfRisk: 'low',    score: 91, status: 'approved', submittedAt: '2026-05-10', owner: 'ESG팀 김민재' },
+  { supplierId: 'S-CAM-001',  selfRisk: 'low',    score: 88, status: 'approved', submittedAt: '2026-05-12', owner: 'ESG팀 김민재' },
+  { supplierId: 'S-CAM-002',  selfRisk: 'medium', score: 62, status: 'review',   submittedAt: '2026-05-14', owner: '컴플라이언스 이서윤' },
+  { supplierId: 'S-REF-002',  selfRisk: 'medium', score: 44, status: 'rework',   submittedAt: '2026-05-08', owner: 'ESG팀 박지훈' },
+  { supplierId: 'S-MINE-002', selfRisk: 'high',   score: 38, status: 'review',   submittedAt: '2026-05-03', owner: '구매실사 최하린' },
+];
+
+// ─── 헬퍼: 어디서든 supplierId로 점수/평가 조회 ───────────────
+const _assessmentMap = new Map(selfAssessments.map(a => [a.supplierId, a]));
+
+/** 협력사의 신뢰성 자가평가 (없으면 undefined) */
+export function getSelfAssessment(supplierId: string): SelfAssessment | undefined {
+  return _assessmentMap.get(supplierId);
+}
+
+/** 신뢰성 점수만 (없으면 null) */
+export function getReliabilityScore(supplierId: string): number | null {
+  return _assessmentMap.get(supplierId)?.score ?? null;
+}
+
+/** 점수 → 색 토큰 (Tailwind 클래스). 목록·모달 공통 사용 */
+export function reliabilityTone(score: number | null): string {
+  if (score == null) return 'text-ink-500';
+  if (score >= 80) return 'text-emerald-700';
+  if (score >= 60) return 'text-amber-700';
+  return 'text-red-700';
+}
