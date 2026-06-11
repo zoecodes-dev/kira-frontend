@@ -36,6 +36,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <NavLink href="/dashboard" iconName="activity" label="대시보드" subtitle="전체 결과 요약" />
               <NavLink href="/queue" iconName="list-checks" label="검증 대기열" subtitle="LangGraph 진행" />
               <NavLink href="/my-task" iconName="clipboard-check" label="My Task" subtitle="담당자 업무" />
+              <NavLink
+                href="/supply-chain/map"
+                iconName="network"
+                label="공급망 워크스페이스"
+                subtitle="맵·요청·실사"
+                subItems={[
+                  { href: '/supply-chain/map', label: '공급망맵' },
+                  { href: '/supply-chain/product-map', label: '제품별 DPP 공급망 점검' },
+                  { href: '/supply-chain/request-map', label: '자료 요청 업무 보드' },
+                  { href: '/due-diligence', label: '공급망 실사 관리' },
+                  { href: '/risk/actions', label: '리스크 조치 보드' },
+                ]}
+              />
             </div>
           </div>
 
@@ -85,27 +98,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           <div>
             <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
-              공급망 관리
-            </div>
-            <div className="space-y-0.5 mt-1">
-              <NavLink
-                href="/supply-chain/product-map"
-                iconName="network"
-                label="공급망 워크스페이스"
-                subtitle="맵·요청·실사"
-                subItems={[
-                  { href: '/supply-chain/map', label: '공급망맵' },
-                  { href: '/supply-chain/product-map', label: '제품별 DPP 공급망 점검' },
-                  { href: '/supply-chain/request-map', label: '자료 요청 업무 보드' },
-                  { href: '/due-diligence', label: '공급망 실사 관리' },
-                  { href: '/risk/actions', label: '리스크 조치 보드' },
-                ]}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
               입력 데이터
             </div>
             <div className="space-y-0.5 mt-1">
@@ -134,6 +126,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 label="발행 준비"
                 subtitle="준비도·검토·이력"
                 subItems={[
+                  { href: '/dpp/center', label: 'DPP Center' },
                   { href: '/dpp/readiness', label: 'DPP Readiness' },
                   { href: '/hitl', label: 'HITL 검토' },
                   { href: '/dpp', label: 'DPP 발행 이력' },
