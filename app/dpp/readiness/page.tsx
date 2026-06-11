@@ -226,33 +226,6 @@ export default function DppReadinessPage() {
             </Card>
           </div>
         </div>
-
-        <Card title="최근 발행 DPP" subtitle="발행 완료된 제품은 immutable lock으로 보호">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px]">
-              <thead>
-                <tr className="border-b border-ink-700/60">
-                  {['DPP ID', 'Serial', 'Model', 'Destination', 'Carbon', 'Approved by', 'Status'].map(head => (
-                    <th key={head} className="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-ink-500">{head}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {dppRecords.slice(0, 5).map(record => (
-                  <tr key={record.id} className="border-b border-ink-700/40">
-                    <td className="px-3 py-3 text-xs text-ink-100 num-mono">{record.id}</td>
-                    <td className="px-3 py-3 text-xs text-ink-400 num-mono">{record.serialNumber}</td>
-                    <td className="px-3 py-3 text-xs text-ink-200">{record.modelName}</td>
-                    <td className="px-3 py-3 text-xs text-ink-400">{record.destination}</td>
-                    <td className="px-3 py-3 text-xs text-ink-400 num-mono">{record.carbonFootprint} kgCO2e</td>
-                    <td className="px-3 py-3 text-xs text-ink-400">{record.approvedBy}</td>
-                    <td className="px-3 py-3"><Badge tone="ok">issued · locked</Badge></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
       </div>
     </>
   );
