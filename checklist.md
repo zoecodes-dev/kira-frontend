@@ -64,7 +64,7 @@
 
 # Supplier collection review checklist
 
-- [x] Replace `/suppliers/general` redirect with a supplier data collection review page.
+- [x] Replace `/suppliers/check-info` redirect with a supplier data collection review page.
 - [x] Add top supplier summary with collection rate and review status.
 - [x] Add section-level collection progress summary.
 - [x] Add accordion sections in supplier input order with review comments.
@@ -85,3 +85,9 @@
 - [x] Update the sidebar under 협력사 관리 to show 협력사 목록, contextual 협력사 세부 정보, and 협력사 입력 현황.
 - [x] Make supplier list rows navigate to the selected supplier detail page.
 - [x] Run typecheck and browser verification for `/suppliers`.
+
+# Supplier input route rename checklist
+
+- [x] Rename `/suppliers/general` route to `/suppliers/check-info`.
+- [x] Update sidebar and dashboard links to the new route.
+- [x] Run typecheck and browser verification for `/suppliers/check-info`.

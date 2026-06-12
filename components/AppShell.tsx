@@ -98,7 +98,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       },
                     ],
                   },
-                  { href: '/suppliers/general', label: '협력사 입력 현황' },
+                  { href: '/suppliers/check-info', label: '협력사 입력 현황' },
                 ]}
               />
             </div>
