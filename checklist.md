@@ -13,3 +13,12 @@
 - [x] Add expanded status badges for issued, reissued, corrected, and revoked.
 - [x] Add tracing fields and related links in the detail panel.
 - [x] Run typecheck and verify the page in the browser.
+
+# Supplier collection review checklist
+
+- [x] Replace `/suppliers/general` redirect with a supplier data collection review page.
+- [x] Add top supplier summary with collection rate and review status.
+- [x] Add section-level collection progress summary.
+- [x] Add accordion sections in supplier input order with review comments.
+- [x] Convert factories and certificates to table-based review sections.
+- [x] Run typecheck and verify the page in the browser.
