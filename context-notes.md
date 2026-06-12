@@ -1,5 +1,6 @@
 # Context notes
 
+- 2026-06-12: `/supply-chain/map` tree typography should emphasize the top product node over child material/supplier rows. Lower child node names and numeric ratio columns so they do not overpower the product row.
 - 2026-06-12: User felt the current Product Map typography is too heavy. Keep layout untouched and soften font weights page-locally by one step.
 - 2026-06-12: `/supply-chain/product-map` should remain in its existing four-column workspace layout. Add workflow controls for product-based supply-chain creation, request sending, expansion status, and selected node downstream request actions without redesigning the page.
 - 2026-06-12: Corrected `/dashboard` reference image is an operations dashboard. Keep the top KPI cards unchanged and replace the mistaken supply-map block below KPI with task, product, DPP, changes, customer request, and AI insight sections.

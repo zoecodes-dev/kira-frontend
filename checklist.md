@@ -12,6 +12,12 @@
 - [x] Add reference-style filters, status legend, tree table, right detail panel, and summary stats.
 - [x] Run typecheck and browser verification for `/supply-chain/map`.
 
+# Supply-chain map tree typography checklist
+
+- [x] Make the top product node label larger and heavier than child nodes.
+- [x] Lower child node names, supplier names, supply ratio, and verification rate weights.
+- [x] Run typecheck and browser verification for `/supply-chain/map`.
+
 # Dashboard below-KPI supply map checklist
 
 - [x] Keep the `/dashboard` top KPI cards unchanged.

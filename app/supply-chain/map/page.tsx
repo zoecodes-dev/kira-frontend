@@ -851,7 +851,7 @@ function SupplyMapTree({
 }) {
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-      <div className="grid min-w-[980px] grid-cols-[minmax(270px,1.35fr)_80px_120px_minmax(170px,.85fr)_90px_90px_132px_54px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-black text-slate-500">
+      <div className="grid min-w-[980px] grid-cols-[minmax(270px,1.35fr)_80px_120px_minmax(170px,.85fr)_90px_90px_132px_54px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
         <span>제품/부품명</span>
         <span>Tier</span>
         <span>공급사 유형</span>
@@ -926,15 +926,15 @@ function SupplyMapRow({
             <NodeIcon className="h-5 w-5" />
           </span>
           <span className="min-w-0">
-            <span className={`block truncate text-sm font-black ${rowTone === 'danger' ? 'text-red-950' : 'text-ink-100'}`}>{node.label}</span>
+            <span className={`block truncate ${isProduct ? 'text-[15px] font-bold text-ink-100' : `text-sm font-medium ${rowTone === 'danger' ? 'text-red-900' : 'text-ink-100'}`}`}>{node.label}</span>
             <span className="mt-1 block truncate text-xs font-medium text-slate-500">{node.meta}</span>
           </span>
         </div>
-        <span className="text-sm font-bold text-ink-400">{node.tier}</span>
-        <span className="text-sm font-semibold text-ink-400">{isProduct ? '-' : node.providerType}</span>
-        <span className="truncate text-sm font-bold text-ink-100">{isProduct ? '-' : node.supplierName}</span>
-        <span className="text-sm font-black text-ink-100">{node.supplyRatio}</span>
-        <span className="text-sm font-black text-ink-100">{node.verificationProgress}</span>
+        <span className={`text-sm text-ink-400 ${isProduct ? 'font-semibold' : 'font-medium'}`}>{node.tier}</span>
+        <span className="text-sm font-medium text-ink-400">{isProduct ? '-' : node.providerType}</span>
+        <span className={`truncate text-sm font-medium ${isProduct ? 'text-ink-400' : 'text-ink-100'}`}>{isProduct ? '-' : node.supplierName}</span>
+        <span className="text-sm font-medium text-ink-100">{node.supplyRatio}</span>
+        <span className="text-sm font-medium text-ink-100">{node.verificationProgress}</span>
         <StatusBadge status={node.status} />
         <span
           role="button"
