@@ -26,6 +26,20 @@
 - [x] Add today tasks, product status, DPP status, recent changes, customer request, and AI insight sections.
 - [x] Run typecheck and browser verification for `/dashboard`.
 
+# Product Map workspace extension checklist
+
+- [x] Keep the existing Product Map layout, tree, visualization, and right detail panel.
+- [x] Add top product action area for map generation, supply-chain request send, and expansion status.
+- [x] Add product-level Tier1, Tier2, Tier3, and completeness collection status.
+- [x] Add selected supplier node workflow status and downstream request action in the right panel.
+- [x] Run typecheck and browser verification for `/supply-chain/product-map`.
+
+# Product Map typography softening checklist
+
+- [x] Lower heavy font weights on `/supply-chain/product-map` by one step without changing layout.
+- [x] Verify no `font-black` renders in the Product Map workspace.
+- [x] Run typecheck and browser verification for `/supply-chain/product-map`.
+
 # DPP Center checklist
 
 - [x] Create `/dpp/center` as a status-only control-center page.
