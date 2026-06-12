@@ -262,7 +262,7 @@ function DashboardSupplyChainMap() {
 
   const changes = [
     { time: '09:21', title: '공급망 경로 변경', desc: 'Battery Pack A > 핵심광물 경로 변경', tag: '공급망', tone: 'success', href: '/supply-chain/map' },
-    { time: '08:30', title: '신규 공급사 등록', desc: 'Eco Materials Co., Ltd.', tag: '공급사', tone: 'info', href: '/suppliers/general' },
+    { time: '08:30', title: '신규 공급사 등록', desc: 'Eco Materials Co., Ltd.', tag: '공급사', tone: 'info', href: '/suppliers/check-info' },
     { time: '07:12', title: '인증서 갱신', desc: 'ISO 14001 한양 제조(주)', tag: '인증서', tone: 'success', href: '/risk/origin-certs' },
     { time: '06:45', title: 'BOM 변경', desc: 'Battery Cell Module v2.1', tag: '제품', tone: 'warning', href: '/materials' },
     { time: '06:10', title: '실사 완료', desc: 'XYZ Metals Co., Ltd.', tag: '실사', tone: 'purple', href: '/due-diligence' },
