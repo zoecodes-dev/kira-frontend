@@ -23,6 +23,7 @@ import {
 import {
   Layers, AlertTriangle, CheckCircle2, Clock, ShieldAlert,
   ArrowRight, Activity, AlertCircle, Bot, FileText, Bell, CalendarDays, LogOut, ChevronDown,
+  Box, Package, ClipboardCheck, MessageCircle, Award, Factory, Gift, Send,
 } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
@@ -61,7 +62,7 @@ const riskLevelColor: Record<string, string> = {
   low:      'border-emerald-700/30 bg-emerald-500/8 text-emerald-500',
   medium:   'border-amber-700/30 bg-amber-500/8 text-amber-500',
   high:     'border-red-700/30 bg-red-500/8 text-red-500',
-  critical: 'border-red-700/40 bg-red-500/12 text-red-600 font-bold',
+  critical: 'border-red-700/40 bg-red-500/12 text-red-600 font-semibold',
 };
 
 const supplierStatusMeta = {
@@ -208,18 +209,18 @@ function CompactMetric({
           <Icon className="h-5 w-5" strokeWidth={2.1} />
         </div>
         <div className="min-w-0">
-          <div className="text-[11px] font-bold text-current">{label}</div>
+          <div className="text-[11px] font-semibold text-current">{label}</div>
           {hint && <div className="mt-0.5 text-[10px] font-medium text-ink-500">{hint}</div>}
           <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-[34px] font-bold leading-none tracking-tight num-mono text-ink-100">{value}</span>
-            {unit && <span className="text-xs font-semibold text-ink-500">{unit}</span>}
+            <span className="text-[34px] font-semibold leading-none tracking-tight num-mono text-ink-100">{value}</span>
+            {unit && <span className="text-xs font-medium text-ink-500">{unit}</span>}
           </div>
         </div>
       </div>
       <div className="mt-3 flex items-end justify-between gap-3">
         <div>
           {delta && (
-            <div className={clsx('text-[11px] font-bold num-mono', deltaGood ? 'text-emerald-700' : 'text-red-700')}>
+            <div className={clsx('text-[11px] font-semibold num-mono', deltaGood ? 'text-emerald-700' : 'text-red-700')}>
               {deltaDirection === 'up' ? '▲' : '▼'} {delta}
             </div>
           )}
@@ -239,6 +240,267 @@ function CompactMetric({
         </svg>
       </div>
     </Component>
+  );
+}
+
+function DashboardSupplyChainMap() {
+  const todayTasks = [
+    { rank: 1, title: '검토 대기', desc: '제출된 자료를 검토해주세요.', level: '높음', count: '8건', icon: FileText, color: 'purple', href: '/submission-review' },
+    { rank: 2, title: '보완 요청', desc: '공급사로부터 추가 자료가 필요합니다.', level: '높음', count: '3건', icon: MessageCircle, color: 'blue', href: '/supply-chain/request-map' },
+    { rank: 3, title: '인증서 만료 임박', desc: '30일 이내 만료되는 인증서가 있습니다.', level: '중간', count: '5건', icon: ClipboardCheck, color: 'amber', href: '/risk/origin-certs' },
+    { rank: 4, title: '실사 필요', desc: '고위험 공급사 중 실사가 필요합니다.', level: '중간', count: '4건', icon: Factory, color: 'green', href: '/due-diligence' },
+    { rank: 5, title: 'HITL 검토 대기', desc: 'AI 검토가 완료되어 최종 확인이 필요합니다.', level: '낮음', count: '2건', icon: Gift, color: 'violet', href: '/hitl' },
+  ];
+
+  const products = [
+    { name: 'EV Battery Cell A', type: 'Battery Cell', status: '위험', supply: '4개', tone: 'danger', icon: Box, href: '/dpp/center' },
+    { name: 'ESS Module B', type: 'ESS Module', status: '주의', supply: '3개', tone: 'warning', icon: Layers, href: '/dpp/center' },
+    { name: 'Battery Pack C', type: 'Battery Pack', status: '정상', supply: '2개', tone: 'success', icon: Package, href: '/dpp/center' },
+    { name: 'Energy Storage System D', type: 'ESS', status: '정상', supply: '1개', tone: 'success', icon: Box, href: '/dpp/center' },
+    { name: 'Power Control Unit E', type: 'PCU', status: 'DPP 보류', supply: '2개', tone: 'purple', icon: Package, href: '/dpp/center' },
+  ];
+
+  const changes = [
+    { time: '09:21', title: '공급망 경로 변경', desc: 'Battery Pack A > 핵심광물 경로 변경', tag: '공급망', tone: 'success', href: '/supply-chain/map' },
+    { time: '08:30', title: '신규 공급사 등록', desc: 'Eco Materials Co., Ltd.', tag: '공급사', tone: 'info', href: '/suppliers/general' },
+    { time: '07:12', title: '인증서 갱신', desc: 'ISO 14001 한양 제조(주)', tag: '인증서', tone: 'success', href: '/risk/origin-certs' },
+    { time: '06:45', title: 'BOM 변경', desc: 'Battery Cell Module v2.1', tag: '제품', tone: 'warning', href: '/materials' },
+    { time: '06:10', title: '실사 완료', desc: 'XYZ Metals Co., Ltd.', tag: '실사', tone: 'purple', href: '/due-diligence' },
+  ];
+
+  return (
+    <section className="space-y-4">
+      <div className="grid grid-cols-[1.2fr_1fr] gap-4 items-start">
+        {/* 왼쪽 컬럼: 오늘의 할 일 + DPP 현황 */}
+        <div className="space-y-4">
+          <DashboardPanel title="오늘의 할 일" action="전체 보기" actionHref="/my-task">
+            <div className="divide-y divide-slate-100">
+              {todayTasks.map(task => (
+                <TaskRow key={task.rank} task={task} />
+              ))}
+            </div>
+            <Link href="/my-task" className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white text-sm font-semibold text-ink-100 hover:bg-slate-50">
+              모든 할 일 보기
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </DashboardPanel>
+
+          <DashboardPanel title="DPP 현황" action="DPP Center 이동" actionHref="/dpp/center">
+            <div className="grid grid-cols-4 gap-3">
+              <DppStatusItem icon={Send} label="발행 가능" tone="success" href="/dpp/center" />
+              <DppStatusItem icon={Clock} label="발행 보류" tone="warning" href="/dpp/center" />
+              <DppStatusItem icon={Bot} label="HITL 대기" tone="purple" href="/hitl" />
+              <DppStatusItem icon={AlertCircle} label="Blocker" value="5건" tone="danger" href="/dpp/center" />
+            </div>
+            <Link href="/dpp/center" className="mx-auto mt-4 flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-800">
+              전체 보기
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </DashboardPanel>
+        </div>
+
+        {/* 오른쪽 컬럼: 제품 현황 + (최근 변경사항 | 고객사 요청) */}
+        <div className="space-y-4">
+          <DashboardPanel title="제품 현황" action="전체 보기" actionHref="/dpp/center">
+            <div className="grid grid-cols-[minmax(0,1fr)_100px_100px_28px] border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+              <span>제품명</span>
+              <span>상태</span>
+              <span>영향 공급망</span>
+              <span />
+            </div>
+            <div className="divide-y divide-slate-100">
+              {products.map(product => (
+                <ProductStatusRow key={product.name} product={product} />
+              ))}
+            </div>
+          </DashboardPanel>
+
+          <div className="grid grid-cols-[1.5fr_1fr] gap-4">
+            <DashboardPanel title="최근 변경사항" action="전체 보기" actionHref="/supply-chain/map">
+              <div className="space-y-3">
+                {changes.map(change => (
+                  <ChangeRow key={`${change.time}-${change.title}`} change={change} />
+                ))}
+              </div>
+            </DashboardPanel>
+
+            <DashboardPanel title="고객사 요청" action="전체 보기" actionHref="/dpp">
+              <div className="py-1">
+                <div className="text-4xl font-semibold text-ink-100">1<span className="ml-2 text-sm font-semibold text-ink-500">건</span></div>
+                <p className="mt-2 text-sm font-medium text-ink-500">현재 처리 필요</p>
+              </div>
+              <div className="mt-5 border-t border-slate-100 pt-5">
+                <Link href="/dpp" className="flex items-center gap-3 rounded-md hover:bg-slate-50 -mx-2 px-2 py-1 transition-colors">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">BMW</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-ink-100">BMW Group</div>
+                    <div className="mt-1 text-xs font-medium text-ink-500">DPP 제출 요청</div>
+                  </div>
+                  <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-600">D-3</span>
+                </Link>
+                <div className="mt-2 text-right text-xs font-medium text-ink-500">2025.06.14</div>
+              </div>
+            </DashboardPanel>
+          </div>
+        </div>
+      </div>
+
+      <DashboardPanel className="py-4" title="">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <Bot className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="mr-4 text-base font-semibold text-ink-100">AI 인사이트</span>
+              <span className="text-sm font-medium text-ink-500">FEOC 관련 리스크가 증가 추세입니다. 고위험 원자재(Cobalt, Mica) 공급망을 우선 검토해보세요.</span>
+            </div>
+          </div>
+          <Link href="/knowledge" className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-100 hover:bg-slate-50">
+            상세 인사이트 보기
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </DashboardPanel>
+    </section>
+  );
+}
+
+function DashboardPanel({
+  title,
+  action,
+  actionHref,
+  children,
+  className,
+}: {
+  title: string;
+  action?: string;
+  actionHref?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={clsx('rounded-lg border border-slate-200 bg-white p-5 shadow-control', className)}>
+      {(title || action) && (
+        <div className="mb-4 flex items-center justify-between gap-3">
+          {title ? <h2 className="text-xl font-semibold text-ink-100">{title}</h2> : <span />}
+          {action && actionHref ? (
+            <Link href={actionHref} className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-800">
+              {action} <ArrowRight className="h-4 w-4" />
+            </Link>
+          ) : action ? (
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600">
+              {action} <ArrowRight className="h-4 w-4" />
+            </span>
+          ) : null}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+function TaskRow({ task }: { task: { rank: number; title: string; desc: string; level: string; count: string; icon: any; color: string; href: string } }) {
+  const Icon = task.icon;
+  const tone = {
+    purple: 'bg-purple-50 text-purple-600',
+    blue: 'bg-blue-50 text-blue-600',
+    amber: 'bg-amber-50 text-amber-600',
+    green: 'bg-emerald-50 text-emerald-600',
+    violet: 'bg-violet-50 text-violet-600',
+  }[task.color] ?? 'bg-slate-50 text-slate-600';
+  const levelTone = task.level === '높음' ? 'bg-red-50 text-red-600' : task.level === '중간' ? 'bg-amber-50 text-amber-600' : 'bg-purple-50 text-purple-600';
+  const countTone = task.level === '높음' ? 'text-blue-600' : task.level === '중간' ? 'text-orange-500' : 'text-purple-600';
+
+  return (
+    <Link href={task.href} className="grid grid-cols-[48px_34px_minmax(0,1fr)_64px_56px_24px] items-center gap-3 py-4 hover:bg-slate-50 rounded-sm transition-colors">
+      <div className={clsx('flex h-12 w-12 items-center justify-center rounded-full', tone)}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="text-center text-lg font-semibold text-ink-100">{task.rank}</div>
+      <div className="min-w-0">
+        <div className="text-base font-semibold text-ink-100">{task.title}</div>
+        <div className="mt-1 truncate text-sm font-medium text-ink-500">{task.desc}</div>
+      </div>
+      <span className={clsx('justify-self-end rounded-md px-2 py-1 text-sm font-semibold', levelTone)}>{task.level}</span>
+      <span className={clsx('justify-self-end text-xl font-semibold', countTone)}>{task.count}</span>
+      <ChevronDown className="-rotate-90 justify-self-end h-5 w-5 text-ink-400" />
+    </Link>
+  );
+}
+
+function ProductStatusRow({ product }: { product: { name: string; type: string; status: string; supply: string; tone: string; icon: any; href: string } }) {
+  const Icon = product.icon;
+  const tone = {
+    danger: 'bg-red-50 text-red-600',
+    warning: 'bg-amber-50 text-amber-600',
+    success: 'bg-emerald-50 text-emerald-600',
+    purple: 'bg-purple-50 text-purple-600',
+  }[product.tone] ?? 'bg-slate-50 text-slate-600';
+
+  return (
+    <Link href={product.href} className="grid grid-cols-[minmax(0,1fr)_100px_100px_28px] items-center px-3 py-3 hover:bg-slate-50 transition-colors">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-50 text-ink-400">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-ink-100">{product.name}</div>
+          <div className="mt-0.5 text-xs font-medium text-ink-500">{product.type}</div>
+        </div>
+      </div>
+      <span className={clsx('w-fit rounded-md px-2 py-1 text-sm font-semibold', tone)}>{product.status}</span>
+      <span className="text-sm font-semibold text-ink-100">{product.supply}</span>
+      <ChevronDown className="-rotate-90 h-5 w-5 text-ink-400" />
+    </Link>
+  );
+}
+
+function DppStatusItem({ icon: Icon, label, value, tone, href }: { icon: any; label: string; value?: string; tone: 'success' | 'warning' | 'purple' | 'danger'; href: string }) {
+  const toneClass = {
+    success: 'bg-emerald-500 text-white',
+    warning: 'bg-amber-500 text-white',
+    purple: 'bg-purple-500 text-white',
+    danger: 'bg-red-500 text-white',
+  }[tone];
+
+  return (
+    <Link href={href} className="flex items-center gap-3 rounded-md p-1 hover:bg-slate-50 transition-colors">
+      <div className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', toneClass)}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold text-ink-100">{label}</div>
+        {value && <div className="mt-1 text-base font-semibold text-ink-100">{value}</div>}
+      </div>
+    </Link>
+  );
+}
+
+function ChangeRow({ change }: { change: { time: string; title: string; desc: string; tag: string; tone: string; href: string } }) {
+  const dot = {
+    success: 'bg-emerald-500',
+    info: 'bg-blue-500',
+    warning: 'bg-amber-500',
+    purple: 'bg-purple-500',
+  }[change.tone] ?? 'bg-slate-400';
+  const tagTone = {
+    success: 'bg-emerald-50 text-emerald-600',
+    info: 'bg-blue-50 text-blue-600',
+    warning: 'bg-amber-50 text-amber-600',
+    purple: 'bg-purple-50 text-purple-600',
+  }[change.tone] ?? 'bg-slate-50 text-slate-600';
+
+  return (
+    <Link href={change.href} className="grid grid-cols-[14px_48px_minmax(0,1fr)_54px] items-start gap-3 rounded-md hover:bg-slate-50 transition-colors py-1 -mx-1 px-1">
+      <span className={clsx('mt-1.5 h-2.5 w-2.5 rounded-full', dot)} />
+      <span className="text-sm font-medium text-ink-500 num-mono">{change.time}</span>
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold text-ink-100">{change.title}</div>
+        <div className="mt-1 truncate text-xs font-medium text-ink-500">{change.desc}</div>
+      </div>
+      <span className={clsx('rounded-md px-2 py-1 text-xs font-semibold', tagTone)}>{change.tag}</span>
+    </Link>
   );
 }
 
@@ -291,23 +553,23 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-10 border-b border-ink-700 bg-white/95 px-6 py-4 shadow-control backdrop-blur">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-end gap-6">
-            <h1 className="text-2xl font-bold tracking-tight text-ink-100">대시보드</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-ink-100">대시보드</h1>
             <p className="pb-1 text-sm font-medium text-ink-500">KIRA Battery DPP Traceability Platform</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-3 rounded-xs border border-ink-700 bg-white px-4 py-2 text-sm font-semibold text-ink-100 shadow-control">
+            <div className="flex items-center gap-3 rounded-xs border border-ink-700 bg-white px-4 py-2 text-sm font-medium text-ink-100 shadow-control">
               <span className="num-mono">2026.05.27</span>
               <CalendarDays className="h-4 w-4 text-ink-500" />
             </div>
             <button className="relative flex h-10 w-10 items-center justify-center rounded-xs border border-ink-700 bg-white text-ink-100 shadow-control">
               <Bell className="h-4 w-4" />
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">3</span>
+              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-semibold text-white">3</span>
             </button>
-            <Link href="/" className="flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700">
+            <Link href="/" className="flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-semibold text-ink-400 hover:border-accent-600 hover:text-accent-700">
               <LogOut className="h-3.5 w-3.5" />
               로그아웃
             </Link>
-            <button className="flex items-center gap-2 rounded-xs bg-accent-900 px-4 py-2 text-xs font-bold text-white shadow-control">
+            <button className="flex items-center gap-2 rounded-xs bg-accent-900 px-4 py-2 text-xs font-semibold text-white shadow-control">
               전체 공급망
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
@@ -328,19 +590,21 @@ export default function DashboardPage() {
             <CompactMetric label="ESG Compliance Score" value="84.2" icon={CheckCircle2} tone="ok" hint="규제 대응 종합 점수" delta="4.3" deltaGood onClick={() => handleTabChange('dpp-ready')} />
           </section>
 
-          <section className="grid grid-cols-[1.35fr_0.85fr_1fr] gap-3">
+          <DashboardSupplyChainMap />
+
+          <section className="hidden">
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
                 <div>
-                  <h2 className="text-sm font-bold text-ink-100">협력사 현황</h2>
+                  <h2 className="text-sm font-semibold text-ink-100">협력사 현황</h2>
                   <p className="mt-0.5 text-[11px] text-ink-500">상태, 국가, 티어, 데이터 완성도</p>
                 </div>
-                <Link href="/suppliers" className="text-[11px] font-bold text-accent-700">전체 보기</Link>
+                <Link href="/suppliers" className="text-[11px] font-semibold text-accent-700">전체 보기</Link>
               </div>
               <div className="px-4 py-3">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-ink-700 text-left text-[10px] font-bold text-ink-500">
+                    <tr className="border-b border-ink-700 text-left text-[10px] font-semibold text-ink-500">
                       <th className="pb-2">업체명</th>
                       <th className="pb-2">국가</th>
                       <th className="pb-2">상태</th>
@@ -355,19 +619,19 @@ export default function DashboardPage() {
                       return (
                         <tr key={supplier.id}>
                           <td className="py-2 pr-3">
-                            <Link href={`/suppliers/${supplier.id}/info`} className="font-bold text-ink-100 hover:text-accent-700">
+                            <Link href={`/suppliers/${supplier.id}/info`} className="font-semibold text-ink-100 hover:text-accent-700">
                               {name?.shortNameEn ?? supplier.name}
                             </Link>
                             <div className="mt-0.5 text-[10px] text-ink-500">T{supplier.tier} · {supplier.role}</div>
                           </td>
                           <td className="py-2 pr-3 text-ink-400 num-mono">{supplier.country}</td>
                           <td className="py-2 pr-3">
-                            <span className={clsx('inline-flex rounded-xs border px-1.5 py-0.5 text-[10px] font-bold', status.className)}>
+                            <span className={clsx('inline-flex rounded-xs border px-1.5 py-0.5 text-[10px] font-semibold', status.className)}>
                               {status.label}
                             </span>
                           </td>
                           <td className="py-2 text-right">
-                            <span className="font-bold text-ink-200 num-mono">{completeness}%</span>
+                            <span className="font-semibold text-ink-200 num-mono">{completeness}%</span>
                           </td>
                         </tr>
                       );
@@ -379,14 +643,14 @@ export default function DashboardPage() {
 
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="border-b border-ink-700 px-4 py-3">
-                <h2 className="text-sm font-bold text-ink-100">컴플라이언스 상태</h2>
+                <h2 className="text-sm font-semibold text-ink-100">컴플라이언스 상태</h2>
                 <p className="mt-0.5 text-[11px] text-ink-500">규제/문서/리스크 완료율</p>
               </div>
               <div className="p-4">
                 <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border-[14px] border-emerald-500 border-r-blue-500 bg-white">
                   <div className="text-center">
-                    <div className="text-[10px] font-bold text-ink-500">종합</div>
-                    <div className="text-2xl font-bold text-ink-100 num-mono">82%</div>
+                    <div className="text-[10px] font-semibold text-ink-500">종합</div>
+                    <div className="text-2xl font-semibold text-ink-100 num-mono">82%</div>
                   </div>
                 </div>
                 <div className="mt-4 space-y-2">
@@ -398,8 +662,8 @@ export default function DashboardPage() {
                   ].map(item => (
                     <div key={item.label}>
                       <div className="mb-1 flex justify-between text-[11px]">
-                        <span className="font-semibold text-ink-200">{item.label}</span>
-                        <span className="font-bold text-ink-100 num-mono">{item.value}%</span>
+                        <span className="font-medium text-ink-200">{item.label}</span>
+                        <span className="font-semibold text-ink-100 num-mono">{item.value}%</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-ink-700">
                         <div className={clsx('h-full rounded-full', item.color)} style={{ width: `${item.value}%` }} />
@@ -413,7 +677,7 @@ export default function DashboardPage() {
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
                 <div>
-                  <h2 className="text-sm font-bold text-ink-100">AI 공급망 인사이트</h2>
+                  <h2 className="text-sm font-semibold text-ink-100">AI 공급망 인사이트</h2>
                   <p className="mt-0.5 text-[11px] text-ink-500">오늘 우선순위 요약</p>
                 </div>
                 <Bot className="h-4 w-4 text-accent-700" />
@@ -434,8 +698,8 @@ export default function DashboardPage() {
                     <div key={item.label} className="flex items-center gap-2 rounded-xs border border-ink-700 bg-ink-800 px-3 py-2">
                       <AlertCircle className={clsx('h-3.5 w-3.5', item.tone)} />
                       <div className="min-w-0">
-                        <div className="text-[10px] font-bold text-ink-500">{item.label}</div>
-                        <div className="truncate text-xs font-bold text-ink-100">{item.value}</div>
+                        <div className="text-[10px] font-semibold text-ink-500">{item.label}</div>
+                        <div className="truncate text-xs font-semibold text-ink-100">{item.value}</div>
                       </div>
                     </div>
                   ))}
@@ -444,11 +708,11 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="grid grid-cols-[1fr_0.95fr_1fr] gap-3">
+          <section className="hidden">
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
-                <h2 className="text-sm font-bold text-ink-100">공급망 활동 타임라인</h2>
-                <Link href="/queue" className="text-[11px] font-bold text-accent-700">전체 보기</Link>
+                <h2 className="text-sm font-semibold text-ink-100">공급망 활동 타임라인</h2>
+                <Link href="/queue" className="text-[11px] font-semibold text-accent-700">전체 보기</Link>
               </div>
               <div className="px-4 py-2">
                 {[
@@ -459,15 +723,15 @@ export default function DashboardPage() {
                   { time: '14:05', title: '공급망 변경 감지', desc: '신규 하위 공급업체 추가', tone: 'bg-orange-500', pill: 'POS Cathode' },
                 ].map(item => (
                   <div key={`${item.time}-${item.title}`} className="flex gap-3 border-b border-ink-700/70 py-2.5 last:border-0">
-                    <span className="w-10 shrink-0 text-[10px] font-bold leading-4 text-ink-500 num-mono">{item.time}</span>
+                    <span className="w-10 shrink-0 text-[10px] font-semibold leading-4 text-ink-500 num-mono">{item.time}</span>
                     <div className="flex flex-col items-center">
                       <span className={clsx('h-2.5 w-2.5 rounded-full', item.tone)} />
                       <span className="h-full w-px bg-ink-700" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-xs font-bold text-ink-100">{item.title}</span>
-                        <span className="rounded-full bg-accent-50 px-2 py-0.5 text-[10px] font-bold text-accent-700">{item.pill}</span>
+                        <span className="truncate text-xs font-semibold text-ink-100">{item.title}</span>
+                        <span className="rounded-full bg-accent-50 px-2 py-0.5 text-[10px] font-semibold text-accent-700">{item.pill}</span>
                       </div>
                       <div className="mt-0.5 truncate text-[11px] text-ink-500">{item.desc}</div>
                     </div>
@@ -478,12 +742,12 @@ export default function DashboardPage() {
 
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
-                <h2 className="text-sm font-bold text-ink-100">고위험 국가/지역 현황</h2>
-                <Link href="/supply-chain/product-map" className="text-[11px] font-bold text-accent-700">전체 보기</Link>
+                <h2 className="text-sm font-semibold text-ink-100">고위험 국가/지역 현황</h2>
+                <Link href="/supply-chain/product-map" className="text-[11px] font-semibold text-accent-700">전체 보기</Link>
               </div>
               <div className="p-4">
                 <div className="rounded-sm border border-ink-700 bg-white">
-                  <div className="grid grid-cols-[0.7fr_1fr_0.9fr_0.9fr] border-b border-ink-700 px-3 py-2 text-[10px] font-bold text-ink-500">
+                  <div className="grid grid-cols-[0.7fr_1fr_0.9fr_0.9fr] border-b border-ink-700 px-3 py-2 text-[10px] font-semibold text-ink-500">
                     <span>국가/지역</span>
                     <span>위험도</span>
                     <span className="text-right">연결 업체</span>
@@ -498,18 +762,18 @@ export default function DashboardPage() {
                   ].map(item => (
                     <div key={item.country} className="grid grid-cols-[0.7fr_1fr_0.9fr_0.9fr] items-center px-3 py-2">
                       <div>
-                        <div className="font-bold text-ink-100 num-mono">{item.country}</div>
+                        <div className="font-semibold text-ink-100 num-mono">{item.country}</div>
                         <div className="mt-0.5 text-[10px] text-ink-500">{item.label}</div>
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className={clsx('h-2 w-2 rounded-full', item.dot)} />
-                          <span className={clsx('font-bold', item.color)}>{item.risk}</span>
+                          <span className={clsx('font-semibold', item.color)}>{item.risk}</span>
                         </div>
                         <div className="mt-0.5 text-[10px] text-ink-500">{item.reason}</div>
                       </div>
-                      <span className="text-right font-bold num-mono text-ink-100">{item.count}개사</span>
-                      <span className={clsx('text-right font-bold num-mono', item.color)}>{item.change}</span>
+                      <span className="text-right font-semibold num-mono text-ink-100">{item.count}개사</span>
+                      <span className={clsx('text-right font-semibold num-mono', item.color)}>{item.change}</span>
                     </div>
                   ))}
                   </div>
@@ -519,8 +783,8 @@ export default function DashboardPage() {
 
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
-                <h2 className="text-sm font-bold text-ink-100">문서 현황 요약</h2>
-                <Link href="/submission-status" className="text-[11px] font-bold text-accent-700">전체 보기</Link>
+                <h2 className="text-sm font-semibold text-ink-100">문서 현황 요약</h2>
+                <Link href="/submission-status" className="text-[11px] font-semibold text-accent-700">전체 보기</Link>
               </div>
               <div className="grid grid-cols-[0.82fr_1fr] gap-4 p-4">
                 <div className="flex items-center justify-center">
@@ -529,8 +793,8 @@ export default function DashboardPage() {
                     style={{ background: 'conic-gradient(#22C55E 0 52%, #8B5CF6 52% 73%, #3B82F6 73% 88%, #CBD5E1 88% 100%)' }}
                   >
                     <div className="flex h-20 w-20 flex-col items-center justify-center rounded-full bg-white text-center shadow-control">
-                      <span className="text-[10px] font-bold text-ink-500">전체 문서</span>
-                      <span className="text-xl font-bold text-ink-100 num-mono">1,248</span>
+                      <span className="text-[10px] font-semibold text-ink-500">전체 문서</span>
+                      <span className="text-xl font-semibold text-ink-100 num-mono">1,248</span>
                     </div>
                   </div>
                 </div>
@@ -542,14 +806,14 @@ export default function DashboardPage() {
                     { label: '기타 문서', value: 108, pct: '9%', color: 'text-slate-500' },
                   ].map(item => (
                     <div key={item.label} className="flex items-center justify-between rounded-xs border border-ink-700 bg-white px-3 py-2">
-                      <span className="text-xs font-bold text-ink-100">{item.label}</span>
+                      <span className="text-xs font-semibold text-ink-100">{item.label}</span>
                       <div className="text-right">
-                        <span className="text-xs font-bold text-ink-100 num-mono">{item.value}</span>
-                        <span className={clsx('ml-2 text-[10px] font-bold', item.color)}>{item.pct}</span>
+                        <span className="text-xs font-semibold text-ink-100 num-mono">{item.value}</span>
+                        <span className={clsx('ml-2 text-[10px] font-semibold', item.color)}>{item.pct}</span>
                       </div>
                     </div>
                   ))}
-                  <button onClick={() => handleTabChange('pending')} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xs border border-red-100 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                  <button onClick={() => handleTabChange('pending')} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xs border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
                     <AlertCircle className="h-3.5 w-3.5" />
                     문서 누락: {missingFieldCount}건
                   </button>
@@ -601,9 +865,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="text-xs font-bold num-mono text-red-500">{item.id}</span>
-                      <span className="text-sm font-semibold text-ink-100">{item.supplier}</span>
-                      <span className={clsx('inline-flex items-center px-1.5 py-0.5 rounded-xs border text-[10px] font-semibold', regionColor[item.region] || 'border-ink-600 text-ink-400')}>
+                      <span className="text-xs font-semibold num-mono text-red-500">{item.id}</span>
+                      <span className="text-sm font-medium text-ink-100">{item.supplier}</span>
+                      <span className={clsx('inline-flex items-center px-1.5 py-0.5 rounded-xs border text-[10px] font-medium', regionColor[item.region] || 'border-ink-600 text-ink-400')}>
                         {item.region}
                       </span>
                     </div>
@@ -618,7 +882,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className={clsx(
-                      'text-[10px] font-semibold px-2 py-1 rounded-xs border',
+                      'text-[10px] font-medium px-2 py-1 rounded-xs border',
                       item.severity === 'critical' ? 'border-red-700/40 bg-red-500/12 text-red-600' :
                       item.severity === 'high' ? 'border-orange-700/30 bg-orange-500/8 text-orange-500' :
                       'border-amber-700/30 bg-amber-500/8 text-amber-500'
@@ -656,7 +920,7 @@ export default function DashboardPage() {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="text-sm font-semibold text-ink-100">
+                        <span className="text-sm font-medium text-ink-100">
                           {name?.nameEn ?? sup?.name ?? r.supplierId}
                         </span>
                         {name?.nameKo && <span className="text-xs text-ink-400">{name.nameKo}</span>}
@@ -678,7 +942,7 @@ export default function DashboardPage() {
                         {riskLevelLabel[r.riskLevel]}
                       </span>
                       <span className={clsx(
-                        'text-[10px] font-semibold px-2 py-1 rounded-xs border',
+                        'text-[10px] font-medium px-2 py-1 rounded-xs border',
                         r.feocStatus === 'eligible'    ? 'border-emerald-700/30 bg-emerald-500/8 text-emerald-500' :
                         r.feocStatus === 'ineligible'  ? 'border-red-700/30 bg-red-500/8 text-red-500' :
                         r.feocStatus === 'under_review'? 'border-amber-700/30 bg-amber-500/8 text-amber-500' :
@@ -720,7 +984,7 @@ export default function DashboardPage() {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-2">
-                        <span className="text-sm font-semibold text-ink-100">
+                        <span className="text-sm font-medium text-ink-100">
                           {name?.nameEn ?? sup?.name ?? c.supplierId}
                         </span>
                         {isSlaOver && (
@@ -773,7 +1037,7 @@ export default function DashboardPage() {
                 <div key={d.id} className="flex items-center gap-4 p-4 rounded-xs border border-emerald-700/30 bg-emerald-500/5">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="text-xs font-bold num-mono text-emerald-500">{d.id}</span>
+                      <span className="text-xs font-semibold num-mono text-emerald-500">{d.id}</span>
                       <span className="text-sm text-ink-100">{d.modelName}</span>
                     </div>
                     <div className="flex items-center gap-3 text-[10px] text-ink-500 num-mono flex-wrap">
@@ -801,7 +1065,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <span className={clsx('text-[10px] font-semibold px-2 py-1 rounded-xs border', regionColor[d.destination] || 'border-ink-600 text-ink-400')}>
+                    <span className={clsx('text-[10px] font-medium px-2 py-1 rounded-xs border', regionColor[d.destination] || 'border-ink-600 text-ink-400')}>
                       {d.destination}
                     </span>
                     <div className="text-[10px] text-ink-500 mt-1">{d.approvedBy}</div>
@@ -826,7 +1090,7 @@ export default function DashboardPage() {
                 <div key={b.id} className="flex items-center gap-4 p-4 rounded-xs border border-red-700/30 bg-red-500/5">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="text-xs font-bold num-mono text-red-400">{b.batchId}</span>
+                      <span className="text-xs font-semibold num-mono text-red-400">{b.batchId}</span>
                       <span className="text-sm text-ink-100">{b.supplier}</span>
                     </div>
                     <div className="flex items-center gap-3 text-[10px] text-ink-500 num-mono flex-wrap">

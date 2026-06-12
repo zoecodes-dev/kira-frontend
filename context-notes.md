@@ -1,5 +1,9 @@
 # Context notes
 
+- 2026-06-12: Corrected `/dashboard` reference image is an operations dashboard. Keep the top KPI cards unchanged and replace the mistaken supply-map block below KPI with task, product, DPP, changes, customer request, and AI insight sections.
+- 2026-06-12: `/dashboard` redesign request keeps the top KPI cards unchanged and replaces only the overview content below them with the reference supply-map layout.
+- 2026-06-12: Redesign request for `/supply-chain/map` references a light ESG Supply Chain layout. Preserve the bottom audit/submission table and only restyle the upper map/filter/detail/stat area.
+- 2026-06-12: `/supply-chain/map` should keep its existing explorer/detail/table design. New product-map node information is split between always-visible tree summary fields and click-driven right-panel details.
 - 2026-06-11: DPP Center should be a monitoring and entry-point page, not an action execution surface.
 - 2026-06-11: The page will use the new `docs/references/schema.sql` and `docs/references/seed.sql` scenario shape as reference data, especially the four seeded product scenarios: BMW iX3, BMW i4, Mercedes GLC EV, and Mercedes EQS.
 - 2026-06-11: Route choice is `/dpp/center` because `/dpp` already exists as issuance history and `/dpp/readiness` already exists as readiness detail.

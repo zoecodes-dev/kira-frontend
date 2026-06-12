@@ -1,3 +1,31 @@
+# Supply-chain map node detail checklist
+
+- [x] Preserve `/supply-chain/map` layout while adding product-map node information.
+- [x] Add always-visible tree fields for product/part, tier, provider type, mineral, supply ratio, verification progress, and status.
+- [x] Add click-detail fields for supplier, factory, country, specs, composition, applicable rules, missing documents, BOM version, connected products, and certificate status.
+- [x] Run typecheck and browser verification for `/supply-chain/map`.
+
+# Supply-chain map visual redesign checklist
+
+- [x] Rework only the upper `/supply-chain/map` area to match the provided design.
+- [x] Keep the bottom audit/submission tracking table unchanged.
+- [x] Add reference-style filters, status legend, tree table, right detail panel, and summary stats.
+- [x] Run typecheck and browser verification for `/supply-chain/map`.
+
+# Dashboard below-KPI supply map checklist
+
+- [x] Keep the `/dashboard` top KPI cards unchanged.
+- [x] Replace only the overview content below KPI cards with the supplied supply-map layout.
+- [x] Preserve existing dashboard tabs outside the overview body.
+- [x] Run typecheck and browser verification for `/dashboard`.
+
+# Dashboard below-KPI operations layout checklist
+
+- [x] Keep the `/dashboard` top KPI cards unchanged.
+- [x] Replace the mistaken supply-map block with the corrected operations dashboard layout.
+- [x] Add today tasks, product status, DPP status, recent changes, customer request, and AI insight sections.
+- [x] Run typecheck and browser verification for `/dashboard`.
+
 # DPP Center checklist
 
 - [x] Create `/dpp/center` as a status-only control-center page.

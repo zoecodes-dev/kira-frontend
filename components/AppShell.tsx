@@ -29,24 +29,46 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         <nav className="p-3 space-y-5 flex-1 overflow-y-auto">
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
-              관제
-            </div>
             <div className="space-y-0.5 mt-1">
               <NavLink href="/dashboard" iconName="activity" label="대시보드" subtitle="전체 결과 요약" />
-              <NavLink href="/queue" iconName="list-checks" label="검증 대기열" subtitle="LangGraph 진행" />
               <NavLink href="/my-task" iconName="clipboard-check" label="My Task" subtitle="담당자 업무" />
+            </div>
+          </div>
+
+          <div>
+            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
+              공급망 워크스페이스
+            </div>
+            <div className="space-y-0.5 mt-1">
               <NavLink
                 href="/supply-chain/map"
                 iconName="network"
                 label="공급망 워크스페이스"
                 subtitle="맵·요청·실사"
                 subItems={[
-                  { href: '/supply-chain/map', label: '공급망맵' },
-                  { href: '/supply-chain/product-map', label: '제품별 DPP 공급망 점검' },
+                  { href: '/supply-chain/map', label: '공급망 맵' },
                   { href: '/supply-chain/request-map', label: '자료 요청 업무 보드' },
                   { href: '/due-diligence', label: '공급망 실사 관리' },
-                  { href: '/risk/actions', label: '리스크 조치 보드' },
+                ]}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
+              DPP 센터
+            </div>
+            <div className="space-y-0.5 mt-1">
+              <NavLink
+                href="/dpp/center"
+                iconName="layers"
+                label="DPP 센터"
+                subtitle="대시보드·준비도·이력"
+                subItems={[
+                  { href: '/dpp/center', label: 'DPP 대시보드' },
+                  { href: '/dpp/readiness', label: 'Readiness' },
+                  { href: '/hitl', label: 'HITL' },
+                  { href: '/dpp', label: 'History', exact: true },
                 ]}
               />
             </div>
@@ -58,20 +80,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div className="space-y-0.5 mt-1">
               <NavLink
-                href="/suppliers"
+                href="/suppliers/S-CELL-001/info"
                 iconName="building2"
-                label="협력사 목록"
-                subtitle="전체 협력사"
+                label="협력사 관리"
+                subtitle="세부정보·입력현황"
                 subItems={[
-                  {
-                    href: '/suppliers',
-                    label: '전체 목록',
-                    children: [
-                      { href: '/suppliers/general', label: '협력사 상세' },
-                    ],
-                  },
-                  { href: '/suppliers/reliability', label: '협력사 신뢰성 평가' },
-                  { href: '/risk/high-risk', label: '고위험 협력사' },
+                  { href: '/suppliers/S-CELL-001/info', label: '협력사 세부 정보' },
+                  { href: '/suppliers/general', label: '협력사 입력 현황' },
                 ]}
               />
             </div>
@@ -90,46 +105,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 subItems={[
                   { href: '/materials', label: '물질 관리', exact: true },
                   { href: '/risk/origin-certs', label: '원산지 증명서 만료 관리' },
-                  { href: '/materials/regulation-results', label: '규제 검증 결과' },
-                ]}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
-              입력 데이터
-            </div>
-            <div className="space-y-0.5 mt-1">
-              <NavLink
-                href="/submission-status"
-                iconName="bar-chart"
-                label="제출 데이터 관리"
-                subtitle="제출·검토·포털"
-                subItems={[
-                  { href: '/submission-status', label: '입력 현황' },
-                  { href: '/submission-review', label: '제출 자료 검토' },
-                  { href: '/portal', label: '제출 포털 미리보기' },
-                ]}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
-              DPP 발행
-            </div>
-            <div className="space-y-0.5 mt-1">
-              <NavLink
-                href="/dpp/readiness"
-                iconName="layers"
-                label="발행 준비"
-                subtitle="준비도·검토·이력"
-                subItems={[
-                  { href: '/dpp/center', label: 'DPP Center' },
-                  { href: '/dpp/readiness', label: 'DPP Readiness' },
-                  { href: '/hitl', label: 'HITL 검토' },
-                  { href: '/dpp', label: 'DPP 발행 이력' },
+                  { href: '/regulation-results', label: '규제 검증 결과' },
                 ]}
               />
             </div>
