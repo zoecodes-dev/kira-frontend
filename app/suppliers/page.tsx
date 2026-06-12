@@ -115,7 +115,7 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
           <span className={clsx('mt-1.5 h-2 w-2 shrink-0 rounded-full', status.dot)} />
           <div className="min-w-0">
             <Link
-              href={`/suppliers/${supplier.id}/info`}
+              href="/suppliers/general"
               className="block truncate text-sm font-bold text-ink-100 transition-colors group-hover:text-accent-700"
             >
               {name?.nameEn ?? supplier.name}
@@ -219,7 +219,7 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
 
       <td className="px-5 py-4 align-top text-right">
         <Link
-          href={`/suppliers/${supplier.id}/info`}
+          href="/suppliers/general"
           className="inline-flex items-center gap-1 whitespace-nowrap rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:text-accent-700"
         >
           상세

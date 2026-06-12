@@ -67,7 +67,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     href: '/suppliers',
                     label: '전체 목록',
                     children: [
-                      { href: '/suppliers/S-CELL-001/info', label: '협력사 세부 정보', matchPattern: '^/suppliers/[^/]+/', disabled: true },
+                      { href: '/suppliers/general', label: '협력사 상세' },
                     ],
                   },
                   { href: '/suppliers/reliability', label: '협력사 신뢰성 평가' },
