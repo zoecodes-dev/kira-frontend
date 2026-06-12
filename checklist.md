@@ -22,3 +22,11 @@
 - [x] Add accordion sections in supplier input order with review comments.
 - [x] Convert factories and certificates to table-based review sections.
 - [x] Run typecheck and verify the page in the browser.
+
+# Supplier collection visual refinement checklist
+
+- [x] Match the reference layout with a back link, compact action buttons, and one horizontal supplier summary card.
+- [x] Rework collection summary cards into one dense row with icons, progress bars, and status legend.
+- [x] Make accordion rows visually closer to the reference, with only company information expanded by default.
+- [x] Add a compact bottom metadata strip for data source, last update, and next submission due date.
+- [x] Run typecheck and verify the refined page in the browser.
