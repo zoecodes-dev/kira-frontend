@@ -80,12 +80,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div className="space-y-0.5 mt-1">
               <NavLink
-                href="/suppliers/S-CELL-001/info"
+                href="/suppliers"
                 iconName="building2"
                 label="협력사 관리"
-                subtitle="세부정보·입력현황"
+                subtitle="목록·세부 정보·입력 현황"
                 subItems={[
-                  { href: '/suppliers/S-CELL-001/info', label: '협력사 세부 정보' },
+                  {
+                    href: '/suppliers',
+                    label: '협력사 목록',
+                    exact: true,
+                    children: [
+                      {
+                        href: '/suppliers/detail-context',
+                        label: '협력사 세부 정보',
+                        matchPattern: '^/suppliers/[^/]+',
+                        disabled: true,
+                      },
+                    ],
+                  },
                   { href: '/suppliers/general', label: '협력사 입력 현황' },
                 ]}
               />

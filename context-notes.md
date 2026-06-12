@@ -1,5 +1,6 @@
 # Context notes
 
+- 2026-06-12: `/suppliers` should be the supplier list entry point. Sidebar supplier management should show 협력사 목록, contextual 협력사 세부 정보 only when a supplier detail route is active, and 협력사 입력 현황.
 - 2026-06-12: `/supply-chain/map` tree typography should emphasize the top product node over child material/supplier rows. Lower child node names and numeric ratio columns so they do not overpower the product row.
 - 2026-06-12: User felt the current Product Map typography is too heavy. Keep layout untouched and soften font weights page-locally by one step.
 - 2026-06-12: `/supply-chain/product-map` should remain in its existing four-column workspace layout. Add workflow controls for product-based supply-chain creation, request sending, expansion status, and selected node downstream request actions without redesigning the page.

@@ -78,3 +78,10 @@
 - [x] Make accordion rows visually closer to the reference, with only company information expanded by default.
 - [x] Add a compact bottom metadata strip for data source, last update, and next submission due date.
 - [x] Run typecheck and verify the refined page in the browser.
+
+# Suppliers list restoration checklist
+
+- [x] Restore `/suppliers` as the active supplier list entry point.
+- [x] Update the sidebar under 협력사 관리 to show 협력사 목록, contextual 협력사 세부 정보, and 협력사 입력 현황.
+- [x] Make supplier list rows navigate to the selected supplier detail page.
+- [x] Run typecheck and browser verification for `/suppliers`.
