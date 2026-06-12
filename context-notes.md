@@ -1,5 +1,7 @@
 # Context notes
 
+- 2026-06-12: User felt the current Product Map typography is too heavy. Keep layout untouched and soften font weights page-locally by one step.
+- 2026-06-12: `/supply-chain/product-map` should remain in its existing four-column workspace layout. Add workflow controls for product-based supply-chain creation, request sending, expansion status, and selected node downstream request actions without redesigning the page.
 - 2026-06-12: Corrected `/dashboard` reference image is an operations dashboard. Keep the top KPI cards unchanged and replace the mistaken supply-map block below KPI with task, product, DPP, changes, customer request, and AI insight sections.
 - 2026-06-12: `/dashboard` redesign request keeps the top KPI cards unchanged and replaces only the overview content below them with the reference supply-map layout.
 - 2026-06-12: Redesign request for `/supply-chain/map` references a light ESG Supply Chain layout. Preserve the bottom audit/submission table and only restyle the upper map/filter/detail/stat area.

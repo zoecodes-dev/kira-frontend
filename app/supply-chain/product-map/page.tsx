@@ -67,6 +67,18 @@ interface SupplyNode {
   owner: string;
   due: string;
   links: { label: string; href: string }[];
+  inputCompleted?: boolean;
+  downstreamRegistered?: boolean;
+}
+
+interface ExpansionStatus {
+  tier1Registered: number;
+  tier1Total: number;
+  tier2Registered: number;
+  tier2Total: number;
+  tier3Registered: number;
+  tier3Total: number;
+  completeness: number;
 }
 
 const suppliers: SupplierOption[] = [
@@ -170,6 +182,54 @@ const products: ProductOption[] = [
     due: '2026-07-05',
   },
 ];
+
+const expansionStatusByProduct: Record<string, ExpansionStatus> = {
+  'P-101': {
+    tier1Registered: 4,
+    tier1Total: 4,
+    tier2Registered: 6,
+    tier2Total: 12,
+    tier3Registered: 0,
+    tier3Total: 8,
+    completeness: 38,
+  },
+  'P-102': {
+    tier1Registered: 4,
+    tier1Total: 4,
+    tier2Registered: 10,
+    tier2Total: 12,
+    tier3Registered: 6,
+    tier3Total: 8,
+    completeness: 82,
+  },
+  'P-103': {
+    tier1Registered: 3,
+    tier1Total: 4,
+    tier2Registered: 7,
+    tier2Total: 12,
+    tier3Registered: 2,
+    tier3Total: 8,
+    completeness: 48,
+  },
+  'P-201': {
+    tier1Registered: 2,
+    tier1Total: 2,
+    tier2Registered: 4,
+    tier2Total: 6,
+    tier3Registered: 1,
+    tier3Total: 4,
+    completeness: 58,
+  },
+  'P-301': {
+    tier1Registered: 3,
+    tier1Total: 3,
+    tier2Registered: 6,
+    tier2Total: 6,
+    tier3Registered: 4,
+    tier3Total: 4,
+    completeness: 100,
+  },
+};
 
 const supplyChains: Record<string, SupplyNode[]> = {
   'P-101': [
@@ -415,6 +475,7 @@ export default function ProductMapPage() {
   const selectedProduct = products.find(product => product.id === selectedProductId && product.supplierId === selectedSupplier.id)
     ?? supplierProducts[0]
     ?? products[0];
+  const selectedExpansionStatus = expansionStatusByProduct[selectedProduct.id] ?? expansionStatusByProduct['P-101'];
 
   const chain = getChain(selectedProduct.id);
   const visibleNodes = viewMode === 'critical'
@@ -462,7 +523,7 @@ export default function ProductMapPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-73px)] min-h-[760px] flex-col overflow-hidden bg-ink-800">
+    <div className="flex h-[calc(100vh-73px)] min-h-[760px] flex-col overflow-hidden bg-ink-800 [&_.font-black]:font-bold [&_.font-bold]:font-semibold [&_.font-semibold]:font-medium">
       <header className="shrink-0 border-b border-ink-700 bg-white px-8 py-5">
         <div className="flex items-start justify-between gap-6">
           <div className="min-w-0">
@@ -472,6 +533,7 @@ export default function ProductMapPage() {
             <p className="max-w-4xl text-sm leading-6 text-ink-500">
               제품과 1차 조달 품목을 기준으로 상위 구성품, 핵심 소재, 원산지 리스크를 따라가며 DPP 제출 병목과 다음 조치를 확인합니다.
             </p>
+            <ProductWorkspaceActions product={selectedProduct} expansion={selectedExpansionStatus} />
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Link href="/supply-chain/request-map" className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-sm font-semibold text-ink-300 hover:bg-ink-800">
@@ -659,6 +721,62 @@ function PanelTitle({ eyebrow, title, meta }: { eyebrow: string; title: string; 
   );
 }
 
+function ProductWorkspaceActions({ product, expansion }: { product: ProductOption; expansion: ExpansionStatus }) {
+  return (
+    <div className="mt-4 rounded-sm border border-ink-700 bg-ink-800 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-bold text-ink-500">공급망 생성 및 확장 워크스페이스</div>
+          <div className="mt-1 truncate text-sm font-bold text-ink-100">{product.name} · {product.code}</div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="inline-flex items-center gap-1.5 rounded-xs border border-accent-700 bg-accent-700 px-3 py-2 text-xs font-bold text-white hover:bg-accent-600">
+            <Box className="h-3.5 w-3.5" />
+            맵 생성
+          </button>
+          <button className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-300 hover:bg-white/90">
+            <Send className="h-3.5 w-3.5" />
+            공급망 요청 발송
+          </button>
+          <span className="inline-flex items-center gap-1.5 rounded-xs border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+            <Target className="h-3.5 w-3.5" />
+            공급망 완성도 {expansion.completeness}%
+          </span>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        <ExpansionMetric label="Tier1 등록" done={expansion.tier1Registered} total={expansion.tier1Total} />
+        <ExpansionMetric label="Tier2 등록" done={expansion.tier2Registered} total={expansion.tier2Total} />
+        <ExpansionMetric label="Tier3 등록" done={expansion.tier3Registered} total={expansion.tier3Total} />
+        <div className="rounded-xs border border-ink-700 bg-white p-2">
+          <div className="mb-1 flex items-center justify-between text-xs">
+            <span className="font-bold text-ink-500">확장 현황</span>
+            <span className="num-mono font-bold text-accent-700">{expansion.completeness}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-ink-700">
+            <div className="h-full rounded-full bg-accent-700" style={{ width: `${expansion.completeness}%` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExpansionMetric({ label, done, total }: { label: string; done: number; total: number }) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return (
+    <div className="rounded-xs border border-ink-700 bg-white p-2">
+      <div className="mb-1 flex items-center justify-between text-xs">
+        <span className="font-bold text-ink-500">{label}</span>
+        <span className="num-mono font-bold text-ink-100">{done} / {total}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-ink-700">
+        <div className={clsx('h-full rounded-full', pct >= 100 ? 'bg-emerald-600' : pct > 0 ? 'bg-amber-500' : 'bg-red-500')} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function MetricCard({
   label,
   value,
@@ -834,6 +952,9 @@ function FlowNodeCard({
 
 function RiskPanel({ node }: { node: SupplyNode }) {
   const StatusIcon = statusMeta[node.status].icon;
+  const inputCompleted = node.inputCompleted ?? node.status !== 'blocked';
+  const downstreamRegistered = node.downstreamRegistered ?? (node.stage === 'product' || node.status === 'ready');
+  const requestLabel = node.stage === 'product' || node.stage === 'component' ? '2차 공급망 요청' : '3차 공급망 요청';
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -854,6 +975,24 @@ function RiskPanel({ node }: { node: SupplyNode }) {
           <InfoPill icon={Target} label="담당" value={node.owner} />
         </div>
       </div>
+
+      <PanelSection title="공급망 확장 상태" icon={Target}>
+        <div className="space-y-2">
+          <WorkflowStatusRow label="현재 상태" value={inputCompleted ? '입력 완료' : '입력 필요'} tone={inputCompleted ? 'ok' : 'warn'} />
+          <WorkflowStatusRow label="하위 공급망" value={downstreamRegistered ? '등록 완료' : '미등록'} tone={downstreamRegistered ? 'ok' : 'alert'} />
+        </div>
+        {!downstreamRegistered && (
+          <button className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xs border border-accent-700 bg-accent-700 px-3 py-2 text-sm font-bold text-white hover:bg-accent-600">
+            <Send className="h-4 w-4" />
+            {requestLabel}
+          </button>
+        )}
+        {downstreamRegistered && (
+          <div className="mt-3 rounded-xs border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+            하위 공급망 등록 흐름이 열려 있습니다.
+          </div>
+        )}
+      </PanelSection>
 
       <PanelSection title="DPP 영향" icon={ShieldAlert}>
         <p className="text-sm leading-6 text-ink-300">{node.dppImpact}</p>
@@ -931,6 +1070,22 @@ function InfoPill({
         {label}
       </div>
       <div className="truncate text-sm font-bold text-ink-100">{value}</div>
+    </div>
+  );
+}
+
+function WorkflowStatusRow({ label, value, tone }: { label: string; value: string; tone: 'ok' | 'warn' | 'alert' }) {
+  return (
+    <div className="flex items-center justify-between rounded-sm border border-ink-700 bg-white px-3 py-2">
+      <span className="text-sm font-semibold text-ink-500">{label}</span>
+      <span className={clsx(
+        'rounded-full border px-2 py-1 text-xs font-bold',
+        tone === 'ok' && 'border-emerald-200 bg-emerald-50 text-emerald-700',
+        tone === 'warn' && 'border-amber-200 bg-amber-50 text-amber-700',
+        tone === 'alert' && 'border-red-200 bg-red-50 text-red-700',
+      )}>
+        {value}
+      </span>
     </div>
   );
 }
