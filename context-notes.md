@@ -8,3 +8,4 @@
 - 2026-06-11: Header and panel controls now have concrete behavior: refresh updates the timestamp, all-view controls open filtered modals, the recent period selector updates panel copy, and the full issuance-history button links to `/dpp`.
 - 2026-06-11: DPP issuance history should be a table-first lookup page. The detail area starts empty until the user selects a row.
 - 2026-06-12: `/suppliers/general` is a standalone OEM review surface, not the existing supplier detail tab. Keep the change page-local and prioritize section collection status, missing items, and OEM comments over profile-style cards.
+- 2026-06-12: Supplier collection review visual target is a compact OEM dashboard: top back/action bar, horizontal supplier summary, one-row collection summary cards, accordion rows, and bottom metadata strip.
