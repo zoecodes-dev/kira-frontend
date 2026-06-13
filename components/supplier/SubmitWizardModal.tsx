@@ -360,7 +360,7 @@ function Step2({
       {files.length === 0 && (
         <p className="flex items-center gap-1.5 text-xs text-amber-700">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-          파일을 1개 이상 첨부해야 다음 단계로 이동할 수 있습니다.
+          ファイルを 1개 이상 첨부해야 다음 단계로 이동할 수 있습니다.
         </p>
       )}
     </div>
@@ -471,13 +471,15 @@ export default function SubmitWizardModal({
   requestItems,
 }: SubmitWizardModalProps) {
   const initialStep = reworkMode ? 2 : 1;
-  const [step, setStep] = useState<1 | 2 | 3>(initialStep as 1 | 2 | 3);
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(initialSelectedLabels));
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // 모달 열릴 때마다 상태 초기화
+  // 대화상자가 열릴 때 또는 전달받은 초기화 라벨 배열의 내용이 변경될 때 상태 동기화
+  const serializedLabels = JSON.stringify(initialSelectedLabels);
+
   useEffect(() => {
     if (open) {
       setStep(initialStep as 1 | 2 | 3);
@@ -486,8 +488,7 @@ export default function SubmitWizardModal({
       setSubmitted(false);
       setSubmitting(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, serializedLabels, initialStep]);
 
   // ESC 닫기
   useEffect(() => {
@@ -621,7 +622,7 @@ export default function SubmitWizardModal({
               files={files}
               onAddFiles={handleAddFiles}
               onRemoveFile={handleRemoveFile}
-              reworkLabel={reworkMode ? Array.from(selected)[0] : undefined}
+              reworkLabel={reworkMode ? (Array.from(selected)[0] as string) : undefined}
             />
           )}
           {step === 3 && (
@@ -661,7 +662,6 @@ export default function SubmitWizardModal({
               <button
                 type="button"
                 onClick={() => {
-                  // Mock: 실제 구현 시 localStorage에 저장
                   alert('초안이 임시 저장되었습니다.');
                 }}
                 className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-semibold text-ink-400 hover:border-ink-600"

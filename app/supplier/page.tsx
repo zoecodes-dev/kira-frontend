@@ -53,11 +53,72 @@ const riskLabel: Record<string, string> = {
   critical: '최고위험',
 };
 
+// ⑥ 협력사 상태값 → 한글 라벨 + Badge tone 매핑
+const supplierStatusMeta: Record<string, { label: string; tone: 'ok' | 'warn' | 'alert' | 'info' | 'neutral' }> = {
+  pending:          { label: '검토 대기',  tone: 'neutral' },
+  review:           { label: '검토 중',    tone: 'info'    },
+  supplier_verified:{ label: '승인 완료',  tone: 'ok'      },
+  verified:         { label: '승인 완료',  tone: 'ok'      },
+  suspended:        { label: '거래 중지',  tone: 'alert'   },
+  rejected:         { label: '반려',       tone: 'alert'   },
+};
+
 const certStatusLabel: Record<string, string> = {
   active: '유효',
   expiring_soon: '만료 임박',
   expired: '만료',
 };
+
+// ─── D-Day 계산 유틸 ──────────────────────────────────────────────────────────
+// 기준일: 2026-06-13 (시스템 날짜)
+// 반환값: { label: 'D-12' | 'D-Day' | '만료됨', days: number }
+const REFERENCE_DATE = new Date('2026-06-13T00:00:00');
+
+function calculateDDay(expiresAt: string): { label: string; days: number } {
+  const expiry = new Date(expiresAt + 'T00:00:00');
+  const diffMs = expiry.getTime() - REFERENCE_DATE.getTime();
+  const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  if (days < 0) return { label: '만료됨', days };
+  if (days === 0) return { label: 'D-Day', days };
+  return { label: `D-${days}`, days };
+}
+
+// 잔여일 기준 배지 스타일 결정
+// · 만료됨(days<0) or 7일 이하 → 최고 긴급 (진한 빨강)
+// · 8~30일             → 긴급     (중간 빨강)
+// · 31~60일            → 주의     (주황)
+function certDDayStyle(days: number): {
+  wrapperCls: string;
+  badgeCls: string;
+} {
+  if (days <= 7) {
+    return {
+      wrapperCls: 'border-red-300 bg-red-50',
+      badgeCls:   'bg-red-600 text-white',
+    };
+  }
+  if (days <= 30) {
+    return {
+      wrapperCls: 'border-red-200 bg-red-50',
+      badgeCls:   'bg-red-500 text-white',
+    };
+  }
+  return {
+    wrapperCls: 'border-amber-300 bg-amber-50',
+    badgeCls:   'bg-amber-500 text-white',
+  };
+}
+
+// Action Center 제출 기한 D-day → Badge tone 매핑
+// · 기한 초과(days<0) or D-7 이하 → alert (빨강): 즉시 조치 필요
+// · D-8 ~ D-14                   → warn  (주황): 이번 주 내 처리
+// · D-15 이상                     → info  (파랑): 여유 있음
+type BadgeTone = 'ok' | 'warn' | 'alert' | 'info' | 'neutral';
+function dueDateTone(days: number): BadgeTone {
+  if (days <= 7)  return 'alert';
+  if (days <= 14) return 'warn';
+  return 'info';
+}
 
 type SupplierView =
   | 'dashboard'
@@ -72,14 +133,21 @@ function RelationRow({
   supplier,
   detail,
   selected,
+  relation,
   onSelect,
 }: {
   supplier: NonNullable<(typeof suppliers)[number]>;
   detail: string;
   selected?: boolean;
+  /** 로그인 기업 기준 관계 방향 — Tier 숫자 대신 표시 */
+  relation: 'parent' | 'child';
   onSelect?: () => void;
 }) {
   const name = getSupplierName(supplier.id);
+  const relationLabel = relation === 'parent' ? '직속 상위' : '직속 하위';
+  const relationBadgeCls = relation === 'parent'
+    ? 'bg-blue-50 text-blue-700 border-blue-200'
+    : 'bg-teal-50 text-teal-700 border-teal-200';
 
   return (
     <button
@@ -95,8 +163,11 @@ function RelationRow({
         <div className="truncate text-xs font-bold text-ink-100">{name?.nameEn ?? supplier.name}</div>
         <div className="mt-0.5 truncate text-[10px] text-ink-500">{name?.nameKo ?? supplier.region}</div>
       </div>
-      <div className="shrink-0 text-right">
-        <div className="text-[11px] font-semibold text-ink-200">T{supplier.tier}</div>
+      <div className="shrink-0 flex flex-col items-end gap-1">
+        {/* Tier 숫자 대신 관계 기반 라벨 표시 */}
+        <span className={`rounded-xs border px-1.5 py-0.5 text-[10px] font-bold ${relationBadgeCls}`}>
+          {relationLabel}
+        </span>
         <div className="text-[10px] text-ink-500">{detail}</div>
       </div>
     </button>
@@ -178,7 +249,19 @@ function SupplierSidebar({
   );
 }
 
-function SupplierInfoPreview({ supplierId, self = false }: { supplierId: string; self?: boolean }) {
+function SupplierInfoPreview({
+  supplierId,
+  self = false,
+  relation,
+  completeness,
+}: {
+  supplierId: string;
+  self?: boolean;
+  /** 로그인 기업 기준 관계 방향 — self=true이면 불필요 */
+  relation?: 'parent' | 'child';
+  /** ③ 완성도 데이터 — self=true일 때 프로그레스바 표시용 */
+  completeness?: { completionRate: number; filledFieldCount: number; requiredFieldCount: number; missingFields: string[] } | null;
+}) {
   const supplier = suppliers.find(item => item.id === supplierId);
   const name = getSupplierName(supplierId);
   const contacts = getContacts(supplierId);
@@ -187,23 +270,35 @@ function SupplierInfoPreview({ supplierId, self = false }: { supplierId: string;
   const primary = contacts.find(contact => contact.isPrimary) ?? contacts[0];
   const certs = getCertifications(supplierId);
 
+  // 관계 라벨 — Tier 숫자 대신 가시성 기반 표시
+  const relationLabel = relation === 'parent' ? '직속 상위 (Parent)' : relation === 'child' ? '직속 하위 (Child)' : null;
+  const relationBadgeCls = relation === 'parent'
+    ? 'bg-blue-50 text-blue-700 border-blue-200'
+    : 'bg-teal-50 text-teal-700 border-teal-200';
+
   if (!supplier) {
     return <div className="rounded-xs border border-ink-700 bg-white p-4 text-xs text-ink-500">협력사를 찾을 수 없습니다.</div>;
   }
 
+  // ⑥ 상태값 메타 — 존재하지 않는 키는 원문 표시
+  const statusMeta = supplierStatusMeta[supplier.status] ?? { label: supplier.status, tone: 'neutral' as const };
+
   return (
     <div className="space-y-4">
       <div className="rounded-sm border border-ink-700 bg-white p-5 shadow-control">
-        <div className="flex items-start justify-between gap-4">
-          <div>
+        {/* ① self 모드: Tier 배지 없이 좌측 텍스트만 / 연결사 모드: 관계 라벨 우측 배치 */}
+        <div className={`flex gap-4 ${self ? '' : 'items-start justify-between'}`}>
+          <div className="min-w-0">
             <div className="text-xs font-bold text-ink-500">{self ? '내 기업 기본정보' : '직접 연결 업체 정보'}</div>
             <div className="mt-2 text-base font-bold text-ink-100">{name?.nameEn ?? supplier.name}</div>
             <div className="mt-1 text-xs text-ink-500">{name?.nameKo ?? supplier.role} · {supplier.region}</div>
           </div>
-          <div className="rounded-xs border border-ink-700 bg-ink-800 px-3 py-2 text-right">
-            <div className="text-[10px] font-bold text-ink-500">Tier</div>
-            <div className="num-mono text-lg font-bold text-accent-700">T{supplier.tier}</div>
-          </div>
+          {/* self=true이면 관계 라벨 영역 자체를 렌더링하지 않음 (Tier 완전 제거) */}
+          {!self && relationLabel && (
+            <span className={`shrink-0 rounded-xs border px-2.5 py-1.5 text-[11px] font-bold ${relationBadgeCls}`}>
+              {relationLabel}
+            </span>
+          )}
         </div>
 
         <div className="mt-5 grid grid-cols-3 gap-3">
@@ -215,82 +310,162 @@ function SupplierInfoPreview({ supplierId, self = false }: { supplierId: string;
             <div className="text-[11px] font-semibold text-ink-500">국가/지역</div>
             <div className="mt-1 text-xs font-bold text-ink-100">{supplier.country} · {supplier.region}</div>
           </div>
+          {/* ⑥ 상태값 → 한글 Badge 변환 */}
           <div className="rounded-xs border border-ink-700 bg-ink-800 p-3">
             <div className="text-[11px] font-semibold text-ink-500">상태</div>
-            <div className="mt-1 text-xs font-bold text-accent-700">{supplier.status}</div>
+            <div className="mt-1.5">
+              <Badge tone={statusMeta.tone}>{statusMeta.label}</Badge>
+            </div>
           </div>
         </div>
       </div>
 
       {primary && (
-        <Card title={self ? '담당자 정보' : '공개 담당 창구'} subtitle={self ? '내 계정 기준 담당자' : '직접 연결 업무에 필요한 범위만 표시'}>
-          <div className="rounded-xs border border-ink-700 bg-ink-800 p-4">
-            <div className="text-xs font-bold text-ink-100">{primary.name}</div>
-            <div className="mt-1 text-xs text-ink-500">{primary.role}{primary.department ? ` · ${primary.department}` : ''}</div>
-            <div className="mt-3 text-xs font-semibold text-accent-700">{primary.email}</div>
+        <div className="rounded-sm border border-ink-700 bg-white shadow-control">
+          {/* 카드 헤더 — 수정 요청 버튼 포함 */}
+          <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-ink-700">
+            <div>
+              <div className="text-xs font-bold text-ink-100">{self ? '담당자 정보' : '공개 담당 창구'}</div>
+              <div className="mt-0.5 text-[11px] text-ink-500">{self ? '내 계정 기준 담당자' : '직접 연결 업무에 필요한 범위만 표시'}</div>
+            </div>
+            {/* ④ 수정 요청 버튼 — self 모드에서만 노출 */}
+            {self && (
+              <button
+                type="button"
+                onClick={() => alert('원청사에 변경 승인 요청이 전송되었습니다. (검토 대기)')}
+                className="inline-flex items-center gap-1.5 rounded-xs border border-ink-600 bg-ink-800 px-3 py-1.5 text-[11px] font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:bg-accent-50 hover:text-accent-700"
+              >
+                수정 요청
+              </button>
+            )}
           </div>
-        </Card>
+          <div className="p-5">
+            <div className="rounded-xs border border-ink-700 bg-ink-800 p-4">
+              <div className="text-xs font-bold text-ink-100">{primary.name}</div>
+              <div className="mt-1 text-xs text-ink-500">{primary.role}{primary.department ? ` · ${primary.department}` : ''}</div>
+              <div className="mt-3 text-xs font-semibold text-accent-700">{primary.email}</div>
+            </div>
+          </div>
+        </div>
       )}
 
-      <Card title={self ? '내 사업장 정보' : '사업장 정보'} subtitle={`${production.length}개소 · 납품처별 규제 차등`}>
-        <div className="space-y-3">
-          {production.map(factory => (
-            <div key={factory.factoryId} className="rounded-xs border border-ink-700 bg-white p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-xs font-bold text-ink-100">{factory.factoryName}</div>
-                  {factory.factoryNameEn && factory.factoryNameEn !== factory.factoryName && (
-                    <div className="mt-0.5 text-[11px] text-ink-500">{factory.factoryNameEn}</div>
-                  )}
+      <div className="rounded-sm border border-ink-700 bg-white shadow-control">
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-ink-700">
+          <div>
+            <div className="text-xs font-bold text-ink-100">{self ? '내 사업장 정보' : '사업장 정보'}</div>
+            <div className="mt-0.5 text-[11px] text-ink-500">{production.length}개소 · 납품처별 규제 차등</div>
+          </div>
+          {self && (
+            <button
+              type="button"
+              onClick={() => alert('원청사에 변경 승인 요청이 전송되었습니다. (검토 대기)')}
+              className="inline-flex items-center gap-1.5 rounded-xs border border-ink-600 bg-ink-800 px-3 py-1.5 text-[11px] font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:bg-accent-50 hover:text-accent-700"
+            >
+              수정 요청
+            </button>
+          )}
+        </div>
+        <div className="p-5">
+          <div className="space-y-3">
+            {production.map(factory => (
+              <div key={factory.factoryId} className="rounded-xs border border-ink-700 bg-white p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-ink-100">{factory.factoryName}</div>
+                    {factory.factoryNameEn && factory.factoryNameEn !== factory.factoryName && (
+                      <div className="mt-0.5 text-[11px] text-ink-500">{factory.factoryNameEn}</div>
+                    )}
+                  </div>
+                  <Badge tone={factory.destination === 'US' ? 'warn' : factory.destination === 'EU' ? 'ok' : 'info'}>
+                    {factory.destination === 'BOTH' ? 'EU + US' : factory.destination ?? 'KR'}
+                  </Badge>
                 </div>
-                <Badge tone={factory.destination === 'US' ? 'warn' : factory.destination === 'EU' ? 'ok' : 'info'}>
-                  {factory.destination === 'BOTH' ? 'EU + US' : factory.destination ?? 'KR'}
-                </Badge>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-[11px] text-ink-500">
+                  <div className="flex items-start gap-1.5">
+                    <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
+                    <span>{factory.address}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 num-mono">
+                    <Calendar className="h-3 w-3 shrink-0" />
+                    <span>{factory.operatingPeriodFrom} ~ {factory.operatingPeriodTo ?? '현재'}</span>
+                  </div>
+                  {factory.monthlyCapacity && <div>월 처리량: {factory.monthlyCapacity}</div>}
+                  {factory.destinationDetail && <div>납품 흐름: {factory.destinationDetail}</div>}
+                </div>
+                {factory.applicableRegulations && factory.applicableRegulations.length > 0 && (
+                  <div className="mt-3 border-t border-ink-700 pt-3">
+                    <div className="mb-1.5 text-[10px] font-bold text-ink-500">적용 규제</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {factory.applicableRegulations.map(reg => (
+                        <span key={reg} className="rounded-xs border border-accent-100 bg-accent-50 px-2 py-1 text-[10px] font-bold text-accent-900">
+                          {regulationMeta[reg]?.label ?? reg}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-3 text-[11px] text-ink-500">
-                <div className="flex items-start gap-1.5">
-                  <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
-                  <span>{factory.address}</span>
-                </div>
-                <div className="flex items-center gap-1.5 num-mono">
-                  <Calendar className="h-3 w-3 shrink-0" />
-                  <span>{factory.operatingPeriodFrom} ~ {factory.operatingPeriodTo ?? '현재'}</span>
-                </div>
-                {factory.monthlyCapacity && <div>월 처리량: {factory.monthlyCapacity}</div>}
-                {factory.destinationDetail && <div>납품 흐름: {factory.destinationDetail}</div>}
-              </div>
-              {factory.applicableRegulations && factory.applicableRegulations.length > 0 && (
-                <div className="mt-3 border-t border-ink-700 pt-3">
-                  <div className="mb-1.5 text-[10px] font-bold text-ink-500">적용 규제</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {factory.applicableRegulations.map(reg => (
-                      <span key={reg} className="rounded-xs border border-accent-100 bg-accent-50 px-2 py-1 text-[10px] font-bold text-accent-900">
-                        {regulationMeta[reg]?.label ?? reg}
-                      </span>
-                    ))}
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 복원된 인증서 카드 영역 ── */}
+      <div className="rounded-sm border border-ink-700 bg-white shadow-control">
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-ink-700">
+          <div>
+            <div className="text-xs font-bold text-ink-100">인증서</div>
+            <div className="mt-0.5 text-[11px] text-ink-500">{certs.length}건 · 제출/검토 기준</div>
+          </div>
+          {self && (
+            <button
+              type="button"
+              onClick={() => alert('원청사에 변경 승인 요청이 전송되었습니다. (검토 대기)')}
+              className="inline-flex items-center gap-1.5 rounded-xs border border-ink-600 bg-ink-800 px-3 py-1.5 text-[11px] font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:bg-accent-50 hover:text-accent-700"
+            >
+              수정 요청
+            </button>
+          )}
+        </div>
+        <div className="p-5">
+          <div className="grid grid-cols-2 gap-2">
+            {certs.map(cert => {
+              const isInactive = cert.status !== 'active';
+              const { label: ddayLabel, days } = calculateDDay(cert.expiresAt);
+              const { badgeCls } = certDDayStyle(days);
+              return (
+                <div
+                  key={cert.certId}
+                  className={`flex items-start justify-between gap-3 rounded-xs border px-3 py-2.5 ${
+                    isInactive ? 'border-red-200 bg-red-50' : 'border-ink-700 bg-ink-800'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className={`truncate text-xs font-semibold ${isInactive ? 'text-red-900' : 'text-ink-100'}`}>
+                      {cert.certName}
+                    </div>
+                    <div className="truncate text-[10px] text-ink-500">{cert.issuingBody}</div>
+                  </div>
+                  <div className="shrink-0 flex flex-col items-end gap-1">
+                    {isInactive ? (
+                      <>
+                        <span className={`rounded-xs px-2 py-0.5 text-[11px] font-bold tabular-nums ${badgeCls}`}>
+                          {ddayLabel}
+                        </span>
+                        <span className="text-[10px] text-red-600 font-medium">
+                          {certStatusLabel[cert.status]}
+                        </span>
+                      </>
+                    ) : (
+                      <Badge tone="ok">유효</Badge>
+                    )}
                   </div>
                 </div>
-              )}
-            </div>
-          ))}
+              );
+            })}
+          </div>
         </div>
-      </Card>
-
-      <Card title="인증서" subtitle={`${certs.length}건 · 제출/검토 기준`}>
-        <div className="grid grid-cols-2 gap-2">
-          {certs.map(cert => (
-            <div key={cert.certId} className="flex items-center justify-between gap-3 rounded-xs border border-ink-700 bg-ink-800 px-3 py-2.5">
-              <div className="min-w-0">
-                <div className="truncate text-xs font-semibold text-ink-100">{cert.certName}</div>
-                <div className="truncate text-[10px] text-ink-500">{cert.issuingBody}</div>
-              </div>
-              <Badge tone={cert.status === 'active' ? 'ok' : cert.status === 'expired' ? 'alert' : 'warn'}>
-                {certStatusLabel[cert.status]}
-              </Badge>
-            </div>
-          ))}
-        </div>
-      </Card>
+      </div>
     </div>
   );
 }
@@ -304,6 +479,8 @@ export default function SupplierPage() {
   const [wizardReworkMode, setWizardReworkMode] = useState(false);
   // ── 시정 조치 모달 상태 ──────────────────────────────────────────────────────
   const [violationModalOpen, setViolationModalOpen] = useState(false);
+  // violationId: 특정 위반 건과 모달을 바인딩 — null이면 일반 진입
+  const [violationId, setViolationId] = useState<string | null>(null);
 
   /** 일반 업로드 버튼: 항목 미선택 상태로 Step 1 열기 */
   function openWizard() {
@@ -316,6 +493,18 @@ export default function SupplierPage() {
   function openWizardRework(label: string) {
     setWizardInitialItems([label]);
     setWizardReworkMode(true);
+    setWizardOpen(true);
+  }
+
+  /**
+   * Action Center 딥링크 진입:
+   * - 일반 항목(제출 필요/대기): Step 1에서 해당 항목 자동 체크된 채로 열기
+   * - 재요청 항목: rework 모드로 Step 2 바로 열기
+   */
+  function openWizardFromActionCenter(label: string, status: string) {
+    const isRework = status === '재요청';
+    setWizardInitialItems([label]);
+    setWizardReworkMode(isRework);
     setWizardOpen(true);
   }
   const supplier = suppliers.find(item => item.id === supplierId);
@@ -331,18 +520,32 @@ export default function SupplierPage() {
   const downstream = downstreamEdges
     .map(edge => ({ edge, supplier: suppliers.find(item => item.id === edge.to) }))
     .filter((item): item is { edge: typeof downstreamEdges[number]; supplier: NonNullable<typeof supplier> } => Boolean(item.supplier));
-  const upstream = upstreamEdges
+  const upstreamFromEdges = upstreamEdges
     .map(edge => ({ edge, supplier: suppliers.find(item => item.id === edge.from) }))
     .filter((item): item is { edge: typeof upstreamEdges[number]; supplier: NonNullable<typeof supplier> } => Boolean(item.supplier));
+
+  // ⑦ Parent 데이터 보완: supplyEdges에 S-PRE-001→S-MINE-001 edge가 없을 경우
+  // PO-006(NORI-NCL-RAW)에서 S-MINE-001이 S-PRE-001에 납품하는 관계가 확인되므로 Mock으로 보완
+  const upstreamMockFallback = upstreamFromEdges.length === 0
+    ? (() => {
+        const parentSupplier = suppliers.find(item => item.id === 'S-PRE-001');
+        if (!parentSupplier) return [];
+        return [{
+          edge: { from: 'S-PRE-001', to: supplierId, material: '니켈 원광', volume: '21,000 kg/월' } as const,
+          supplier: parentSupplier,
+        }];
+      })()
+    : upstreamFromEdges;
+  const upstream = upstreamMockFallback;
   const primary = contacts.find(contact => contact.isPrimary) ?? contacts[0];
   const missing = completeness?.missingFields ?? [];
   const certRisk = certifications.filter(cert => cert.status !== 'active').length;
   const pendingRequests = missing.length + certRisk;
   const requestItems = [
-    { label: '광산 폴리곤 좌표 등록', due: '2026-05-31', status: '제출 필요', tone: 'warn' as const },
-    { label: '환경영향평가 갱신본 업로드', due: '2026-06-03', status: '재요청', tone: 'alert' as const },
-    { label: '커뮤니티 합의서 제출', due: '2026-06-07', status: '대기', tone: 'neutral' as const },
-    { label: '광권 갱신 증빙', due: '2026-06-12', status: '대기', tone: 'neutral' as const },
+    { label: '광산 폴리곤 좌표 등록',    due: '2026-06-16', status: '제출 필요', tone: 'warn'    as const },
+    { label: '환경영향평가 갱신본 업로드', due: '2026-06-20', status: '재요청',   tone: 'alert'   as const },
+    { label: '커뮤니티 합의서 제출',      due: '2026-06-25', status: '대기',     tone: 'neutral' as const },
+    { label: '광권 갱신 증빙',            due: '2026-07-05', status: '대기',     tone: 'neutral' as const },
   ];
   const guideItems = [
     { title: '광산 좌표 제출 가이드', detail: 'EUDR 검증용 폴리곤 좌표 형식' },
@@ -408,12 +611,58 @@ export default function SupplierPage() {
                 <div className="mt-2 text-lg font-bold text-ink-100">{name?.nameEn ?? supplier?.name}</div>
                 <div className="mt-1 text-xs text-ink-500">{name?.nameKo} · {supplier?.region}</div>
               </div>
-              <div className="rounded-xs border border-ink-700 bg-ink-800 px-3 py-2 text-right">
-                <div className="text-[10px] font-bold text-ink-500">Tier</div>
-                <div className="num-mono text-lg font-bold text-accent-700">T{supplier?.tier}</div>
-              </div>
+              {/* Tier 숫자는 제품 기준 상대적 위치이므로 협력사 포털에서 노출하지 않음 */}
             </div>
-            <div className="mt-5 grid grid-cols-3 gap-3">
+
+            {/* ③ 완성도 프로그레스바 — completeness 데이터가 있을 때만 표시 */}
+            {completeness && (
+              <div className="mt-5 rounded-xs border border-ink-700 bg-ink-800 p-4">
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="text-[11px] font-semibold text-ink-500">제출 완성도</div>
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                      <span className="num-mono text-xl font-bold text-ink-100">
+                        {completeness.completionRate}%
+                      </span>
+                      <span className="text-[11px] text-ink-500">
+                        ({completeness.filledFieldCount}/{completeness.requiredFieldCount} 항목)
+                      </span>
+                    </div>
+                  </div>
+                  <Badge
+                    tone={completeness.completionRate >= 90 ? 'ok' : completeness.completionRate >= 70 ? 'warn' : 'alert'}
+                  >
+                    {completeness.completionRate >= 90 ? '양호' : completeness.completionRate >= 70 ? '보완 필요' : '미흡'}
+                  </Badge>
+                </div>
+                {/* 프로그레스바 */}
+                <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      completeness.completionRate >= 90 ? 'bg-signal-ok' :
+                      completeness.completionRate >= 70 ? 'bg-accent-700' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${completeness.completionRate}%` }}
+                  />
+                </div>
+                {/* 누락 항목 — 있을 때만 표시 */}
+                {completeness.missingFields.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {completeness.missingFields.map(field => (
+                      <span
+                        key={field}
+                        className="flex items-center gap-1 rounded-xs border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
+                      >
+                        <AlertCircle className="h-2.5 w-2.5 shrink-0" />
+                        {field}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="mt-4 grid grid-cols-3 gap-3">
               <div className="rounded-xs border border-ink-700 bg-ink-800 p-3">
                 <div className="text-[11px] font-semibold text-ink-500">주 담당자</div>
                 <div className="mt-1 text-xs font-bold">{primary?.name ?? '미등록'}</div>
@@ -425,7 +674,7 @@ export default function SupplierPage() {
               </div>
               <div className="rounded-xs border border-ink-700 bg-ink-800 p-3">
                 <div className="text-[11px] font-semibold text-ink-500">공개 범위</div>
-                  <div className="mt-1 text-xs font-bold text-accent-700">내 회사 + 직접 연결</div>
+                <div className="mt-1 text-xs font-bold text-accent-700">내 회사 + 직접 연결</div>
               </div>
             </div>
           </div>
@@ -443,7 +692,7 @@ export default function SupplierPage() {
           </div>
         </section>
 
-        <SupplierInfoPreview supplierId={supplierId} self />
+        <SupplierInfoPreview supplierId={supplierId} self completeness={completeness} />
         </>
         )}
 
@@ -486,20 +735,31 @@ export default function SupplierPage() {
         <section className="grid grid-cols-[1fr_1fr] gap-4">
           <Card title="오늘 먼저 처리할 일" subtitle="제출 기한이 가까운 원청 요청만 모았습니다">
             <div className="space-y-2">
-              {requestItems.slice(0, 3).map(item => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => setActiveView('submit-documents')}
-                  className="flex w-full items-center justify-between gap-3 rounded-xs border border-ink-700 bg-white px-3 py-3 text-left transition-colors hover:border-accent-600 hover:bg-ink-800"
-                >
-                  <div>
-                    <div className="text-xs font-bold text-ink-100">{item.label}</div>
-                    <div className="mt-0.5 text-[11px] text-ink-500">제출 기한 {item.due}</div>
-                  </div>
-                  <Badge tone={item.tone}>{item.status}</Badge>
-                </button>
-              ))}
+              {requestItems.slice(0, 3).map(item => {
+                const { label: ddayLabel, days } = calculateDDay(item.due);
+                const ddayTone = dueDateTone(days);
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => openWizardFromActionCenter(item.label, item.status)}
+                    className="flex w-full items-center gap-3 rounded-xs border border-ink-700 bg-white px-3 py-3 text-left transition-colors hover:border-accent-600 hover:bg-ink-800"
+                  >
+                    {/* 좌: 항목명 + 기한 텍스트 */}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-ink-100">{item.label}</div>
+                      <div className="mt-0.5 text-[11px] text-ink-500">
+                        제출 기한 <span className="num-mono">{item.due}</span>
+                      </div>
+                    </div>
+                    {/* 우: D-day 배지 + 상태 배지 */}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Badge tone={ddayTone}>{ddayLabel}</Badge>
+                      <Badge tone={item.tone}>{item.status}</Badge>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </Card>
 
@@ -511,17 +771,38 @@ export default function SupplierPage() {
                   <span>{item}</span>
                 </div>
               ))}
-              {certifications.filter(cert => cert.status !== 'active').slice(0, 2).map(cert => (
-                <div key={cert.certId} className="flex items-center gap-2 rounded-xs border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
-                  <FileCheck className="h-3.5 w-3.5 shrink-0" />
-                  <span>{cert.certName} · {certStatusLabel[cert.status]}</span>
-                </div>
-              ))}
+              {certifications.filter(cert => cert.status !== 'active').slice(0, 2).map(cert => {
+                const { label: ddayLabel, days } = calculateDDay(cert.expiresAt);
+                const { wrapperCls, badgeCls } = certDDayStyle(days);
+                return (
+                  <div
+                    key={cert.certId}
+                    className={`flex items-center justify-between gap-3 rounded-xs border px-3 py-2 text-xs ${wrapperCls}`}
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <FileCheck className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <span className="truncate font-semibold text-red-900">
+                        {cert.certName}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <span className="text-[10px] text-red-700">{certStatusLabel[cert.status]}</span>
+                      <span className={`rounded-xs px-2 py-0.5 text-[11px] font-bold tabular-nums ${badgeCls}`}>
+                        {ddayLabel}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             {/* ── 시정 조치 계획 제출 버튼 ──────────────────────────── */}
+            {/* violationId를 먼저 세팅 후 모달 오픈 → 특정 위반 건과 바인딩 */}
             <button
               type="button"
-              onClick={() => setViolationModalOpen(true)}
+              onClick={() => {
+                setViolationId('VIO-2026-0042');
+                setViolationModalOpen(true);
+              }}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xs border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-bold text-red-700 transition-colors hover:bg-red-600 hover:text-white hover:border-red-600 shadow-control"
             >
               <ShieldAlert className="h-3.5 w-3.5" />
@@ -544,6 +825,7 @@ export default function SupplierPage() {
                     key={edge.from}
                     supplier={related}
                     detail={`${edge.material} · ${edge.volume}`}
+                    relation="parent"
                     selected={selectedRelatedId === related.id}
                     onSelect={() => setSelectedRelatedId(related.id)}
                   />
@@ -556,6 +838,7 @@ export default function SupplierPage() {
                     key={edge.to}
                     supplier={related}
                     detail={`${edge.material} · ${edge.volume}`}
+                    relation="child"
                     selected={selectedRelatedId === related.id}
                     onSelect={() => setSelectedRelatedId(related.id)}
                   />
@@ -564,7 +847,14 @@ export default function SupplierPage() {
             </div>
           </Card>
 
-          <SupplierInfoPreview supplierId={selectedRelatedId} />
+          <SupplierInfoPreview
+            supplierId={selectedRelatedId}
+            relation={
+              upstream.some(({ supplier: s }) => s.id === selectedRelatedId)
+                ? 'parent'
+                : 'child'
+            }
+          />
         </section>
         </>
         )}
@@ -833,10 +1123,14 @@ export default function SupplierPage() {
         reworkMode={wizardReworkMode}
         requestItems={requestItems}
       />
-      {/* ── 시정 조치 계획 모달 ──────────────────────────────────────────── */}
+      {/* ── 시정 조치 계획 모달 — violation 속성으로 수정 완료 ─────── */}
       <ViolationReportModal
         open={violationModalOpen}
-        onClose={() => setViolationModalOpen(false)}
+        onClose={() => {
+          setViolationModalOpen(false);
+          setViolationId(null);
+        }}
+        violation={violationId ?? undefined}
       />
     </main>
   );
