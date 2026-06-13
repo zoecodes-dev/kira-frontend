@@ -1130,7 +1130,7 @@ export default function SupplierPage() {
           setViolationModalOpen(false);
           setViolationId(null);
         }}
-        violation={violationId ?? undefined}
+        violation={violationId ? { violationId: violationId } as any : undefined}
       />
     </main>
   );
