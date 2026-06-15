@@ -33,6 +33,7 @@ import SubmitWizardModal from '@/components/supplier/SubmitWizardModal';
 import EightStageStepper from '@/components/supplier/EightStageStepper';
 import SupplyChainMap from '@/components/supplier/SupplyChainMap';
 import ViolationReportModal from '@/components/supplier/ViolationReportModal';
+import AiParsingView from '@/components/supplier/AiParsingView';
 import { suppliers, supplyEdges } from '@/lib/data';
 import {
   getCertifications,
@@ -624,8 +625,10 @@ export default function SupplierPage() {
           onSelect={setActiveView}
         />
         <div className="min-w-0 flex-1">
-          <header className="border-b border-ink-700 bg-white px-8 py-5 shadow-control">
+          {/* 헤더가 찌그러지지 않도록 shrink-0 추가 */}
+          <header className="shrink-0 border-b border-ink-700 bg-white px-8 py-5 shadow-control">
             <div className="flex items-start justify-between gap-4">
+              {/* ... 기존 헤더 내용 그대로 유지 ... */}
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-accent-700 text-white">
                   <Factory className="h-5 w-5" strokeWidth={2.3} />
@@ -650,7 +653,17 @@ export default function SupplierPage() {
             </div>
           </header>
 
-          <div className="space-y-6 p-8">
+          {/* ✨ ai-parsing 뷰일 때는 꽉 찬 높이(h-calc), 아닐 때는 기존 패딩 적용 ✨ */}
+          <div className={activeView === 'ai-parsing' ? 'h-[calc(100vh-82px)]' : 'space-y-6 p-8'}>
+            
+            {/* AI 파싱 뷰 컴포넌트 삽입 */}
+            {activeView === 'ai-parsing' && (
+              <AiParsingView
+                supplierId={supplierId}
+                onConfirmComplete={() => setActiveView('submission-status')} 
+              />
+            )}
+
         {activeView === 'company-info' && (
         <>
         <section className="grid grid-cols-[1.2fr_0.8fr] gap-4">
@@ -1132,26 +1145,6 @@ export default function SupplierPage() {
           </Card>
         </section>
         </>
-        )}
-
-        {activeView === 'ai-parsing' && (
-        <section className="rounded-sm border border-ink-700 bg-white p-8 shadow-control">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-sm border border-accent-100 bg-accent-50">
-              <ScanLine className="h-7 w-7 text-accent-700" strokeWidth={1.8} />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-ink-100">AI 파싱 확인</div>
-              <p className="mt-1.5 text-xs leading-5 text-ink-500">
-                업로드된 서류의 AI 추출 결과를 검토하고 수정하는 화면입니다.<br />
-                기획서 D화면 — 스플릿뷰(PDF + 편집 테이블) 구현 예정입니다.
-              </p>
-            </div>
-            <span className="rounded-xs border border-accent-200 bg-accent-50 px-3 py-1 text-[11px] font-semibold text-accent-700">
-              개발 예정 · /supplier/portal
-            </span>
-          </div>
-        </section>
         )}
 
         {activeView === 'audit' && (
