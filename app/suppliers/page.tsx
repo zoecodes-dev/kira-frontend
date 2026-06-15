@@ -40,13 +40,6 @@ type InputFilter = 'all' | 'complete' | 'in_progress' | 'partial' | 'missing';
 type ContactFilter = 'all' | 'registered' | 'missing';
 type SummaryFilter = 'all' | 'verified' | 'high-risk' | 'sla-overdue';
 type SupplierFilter = 'all' | Supplier['id'];
-type TierGroup = 'all' | 'mfg' | 'material' | 'mineral';
-const TIER_GROUPS: { key: TierGroup; label: string; tiers: Tier[] }[] = [
-  { key: 'all',      label: '전체',       tiers: [] },
-  { key: 'mfg',      label: '제조 T1–T3', tiers: [1, 2, 3] },
-  { key: 'material', label: '소재 T4–T5', tiers: [4, 5] },
-  { key: 'mineral',  label: '광물 T6–T7', tiers: [6, 7] },
-];
 
 const statusMeta: Record<string, { label: string; tone: 'ok' | 'warn' | 'alert' | 'info' | 'neutral'; dot: string }> = {
   verified: { label: '검증 완료', tone: 'info', dot: 'bg-signal-info' },
@@ -114,6 +107,7 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
   const progress = completenessMeta(rate);
   const warnings = getRegulationWarnings(missing);
   const isSlaOver = remindLogs.some(log => log.status === 'overdue') || remindLogs.length >= 2;
+  const detailHref = `/suppliers/${supplier.id}/info`;
 
   return (
     <tr className="group border-b border-ink-700 bg-white transition-colors hover:bg-ink-800">
@@ -122,7 +116,7 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
           <span className={clsx('mt-1.5 h-2 w-2 shrink-0 rounded-full', status.dot)} />
           <div className="min-w-0">
             <Link
-              href={`/suppliers/${supplier.id}/info`}
+              href={detailHref}
               className="block truncate text-sm font-bold text-ink-100 transition-colors group-hover:text-accent-700"
             >
               {name?.nameEn ?? supplier.name}
@@ -226,7 +220,7 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
 
       <td className="px-5 py-4 align-top text-right">
         <Link
-          href={`/suppliers/${supplier.id}/info`}
+          href={detailHref}
           className="inline-flex items-center gap-1 whitespace-nowrap rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:text-accent-700"
         >
           상세
@@ -332,7 +326,6 @@ export default function SuppliersPage() {
   const [contactFilter, setContactFilter] = useState<ContactFilter>('all');
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all');
   const [supplierFilter, setSupplierFilter] = useState<SupplierFilter>('all');
-  const [tierGroup, setTierGroup] = useState<TierGroup>('all');
 
   const resetDetailFilters = () => {
     setSearch('');
@@ -370,10 +363,6 @@ export default function SuppliersPage() {
       if (riskFilter !== 'all' && supplier.risk !== riskFilter) return false;
       if (tierFilter !== 'all' && !supplier.tiers.includes(tierFilter as Tier)) return false;
       if (countryFilter !== 'all' && supplier.country !== countryFilter) return false;
-      if (tierGroup !== 'all') {
-        const grp = TIER_GROUPS.find(g => g.key === tierGroup)!;
-        if (!supplier.tiers.some(t => grp.tiers.includes(t))) return false;
-      }
 
       const completeness = getCompleteness(supplier.id);
       const inputState = completenessMeta(completeness?.completionRate ?? 0).filter;
@@ -403,7 +392,7 @@ export default function SuppliersPage() {
 
       return haystack.includes(q);
     });
-  }, [contactFilter, countryFilter, feocFilter, inputFilter, riskFilter, search, statusFilter, summaryFilter, supplierFilter, tierFilter, tierGroup]);
+  }, [contactFilter, countryFilter, feocFilter, inputFilter, riskFilter, search, statusFilter, summaryFilter, supplierFilter, tierFilter]);
 
   const highRiskCount = suppliers.filter(supplier => supplier.risk === 'high' || supplier.risk === 'critical').length;
   const overdueCount = suppliers.filter(supplier => getRemindLogs(supplier.id).some(log => log.status === 'overdue')).length;
@@ -502,8 +491,6 @@ export default function SuppliersPage() {
                 { v: '3', label: 'T3' },
                 { v: '4', label: 'T4' },
                 { v: '5', label: 'T5' },
-                { v: '6', label: 'T6' },
-                { v: '7', label: 'T7' },
               ]} />
               <Select value={riskFilter} onChange={value => { clearSummaryFilter(); setRiskFilter(value as RiskFilter); }} label="위험도" options={[
                 { v: 'all', label: '전체' },
@@ -520,16 +507,6 @@ export default function SuppliersPage() {
                 { v: 'unknown', label: '미파악' },
               ]} />
             </div>
-          </div>
-          <div className="flex items-center gap-1 border-b border-ink-700 px-5 py-2">
-            {TIER_GROUPS.map(g => (
-              <button key={g.key} onClick={() => setTierGroup(g.key)}
-                className={clsx('px-3 py-1.5 text-xs font-medium rounded-xs border',
-                  tierGroup === g.key ? 'border-accent-600 text-accent-700 bg-accent-50'
-                                      : 'border-transparent text-ink-400 hover:text-ink-200')}>
-                {g.label}
-              </button>
-            ))}
           </div>
 
           <div className="flex items-center justify-between border-b border-ink-700 px-5 py-3">

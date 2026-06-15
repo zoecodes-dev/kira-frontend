@@ -1,1013 +1,1111 @@
-"use client";
+'use client';
 
-import React, { useState, useMemo } from "react";
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import clsx from 'clsx';
 import {
-  Search, Package, Calendar, Building2, Factory, Layers, GitBranch,
-  ChevronRight, ChevronDown, X, ArrowLeft, Boxes, MapPin, Percent,
-  Hash, Truck, FileText, CheckCircle2, AlertTriangle, Mail, Phone,
-  ShieldAlert, Award, Users, AlertCircle, Activity, Send, ScrollText,
-} from "lucide-react";
+  AlertTriangle,
+  ArrowRight,
+  Box,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  Factory,
+  Filter,
+  Layers,
+  MapPin,
+  PackageCheck,
+  Search,
+  Send,
+  ShieldAlert,
+  Target,
+} from 'lucide-react';
 
-/* ============================================================
-   KIRA — 제품 단위 검색 (단위기간 · 고객사 · BOM 버전)
-   진입: ① BOM 버전 검색  또는  ② 단위기간 + 납품 고객사 검색
-   결과: 매칭 인스턴스 하나씩 → 선택 시 그 버전 BOM 전개
-   ============================================================ */
+type RiskLevel = 'low' | 'medium' | 'high';
+type NodeStatus = 'ready' | 'review' | 'blocked';
+type ViewMode = 'critical' | 'all';
+type ProductFilter = 'all' | 'risk' | 'ready';
 
-// 원본 톤(tailwind.config.ts ink/accent/signal). ink는 역스케일: 900=흰색, 100=거의검정
-const C = {
-  bg: "#FFFFFF",        // ink-900 캔버스(흰색)
-  panel: "#F8FAFC",     // ink-800 패널
-  panelSoft: "#F8FAFC", // 동일(라이트라 투명도 불필요)
-  line: "#E2E8F0",      // ink-700 테두리
-  lineSoft: "#E2E8F0",  // ink-700
-  text: "#0F172A",      // ink-100 본문
-  sub: "#475569",       // ink-400 보조
-  faint: "#64748B",     // ink-500 흐림
-  accent: "#10B981",    // accent-500
-  accentDim: "#ECFDF5", // accent-50 (연한 배경)
-  accentLine: "#047857",// accent-700 (강조선/텍스트)
-  blue: "#2563EB",      // signal-info
-  blueDim: "#EFF6FF",   // 연한 파랑 배경
-  amber: "#B45309",     // signal-warn
-  red: "#DC2626",       // signal-alert
-  violet: "#7C3AED",    // 보라(규제 칩) — 원본에 없으나 톤 맞춰 진하게
-};
+interface SupplierOption {
+  id: string;
+  name: string;
+  role: string;
+  country: string;
+  itemCount: number;
+  riskCount: number;
+  readiness: number;
+}
 
-// ── 마스터: 협력사 / 공장 ──────────────────────────────────
-const SUP = {
-  "S-CELL-001": "Hanyang Cell (자사)",
-  "S-CAM-001": "POS Cathode (KR)", "S-CAM-002": "Yantai Cathode (CN)",
-  "S-ANO-001": "Mitsui Anode (JP)", "S-PRE-001": "Quzhou Precursor (CN)",
-  "S-REF-001": "Pohang/PIW Refining (AU)", "S-REF-002": "Ganzhou Rare Metals (CN)",
-  "S-MINE-001": "Sulawesi/NORI Nickel (ID)", "S-MINE-002": "Katanga Cobalt (CD)",
-  "S-MINE-003": "Xinjiang Mineral (CN)",
-};
-const FAC = {
-  "F-001": "한양 1공장(울산)", "F-002": "한양 2공장(서산)", "F-003": "한양 3공장(천안)",
-  "F-005": "포항 공장", "F-006": "광양 공장", "F-008": "옌타이 공장",
-  "F-010": "오사카 공장", "F-012": "취저우 공장", "F-014": "필바라 정제소",
-  "F-016": "술라웨시 광산", "F-017": "카탕가 광산", "F-018": "신장 광산",
-};
+interface ProductOption {
+  id: string;
+  supplierId: string;
+  name: string;
+  code: string;
+  category: string;
+  dppStatus: 'ready' | 'needs_action';
+  readiness: number;
+  riskCount: number;
+  owner: string;
+  due: string;
+}
 
-// 광산은 자체 사이트가 없음 → 운영사/데이터 보고 주체가 대신 보고
-// (control point = 운영사·정제소가 광산 원산지 데이터를 제출, OECD/배터리법 실사 관행)
-const MINE_OPERATORS = {
-  "S-MINE-001": { operatorId: "OP-NORI", operator: "NORI Mining Pte Ltd", note: "술라웨시 광산 운영사 — 광산 데이터 대리 보고" },
-  "S-MINE-002": { operatorId: "OP-GLENC", operator: "Glencore Katanga SARL", note: "카탕가 광산 운영사 — 원산지·실사 데이터 보고" },
-  "S-MINE-003": { operatorId: "OP-XJM",  operator: "Xinjiang Mining Group", note: "신장 광산 운영사 — UFLPA 검증 데이터 보고 주체" },
-};
+interface SupplyNode {
+  id: string;
+  stage: 'product' | 'component' | 'material' | 'origin';
+  title: string;
+  subtitle: string;
+  tier: string;
+  status: NodeStatus;
+  riskLevel: RiskLevel;
+  supplier: string;
+  country: string;
+  evidence: string[];
+  risks: string[];
+  dppImpact: string;
+  nextAction: string;
+  owner: string;
+  due: string;
+  links: { label: string; href: string }[];
+  inputCompleted?: boolean;
+  downstreamRegistered?: boolean;
+}
 
-// ── 협력사 상세 (팝업 패널용) — 기존 product-map DetailPanel 정보 ──
-const SUP_DETAIL = {
-  "S-CELL-001": {
-    nameEn: "Hanyang Cell Manufacturing", nameKo: "한양셀 (자사)", country: "KR", role: "셀·모듈·팩 제조 (자사)", region: "울산·서산·천안",
-    status: "verified", riskLevel: "low", riskScore: 8, feoc: "eligible", carbon: 12.4, completeness: 100,
-    missing: [], highRisk: [], isSelf: true,
-    contacts: [
-      { name: "박지훈 (Park Jihoon)", role: "생산총괄 · 제조본부", email: "jh.park@hanyang-cell.com", phone: "+82-52-200-3000", primary: true },
-      { name: "최유진 (Choi Yujin)", role: "품질보증 · QA본부", email: "yj.choi@hanyang-cell.com", phone: "+82-41-580-3200", primary: false },
-    ],
-    factories: [
-      { name: "한양 1공장(울산)", id: "F-001", addr: "울산 남구", regs: ["EU_BATTERY", "IRA"], dest: "EU" },
-      { name: "한양 2공장(서산)", id: "F-002", addr: "충남 서산시", regs: ["EU_BATTERY", "IRA"], dest: "US" },
-      { name: "한양 3공장(천안)", id: "F-003", addr: "충남 천안시", regs: ["EU_BATTERY"], dest: "EU" },
-    ],
-    certs: [
-      { name: "ISO 9001", status: "active" }, { name: "ISO 14001", status: "active" },
-      { name: "IATF 16949", status: "active" }, { name: "ISO 45001", status: "active" },
-    ],
-    regs: ["EU_BATTERY", "IRA", "CSDDD"], outPO: 0, inPO: 12,
-  },
-  "S-CAM-001": {
-    nameEn: "POS Cathode Materials", nameKo: "POS 양극재", country: "KR", role: "양극재 (NCM811)", region: "경북 포항",
-    status: "verified", riskLevel: "low", riskScore: 18, feoc: "eligible", carbon: 18.7, completeness: 96,
-    missing: [], highRisk: [],
-    contacts: [
-      { name: "정태양 (Jung Taeyang)", role: "포항공장장 · 생산운영팀", email: "ty.jung@pos-cathode.com", phone: "+82-54-280-1200", primary: false },
-      { name: "한소희 (Han Sohee)", role: "광양공장장 · 생산운영팀", email: "sh.han@pos-cathode.com", phone: "+82-61-793-1200", primary: true },
-    ],
-    factories: [
-      { name: "포항 공장", id: "F-005", addr: "경북 포항시 남구", regs: ["EU_BATTERY", "IRA"], dest: "EU" },
-      { name: "광양 공장", id: "F-006", addr: "전남 광양시", regs: ["EU_BATTERY"], dest: "EU" },
-    ],
-    certs: [
-      { name: "ISO 9001", status: "active" }, { name: "ISO 14001", status: "active" },
-      { name: "IATF 16949", status: "expiring_soon" },
-    ],
-    regs: ["EU_BATTERY", "IRA", "CSDDD"], outPO: 4, inPO: 2,
-  },
-  "S-CAM-002": {
-    nameEn: "Yantai Cathode Tech", nameKo: "옌타이 양극재", country: "CN", role: "양극재 (NCA)", region: "산둥성 옌타이",
-    status: "review", riskLevel: "medium", riskScore: 48, feoc: "under_review", carbon: 24.1, completeness: 72,
-    missing: ["IRMA 인증서", "FEOC 지분 공시"], highRisk: ["중국 소재 · FEOC 검토 필요"],
-    contacts: [{ name: "Fang Chen", role: "ESG Manager · Compliance", email: "f.chen@yantai-cathode.cn", phone: "+86-535-620-1180", primary: true }],
-    factories: [{ name: "옌타이 공장", id: "F-008", addr: "산둥성 옌타이시", regs: ["EU_BATTERY", "UFLPA"], dest: "EU" }],
-    certs: [{ name: "ISO 9001", status: "active" }],
-    regs: ["EU_BATTERY", "UFLPA", "IRA_FEOC"], outPO: 1, inPO: 1,
-  },
-  "S-ANO-001": {
-    nameEn: "Mitsui Anode Industries", nameKo: "미쓰이 음극재", country: "JP", role: "음극재 (흑연)", region: "오사카",
-    status: "verified", riskLevel: "low", riskScore: 12, feoc: "eligible", carbon: 8.3, completeness: 98,
-    missing: [], highRisk: [],
-    contacts: [{ name: "Kenji Yamamoto", role: "Quality Mgr · Quality", email: "k.yamamoto@mitsui-anode.jp", phone: "+81-6-6210-1180", primary: true }],
-    factories: [{ name: "오사카 공장", id: "F-010", addr: "오사카부", regs: ["EU_BATTERY"], dest: "EU" }],
-    certs: [{ name: "ISO 9001", status: "active" }, { name: "ISO 14001", status: "active" }, { name: "IATF 16949", status: "active" }],
-    regs: ["EU_BATTERY", "CSDDD"], outPO: 1, inPO: 0,
-  },
-  "S-PRE-001": {
-    nameEn: "Quzhou Precursor Co.", nameKo: "취저우 전구체", country: "CN", role: "전구체 (NCM)", region: "저장성 취저우",
-    status: "pending", riskLevel: "medium", riskScore: 52, feoc: "under_review", carbon: 31.2, completeness: 64,
-    missing: ["제조공정도", "FEOC 지분 공시", "환경 인증"], highRisk: ["전구체 공정 데이터 미비"],
-    contacts: [{ name: "Li Wei", role: "ESG Manager · Compliance", email: "l.wei@qz-precursor.cn", phone: "+86-570-801-1180", primary: true }],
-    factories: [{ name: "취저우 공장", id: "F-012", addr: "저장성 취저우시", regs: ["EU_BATTERY", "IRA_FEOC"], dest: "EU" }],
-    certs: [],
-    regs: ["EU_BATTERY", "IRA_FEOC", "CSDDD"], outPO: 2, inPO: 4,
-  },
-  "S-REF-001": {
-    nameEn: "Pohang / PIW Refining Works", nameKo: "리튬 정제", country: "AU", role: "리튬 정제", region: "호주 필바라",
-    status: "verified", riskLevel: "low", riskScore: 16, feoc: "eligible", carbon: 9.8, completeness: 92,
-    missing: [], highRisk: [],
-    contacts: [{ name: "Tom Bradley", role: "Plant Manager · Operations", email: "t.bradley@piw-refining.au", phone: "+61-8-9200-1200", primary: true }],
-    factories: [{ name: "필바라 정제소", id: "F-014", addr: "WA 필바라", regs: ["EU_BATTERY", "IRA"], dest: "BOTH" }],
-    certs: [{ name: "ISO 14001", status: "active" }],
-    regs: ["EU_BATTERY", "IRA"], outPO: 2, inPO: 0,
-  },
-  "S-REF-002": {
-    nameEn: "Ganzhou Rare Metals", nameKo: "간저우 코발트 정제", country: "CN", role: "코발트 정제", region: "장시성 간저우",
-    status: "pending", riskLevel: "high", riskScore: 68, feoc: "ineligible", carbon: 28.5, completeness: 48,
-    missing: ["FEOC 지분 공시", "원산지 증명", "환경 인증"], highRisk: ["FEOC 부적격 판정", "공급망 공개율 저조"],
-    contacts: [{ name: "Zhang Min", role: "Export Manager", email: "z.min@ganzhou-rare.cn", phone: "+86-797-820-1180", primary: true }],
-    factories: [{ name: "간저우 공장", id: "F-013", addr: "장시성 간저우시", regs: ["IRA_FEOC", "UFLPA"], dest: "US" }],
-    certs: [],
-    regs: ["IRA_FEOC", "UFLPA", "CSDDD"], outPO: 1, inPO: 1,
-  },
-  "S-MINE-001": {
-    nameEn: "Sulawesi / NORI Nickel Mine", nameKo: "술라웨시 니켈 광산", country: "ID", role: "니켈 광산", region: "술라웨시",
-    status: "review", riskLevel: "medium", riskScore: 44, feoc: "eligible", carbon: 45.8, completeness: 70,
-    missing: ["광권 좌표 정밀화", "환경 영향평가"], highRisk: ["고탄소 채굴 공정"],
-    contacts: [{ name: "Mary Reyes", role: "ESG Manager · Sustainability", email: "m.reyes@nori-mining.id", phone: "+62-21-8855-1100", primary: true }],
-    factories: [{ name: "술라웨시 광산", id: "F-016", addr: "Sulawesi", regs: ["CSDDD", "EUDR"], dest: "EU" }],
-    certs: [{ name: "ISO 14001", status: "active" }, { name: "RMI-CRT", status: "active" }],
-    regs: ["CSDDD", "EUDR", "EU_BATTERY"], outPO: 2, inPO: 0,
-  },
-  "S-MINE-002": {
-    nameEn: "Katanga Cobalt Mining", nameKo: "카탕가 코발트 광산", country: "CD", role: "코발트 광산", region: "카탕가",
-    status: "review", riskLevel: "critical", riskScore: 82, feoc: "under_review", carbon: 38.4, completeness: 42,
-    missing: ["아동노동 감사 보고서", "광권 증명", "인권 실사"], highRisk: ["아동노동 리스크 (DRC)", "분쟁광물 검증 필요"],
-    contacts: [{ name: "Jean-Paul Mwamba", role: "CEO · Executive", email: "jp.mwamba@kat-cobalt.cd", phone: "+243-99-555-1000", primary: true }],
-    factories: [{ name: "카탕가 광산", id: "F-017", addr: "Katanga, DRC", regs: ["CSDDD", "CONFLICT_MINERALS"], dest: "EU" }],
-    certs: [{ name: "RMI-CRT", status: "expiring_soon" }],
-    regs: ["CSDDD", "CONFLICT_MINERALS", "UFLPA"], outPO: 2, inPO: 0,
-  },
-  "S-MINE-003": {
-    nameEn: "Xinjiang Mineral Resources", nameKo: "신장 광물", country: "CN", role: "망간/리튬 광산", region: "신장 위구르 자치구",
-    status: "violation", riskLevel: "critical", riskScore: 95, feoc: "ineligible", carbon: 52.7, completeness: 30,
-    missing: ["UFLPA 반증 자료", "노동 감사", "원산지 증명"], highRisk: ["UFLPA 강제노동 위반 추정", "수입 보류 대상"],
-    contacts: [{ name: "—", role: "연락처 미등록", email: "", phone: "", primary: true }],
-    factories: [{ name: "신장 광산", id: "F-018", addr: "Xinjiang", regs: ["UFLPA"], dest: "—" }],
-    certs: [],
-    regs: ["UFLPA", "CSDDD"], outPO: 1, inPO: 0,
-  },
-};
+interface ExpansionStatus {
+  tier1Registered: number;
+  tier1Total: number;
+  tier2Registered: number;
+  tier2Total: number;
+  tier3Registered: number;
+  tier3Total: number;
+  completeness: number;
+}
 
-const REG_LABEL = {
-  EU_BATTERY: "EU 배터리법", IRA: "IRA", IRA_FEOC: "IRA/FEOC", UFLPA: "UFLPA",
-  CSDDD: "CSDDD", EUDR: "EUDR", CONFLICT_MINERALS: "분쟁광물",
-};
-
-// ── BOM 트리 (계층 구조 + 부모 대비 구성비) ─────────────────
-// comp = 부모 부품 100 대비 이 자재의 함량/중량 비율 (기준값, 버전이 덮어쓸 수 있음)
-const PARTS = [
-  { id: "PRT-001", code: "PACK-NCM811-100Ah", name: "NCM811 배터리 팩", tier: 1, parent: null,      comp: null },
-  { id: "PRT-002", code: "MOD-NCM811-12S",    name: "NCM811 모듈(12셀)", tier: 1, parent: "PRT-001", comp: 88 },
-  { id: "PRT-003", code: "BMS-V3-100Ah",      name: "BMS 컨트롤러",      tier: 1, parent: "PRT-001", comp: 12 },
-  { id: "PRT-004", code: "CELL-NCM811-5Ah",   name: "NCM811 셀(21700)",  tier: 2, parent: "PRT-002", comp: 100 },
-  { id: "PRT-005", code: "CAM-NCM811",        name: "NCM811 양극재",     tier: 3, parent: "PRT-004", comp: 42 },
-  { id: "PRT-006", code: "ANO-GRAPHITE",      name: "흑연 음극재",       tier: 3, parent: "PRT-004", comp: 24 },
-  { id: "PRT-007", code: "PRE-NCM",           name: "NCM 전구체",        tier: 4, parent: "PRT-005", comp: 92 },
-  { id: "PRT-008", code: "MIN-NI",            name: "니켈 원광",         tier: 5, parent: "PRT-007", comp: 80 },
-  { id: "PRT-009", code: "MIN-CO",            name: "코발트 원광",       tier: 5, parent: "PRT-007", comp: 10 },
-  { id: "PRT-011", code: "MIN-MN",            name: "망간 원광",         tier: 5, parent: "PRT-007", comp: 10 },
-  { id: "PRT-010", code: "MIN-LI",            name: "리튬 원광",         tier: 5, parent: "PRT-005", comp: 8 },
+const suppliers: SupplierOption[] = [
+  {
+    id: 'S-CELL-001',
+    name: 'Hanyang Cell Manufacturing',
+    role: '셀·모듈·팩 통합 제조',
+    country: 'KR',
+    itemCount: 12,
+    riskCount: 3,
+    readiness: 82,
+  },
+  {
+    id: 'S-BMS-002',
+    name: 'BMS Korea Co.',
+    role: 'BMS 제어 모듈',
+    country: 'KR',
+    itemCount: 8,
+    riskCount: 1,
+    readiness: 91,
+  },
+  {
+    id: 'S-CAS-003',
+    name: 'ALU Frame Co.',
+    role: '팩 케이스·하우징',
+    country: 'KR',
+    itemCount: 6,
+    riskCount: 0,
+    readiness: 96,
+  },
+  {
+    id: 'S-CON-007',
+    name: 'Connector Tech Korea',
+    role: '커넥터·와이어링',
+    country: 'KR',
+    itemCount: 9,
+    riskCount: 0,
+    readiness: 94,
+  },
 ];
 
-// 버전별 구성비 오버라이드 (조성이 바뀌는 버전만 명시)
-// v2.0: 양극재 NCA 혼합 → Ni 비중↑ (Ni88/Co9/Mn3), 전구체 함량도 소폭 변동
-const COMP_OVERRIDE = {
-  "v2.0": {
-    "PRT-008": 88, // 니켈
-    "PRT-009": 9,  // 코발트
-    "PRT-011": 3,  // 망간
+const products: ProductOption[] = [
+  {
+    id: 'P-101',
+    supplierId: 'S-CELL-001',
+    name: 'EV High-Nickel Cell A',
+    code: 'CELL-NCM-811',
+    category: '고니켈 셀',
+    dppStatus: 'needs_action',
+    readiness: 76,
+    riskCount: 2,
+    owner: '구매기획팀 김지훈',
+    due: '2026-06-12',
   },
-};
-
-// ── 버전별 소싱 = BOM 노드(partId) → 협력사·공장·% (합 100) ──
-// 버전마다 자재 구성(노드 유무)·소싱 둘 다 다를 수 있음
-const SOURCING = {
-  // v1.0 — 초기: 양극재 단일소싱(POS 포항), 코발트 카탕가 단일
-  "v1.0": {
-    "PRT-005": [{ sup: "S-CAM-001", fac: "F-005", pct: 100 }],
-    "PRT-006": [{ sup: "S-ANO-001", fac: "F-010", pct: 100 }],
-    "PRT-007": [{ sup: "S-PRE-001", fac: "F-012", pct: 100 }],
-    "PRT-008": [{ sup: "S-MINE-001", fac: "F-016", pct: 100 }],
-    "PRT-009": [{ sup: "S-MINE-002", fac: "F-017", pct: 100 }],
-    "PRT-011": [{ sup: "S-MINE-003", fac: "F-018", pct: 100 }],
-    "PRT-010": [{ sup: "S-REF-001", fac: "F-014", pct: 100 }],
+  {
+    id: 'P-102',
+    supplierId: 'S-CELL-001',
+    name: 'ESS Standard Cell B',
+    code: 'CELL-LFP-STD',
+    category: 'LFP 셀',
+    dppStatus: 'ready',
+    readiness: 94,
+    riskCount: 0,
+    owner: 'DPP 운영팀 박서연',
+    due: '2026-07-01',
   },
-  // v1.2 — 양극재 멀티소싱(POS 포항65/광양35), 코발트 카탕가 우세
-  "v1.2": {
-    "PRT-005": [
-      { sup: "S-CAM-001", fac: "F-005", pct: 65 },
-      { sup: "S-CAM-001", fac: "F-006", pct: 35 },
-    ],
-    "PRT-006": [{ sup: "S-ANO-001", fac: "F-010", pct: 100 }],
-    "PRT-007": [{ sup: "S-PRE-001", fac: "F-012", pct: 100 }],
-    "PRT-008": [{ sup: "S-MINE-001", fac: "F-016", pct: 100 }],
-    "PRT-009": [{ sup: "S-MINE-002", fac: "F-017", pct: 100 }],
-    "PRT-011": [{ sup: "S-MINE-003", fac: "F-018", pct: 100 }],
-    "PRT-010": [{ sup: "S-REF-001", fac: "F-014", pct: 100 }],
+  {
+    id: 'P-103',
+    supplierId: 'S-CELL-001',
+    name: 'PHEV Custom Cell C',
+    code: 'CELL-NCM-622',
+    category: 'PHEV 셀',
+    dppStatus: 'needs_action',
+    readiness: 81,
+    riskCount: 1,
+    owner: '구매기획팀 김지훈',
+    due: '2026-06-18',
   },
-  // v2.0 — 양극재 옌타이(NCA) 혼합 + 코발트 멀티(카탕가60/간저우40), 리튬 동일
-  "v2.0": {
-    "PRT-005": [
-      { sup: "S-CAM-001", fac: "F-005", pct: 50 },
-      { sup: "S-CAM-002", fac: "F-008", pct: 50 },
-    ],
-    "PRT-006": [{ sup: "S-ANO-001", fac: "F-010", pct: 100 }],
-    "PRT-007": [{ sup: "S-PRE-001", fac: "F-012", pct: 100 }],
-    "PRT-008": [{ sup: "S-MINE-001", fac: "F-016", pct: 100 }],
-    "PRT-009": [
-      { sup: "S-MINE-002", fac: "F-017", pct: 60 },
-      { sup: "S-REF-002",  fac: "F-017", pct: 40 },
-    ],
-    "PRT-011": [{ sup: "S-MINE-003", fac: "F-018", pct: 100 }],
-    "PRT-010": [{ sup: "S-REF-001", fac: "F-014", pct: 100 }],
+  {
+    id: 'P-201',
+    supplierId: 'S-BMS-002',
+    name: 'BMS Main Controller Board',
+    code: 'BMS-MCU-2026',
+    category: 'BMS 보드',
+    dppStatus: 'needs_action',
+    readiness: 84,
+    riskCount: 1,
+    owner: '전장부품팀 이현우',
+    due: '2026-06-20',
   },
-};
-
-// ── 제품 인스턴스: 단위기간 · 고객사 · BOM 버전 ──────────────
-const INSTANCES = [
-  { serial: "SN-2026-A1-082413", model: "Premium NCM811 100Ah", rootPart: "PRT-001", facId: "F-003", build: [{ fac: "F-003", pct: 100 }], period: "2026-Q2", customer: "Volkswagen AG", dest: "EU", bom: "v2.0", dppStatus: "issued",      dppId: "DPP-2026-04982" },
-  { serial: "SN-2026-A1-082319", model: "Premium NCM811 100Ah", rootPart: "PRT-001", facId: "F-003", build: [{ fac: "F-001", pct: 60 }, { fac: "F-003", pct: 40 }], period: "2026-Q2", customer: "Volkswagen AG", dest: "EU", bom: "v1.2", dppStatus: "issued",      dppId: "DPP-2026-04978" },
-  { serial: "SN-2026-A1-081002", model: "Premium NCM811 100Ah", rootPart: "PRT-001", facId: "F-003", build: [{ fac: "F-003", pct: 100 }], period: "2026-Q1", customer: "BMW Group",     dest: "EU", bom: "v1.0", dppStatus: "issued",      dppId: "DPP-2026-04102" },
-  { serial: "SN-2026-A1-082451", model: "Premium NCM811 100Ah", rootPart: "PRT-001", facId: "F-003", build: [{ fac: "F-003", pct: 100 }], period: "2026-Q2", customer: "Ford Motor",    dest: "US", bom: "v2.0", dppStatus: "in_progress" },
-  { serial: "SN-2026-A1-082341", model: "NCM622 90Ah",          rootPart: "PRT-001", facId: "F-002", build: [{ fac: "F-002", pct: 100 }], period: "2026-Q2", customer: "Ford Motor",    dest: "US", bom: "v1.2", dppStatus: "issued",      dppId: "DPP-2026-04979" },
-  { serial: "SN-2026-A2-082398", model: "Standard NCA 80Ah",    rootPart: "PRT-001", facId: "F-003", build: [{ fac: "F-001", pct: 50 }, { fac: "F-002", pct: 50 }], period: "2026-Q2", customer: "BMW Group",     dest: "EU", bom: "v2.0", dppStatus: "issued",      dppId: "DPP-2026-04981" },
-  { serial: "SN-2025-A1-079820", model: "Premium NCM811 100Ah", rootPart: "PRT-001", facId: "F-003", build: [{ fac: "F-003", pct: 100 }], period: "2025-Q4", customer: "BMW Group",     dest: "EU", bom: "v1.0", dppStatus: "issued",      dppId: "DPP-2025-09810" },
+  {
+    id: 'P-301',
+    supplierId: 'S-CAS-003',
+    name: 'Battery Pack Aluminum Case',
+    code: 'CASE-ALU-STD',
+    category: '팩 케이스',
+    dppStatus: 'ready',
+    readiness: 97,
+    riskCount: 0,
+    owner: '기구부품팀 문하린',
+    due: '2026-07-05',
+  },
 ];
 
-const PERIODS = [...new Set(INSTANCES.map((i) => i.period))].sort().reverse();
-const CUSTOMERS = [...new Set(INSTANCES.map((i) => i.customer))].sort();
-const VERSIONS = Object.keys(SOURCING);
-const MODELS = [...new Set(INSTANCES.map((i) => i.model))].sort();
-// 제품(모델)이 실제로 가진 BOM 버전만
-const versionsOfModel = (model) =>
-  [...new Set(INSTANCES.filter((i) => i.model === model).map((i) => i.bom))]
-    .sort();
+const expansionStatusByProduct: Record<string, ExpansionStatus> = {
+  'P-101': {
+    tier1Registered: 4,
+    tier1Total: 4,
+    tier2Registered: 6,
+    tier2Total: 12,
+    tier3Registered: 0,
+    tier3Total: 8,
+    completeness: 38,
+  },
+  'P-102': {
+    tier1Registered: 4,
+    tier1Total: 4,
+    tier2Registered: 10,
+    tier2Total: 12,
+    tier3Registered: 6,
+    tier3Total: 8,
+    completeness: 82,
+  },
+  'P-103': {
+    tier1Registered: 3,
+    tier1Total: 4,
+    tier2Registered: 7,
+    tier2Total: 12,
+    tier3Registered: 2,
+    tier3Total: 8,
+    completeness: 48,
+  },
+  'P-201': {
+    tier1Registered: 2,
+    tier1Total: 2,
+    tier2Registered: 4,
+    tier2Total: 6,
+    tier3Registered: 1,
+    tier3Total: 4,
+    completeness: 58,
+  },
+  'P-301': {
+    tier1Registered: 3,
+    tier1Total: 3,
+    tier2Registered: 6,
+    tier2Total: 6,
+    tier3Registered: 4,
+    tier3Total: 4,
+    completeness: 100,
+  },
+};
+
+const supplyChains: Record<string, SupplyNode[]> = {
+  'P-101': [
+    {
+      id: 'cell-a',
+      stage: 'product',
+      title: 'EV High-Nickel Cell A',
+      subtitle: '완제품 셀 · NCM 811',
+      tier: 'Tier 1',
+      status: 'review',
+      riskLevel: 'medium',
+      supplier: 'Hanyang Cell Manufacturing',
+      country: 'KR',
+      evidence: ['BOM 하위 소재 연결표', '셀 단위 DPP 제출 패키지'],
+      risks: ['하위 소재 증빙 2건 미확인', '고니켈 원료 추적성 보완 필요'],
+      dppImpact: '하위 소재의 원산지·규제 증빙이 닫히기 전까지 제품 DPP 제출 패키지가 보완 상태로 남습니다.',
+      nextAction: '미제출 소재 증빙을 품목별 요청으로 전환하고 담당자 기한을 확정합니다.',
+      owner: '구매기획팀 김지훈',
+      due: '2026-06-12',
+      links: [
+        { label: '제품 목록', href: '/products' },
+        { label: '요청 현황', href: '/supply-chain/request-map' },
+      ],
+    },
+    {
+      id: 'cathode-a',
+      stage: 'component',
+      title: 'Cathode ABC Materials',
+      subtitle: '양극재 · NCM 전구체 배합',
+      tier: 'Tier 2',
+      status: 'review',
+      riskLevel: 'medium',
+      supplier: 'Cathode ABC Materials',
+      country: 'KR',
+      evidence: ['전구체 배합 명세서', '탄소배출 산정 근거'],
+      risks: ['코발트 원산지 증빙 일부 미확정', 'Scope 3 산정 근거 갱신 지연'],
+      dppImpact: '양극재 구성 원료의 비율과 탄소 근거가 제품 DPP 소재 구성표에 직접 반영됩니다.',
+      nextAction: '코발트·니켈·리튬별 증빙 상태를 분리해 보완 요청을 발송합니다.',
+      owner: '소재구매팀 최유진',
+      due: '2026-06-10',
+      links: [
+        { label: '요청 생성', href: '/supply-chain/request-map' },
+        { label: '리스크 관리', href: '/risk/high-risk' },
+      ],
+    },
+    {
+      id: 'cobalt-a',
+      stage: 'material',
+      title: 'Refined Cobalt Element',
+      subtitle: '정제 코발트 · 제련 경로 확인',
+      tier: 'Tier 4',
+      status: 'blocked',
+      riskLevel: 'high',
+      supplier: 'Cobalt Refining Partner',
+      country: 'CN',
+      evidence: ['CMRT/RMI 증빙', '제련소 소유구조 확인서', 'FEOC 판정 근거'],
+      risks: ['FEOC 연루 가능성 검토 필요', '제련소 소유구조 증빙 미제출', '분쟁광물 증빙 패키지 누락'],
+      dppImpact: 'IRA FEOC 판정과 EU Battery 원산지 추적 항목에 동시에 영향을 주는 핵심 병목입니다.',
+      nextAction: 'Tier 1을 통해 제련소 소유구조와 CMRT 증빙 재제출을 요청합니다.',
+      owner: '규제대응팀 정민아',
+      due: '2026-06-07',
+      links: [
+        { label: 'FEOC 검토', href: '/suppliers/S-CELL-001/feoc' },
+        { label: '고위험 리스크', href: '/risk/high-risk' },
+      ],
+    },
+    {
+      id: 'drc-a',
+      stage: 'origin',
+      title: 'Katanga Minerals',
+      subtitle: '코발트 광산 · DRC 원산지',
+      tier: 'Tier 5',
+      status: 'blocked',
+      riskLevel: 'high',
+      supplier: 'Katanga Minerals',
+      country: 'CD',
+      evidence: ['광산 실사보고서 최신본', '원산지 증명서', '커뮤니티 합의서'],
+      risks: ['실사보고서 유효기간 만료', '원산지 증명서 최신본 미확정', '고위험 원산지 고객 승인 필요'],
+      dppImpact: 'CSDDD 공급망 실사와 EU Battery due diligence 제출 근거가 막혀 있습니다.',
+      nextAction: '최신 실사보고서와 원산지 증명서 재제출을 요청하고 고위험 원산지 승인 플로우를 엽니다.',
+      owner: 'ESG 실사팀 오세림',
+      due: '2026-06-05',
+      links: [
+        { label: '원산지 추적', href: '/suppliers/S-CELL-001/origin' },
+        { label: 'ESG 실사', href: '/suppliers/S-CELL-001/esg' },
+      ],
+    },
+    {
+      id: 'nickel-a',
+      stage: 'material',
+      title: 'Nickel Sulfate',
+      subtitle: '니켈 황산염 · 인도네시아 제련',
+      tier: 'Tier 4',
+      status: 'ready',
+      riskLevel: 'low',
+      supplier: 'Nickel Partner IDN',
+      country: 'ID',
+      evidence: ['원산지 증명서', 'EUDR 좌표', '탄소 배출계수'],
+      risks: ['현재 주요 미해결 리스크 없음'],
+      dppImpact: '소재 구성과 원산지 추적 근거가 제출 가능한 상태입니다.',
+      nextAction: '정기 갱신 주기에 맞춰 증빙 유효기간만 모니터링합니다.',
+      owner: '소재구매팀 최유진',
+      due: '2026-07-01',
+      links: [{ label: '원산지 증빙', href: '/risk/origin-certs' }],
+    },
+    {
+      id: 'lithium-a',
+      stage: 'material',
+      title: 'Lithium Carbonate',
+      subtitle: '리튬 탄산염 · 칠레 염호',
+      tier: 'Tier 4',
+      status: 'ready',
+      riskLevel: 'low',
+      supplier: 'Chile SQM Salt-Lake',
+      country: 'CL',
+      evidence: ['원산지 증명서', '물 사용량 자료', '채굴 허가서'],
+      risks: ['현재 주요 미해결 리스크 없음'],
+      dppImpact: '리튬 원산지와 물 리스크 근거가 제품 DPP에 반영 가능합니다.',
+      nextAction: '물 사용량 데이터의 다음 갱신일을 추적합니다.',
+      owner: '소재구매팀 최유진',
+      due: '2026-07-01',
+      links: [{ label: '원산지 증빙', href: '/risk/origin-certs' }],
+    },
+    {
+      id: 'graphite-a',
+      stage: 'component',
+      title: 'Synthetic Graphite',
+      subtitle: '음극재 · 합성 흑연',
+      tier: 'Tier 3',
+      status: 'review',
+      riskLevel: 'medium',
+      supplier: 'Anode Graphite Co.',
+      country: 'CN',
+      evidence: ['환경 감사보고서', '가공국 비중 확인서'],
+      risks: ['환경 감사보고서 갱신 지연', '중국 가공 구간 비중 확인 필요'],
+      dppImpact: 'UFLPA/FEOC 스크리닝과 음극재 근거자료 보완에 영향을 줍니다.',
+      nextAction: '환경 감사보고서 최신본과 가공국 비중 확인서를 요청합니다.',
+      owner: '규제대응팀 정민아',
+      due: '2026-06-11',
+      links: [{ label: 'AI 규제검증', href: '/suppliers/S-CELL-001/ai-verify' }],
+    },
+  ],
+};
+
+const fallbackNodes: SupplyNode[] = [
+  {
+    id: 'fallback-product',
+    stage: 'product',
+    title: '선택 조달 품목',
+    subtitle: 'DPP 제출 패키지',
+    tier: 'Tier 1',
+    status: 'ready',
+    riskLevel: 'low',
+    supplier: '선택 협력사',
+    country: 'KR',
+    evidence: ['제품 BOM', '거래 증빙', '기본 원산지 자료'],
+    risks: ['현재 주요 병목 없음'],
+    dppImpact: '필수 제출 항목이 대부분 연결되어 있습니다.',
+    nextAction: '정기 갱신 주기만 모니터링합니다.',
+    owner: 'DPP 운영팀',
+    due: '2026-07-01',
+    links: [{ label: '제품 목록', href: '/products' }],
+  },
+  {
+    id: 'fallback-material',
+    stage: 'material',
+    title: '핵심 소재 증빙',
+    subtitle: '원산지·규제 근거',
+    tier: 'Tier 3',
+    status: 'ready',
+    riskLevel: 'low',
+    supplier: '연결 공급사',
+    country: 'KR',
+    evidence: ['원산지 증명서', '인증서'],
+    risks: ['현재 주요 병목 없음'],
+    dppImpact: '제품 DPP에 반영 가능한 상태입니다.',
+    nextAction: '만료 예정 증빙만 추적합니다.',
+    owner: 'DPP 운영팀',
+    due: '2026-07-01',
+    links: [{ label: '요청 현황', href: '/supply-chain/request-map' }],
+  },
+];
+
+const stageMeta = {
+  product: { label: '제품 / 1차 품목', accent: 'text-accent-700', bg: 'bg-accent-50', border: 'border-accent-100' },
+  component: { label: '하위 구성품', accent: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-100' },
+  material: { label: '핵심 소재', accent: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-100' },
+  origin: { label: '원산지 / 광산', accent: 'text-red-700', bg: 'bg-red-50', border: 'border-red-100' },
+} satisfies Record<SupplyNode['stage'], { label: string; accent: string; bg: string; border: string }>;
 
 const statusMeta = {
-  issued:      { label: "DPP 발급", color: C.accent, Icon: CheckCircle2 },
-  in_progress: { label: "발급 진행", color: C.amber, Icon: AlertTriangle },
-  pending:     { label: "대기", color: C.faint, Icon: AlertTriangle },
-};
+  ready: {
+    label: '완료',
+    badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    ring: 'border-emerald-300 bg-emerald-50/40',
+    icon: CheckCircle2,
+  },
+  review: {
+    label: '확인 필요',
+    badge: 'border-amber-200 bg-amber-50 text-amber-700',
+    ring: 'border-amber-300 bg-amber-50/40',
+    icon: Clock,
+  },
+  blocked: {
+    label: '병목',
+    badge: 'border-red-200 bg-red-50 text-red-700',
+    ring: 'border-red-300 bg-red-50/50',
+    icon: AlertTriangle,
+  },
+} satisfies Record<NodeStatus, { label: string; badge: string; ring: string; icon: typeof CheckCircle2 }>;
 
-// 통합 검색 인덱스 (협력사 / 제품 시리얼 / 자재) — product-map buildSearchIndex 차용
-function buildSearchIndex() {
-  const hits = [];
-  Object.entries(SUP_DETAIL).forEach(([id, d]) => {
-    hits.push({ kind: "supplier", supId: id, label: `${d.nameEn} / ${d.nameKo}`, sub: `${id} · ${d.role} · ${d.country}` });
-  });
-  INSTANCES.forEach((i) => {
-    hits.push({ kind: "product", serial: i.serial, label: i.serial, sub: `${i.model} · ${i.period} · ${i.customer} · BOM ${i.bom}` });
-  });
-  PARTS.forEach((p) => {
-    Object.entries(SOURCING).forEach(([ver, map]) => {
-      (map[p.id] ?? []).forEach((s) => {
-        hits.push({ kind: "material", supId: s.sup, label: `${p.name} · ${SUP[s.sup] ?? s.sup}`, sub: `${p.code} · ${ver} · ${FAC[s.fac] ?? s.fac} · ${s.pct}%` });
-      });
-    });
-  });
-  // 중복 라벨 정리
-  const seen = new Set();
-  return hits.filter((h) => { const k = h.kind + h.label + h.sub; if (seen.has(k)) return false; seen.add(k); return true; });
+const riskMeta = {
+  low: { label: '저위험', className: 'text-emerald-700', badge: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+  medium: { label: '중위험', className: 'text-amber-700', badge: 'border-amber-200 bg-amber-50 text-amber-700' },
+  high: { label: '고위험', className: 'text-red-700', badge: 'border-red-200 bg-red-50 text-red-700' },
+} satisfies Record<RiskLevel, { label: string; className: string; badge: string }>;
+
+function getChain(productId: string) {
+  return supplyChains[productId] ?? fallbackNodes;
 }
-const SEARCH_INDEX = buildSearchIndex();
 
-// ── 컴포넌트 ────────────────────────────────────────────────
-export default function ProductUnitSearch({ serialParam }: { serialParam?: string } = {}) {
-  const [mode, setMode] = useState("period"); // 'period' | 'product'
-  const [period, setPeriod] = useState("");
-  const [customer, setCustomer] = useState("");
-  const [model, setModel] = useState("");      // 제품 먼저
-  const [version, setVersion] = useState("");  // 그다음 버전
-  const [selected, setSelected] = useState(null);
-  const [navTarget, setNavTarget] = useState(null); // 클릭한 협력사 상세 팝업
+export default function ProductMapPage() {
+  const [supplierQuery, setSupplierQuery] = useState('');
+  const [selectedSupplierId, setSelectedSupplierId] = useState('S-CELL-001');
+  const [selectedProductId, setSelectedProductId] = useState('P-101');
+  const [selectedNodeId, setSelectedNodeId] = useState('cobalt-a');
+  const [productFilter, setProductFilter] = useState<ProductFilter>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('critical');
 
-  // 통합 검색바
-  const [query, setQuery] = useState("");
-  const [showDrop, setShowDrop] = useState(false);
+  const selectedSupplier = suppliers.find(supplier => supplier.id === selectedSupplierId) ?? suppliers[0];
 
-  // serial URL 딥링크 진입 (제품 목록 → 이 페이지) — product-map serialParam 차용
-  React.useEffect(() => {
-    if (!serialParam) return;
-    const inst = INSTANCES.find((i) => i.serial === serialParam);
-    if (inst) setSelected(inst);
-  }, [serialParam]);
+  const supplierProducts = useMemo(
+    () => products.filter(product => product.supplierId === selectedSupplier.id),
+    [selectedSupplier.id],
+  );
 
-  // 모델 바뀌면 버전 초기화 (버전은 제품에 종속)
-  React.useEffect(() => { setVersion(""); }, [model]);
+  const filteredProducts = useMemo(() => {
+    if (productFilter === 'risk') return supplierProducts.filter(product => product.riskCount > 0);
+    if (productFilter === 'ready') return supplierProducts.filter(product => product.dppStatus === 'ready');
+    return supplierProducts;
+  }, [productFilter, supplierProducts]);
 
-  // 자재 소싱 클릭 → 해당 협력사 상세 팝업 (전체 페이지가 필요하면 router.push로 교체)
-  const goSupplier = (supId, facId) => setNavTarget({ supId, facId });
+  const selectedProduct = products.find(product => product.id === selectedProductId && product.supplierId === selectedSupplier.id)
+    ?? supplierProducts[0]
+    ?? products[0];
+  const selectedExpansionStatus = expansionStatusByProduct[selectedProduct.id] ?? expansionStatusByProduct['P-101'];
 
-  const searchHits = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return SEARCH_INDEX.filter((h) => h.label.toLowerCase().includes(q) || h.sub.toLowerCase().includes(q)).slice(0, 8);
-  }, [query]);
+  const chain = getChain(selectedProduct.id);
+  const visibleNodes = viewMode === 'critical'
+    ? chain.filter(node => node.status !== 'ready' || node.stage === 'product')
+    : chain;
+  const selectedNode = chain.find(node => node.id === selectedNodeId) ?? visibleNodes[0] ?? chain[0];
 
-  const onPickHit = (h) => {
-    setShowDrop(false);
-    setQuery(h.label);
-    if (h.kind === "product" && h.serial) {
-      const inst = INSTANCES.find((i) => i.serial === h.serial);
-      if (inst) setSelected(inst);
-    } else if (h.supId) {
-      setNavTarget({ supId: h.supId, facId: null });
-    }
-  };
-
-  const results = useMemo(() => {
-    if (mode === "product") {
-      if (!model) return [];
-      return INSTANCES.filter((i) => i.model === model && (!version || i.bom === version));
-    }
-    return INSTANCES.filter(
-      (i) => (!period || i.period === period) && (!customer || i.customer === customer)
+  const searchedSuppliers = useMemo(() => {
+    const query = supplierQuery.trim().toLowerCase();
+    if (!query) return suppliers;
+    return suppliers.filter(supplier =>
+      supplier.name.toLowerCase().includes(query)
+      || supplier.id.toLowerCase().includes(query)
+      || supplier.role.toLowerCase().includes(query),
     );
-  }, [mode, period, customer, model, version]);
+  }, [supplierQuery]);
 
-  if (selected) {
-    return (
-      <>
-        <InstanceDetail inst={selected} onBack={() => setSelected(null)} onNavigate={goSupplier} />
-        {navTarget && <SupplierDetailModal target={navTarget} onClose={() => setNavTarget(null)} />}
-      </>
-    );
+  const kpis = useMemo(() => {
+    const blocked = chain.filter(node => node.status === 'blocked').length;
+    const review = chain.filter(node => node.status === 'review').length;
+    const missingEvidence = chain.reduce((sum, node) => sum + (node.status === 'ready' ? 0 : node.evidence.length), 0);
+    return {
+      stages: chain.length,
+      blocked,
+      review,
+      missingEvidence,
+      readiness: selectedProduct.readiness,
+    };
+  }, [chain, selectedProduct.readiness]);
+
+  function handleSupplierSelect(supplierId: string) {
+    const nextProduct = products.find(product => product.supplierId === supplierId) ?? products[0];
+    const nextChain = getChain(nextProduct.id);
+    const priorityNode = nextChain.find(node => node.status === 'blocked') ?? nextChain[0];
+    setSelectedSupplierId(supplierId);
+    setSelectedProductId(nextProduct.id);
+    setSelectedNodeId(priorityNode.id);
+  }
+
+  function handleProductSelect(productId: string) {
+    const nextChain = getChain(productId);
+    const priorityNode = nextChain.find(node => node.status === 'blocked') ?? nextChain[0];
+    setSelectedProductId(productId);
+    setSelectedNodeId(priorityNode.id);
   }
 
   return (
-    <div style={{ fontFamily: '"Pretendard", "Noto Sans KR", system-ui, sans-serif', background: C.bg, color: C.text, minHeight: 600 }}>
-      {/* PageHeader (product-map 톤) */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "20px 24px", borderBottom: `1px solid ${C.line}` }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.text }}>제품별 공급망 맵</h2>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 4, color: C.accentLine, background: C.accentDim, border: `1px solid ${C.accent}40` }}>신규</span>
-          </div>
-          <p style={{ margin: "5px 0 0", fontSize: 12, color: C.faint }}>
-            제품·기간·고객사로 검색 → BOM 버전 전개 · 자재 클릭 시 협력사 상세
-          </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <a href="/supply-chain/request-map" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: C.sub, textDecoration: "none" }}>
-            <Send size={13} /> 입력 요청 현황 <ChevronRight size={12} />
-          </a>
-          <a href="/products" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentLine, textDecoration: "none" }}>
-            <Boxes size={13} /> 제품 목록 <ChevronRight size={12} />
-          </a>
-        </div>
-      </div>
-
-      <div style={{ padding: 24 }}>
-        {/* 통합 검색바 (협력사 / 시리얼 / 자재 자동완성) */}
-        <div style={{ position: "relative", marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 4, border: `1px solid ${query ? C.accentLine : C.line}`, background: C.panel }}>
-            <Search size={16} color={C.faint} />
-            <input
-              value={query}
-              onChange={(e) => { setQuery(e.target.value); setShowDrop(true); }}
-              onFocus={() => setShowDrop(true)}
-              placeholder="협력사 · 제품 시리얼 · 자재명 검색"
-              style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: C.text, fontSize: 13 }}
-            />
-            {query && (
-              <button onClick={() => { setQuery(""); setShowDrop(false); }} style={{ border: "none", background: "none", cursor: "pointer", color: C.faint }}><X size={14} /></button>
-            )}
-          </div>
-          {showDrop && searchHits.length > 0 && (
-            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, zIndex: 20, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 4, boxShadow: "0 8px 24px rgba(15,23,42,0.08)", overflow: "hidden" }}>
-              {searchHits.map((h, idx) => (
-                <button key={idx} onClick={() => onPickHit(h)} style={{
-                  display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 14px",
-                  border: "none", borderBottom: idx < searchHits.length - 1 ? `1px solid ${C.line}` : "none", background: "transparent", cursor: "pointer",
-                }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = C.panel)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  {h.kind === "product" ? <Package size={13} color={C.accent} /> : h.kind === "supplier" ? <Building2 size={13} color={C.blue} /> : <Layers size={13} color={C.violet} />}
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: C.text }}>{h.label}</span>
-                    <span style={{ display: "block", fontSize: 10.5, color: C.faint, fontFamily: "monospace" }}>{h.sub}</span>
-                  </span>
-                </button>
-              ))}
+    <div className="flex h-[calc(100vh-73px)] min-h-[760px] flex-col overflow-hidden bg-ink-800 [&_.font-black]:font-bold [&_.font-bold]:font-semibold [&_.font-semibold]:font-medium">
+      <header className="shrink-0 border-b border-ink-700 bg-white px-8 py-5">
+        <div className="flex items-start justify-between gap-6">
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-ink-100">제품별 DPP 공급망 점검</h1>
             </div>
-          )}
-        </div>
-
-        {/* 필터 모드 토글 */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          <ModeTab active={mode === "period"} onClick={() => setMode("period")} icon={Calendar} label="기간 · 고객사" />
-          <ModeTab active={mode === "product"} onClick={() => setMode("product")} icon={Package} label="제품 · BOM 버전" />
-        </div>
-
-        {/* 필터 입력 */}
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", padding: 16, borderRadius: 4, border: `1px solid ${C.line}`, background: C.panel, marginBottom: 20 }}>
-          {mode === "period" ? (
-            <>
-              <SelectBox label="단위기간" icon={Calendar} value={period} onChange={setPeriod} options={PERIODS} placeholder="전체 기간" />
-              <SelectBox label="납품 고객사" icon={Building2} value={customer} onChange={setCustomer} options={CUSTOMERS} placeholder="전체 고객사" />
-            </>
-          ) : (
-            <>
-              <SelectBox label="제품 (모델)" icon={Package} value={model} onChange={setModel} options={MODELS} placeholder="제품 선택" />
-              <SelectBox
-                label="BOM 버전"
-                icon={GitBranch}
-                value={version}
-                onChange={setVersion}
-                options={model ? versionsOfModel(model) : []}
-                placeholder={model ? "전체 버전" : "먼저 제품 선택"}
-                disabled={!model}
-              />
-            </>
-          )}
-        </div>
-
-        {/* 결과 */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <span style={{ fontSize: 12, color: C.sub }}>
-            검색 결과 <b style={{ color: C.text }}>{results.length}</b>건
-          </span>
-        </div>
-
-        {results.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center", color: C.faint, fontSize: 13, border: `1px dashed ${C.line}`, borderRadius: 4 }}>
-            {mode === "product" && !model ? "제품을 먼저 선택하세요" : "조건에 맞는 제품이 없습니다"}
+            <p className="max-w-4xl text-sm leading-6 text-ink-500">
+              제품과 1차 조달 품목을 기준으로 상위 구성품, 핵심 소재, 원산지 리스크를 따라가며 DPP 제출 병목과 다음 조치를 확인합니다.
+            </p>
+            <ProductWorkspaceActions product={selectedProduct} expansion={selectedExpansionStatus} />
           </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {results.map((i) => (
-              <ResultRow key={i.serial} inst={i} onClick={() => setSelected(i)} />
+          <div className="flex shrink-0 items-center gap-2">
+            <Link href="/supply-chain/request-map" className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-sm font-semibold text-ink-300 hover:bg-ink-800">
+              <Send className="h-4 w-4" />
+              요청 현황
+            </Link>
+            <Link href="/products" className="inline-flex items-center gap-1.5 rounded-xs border border-accent-100 bg-accent-50 px-3 py-2 text-sm font-semibold text-accent-700 hover:bg-accent-100">
+              <Box className="h-4 w-4" />
+              제품 목록
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <main className="grid min-h-0 flex-1 grid-cols-[352px_367px_minmax(500px,1fr)_362px] overflow-hidden">
+        <aside className="flex min-h-0 min-w-0 flex-col border-r border-ink-700 bg-white p-4">
+          <PanelTitle
+            eyebrow="1"
+            title="제품 공급사 선택"
+            meta={`${suppliers.length}개사`}
+          />
+          <div className="relative mb-3 shrink-0">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-500" />
+            <input
+              value={supplierQuery}
+              onChange={event => setSupplierQuery(event.target.value)}
+              className="w-full rounded-xs border border-ink-700 bg-white py-2.5 pl-9 pr-3 text-sm text-ink-200 outline-none transition-colors placeholder:text-ink-500 focus:border-accent-500"
+              placeholder="협력사명, ID, 역할 검색"
+            />
+          </div>
+          <div className="mb-4 grid grid-cols-3 gap-2">
+            <MetricCard label="협력사" value={suppliers.length} />
+            <MetricCard label="조달품목" value={products.length} />
+            <MetricCard label="병목" value={suppliers.reduce((sum, supplier) => sum + supplier.riskCount, 0)} tone="alert" />
+          </div>
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            {searchedSuppliers.map(supplier => (
+              <button
+                key={supplier.id}
+                onClick={() => handleSupplierSelect(supplier.id)}
+                className={clsx(
+                  'w-full rounded-sm border p-3 text-left transition-all hover:border-accent-300 hover:bg-accent-50/40',
+                  supplier.id === selectedSupplier.id
+                    ? 'border-accent-500 bg-accent-50 text-accent-900 shadow-control'
+                    : 'border-ink-700 bg-white text-ink-200',
+                )}
+              >
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-bold">{supplier.name}</div>
+                    <div className="mt-1 text-xs text-ink-500">{supplier.id} · {supplier.role}</div>
+                  </div>
+                  <span className={clsx('rounded-full border px-2 py-0.5 text-xs font-bold', supplier.riskCount > 0 ? riskMeta.medium.badge : riskMeta.low.badge)}>
+                    {supplier.riskCount > 0 ? '확인 필요' : '정상'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs text-ink-500">
+                  <span>{supplier.country} · 품목 {supplier.itemCount}</span>
+                  <span className="font-semibold text-ink-300">DPP {supplier.readiness}%</span>
+                </div>
+              </button>
             ))}
           </div>
-        )}
-      </div>
+        </aside>
 
-      {navTarget && <SupplierDetailModal target={navTarget} onClose={() => setNavTarget(null)} />}
+        <aside className="flex min-h-0 min-w-0 flex-col border-r border-ink-700 bg-white p-4">
+          <PanelTitle
+            eyebrow="2"
+            title="조달 품목 선택"
+            meta={selectedSupplier.id}
+          />
+          <div className="mb-4 rounded-sm border border-ink-700 bg-white p-4">
+            <div className="text-base font-bold text-ink-100">{selectedSupplier.name}</div>
+            <div className="mt-1 text-sm text-ink-500">{selectedSupplier.role} · {selectedSupplier.country}</div>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+              <MetricCard label="품목" value={selectedSupplier.itemCount} compact />
+              <MetricCard label="병목" value={selectedSupplier.riskCount} tone={selectedSupplier.riskCount > 0 ? 'alert' : 'ok'} compact />
+              <MetricCard label="준비율" value={`${selectedSupplier.readiness}%`} tone="ok" compact />
+            </div>
+          </div>
+          <div className="mb-3 flex gap-2">
+            <FilterButton active={productFilter === 'all'} onClick={() => setProductFilter('all')}>전체</FilterButton>
+            <FilterButton active={productFilter === 'risk'} onClick={() => setProductFilter('risk')}>병목</FilterButton>
+            <FilterButton active={productFilter === 'ready'} onClick={() => setProductFilter('ready')}>DPP 완료</FilterButton>
+          </div>
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            {filteredProducts.map(product => (
+              <button
+                key={product.id}
+                onClick={() => handleProductSelect(product.id)}
+                className={clsx(
+                  'w-full rounded-sm border p-3 text-left transition-all hover:border-accent-300 hover:bg-accent-50/40',
+                  product.id === selectedProduct.id
+                    ? 'border-accent-500 bg-accent-50 shadow-control'
+                    : 'border-ink-700 bg-white',
+                )}
+              >
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-bold text-ink-100">{product.name}</div>
+                    <div className="mt-1 text-xs text-ink-500">{product.code} · {product.category}</div>
+                  </div>
+                  <span className={clsx('rounded-full border px-2 py-0.5 text-xs font-bold', product.dppStatus === 'ready' ? riskMeta.low.badge : riskMeta.medium.badge)}>
+                    {product.dppStatus === 'ready' ? 'DPP 완료' : '보완 필요'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-ink-700">
+                    <div
+                      className={clsx('h-full rounded-full', product.readiness >= 90 ? 'bg-emerald-600' : product.readiness >= 80 ? 'bg-amber-500' : 'bg-red-500')}
+                      style={{ width: `${product.readiness}%` }}
+                    />
+                  </div>
+                  <span className="num-mono text-xs font-bold text-ink-300">{product.readiness}%</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-ink-500">
+                  <span>담당 {product.owner}</span>
+                  <span className={product.riskCount > 0 ? 'font-semibold text-red-600' : 'text-emerald-700'}>
+                    병목 {product.riskCount}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-ink-700 bg-white p-4">
+          <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-xs bg-accent-50 text-sm font-bold text-accent-700">3</span>
+                <h2 className="text-xl font-bold text-ink-100">상위 공급망 흐름</h2>
+              </div>
+              <p className="mt-1 text-sm text-ink-500">{selectedProduct.name}의 DPP 제출에 연결된 소재·원산지 병목을 추적합니다.</p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <FilterButton active={viewMode === 'critical'} onClick={() => setViewMode('critical')}>핵심 병목</FilterButton>
+              <FilterButton active={viewMode === 'all'} onClick={() => setViewMode('all')}>전체 흐름</FilterButton>
+            </div>
+          </div>
+
+          <div className="mb-4 grid shrink-0 grid-cols-4 gap-2">
+            <Kpi label="추적 노드" value={kpis.stages} icon={Layers} />
+            <Kpi label="병목" value={kpis.blocked} icon={ShieldAlert} tone="alert" />
+            <Kpi label="확인 필요" value={kpis.review} icon={Clock} tone="warn" />
+            <Kpi label="DPP 준비율" value={`${kpis.readiness}%`} icon={PackageCheck} tone={kpis.readiness >= 90 ? 'ok' : 'warn'} />
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-sm border border-ink-700 bg-white p-4 shadow-control">
+            <FlowMap
+              nodes={visibleNodes}
+              selectedNodeId={selectedNode.id}
+              onSelect={setSelectedNodeId}
+            />
+          </div>
+        </section>
+
+        <aside className="flex min-h-0 min-w-0 flex-col bg-white p-4">
+          <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-xs bg-accent-50 text-sm font-bold text-accent-700">4</span>
+              <h2 className="text-lg font-bold text-ink-100">선택 노드 리스크</h2>
+            </div>
+            <span className={clsx('rounded-full border px-2 py-1 text-xs font-bold', riskMeta[selectedNode.riskLevel].badge)}>
+              {riskMeta[selectedNode.riskLevel].label}
+            </span>
+          </div>
+
+          <RiskPanel node={selectedNode} />
+        </aside>
+      </main>
     </div>
   );
 }
 
-function ResultRow({ inst, onClick }) {
-  const sm = statusMeta[inst.dppStatus] ?? statusMeta.pending;
+function PanelTitle({ eyebrow, title, meta }: { eyebrow: string; title: string; meta: string }) {
   return (
-    <button onClick={onClick} style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, width: "100%", textAlign: "left",
-      padding: 16, borderRadius: 5, border: `1px solid ${C.line}`, background: C.panelSoft, cursor: "pointer", transition: "all .15s",
-    }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = C.accentLine)}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.line)}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Package size={15} color={C.accent} />
-          <span style={{ fontSize: 14, fontWeight: 700 }}>{inst.model}</span>
-          <Pill color={C.violet} icon={GitBranch}>BOM {inst.bom}</Pill>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 11, color: C.sub }}>
-          <Meta icon={Hash} mono>{inst.serial}</Meta>
-          <Meta icon={Calendar}>{inst.period}</Meta>
-          <Meta icon={Building2}>{inst.customer}</Meta>
-          <Meta icon={Truck}>{inst.dest} 납품</Meta>
-        </div>
+    <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <span className="flex h-6 w-6 items-center justify-center rounded-xs bg-accent-50 text-sm font-bold text-accent-700">{eyebrow}</span>
+        <h2 className="text-base font-bold text-ink-100">{title}</h2>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, color: sm.color }}>
-          <sm.Icon size={13} /> {sm.label}
-        </span>
-        <ChevronRight size={16} color={C.faint} />
-      </div>
-    </button>
+      <span className="num-mono text-xs font-semibold text-ink-500">{meta}</span>
+    </div>
   );
 }
 
-// ── 인스턴스 상세 + 버전 BOM 전개 ─────────────────────────
-function InstanceDetail({ inst, onBack, onNavigate }) {
-  const sm = statusMeta[inst.dppStatus] ?? statusMeta.pending;
-
-  // 버전별 자재 소싱 + 팩(PRT-001)의 자사 생산 소싱 합성
-  // 자사도 "언제(period)·어느 공장·몇 %" 생산했는지 표시 (build 배열)
-  const sourcing = useMemo(() => {
-    const base = { ...(SOURCING[inst.bom] ?? {}) };
-    const build = inst.build ?? [{ fac: inst.facId, pct: 100 }];
-    base[inst.rootPart] = build.map((b) => ({ sup: "S-CELL-001", fac: b.fac, pct: b.pct, self: true }));
-    return base;
-  }, [inst.bom, inst.serial]);
-
-  // 이 버전에 실제 존재하는 노드만 (자재 구성이 버전마다 다를 수 있음)
-  const activeParts = useMemo(() => {
-    const present = new Set(Object.keys(sourcing));
-    // 소싱 명시 노드 + 그 조상(구조 노드)까지 포함
-    const keep = new Set(present);
-    let added = true;
-    while (added) {
-      added = false;
-      PARTS.forEach((p) => {
-        if (keep.has(p.id) && p.parent && !keep.has(p.parent)) { keep.add(p.parent); added = true; }
-      });
-    }
-    return PARTS.filter((p) => keep.has(p.id));
-  }, [sourcing]);
-
-  // 버전별 구성비 오버라이드 적용
-  const compOf = (p) => {
-    const ov = COMP_OVERRIDE[inst.bom]?.[p.id];
-    return ov != null ? ov : p.comp;
-  };
-  const childrenOf = (id) => activeParts.filter((p) => p.parent === id);
-  const root = activeParts.find((p) => p.parent === null);
-
+function ProductWorkspaceActions({ product, expansion }: { product: ProductOption; expansion: ExpansionStatus }) {
   return (
-    <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", background: C.bg, color: C.text, borderRadius: 6, padding: 24, minHeight: 600 }}>
-      <button onClick={onBack} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 18, padding: "7px 13px", borderRadius: 4, border: `1px solid ${C.line}`, background: C.panelSoft, color: C.sub, fontSize: 12, cursor: "pointer" }}>
-        <ArrowLeft size={14} /> 검색 결과로
-      </button>
-
-      {/* 제품 식별 카드 */}
-      <div style={{ padding: 20, borderRadius: 6, border: `1px solid ${C.lineSoft}`, background: C.panelSoft, marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-          <Package size={18} color={C.accent} />
-          <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800 }}>{inst.model}</h2>
-          <Pill color={C.violet} icon={GitBranch}>BOM {inst.bom}</Pill>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: sm.color, marginLeft: "auto" }}>
-            <sm.Icon size={14} /> {sm.label}{inst.dppId ? ` · ${inst.dppId}` : ""}
+    <div className="mt-4 rounded-sm border border-ink-700 bg-ink-800 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-bold text-ink-500">공급망 생성 및 확장 워크스페이스</div>
+          <div className="mt-1 truncate text-sm font-bold text-ink-100">{product.name} · {product.code}</div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="inline-flex items-center gap-1.5 rounded-xs border border-accent-700 bg-accent-700 px-3 py-2 text-xs font-bold text-white hover:bg-accent-600">
+            <Box className="h-3.5 w-3.5" />
+            맵 생성
+          </button>
+          <button className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-300 hover:bg-white/90">
+            <Send className="h-3.5 w-3.5" />
+            공급망 요청 발송
+          </button>
+          <span className="inline-flex items-center gap-1.5 rounded-xs border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+            <Target className="h-3.5 w-3.5" />
+            공급망 완성도 {expansion.completeness}%
           </span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
-          <KV icon={Hash}      label="시리얼" value={inst.serial} mono />
-          <KV icon={Calendar}  label="단위기간" value={inst.period} />
-          <KV icon={Building2} label="납품 고객사" value={inst.customer} />
-          <KV icon={Truck}     label="납품처" value={`${inst.dest}`} />
-          <KV icon={Factory}   label="생산 공장" value={inst.facId} />
-        </div>
       </div>
-
-      {/* BOM 전개 헤더 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <Layers size={16} color={C.accent} />
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>BOM 기준정보 전개 · {inst.bom}</h3>
-      </div>
-      <p style={{ margin: "0 0 14px", fontSize: 11.5, color: C.faint }}>
-        구성비 = 상위 부품 대비 함량 % · 소싱 = 그 자재를 어느 협력사·공장에서 몇 %씩 조달했는지 (버전 고정)
-      </p>
-
-      {/* BOM 트리 */}
-      <div style={{ border: `1px solid ${C.lineSoft}`, borderRadius: 6, background: C.panelSoft, padding: 8 }}>
-        {root && <BomNode node={root} depth={0} childrenOf={childrenOf} sourcing={sourcing} compOf={compOf} onNavigate={onNavigate} period={inst.period} />}
-      </div>
-    </div>
-  );
-}
-
-function BomNode({ node, depth, childrenOf, sourcing, compOf, onNavigate, period }) {
-  const [open, setOpen] = useState(true);
-  const kids = childrenOf(node.id);
-  const src = sourcing[node.id];
-  const hasKids = kids.length > 0;
-  const comp = compOf(node);
-
-  // 광물(T5) 형제들의 조성 — 부모 전구체/양극재 안에서의 함량 비교
-  const mineralKids = kids.filter((k) => k.tier === 5);
-  const compColor = (v) => (v >= 50 ? C.accent : v >= 15 ? C.blue : C.amber);
-
-  return (
-    <div>
-      <div style={{
-        display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px", marginLeft: depth * 20,
-        borderRadius: 4, background: depth === 0 ? C.accentDim : "transparent",
-        borderLeft: depth > 0 ? `2px solid ${C.lineSoft}` : "none",
-      }}>
-        <button onClick={() => hasKids && setOpen(!open)} style={{ background: "none", border: "none", cursor: hasKids ? "pointer" : "default", color: C.faint, padding: 0, marginTop: 2, width: 16 }}>
-          {hasKids ? (open ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span style={{ display: "inline-block", width: 14 }} />}
-        </button>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{node.name}</span>
-            <span style={{ fontSize: 10, fontFamily: "monospace", color: C.faint }}>{node.code}</span>
-            <Pill color={C.blue} small>T{node.tier}</Pill>
-            {comp != null && (
-              <Pill color={C.violet} small icon={Percent}>상위 대비 {comp}%</Pill>
-            )}
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        <ExpansionMetric label="Tier1 등록" done={expansion.tier1Registered} total={expansion.tier1Total} />
+        <ExpansionMetric label="Tier2 등록" done={expansion.tier2Registered} total={expansion.tier2Total} />
+        <ExpansionMetric label="Tier3 등록" done={expansion.tier3Registered} total={expansion.tier3Total} />
+        <div className="rounded-xs border border-ink-700 bg-white p-2">
+          <div className="mb-1 flex items-center justify-between text-xs">
+            <span className="font-bold text-ink-500">확장 현황</span>
+            <span className="num-mono font-bold text-accent-700">{expansion.completeness}%</span>
           </div>
-
-          {/* 광물 구성비 — 자식이 광물일 때 부모 노드에 조성 막대 표시 */}
-          {mineralKids.length > 0 && (
-            <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 4, background: C.bg, border: `1px solid ${C.lineSoft}` }}>
-              <div style={{ fontSize: 9.5, letterSpacing: 0.5, textTransform: "uppercase", color: C.faint, marginBottom: 6 }}>
-                광물 구성비 (이 부품 100 기준)
-              </div>
-              {/* 누적 막대 */}
-              <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 7 }}>
-                {mineralKids.map((m) => (
-                  <span key={m.id} title={`${m.name} ${compOf(m)}%`} style={{ width: `${compOf(m)}%`, background: compColor(compOf(m)) }} />
-                ))}
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                {mineralKids.map((m) => (
-                  <span key={m.id} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: C.sub }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 2, background: compColor(compOf(m)) }} />
-                    {m.name} <b style={{ fontFamily: "monospace", color: compColor(compOf(m)) }}>{compOf(m)}%</b>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 소싱 행 — 자사 생산 / 광산(운영사 보고) / 일반 협력사 구분 */}
-          {src && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-              {src.map((s, idx) => {
-                const isSelf = s.self || s.sup === "S-CELL-001";
-                const mineOp = MINE_OPERATORS[s.sup]; // 광산이면 운영사 정보
-                const tone = isSelf ? C.accentLine : mineOp ? C.amber : C.blue;
-                const displayName = isSelf
-                  ? "한양셀 (자사 생산)"
-                  : mineOp
-                  ? mineOp.operator
-                  : (SUP[s.sup] ?? s.sup);
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => onNavigate?.(s.sup, s.fac)}
-                    title={isSelf ? "자사 생산 상세" : mineOp ? `${mineOp.operator} (데이터 보고 주체) 상세` : `${SUP[s.sup] ?? s.sup} 상세`}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11, width: "100%", textAlign: "left",
-                      padding: "6px 8px", borderRadius: 4, background: isSelf ? C.accentDim : "transparent",
-                      border: `1px solid ${isSelf ? C.accent + "40" : C.lineSoft}`,
-                      color: C.sub, cursor: "pointer", transition: "all .15s",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = isSelf ? C.accentDim : C.blueDim; e.currentTarget.style.borderColor = tone; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = isSelf ? C.accentDim : "transparent"; e.currentTarget.style.borderColor = isSelf ? C.accent + "40" : C.lineSoft; }}
-                  >
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: tone, fontWeight: 600, minWidth: 200 }}>
-                      <Building2 size={12} /> {displayName}
-                    </span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: C.sub }}>
-                      <MapPin size={12} color={C.faint} /> {FAC[s.fac] ?? s.fac}
-                    </span>
-                    {/* 자사: 생산기간 / 광산: 데이터 보고 주체 뱃지 */}
-                    {isSelf && period && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9.5, color: C.accentLine }}>
-                        <Calendar size={10} /> {period} 생산
-                      </span>
-                    )}
-                    {mineOp && (
-                      <span style={{ fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 4, color: C.amber, background: C.amber + "14", border: `1px solid ${C.amber}40` }}>
-                        데이터 보고 주체
-                      </span>
-                    )}
-                    <span style={{ display: "flex", alignItems: "center", gap: 7, marginLeft: "auto" }}>
-                      <span style={{ fontSize: 9, color: C.faint }}>{isSelf ? "생산" : "조달"}</span>
-                      <span style={{ width: 80, height: 6, borderRadius: 3, background: C.line, overflow: "hidden" }}>
-                        <span style={{ display: "block", height: "100%", width: `${s.pct}%`, background: s.pct >= 60 ? C.accent : tone }} />
-                      </span>
-                      <span style={{ fontFamily: "monospace", fontWeight: 700, color: s.pct >= 60 ? C.accent : tone, minWidth: 36, textAlign: "right" }}>{s.pct}%</span>
-                      <ChevronRight size={13} color={C.faint} />
-                    </span>
-                  </button>
-                );
-              })}
-              {src.length > 1 && (
-                <span style={{ fontSize: 10, color: C.faint, alignSelf: "flex-end" }}>
-                  {(src[0].self || src[0].sup === "S-CELL-001") ? `${src.length}개 공장 분할 생산` : `${src.length}개 소스 멀티소싱`} · 합 {src.reduce((a, b) => a + b.pct, 0)}%
-                </span>
-              )}
-              {/* 광산 운영사 안내 (해당 노드에 광산이 있을 때) */}
-              {src.some((s) => MINE_OPERATORS[s.sup]) && (
-                <span style={{ fontSize: 9.5, color: C.faint, alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <AlertCircle size={10} /> 광산은 자체 사이트가 없어 운영사가 원산지·실사 데이터를 대리 보고합니다
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {open && kids.map((k) => (
-        <BomNode key={k.id} node={k} depth={depth + 1} childrenOf={childrenOf} sourcing={sourcing} compOf={compOf} onNavigate={onNavigate} period={period} />
-      ))}
-    </div>
-  );
-}
-
-// ── 협력사 상세 팝업 (기존 product-map DetailPanel → 모달) ──
-const RISK_META = {
-  low:      { label: "저위험", color: C.accent },
-  medium:   { label: "중위험", color: C.amber },
-  high:     { label: "고위험", color: C.red },
-  critical: { label: "최고위험", color: C.red },
-};
-const FEOC_META = {
-  eligible:     { label: "적격", color: C.accent },
-  ineligible:   { label: "부적격", color: C.red },
-  under_review: { label: "검토 중", color: C.amber },
-  unknown:      { label: "미파악", color: C.faint },
-};
-const COUNTRY_COLOR = { CN: C.red, KR: C.blue, JP: C.violet };
-
-function SupplierDetailModal({ target, onClose }) {
-  const [tab, setTab] = useState("overview");
-  const d = SUP_DETAIL[target.supId];
-  if (!d) return null;
-  const rm = RISK_META[d.riskLevel];
-  const fm = FEOC_META[d.feoc];
-  const cc = COUNTRY_COLOR[d.country] ?? C.faint;
-  const mineOp = MINE_OPERATORS[target.supId]; // 광산이면 운영사(데이터 보고 주체)
-
-  const tabs = [
-    { key: "overview", label: "개요", icon: Activity },
-    { key: "contacts", label: "담당자", icon: Users },
-    { key: "factory", label: "공장", icon: Factory },
-    { key: "risk", label: "리스크", icon: ShieldAlert },
-    { key: "regs", label: "규제", icon: ScrollText },
-  ];
-
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000000aa", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        width: "100%", maxWidth: 480, maxHeight: "88vh", display: "flex", flexDirection: "column",
-        background: C.panel, border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden",
-      }}>
-        {/* 헤더 */}
-        <div style={{ padding: "16px 18px", borderBottom: `1px solid ${C.line}`, background: C.panelSoft, flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6, flexWrap: "wrap" }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: d.status === "verified" ? C.accent : d.status === "violation" ? C.red : d.status === "review" ? C.amber : C.blue }} />
-                <span style={{ fontSize: 10, fontFamily: "monospace", color: C.faint }}>{target.supId}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4, color: cc, background: `${cc}1A`, border: `1px solid ${cc}40` }}>{d.country}</span>
-                {d.isSelf && <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4, color: C.accentLine, background: C.accentDim, border: `1px solid ${C.accent}40` }}>자사</span>}
-              </div>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.text }}>{d.nameEn}</h3>
-              <div style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>{d.nameKo} · {d.role} · {d.region}</div>
-              {mineOp && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, padding: "6px 10px", borderRadius: 4, background: C.amber + "12", border: `1px solid ${C.amber}40` }}>
-                  <AlertCircle size={13} color={C.amber} style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 10.5, color: C.amber, lineHeight: 1.4 }}>
-                    데이터 보고 주체: <b>{mineOp.operator}</b> · 광산 자체 사이트 없음, 운영사가 원산지·실사 데이터 대리 제출
-                  </span>
-                </div>
-              )}
-            </div>
-            <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 4, border: `1px solid ${C.line}`, background: "transparent", color: C.faint, cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
+          <div className="h-2 overflow-hidden rounded-full bg-ink-700">
+            <div className="h-full rounded-full bg-accent-700" style={{ width: `${expansion.completeness}%` }} />
           </div>
         </div>
-
-        {/* 탭 */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "8px 14px", borderBottom: `1px solid ${C.line}`, background: C.bg, flexShrink: 0 }}>
-          {tabs.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)} style={{
-              display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer",
-              border: `1px solid ${tab === t.key ? C.accentLine : "transparent"}`, background: tab === t.key ? C.accentDim : "transparent", color: tab === t.key ? C.accent : C.sub,
-            }}>
-              <t.icon size={12} /> {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* 콘텐츠 */}
-        <div style={{ flex: 1, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 16 }}>
-          {tab === "overview" && (
-            <>
-              <PSection title="데이터 완성도">
-                <Bar pct={d.completeness} />
-                {d.missing.slice(0, 3).map((m) => (
-                  <div key={m} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: C.amber, marginTop: 5 }}>
-                    <AlertCircle size={11} /> {m}
-                  </div>
-                ))}
-              </PSection>
-              <PSection title="리스크 요약">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: rm.color }}>{rm.label}</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ width: 90, height: 6, background: C.line, borderRadius: 3, overflow: "hidden" }}>
-                      <span style={{ display: "block", height: "100%", width: `${d.riskScore}%`, background: rm.color }} />
-                    </span>
-                    <span style={{ fontSize: 11, fontFamily: "monospace", color: C.sub }}>{d.riskScore}/100</span>
-                  </span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, padding: "6px 10px", borderRadius: 6, border: `1px solid ${fm.color}40`, background: `${fm.color}10` }}>
-                  <span style={{ fontSize: 11, color: C.sub }}>FEOC</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: fm.color }}>{fm.label}</span>
-                </div>
-              </PSection>
-              <PSection title="거래 현황">
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Stat value={d.outPO} label="납품 PO" />
-                  <Stat value={d.inPO} label="수신 PO" />
-                  <Stat value={d.carbon} label="kgCO₂/kg" color={d.carbon > 40 ? C.red : d.carbon > 20 ? C.amber : C.accent} />
-                </div>
-              </PSection>
-              {d.certs.length > 0 && (
-                <PSection title={`인증서 (${d.certs.length}건)`}>
-                  {d.certs.map((c) => (
-                    <div key={c.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", borderRadius: 6, marginTop: 4, border: `1px solid ${c.status === "expiring_soon" ? C.amber + "40" : C.lineSoft}`, background: c.status === "expiring_soon" ? C.amber + "10" : C.bg }}>
-                      <span style={{ fontSize: 11.5, color: C.text }}>{c.name}</span>
-                      <span style={{ fontSize: 10, fontFamily: "monospace", color: c.status === "active" ? C.accent : C.amber }}>{c.status === "active" ? "유효" : "만료임박"}</span>
-                    </div>
-                  ))}
-                </PSection>
-              )}
-            </>
-          )}
-
-          {tab === "contacts" && (
-            <PSection title="담당자 연락처">
-              {d.contacts.map((c, i) => (
-                <div key={i} style={{ padding: 12, borderRadius: 4, marginTop: i ? 8 : 0, border: `1px solid ${c.primary ? C.accentLine : C.lineSoft}`, background: c.primary ? C.accentDim : C.bg }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{c.name}</span>
-                    {c.primary && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, color: C.accent, background: C.accentDim }}>주담당</span>}
-                  </div>
-                  <div style={{ fontSize: 11, color: C.sub, marginTop: 3 }}>{c.role}</div>
-                  {c.email && <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.blue, marginTop: 6 }}><Mail size={12} /> {c.email}</div>}
-                  {c.phone && <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.sub, marginTop: 3 }}><Phone size={12} color={C.faint} /> {c.phone}</div>}
-                </div>
-              ))}
-            </PSection>
-          )}
-
-          {tab === "factory" && (
-            <PSection title="공장·사업장">
-              {d.factories.map((f) => (
-                <div key={f.id} style={{ padding: 12, borderRadius: 4, marginTop: 8, border: `1px solid ${C.lineSoft}`, background: C.bg }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{f.name}</span>
-                    <span style={{ fontSize: 10, fontFamily: "monospace", color: C.faint }}>{f.id}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.sub, marginTop: 4 }}><MapPin size={12} color={C.faint} /> {f.addr}</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
-                    {f.regs.map((r) => <RegPill key={r} reg={r} />)}
-                    <span style={{ fontSize: 9.5, padding: "2px 7px", borderRadius: 4, color: C.blue, background: C.blueDim, border: `1px solid ${C.blue}40` }}>{f.dest} 납품</span>
-                  </div>
-                </div>
-              ))}
-            </PSection>
-          )}
-
-          {tab === "risk" && (
-            <>
-              <PSection title="종합 리스크">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: rm.color }}>{rm.label}</span>
-                  <span style={{ fontSize: 13, fontFamily: "monospace", color: C.sub }}>{d.riskScore}/100</span>
-                </div>
-                <Bar pct={d.riskScore} danger />
-              </PSection>
-              {d.highRisk.length > 0 && (
-                <PSection title="주요 리스크 사유">
-                  {d.highRisk.map((r) => (
-                    <div key={r} style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 11.5, color: C.red, marginTop: 5 }}>
-                      <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} /> {r}
-                    </div>
-                  ))}
-                </PSection>
-              )}
-              <PSection title="FEOC 자격">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 4, border: `1px solid ${fm.color}40`, background: `${fm.color}10` }}>
-                  <span style={{ fontSize: 12, color: C.sub }}>IRA/FEOC 판정</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: fm.color }}>{fm.label}</span>
-                </div>
-              </PSection>
-            </>
-          )}
-
-          {tab === "regs" && (
-            <PSection title="적용 규제">
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {d.regs.map((r) => <RegPill key={r} reg={r} big />)}
-              </div>
-            </PSection>
-          )}
-        </div>
-
-        {/* 푸터: 실제 앱에선 전체 페이지로 */}
-        <div style={{ padding: 14, borderTop: `1px solid ${C.line}`, background: C.panelSoft, flexShrink: 0 }}>
-          <button onClick={onClose} style={{
-            width: "100%", padding: "10px", borderRadius: 4, border: `1px solid ${C.line}`, background: C.bg, color: C.sub,
-            fontSize: 12, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}>
-            <ChevronRight size={14} /> 협력사 전체 페이지 열기 (/suppliers/{target.supId})
-          </button>
-        </div>
       </div>
     </div>
   );
 }
 
-function PSection({ title, children }) {
+function ExpansionMetric({ label, done, total }: { label: string; done: number; total: number }) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
-    <div>
-      <div style={{ fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: C.faint, marginBottom: 8, fontWeight: 600 }}>{title}</div>
+    <div className="rounded-xs border border-ink-700 bg-white p-2">
+      <div className="mb-1 flex items-center justify-between text-xs">
+        <span className="font-bold text-ink-500">{label}</span>
+        <span className="num-mono font-bold text-ink-100">{done} / {total}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-ink-700">
+        <div className={clsx('h-full rounded-full', pct >= 100 ? 'bg-emerald-600' : pct > 0 ? 'bg-amber-500' : 'bg-red-500')} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  tone = 'neutral',
+  compact,
+}: {
+  label: string;
+  value: number | string;
+  tone?: 'neutral' | 'ok' | 'alert';
+  compact?: boolean;
+}) {
+  return (
+    <div className={clsx(
+      'rounded-sm border p-2 text-center',
+      tone === 'alert' ? 'border-red-100 bg-red-50' : tone === 'ok' ? 'border-emerald-100 bg-emerald-50' : 'border-ink-700 bg-ink-800',
+    )}>
+      <div className={clsx('num-mono font-bold', compact ? 'text-base' : 'text-xl', tone === 'alert' ? 'text-red-700' : tone === 'ok' ? 'text-emerald-700' : 'text-ink-100')}>
+        {value}
+      </div>
+      <div className={clsx('mt-0.5 text-xs', tone === 'alert' ? 'text-red-500' : tone === 'ok' ? 'text-emerald-700' : 'text-ink-500')}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function FilterButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={clsx(
+        'inline-flex min-w-[88px] items-center justify-center gap-1.5 whitespace-nowrap rounded-xs border px-3 py-2 text-xs font-bold transition-colors',
+        active
+          ? 'border-ink-100 bg-ink-100 text-white'
+          : 'border-ink-700 bg-white text-ink-400 hover:bg-ink-800 hover:text-ink-100',
+      )}
+    >
+      <Filter className="h-3 w-3 shrink-0" />
       {children}
-    </div>
-  );
-}
-function Bar({ pct, danger }: any) {
-  const col = danger
-    ? (pct >= 70 ? C.red : pct >= 40 ? C.amber : C.accent)
-    : (pct >= 90 ? C.accent : pct >= 70 ? C.amber : C.red);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ flex: 1, height: 7, background: C.line, borderRadius: 4, overflow: "hidden" }}>
-        <span style={{ display: "block", height: "100%", width: `${pct}%`, background: col }} />
-      </span>
-      <span style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: col }}>{pct}%</span>
-    </div>
-  );
-}
-function Stat({ value, label, color }: any) {
-  return (
-    <div style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: 4, border: `1px solid ${C.lineSoft}`, background: C.bg }}>
-      <div style={{ fontSize: 17, fontWeight: 800, fontFamily: "monospace", color: color ?? C.text }}>{value}</div>
-      <div style={{ fontSize: 9.5, color: C.faint, marginTop: 2 }}>{label}</div>
-    </div>
-  );
-}
-function RegPill({ reg, big }: any) {
-  return (
-    <span style={{ fontSize: big ? 11 : 9.5, fontWeight: 600, padding: big ? "4px 10px" : "2px 7px", borderRadius: 5, color: C.violet, background: `${C.violet}1A`, border: `1px solid ${C.violet}40` }}>
-      {REG_LABEL[reg] ?? reg}
-    </span>
-  );
-}
-
-// ── 작은 UI 유틸 ───────────────────────────────────────────
-function ModeTab({ active, onClick, icon: Icon, label }) {
-  return (
-    <button onClick={onClick} style={{
-      display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 15px", borderRadius: 5, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-      border: `1px solid ${active ? C.accentLine : C.line}`, background: active ? C.accentDim : "transparent", color: active ? C.accent : C.sub,
-    }}>
-      <Icon size={14} /> {label}
     </button>
   );
 }
-function SelectBox({ label, icon: Icon, value, onChange, options, placeholder, disabled }: any) {
+
+function Kpi({
+  label,
+  value,
+  icon: Icon,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: number | string;
+  icon: typeof Layers;
+  tone?: 'neutral' | 'warn' | 'alert' | 'ok';
+}) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 200, opacity: disabled ? 0.55 : 1 }}>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: C.faint }}>
-        <Icon size={12} /> {label}
-      </span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} style={{
-        padding: "10px 12px", borderRadius: 4, border: `1px solid ${value ? C.accentLine : C.line}`,
-        background: C.bg, color: value ? C.text : C.faint, fontSize: 13, outline: "none", cursor: disabled ? "not-allowed" : "pointer",
-      }}>
-        <option value="">{placeholder}</option>
-        {options.map((o) => <option key={o} value={o} style={{ color: "#000" }}>{o}</option>)}
-      </select>
-    </label>
-  );
-}
-function Meta({ icon: Icon, children, mono }: any) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: mono ? "monospace" : "inherit" }}>
-      <Icon size={11} color={C.faint} /> {children}
-    </span>
-  );
-}
-function Pill({ children, color, icon: Icon, small }: any) {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 4, padding: small ? "1px 6px" : "2px 8px",
-      borderRadius: 5, fontSize: small ? 9.5 : 10.5, fontWeight: 700, color, background: `${color}1A`, border: `1px solid ${color}40`,
-    }}>
-      {Icon && <Icon size={10} />} {children}
-    </span>
-  );
-}
-function KV({ icon: Icon, label, value, mono }: any) {
-  return (
-    <div>
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: C.faint, marginBottom: 4 }}>
-        <Icon size={11} /> {label}
+    <div className="rounded-sm border border-ink-700 bg-white p-3">
+      <div className="mb-2 flex items-center justify-between gap-2 text-xs text-ink-500">
+        <span className="whitespace-nowrap">{label}</span>
+        <Icon className="h-4 w-4" />
       </div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: mono ? "monospace" : "inherit" }}>{value}</div>
+      <div className={clsx(
+        'num-mono text-2xl font-bold',
+        tone === 'alert' && 'text-red-700',
+        tone === 'warn' && 'text-amber-700',
+        tone === 'ok' && 'text-emerald-700',
+        tone === 'neutral' && 'text-ink-100',
+      )}>
+        {value}
+      </div>
     </div>
+  );
+}
+
+function FlowMap({
+  nodes,
+  selectedNodeId,
+  onSelect,
+}: {
+  nodes: SupplyNode[];
+  selectedNodeId: string;
+  onSelect: (nodeId: string) => void;
+}) {
+  const grouped = (['product', 'component', 'material', 'origin'] as SupplyNode['stage'][]).map(stage => ({
+    stage,
+    nodes: nodes.filter(node => node.stage === stage),
+  })).filter(group => group.nodes.length > 0);
+
+  return (
+    <div className="w-full">
+      <div className="space-y-3">
+        {grouped.map((group, groupIndex) => {
+          const meta = stageMeta[group.stage];
+          return (
+            <div key={group.stage} className="relative">
+              {groupIndex > 0 && (
+                <div className="mx-auto mb-2 h-4 w-px bg-ink-600" />
+              )}
+              <div className={clsx('mx-auto mb-2 max-w-[220px] rounded-sm border px-2 py-1.5 text-center text-sm font-bold', meta.bg, meta.border, meta.accent)}>
+                {meta.label}
+              </div>
+              <div className={clsx(
+                'grid justify-center gap-2',
+                group.nodes.length === 1
+                  ? 'grid-cols-[220px]'
+                  : 'grid-cols-[repeat(2,220px)]',
+              )}>
+                {group.nodes.map(node => (
+                  <FlowNodeCard
+                    key={node.id}
+                    node={node}
+                    selected={node.id === selectedNodeId}
+                    onClick={() => onSelect(node.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function FlowNodeCard({
+  node,
+  selected,
+  onClick,
+}: {
+  node: SupplyNode;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const status = statusMeta[node.status];
+  const StatusIcon = status.icon;
+
+  return (
+    <button
+      onClick={onClick}
+      className={clsx(
+        'group min-h-[116px] w-[220px] rounded-sm border bg-white p-2.5 text-left shadow-control transition-all hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-panel',
+        selected ? clsx('ring-2 ring-accent-500/20', status.ring) : 'border-ink-700',
+      )}
+    >
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <span className="shrink-0 whitespace-nowrap rounded-xs border border-ink-700 bg-ink-800 px-2 py-0.5 text-xs font-bold text-ink-400">
+          {node.tier}
+        </span>
+        <span className={clsx('inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-bold', status.badge)}>
+          <StatusIcon className="h-3 w-3 shrink-0" />
+          {status.label}
+        </span>
+      </div>
+      <div className="text-sm font-bold leading-5 text-ink-100">{node.title}</div>
+      <div className="mt-1 line-clamp-2 text-xs leading-4 text-ink-500">{node.subtitle}</div>
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-ink-700 pt-2 text-xs">
+        <span className="flex min-w-0 items-center gap-1.5 text-ink-500">
+          <MapPin className="h-3 w-3 shrink-0" />
+          <span className="truncate">{node.country} · {node.supplier}</span>
+        </span>
+        <ChevronRight className={clsx('h-4 w-4 shrink-0 transition-colors', selected ? 'text-accent-600' : 'text-ink-500 group-hover:text-accent-600')} />
+      </div>
+    </button>
+  );
+}
+
+function RiskPanel({ node }: { node: SupplyNode }) {
+  const StatusIcon = statusMeta[node.status].icon;
+  const inputCompleted = node.inputCompleted ?? node.status !== 'blocked';
+  const downstreamRegistered = node.downstreamRegistered ?? (node.stage === 'product' || node.status === 'ready');
+  const requestLabel = node.stage === 'product' || node.stage === 'component' ? '2차 공급망 요청' : '3차 공급망 요청';
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="rounded-sm border border-ink-700 bg-white p-4">
+        <div className="mb-3 flex items-start gap-3">
+          <div className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-sm border', statusMeta[node.status].badge)}>
+            <StatusIcon className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-lg font-bold text-ink-100">{node.title}</div>
+            <div className="mt-1 text-sm text-ink-500">{node.tier} · {node.subtitle}</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-2 text-sm">
+          <InfoPill icon={Factory} label="담당 공급사" value={node.supplier} />
+          <InfoPill icon={MapPin} label="국가" value={node.country} />
+          <InfoPill icon={Clock} label="기한" value={node.due} />
+          <InfoPill icon={Target} label="담당" value={node.owner} />
+        </div>
+      </div>
+
+      <PanelSection title="공급망 확장 상태" icon={Target}>
+        <div className="space-y-2">
+          <WorkflowStatusRow label="현재 상태" value={inputCompleted ? '입력 완료' : '입력 필요'} tone={inputCompleted ? 'ok' : 'warn'} />
+          <WorkflowStatusRow label="하위 공급망" value={downstreamRegistered ? '등록 완료' : '미등록'} tone={downstreamRegistered ? 'ok' : 'alert'} />
+        </div>
+        {!downstreamRegistered && (
+          <button className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xs border border-accent-700 bg-accent-700 px-3 py-2 text-sm font-bold text-white hover:bg-accent-600">
+            <Send className="h-4 w-4" />
+            {requestLabel}
+          </button>
+        )}
+        {downstreamRegistered && (
+          <div className="mt-3 rounded-xs border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+            하위 공급망 등록 흐름이 열려 있습니다.
+          </div>
+        )}
+      </PanelSection>
+
+      <PanelSection title="DPP 영향" icon={ShieldAlert}>
+        <p className="text-sm leading-6 text-ink-300">{node.dppImpact}</p>
+      </PanelSection>
+
+      <PanelSection title="리스크 사유" icon={AlertTriangle}>
+        <div className="space-y-2">
+          {node.risks.map(risk => (
+            <div key={risk} className="flex items-start gap-2 rounded-sm border border-red-100 bg-red-50 px-3 py-2 text-sm leading-5 text-red-700">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              {risk}
+            </div>
+          ))}
+        </div>
+      </PanelSection>
+
+      <PanelSection title="보완 필요 증빙" icon={PackageCheck}>
+        <div className="space-y-2">
+          {node.evidence.map(item => (
+            <div key={item} className="flex items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 py-2 text-sm text-ink-300">
+              <CheckCircle2 className={clsx('h-4 w-4 shrink-0', node.status === 'ready' ? 'text-emerald-600' : 'text-ink-500')} />
+              {item}
+            </div>
+          ))}
+        </div>
+      </PanelSection>
+
+      <PanelSection title="다음 조치" icon={Send}>
+        <div className="rounded-sm border border-accent-100 bg-accent-50 p-3 text-sm leading-6 text-accent-900">
+          {node.nextAction}
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button className="inline-flex items-center justify-center gap-1.5 rounded-xs border border-accent-700 bg-accent-700 px-3 py-2 text-sm font-bold text-white hover:bg-accent-600">
+            <Send className="h-4 w-4" />
+            요청 생성
+          </button>
+          <button className="inline-flex items-center justify-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-sm font-bold text-ink-300 hover:bg-ink-800">
+            <Clock className="h-4 w-4" />
+            기한 조정
+          </button>
+        </div>
+      </PanelSection>
+
+      <PanelSection title="연결 페이지" icon={ExternalLink}>
+        <div className="space-y-2">
+          {node.links.map(link => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="flex items-center justify-between rounded-sm border border-ink-700 bg-white px-3 py-2 text-sm font-semibold text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+            >
+              {link.label}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          ))}
+        </div>
+      </PanelSection>
+    </div>
+  );
+}
+
+function InfoPill({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Factory;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-sm border border-ink-700 bg-ink-800 p-2">
+      <div className="mb-1 flex items-center gap-1.5 text-xs text-ink-500">
+        <Icon className="h-3 w-3" />
+        {label}
+      </div>
+      <div className="truncate text-sm font-bold text-ink-100">{value}</div>
+    </div>
+  );
+}
+
+function WorkflowStatusRow({ label, value, tone }: { label: string; value: string; tone: 'ok' | 'warn' | 'alert' }) {
+  return (
+    <div className="flex items-center justify-between rounded-sm border border-ink-700 bg-white px-3 py-2">
+      <span className="text-sm font-semibold text-ink-500">{label}</span>
+      <span className={clsx(
+        'rounded-full border px-2 py-1 text-xs font-bold',
+        tone === 'ok' && 'border-emerald-200 bg-emerald-50 text-emerald-700',
+        tone === 'warn' && 'border-amber-200 bg-amber-50 text-amber-700',
+        tone === 'alert' && 'border-red-200 bg-red-50 text-red-700',
+      )}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function PanelSection({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: typeof ShieldAlert;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mt-4 rounded-sm border border-ink-700 bg-white p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Icon className="h-4 w-4 text-accent-700" />
+        <h3 className="text-base font-bold text-ink-100">{title}</h3>
+      </div>
+      {children}
+    </section>
   );
 }

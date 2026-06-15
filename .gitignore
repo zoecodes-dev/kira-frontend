@@ -13,4 +13,4 @@ dist/
 .idea/
 
 next-env.d.ts
-.vercel
+.claude/

@@ -8,6 +8,7 @@ import {
   CalendarClock,
   CheckCircle2,
   ShieldAlert,
+  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import Badge from '@/components/Badge';
@@ -21,6 +22,7 @@ import {
 } from '@/lib/supplier-detail-data';
 
 type RiskFilter = 'all' | 'high' | 'feoc';
+type RiskLevelFilter = 'all' | 'low' | 'medium' | 'high' | 'critical';
 type SortBy = 'score' | 'feoc' | 'audit';
 type ModalType = 'critical' | 'feoc' | 'overdue' | 'monitoring';
 
@@ -67,6 +69,8 @@ export default function HighRiskPage() {
   const [filter, setFilter] = useState<RiskFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('score');
   const [modal, setModal] = useState<ModalType | null>(null);
+  const [riskLevelFilter, setRiskLevelFilter] = useState<RiskLevelFilter>('all');
+  const [mineralFilter, setMineralFilter] = useState('all');
 
   const profiles = supplierRiskProfiles;
   const selected = profiles.find(profile => profile.supplierId === selectedId) ?? null;
@@ -76,10 +80,23 @@ export default function HighRiskPage() {
   const overdueProfiles = profiles.filter(isAuditOverdue);
   const monitoringProfiles = profiles.filter(profile => profile.riskLevel === 'low' && !profile.isHighRiskFlag);
 
+  const allMinerals = useMemo(() => {
+    const set = new Set<string>();
+    profiles.forEach(p => {
+      suppliers.find(s => s.id === p.supplierId)?.material.forEach(m => set.add(m));
+    });
+    return [...set];
+  }, [profiles]);
+
   const filteredProfiles = useMemo(() => {
     const result = profiles.filter(profile => {
-      if (filter === 'high') return profile.riskLevel === 'high' || profile.riskLevel === 'critical';
-      if (filter === 'feoc') return profile.feocStatus === 'ineligible';
+      if (filter === 'high' && profile.riskLevel !== 'high' && profile.riskLevel !== 'critical') return false;
+      if (filter === 'feoc' && profile.feocStatus !== 'ineligible') return false;
+      if (riskLevelFilter !== 'all' && profile.riskLevel !== riskLevelFilter) return false;
+      if (mineralFilter !== 'all') {
+        const mats = suppliers.find(s => s.id === profile.supplierId)?.material ?? [];
+        if (!mats.includes(mineralFilter)) return false;
+      }
       return true;
     });
     return [...result].sort((a, b) => {
@@ -87,7 +104,7 @@ export default function HighRiskPage() {
       if (sortBy === 'feoc') return Number(b.feocStatus === 'ineligible') - Number(a.feocStatus === 'ineligible');
       return (latestAuditDue(a) ?? '9999').localeCompare(latestAuditDue(b) ?? '9999');
     });
-  }, [filter, profiles, sortBy]);
+  }, [filter, profiles, sortBy, riskLevelFilter, mineralFilter]);
 
   const modalProfiles = modal === 'critical'
     ? criticalProfiles
@@ -172,8 +189,13 @@ export default function HighRiskPage() {
                   profiles={filteredProfiles}
                   filter={filter}
                   sortBy={sortBy}
+                  riskLevelFilter={riskLevelFilter}
+                  mineralFilter={mineralFilter}
+                  allMinerals={allMinerals}
                   onFilter={setFilter}
                   onSort={setSortBy}
+                  onRiskLevel={setRiskLevelFilter}
+                  onMineral={setMineralFilter}
                   onSelect={setSelectedId}
                 />
               )}
@@ -247,32 +269,80 @@ function RiskMatrix({ profiles, selectedId, onSelect }: { profiles: SupplierRisk
   );
 }
 
-function SupplierRiskList({ profiles, filter, sortBy, onFilter, onSort, onSelect }: {
+function SupplierRiskList({ profiles, filter, sortBy, riskLevelFilter, mineralFilter, allMinerals, onFilter, onSort, onRiskLevel, onMineral, onSelect }: {
   profiles: SupplierRiskProfile[];
   filter: RiskFilter;
   sortBy: SortBy;
+  riskLevelFilter: RiskLevelFilter;
+  mineralFilter: string;
+  allMinerals: string[];
   onFilter: (filter: RiskFilter) => void;
   onSort: (sort: SortBy) => void;
+  onRiskLevel: (v: RiskLevelFilter) => void;
+  onMineral: (v: string) => void;
   onSelect: (id: string) => void;
 }) {
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        {/* 퀵 토글 */}
         <div className="flex overflow-hidden rounded-xs border border-ink-700">
-          {([['all', '전체 목록'], ['high', '고위험+'], ['feoc', 'FEOC 부적격']] as const).map(([value, label]) => (
+          {([['all', '전체'], ['high', '고위험+'], ['feoc', 'FEOC 부적격']] as const).map(([value, label]) => (
             <button key={value} type="button" onClick={() => onFilter(value)} className={clsx('px-3 py-2 text-[11px] font-semibold', filter === value ? 'bg-accent-50 text-accent-800' : 'bg-white text-ink-500 hover:bg-ink-800')}>
               {label}
             </button>
           ))}
         </div>
-        <select value={sortBy} onChange={event => onSort(event.target.value as SortBy)} className="rounded-xs border border-ink-700 bg-white px-3 py-2 text-[11px] font-semibold text-ink-400">
-          <option value="score">위험 종합 점수 높은순</option>
+
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-500">
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          필터
+        </div>
+
+        {/* 상태 필터 */}
+        <label className="flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 shadow-control">
+          <span className="text-[11px] font-semibold text-ink-500">상태</span>
+          <select
+            value={riskLevelFilter}
+            onChange={e => onRiskLevel(e.target.value as RiskLevelFilter)}
+            className="bg-transparent text-[11px] font-semibold text-ink-200 outline-none"
+          >
+            <option value="all">전체</option>
+            <option value="critical">최고위험</option>
+            <option value="high">고위험</option>
+            <option value="medium">중위험</option>
+            <option value="low">저위험</option>
+          </select>
+        </label>
+
+        {/* 광물 필터 */}
+        <label className="flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 shadow-control">
+          <span className="text-[11px] font-semibold text-ink-500">광물</span>
+          <select
+            value={mineralFilter}
+            onChange={e => onMineral(e.target.value)}
+            className="bg-transparent text-[11px] font-semibold text-ink-200 outline-none"
+          >
+            <option value="all">전체</option>
+            {allMinerals.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </label>
+
+        {/* 정렬 */}
+        <select value={sortBy} onChange={event => onSort(event.target.value as SortBy)} className="ml-auto rounded-xs border border-ink-700 bg-white px-3 py-2 text-[11px] font-semibold text-ink-400">
+          <option value="score">위험 점수 높은순</option>
           <option value="feoc">FEOC 부적격 우선</option>
           <option value="audit">감사 기한 우선</option>
         </select>
       </div>
+
       <div className="space-y-2">
         {profiles.map(profile => <SupplierRiskListItem key={profile.supplierId} profile={profile} onClick={() => onSelect(profile.supplierId)} />)}
+        {profiles.length === 0 && (
+          <div className="rounded-xs border border-dashed border-ink-700 py-10 text-center text-sm text-ink-500">
+            해당 조건의 협력사가 없습니다.
+          </div>
+        )}
       </div>
     </div>
   );
