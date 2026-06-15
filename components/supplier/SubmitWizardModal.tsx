@@ -519,54 +519,6 @@ function Step3({
           </div>
         ))}
       </div>
-
-      {/* 이탈 확인 Dialog (기획서 C-3: "저장하지 않은 내용이 있습니다" 확인) */}
-      {showExitConfirm && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center">
-          <div className="relative z-10 w-80 rounded-sm border border-ink-700 bg-white p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
-            <div className="text-xs font-bold text-ink-100">저장하지 않은 내용이 있습니다</div>
-            <p className="mt-2 text-xs leading-5 text-ink-500">
-              선택한 항목 또는 첨부 파일이 초기화됩니다.<br />
-              [임시 저장] 후 나가거나, 그냥 닫으시겠습니까?
-            </p>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowExitConfirm(false)}
-                className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-400 hover:border-ink-600"
-              >
-                계속 작성
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    localStorage.setItem(draftKey, JSON.stringify({
-                      selectedLabels: Array.from(selected),
-                      savedAt: new Date().toISOString(),
-                    }));
-                  } catch { /* 무시 */ }
-                  setShowExitConfirm(false);
-                  onClose();
-                }}
-                className="rounded-xs border border-ink-600 bg-ink-800 px-3 py-1.5 text-xs font-semibold text-ink-400 hover:bg-ink-700"
-              >
-                임시 저장 후 닫기
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowExitConfirm(false);
-                  onClose();
-                }}
-                className="rounded-xs bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700"
-              >
-                그냥 닫기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -913,6 +865,54 @@ export default function SubmitWizardModal({
           </div>
         </div>
       </div>
+      {/* ✨ 방금 잘라낸 팝업을 여기 가장 바깥쪽에 배치합니다! ✨ */}
+          {showExitConfirm && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 rounded-sm">
+              <div className="relative z-10 w-80 rounded-sm border border-ink-700 bg-white p-6 shadow-xl">
+                <div className="text-xs font-bold text-ink-100">저장하지 않은 내용이 있습니다</div>
+                <p className="mt-2 text-xs leading-5 text-ink-500">
+                  선택한 항목 또는 첨부 파일이 초기화됩니다.<br />
+                  [임시 저장] 후 나가거나, 그냥 닫으시겠습니까?
+                </p>
+                <div className="mt-4 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowExitConfirm(false)}
+                    className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-400 hover:border-ink-600"
+                  >
+                    계속 작성
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        localStorage.setItem(draftKey, JSON.stringify({
+                          selectedLabels: Array.from(selected),
+                          savedAt: new Date().toISOString(),
+                        }));
+                      } catch { /* 무시 */ }
+                      setShowExitConfirm(false);
+                      onClose();
+                    }}
+                    className="rounded-xs border border-ink-600 bg-ink-800 px-3 py-1.5 text-xs font-semibold text-ink-400 hover:bg-ink-700"
+                  >
+                    임시 저장 후 닫기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExitConfirm(false);
+                      onClose();
+                    }}
+                    className="rounded-xs bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700"
+                  >
+                    그냥 닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* ✨ 팝업 끝 ✨ */}
     </div>
   );
 }
