@@ -573,17 +573,18 @@ export default function SubmitWizardModal({
       try {
         const saved = localStorage.getItem(draftKey);
         if (saved) {
-          const draft = JSON.parse(saved) as { selectedLabels?: string[] };
+          const draft = JSON.parse(saved) as { selectedLabels?: string[]; step?: number };
           if (draft.selectedLabels && draft.selectedLabels.length > 0) {
             // 초안이 있으면 복원 여부를 사용자에게 confirm으로 확인
             const restore = window.confirm(
               `이전에 저장된 초안이 있습니다.
 항목: ${draft.selectedLabels.join(', ')}
 
-불러오시겠습니까?`
+불러오시겠습니까? (첨부했던 파일은 다시 선택해야 합니다)`
             );
             if (restore) {
               setSelected(new Set(draft.selectedLabels));
+              if (draft.step) setStep(draft.step as 1 | 2 | 3);
             }
           }
         }
@@ -802,6 +803,7 @@ export default function SubmitWizardModal({
                   try {
                     localStorage.setItem(draftKey, JSON.stringify({
                       selectedLabels: Array.from(selected),
+                      step: step,
                       savedAt: new Date().toISOString(),
                     }));
                     // 토스트 대신 간단한 인라인 피드백 (실제 Toast 컴포넌트 연동 시 교체)
@@ -888,6 +890,7 @@ export default function SubmitWizardModal({
                       try {
                         localStorage.setItem(draftKey, JSON.stringify({
                           selectedLabels: Array.from(selected),
+                          step: step,
                           savedAt: new Date().toISOString(),
                         }));
                       } catch { /* 무시 */ }
