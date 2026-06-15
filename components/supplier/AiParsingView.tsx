@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, ScanLine } from 'lucide-react';
+import { CheckCircle2, FileText, ScanLine } from 'lucide-react';
 import Badge from '@/components/Badge';
-import ExtractionTable from './ExtractionTable'; // 👈 방금 만든 테이블을 불러옵니다!
+import ExtractionTable from './ExtractionTable';
 
 // ─── Mock Data ──────────────────────────────────────────────────────────
+// 실제 API 연동 시 fetch 호출로 교체
 const MOCK_PARSED_DOCS = [
   {
     docId: 'doc-001',
@@ -22,7 +23,26 @@ const MOCK_PARSED_DOCS = [
       unparsedFields: ['검증 완료일', '현장 실사 여부'],
     },
   },
+  {
+    docId: 'doc-002',
+    fileName: '원산지_증명서_NORI-NCL-RAW.pdf',
+    requestType: '원산지 증명서',
+    uploadedAt: '2026-05-20',
+    extractionResult: {
+      fields: [
+        { key: 'origin_country', label: '원산지 국가', aiValue: '대한민국', confidence: 0.98, unit: '' },
+        { key: 'material_name', label: '자재명', aiValue: 'NORI-NCL-RAW', confidence: 0.95, unit: '' },
+        { key: 'hs_code', label: 'HS Code', aiValue: '2604.00', confidence: 0.76, unit: '' },
+        { key: 'issue_date', label: '발급일', aiValue: '2026-05-10', confidence: 0.91, unit: '' },
+        { key: 'feoc_status', label: 'FEOC 해당 여부', aiValue: '해당 없음', confidence: 0.61, unit: '', warning: 'FEOC 판정 근거 서류를 추가로 확인해 주세요.' },
+      ],
+      unparsedFields: ['광산 GPS 폴리곤 좌표'],
+    },
+  },
 ];
+
+// 문서별 완료 여부를 추적하기 위한 타입
+type CompletedMap = Record<string, boolean>;
 
 export default function AiParsingView({
   supplierId,
@@ -31,28 +51,86 @@ export default function AiParsingView({
   supplierId: string;
   onConfirmComplete: () => void;
 }) {
-  const [activeDoc, setActiveDoc] = useState(MOCK_PARSED_DOCS[0]);
+  const [activeDocId, setActiveDocId] = useState(MOCK_PARSED_DOCS[0].docId);
+  // 문서별 제출 완료 여부 — { [docId]: true }
+  const [completedDocs, setCompletedDocs] = useState<CompletedMap>({});
+
+  const activeDoc = MOCK_PARSED_DOCS.find(d => d.docId === activeDocId) ?? MOCK_PARSED_DOCS[0];
+  const allCompleted = MOCK_PARSED_DOCS.every(d => completedDocs[d.docId]);
+
+  // ExtractionTable에서 "저장 및 다음으로" 클릭 시 호출
+  // → 현재 문서를 완료 처리하고, 다음 미완료 탭으로 자동 이동
+  function handleDocComplete() {
+    const updated: CompletedMap = { ...completedDocs, [activeDocId]: true };
+    setCompletedDocs(updated);
+
+    // 다음 미완료 문서로 자동 이동
+    const next = MOCK_PARSED_DOCS.find(d => !updated[d.docId]);
+    if (next) {
+      setActiveDocId(next.docId);
+    } else {
+      // 모든 문서 완료 → 부모에게 알림
+      onConfirmComplete();
+    }
+  }
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-ink-800">
-      {/* ── 1. 상단 문서 선택 헤더 ── */}
+
+      {/* ── 1. 상단 헤더 ── */}
       <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-white px-6 py-3 shadow-sm z-10">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-xs bg-accent-50">
             <ScanLine className="h-4 w-4 text-accent-700" />
           </div>
           <div>
-            <div className="text-xs font-bold text-ink-100">{activeDoc.fileName}</div>
-            <div className="mt-0.5 text-[10px] text-ink-500">{activeDoc.requestType} · {activeDoc.uploadedAt} 업로드</div>
+            <div className="text-xs font-bold text-ink-100">AI 파싱 확인 및 수정</div>
+            <div className="mt-0.5 text-[10px] text-ink-500">
+              AI가 추출한 데이터를 검토하고 수정한 뒤, 문서별로 제출해 주세요.
+            </div>
           </div>
         </div>
-        <Badge tone="ok">AI 파싱 완료</Badge>
+        {/* 전체 완료 여부 배지 */}
+        <Badge tone={allCompleted ? 'ok' : 'neutral'}>
+          {Object.keys(completedDocs).length} / {MOCK_PARSED_DOCS.length} 완료
+        </Badge>
       </div>
 
-      {/* ── 2. 스플릿 뷰 컨테이너 ── */}
+      {/* ── 2. 문서 탭 ── */}
+      <div className="flex shrink-0 items-end gap-0.5 border-b border-ink-700 bg-white px-4 pt-2">
+        {MOCK_PARSED_DOCS.map(doc => {
+          const isActive = doc.docId === activeDocId;
+          const isDone = !!completedDocs[doc.docId];
+          return (
+            <button
+              key={doc.docId}
+              type="button"
+              onClick={() => setActiveDocId(doc.docId)}
+              className={`flex items-center gap-2 rounded-t-xs border-x border-t px-4 py-2.5 text-[11px] font-semibold transition-colors ${
+                isActive
+                  ? 'border-ink-600 bg-white text-ink-100 shadow-[0_1px_0_white]'
+                  : 'border-transparent bg-ink-800 text-ink-400 hover:bg-white hover:text-ink-200'
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0" />
+              {/* 파일명이 길면 말줄임 */}
+              <span className="max-w-[140px] truncate">{doc.fileName}</span>
+              <span className={`text-[10px] ${isActive ? 'text-ink-500' : 'text-ink-500'}`}>
+                {doc.requestType}
+              </span>
+              {/* 완료 문서에 체크 아이콘 */}
+              {isDone && (
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-signal-ok" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── 3. 스플릿 뷰 컨테이너 ── */}
       <div className="flex min-h-0 flex-1 gap-1 p-1">
-        
-        {/* 좌측: PDF 뷰어 영역 (가벼운 컨테이너) */}
+
+        {/* 좌측: PDF 뷰어 */}
         <div className="flex flex-1 flex-col overflow-hidden rounded-sm border border-ink-700 bg-white">
           <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-ink-800/30 px-4 py-2.5">
             <span className="text-[11px] font-bold text-ink-500">원본 문서 뷰어</span>
@@ -65,15 +143,18 @@ export default function AiParsingView({
           <div className="flex flex-1 items-center justify-center bg-[#E5E7EB]">
             <div className="text-center text-ink-400">
               <FileText className="mx-auto mb-2 h-10 w-10 opacity-30" />
-              <p className="text-xs">실제 PDF 렌더링 영역 (react-pdf 연동 예정)</p>
+              <p className="text-xs">{activeDoc.fileName}</p>
+              <p className="mt-1 text-[11px] opacity-60">실제 PDF 렌더링 영역 (react-pdf 연동 예정)</p>
             </div>
           </div>
         </div>
 
-        {/* ✨ 우측: 컴포넌트로 분리한 ExtractionTable 삽입! ✨ */}
-        <ExtractionTable 
-          doc={activeDoc} 
-          onConfirmComplete={onConfirmComplete} 
+        {/* 우측: ExtractionTable — key로 문서 전환 시 상태 초기화 */}
+        <ExtractionTable
+          key={activeDoc.docId}
+          doc={activeDoc}
+          supplierId={supplierId}
+          onConfirmComplete={handleDocComplete}
         />
 
       </div>

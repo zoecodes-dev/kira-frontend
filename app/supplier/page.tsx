@@ -33,6 +33,7 @@ import SubmitWizardModal from '@/components/supplier/SubmitWizardModal';
 import EightStageStepper from '@/components/supplier/EightStageStepper';
 import SupplyChainMap from '@/components/supplier/SupplyChainMap';
 import ViolationReportModal from '@/components/supplier/ViolationReportModal';
+import SelfReportModal from '@/components/supplier/SelfReportModal';
 import AiParsingView from '@/components/supplier/AiParsingView';
 import { suppliers, supplyEdges } from '@/lib/data';
 import {
@@ -508,6 +509,8 @@ export default function SupplierPage() {
   const [violationModalOpen, setViolationModalOpen] = useState(false);
   // violationId: 특정 위반 건과 모달을 바인딩 — null이면 일반 진입
   const [violationId, setViolationId] = useState<string | null>(null);
+  // ── 자진 신고 모달 상태 (기획서 E-3) ─────────────────────────────────────────
+  const [selfReportOpen, setSelfReportOpen] = useState(false);
 
   /** 일반 업로드 버튼: 항목 미선택 상태로 Step 1 열기 */
   function openWizard() {
@@ -1144,6 +1147,21 @@ export default function SupplierPage() {
             </div>
           </Card>
         </section>
+
+        {/* 자진 신고 버튼 — 기획서 E-3: 공급원 변경 시 자발적 신고 */}
+        <div className="flex items-center justify-between rounded-xs border border-accent-100 bg-accent-50 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <div className="text-xs font-bold text-accent-800">공급원 변경 사항이 있나요?</div>
+            <div className="text-[11px] text-accent-700">사후 적발 전에 자진 신고하면 리스크를 줄일 수 있습니다.</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelfReportOpen(true)}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-accent-600 bg-white px-3 py-2 text-xs font-bold text-accent-700 shadow-control hover:bg-accent-700 hover:text-white transition-colors"
+          >
+            공급원 변경 자진 신고
+          </button>
+        </div>
         </>
         )}
 
@@ -1242,6 +1260,11 @@ export default function SupplierPage() {
           setViolationId(null);
         }}
         {...(violationId !== null && { violationId })}
+      />
+      {/* 자진 신고 모달 — 기획서 E-3 */}
+      <SelfReportModal
+        open={selfReportOpen}
+        onClose={() => setSelfReportOpen(false)}
       />
     </main>
   );

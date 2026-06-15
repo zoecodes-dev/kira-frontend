@@ -15,6 +15,8 @@ import {
   Search,
   XCircle,
   ShieldCheck,
+  QrCode,
+  Download,
 } from 'lucide-react';
 
 // ─── 타입 정의 ──────────────────────────────────────────────────────────────────
@@ -95,6 +97,15 @@ export const mockSubmissions: Submission[] = [
     ],
   },
 ];
+
+// batch.status 분기용 Mock — 기획서 E-3 스펙
+// · batch_completed  → DPP QR 다운로드 버튼 표시
+// · batch_rejected   → 시정 완료 회신 버튼 (page.tsx에서 ViolationReportModal 연결)
+// · batch_processing → 조회만 가능
+// · batch_hitl_wait  → 보완 제출 딥링크
+export type BatchStatus = 'batch_processing' | 'batch_hitl_wait' | 'batch_completed' | 'batch_rejected';
+
+export const MOCK_BATCH_STATUS: BatchStatus = 'batch_processing'; // 시나리오 전환용
 
 // ─── 단계 노드 ──────────────────────────────────────────────────────────────────
 
@@ -369,15 +380,27 @@ function SubmissionStepperCard({
             </div>
           )}
 
-          {/* ── 승인 완료 패널 ─────────────────────────────── */}
+          {/* ── 승인 완료 패널 + DPP QR 다운로드 (기획서 E-3: batch_completed) ── */}
           {isDone && (
-            <div className="mt-5 flex items-center gap-2.5 rounded-xs border border-signal-ok/40 bg-signal-ok/5 px-4 py-3">
-              <CheckCircle2 className="h-5 w-5 text-signal-ok shrink-0" strokeWidth={2.5} />
-              <div>
-                <div className="text-xs font-bold text-signal-ok">최종 승인 완료</div>
-                <div className="text-[10px] text-ink-500 mt-0.5">
-                  DPP 발행 준비 완료 — 검증 현황 탭에서 QR 코드를 확인하세요.
+            <div className="mt-5 rounded-xs border border-signal-ok/40 bg-signal-ok/5 p-4">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="h-5 w-5 text-signal-ok shrink-0" strokeWidth={2.5} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-signal-ok">최종 승인 완료</div>
+                  <div className="text-[10px] text-ink-500 mt-0.5">
+                    DPP가 발행됐습니다. QR 코드를 다운로드해 고객사에 제출하세요.
+                  </div>
                 </div>
+                {/* DPP QR 다운로드 버튼 — 기획서 E-3: stage_issuance + batch_completed 시 표시 */}
+                <button
+                  type="button"
+                  onClick={() => alert('DPP QR 코드 다운로드 (API 연동 예정)')}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xs border border-signal-ok bg-white px-3 py-2 text-xs font-bold text-signal-ok shadow-control hover:bg-signal-ok hover:text-white transition-colors"
+                >
+                  <QrCode className="h-3.5 w-3.5" />
+                  DPP QR 다운로드
+                  <Download className="h-3 w-3" />
+                </button>
               </div>
             </div>
           )}
