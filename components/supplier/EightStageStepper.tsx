@@ -193,7 +193,7 @@ function SubmissionStepperCard({
   onResubmit,
 }: {
   submission: Submission;
-  onResubmit?: (id: string, docName: string) => void;
+  onResubmit?: (id: string, requestLabel: string, reason?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
 
@@ -346,7 +346,13 @@ function SubmissionStepperCard({
               <div className="mt-3 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => onResubmit?.(submission.id, submission.documentName)}
+                  onClick={() => {
+                    // requestItems.label과 매핑하여 자동 체크가 정확히 동작하도록
+                    const requestLabel =
+                      DOC_NAME_TO_REQUEST_LABEL[submission.documentName]
+                      ?? submission.documentName;
+                    onResubmit?.(submission.id, requestLabel, submission.rejectionReason);
+                  }}
                   className="
                     inline-flex items-center gap-2
                     rounded-xs border border-red-400 bg-white
@@ -393,9 +399,21 @@ function SubmissionStepperCard({
 //      }}
 //    />
 
+// documentName(서류명) → requestItems label 매핑
+// Stepper 내부 서류명과 page.tsx requestItems.label이 다를 경우 여기서 맞춤
+const DOC_NAME_TO_REQUEST_LABEL: Record<string, string> = {
+  '광산 폴리곤 좌표':    '광산 폴리곤 좌표 등록',
+  '탄소 배출 보고서':    '환경영향평가 갱신본 업로드',
+  '환경영향평가 보고서': '환경영향평가 갱신본 업로드',
+  '원산지 증명서':      '광산 폴리곤 좌표 등록',  // 필요 시 수정
+  '광권 갱신 증빙':     '광권 갱신 증빙',
+  '커뮤니티 합의서':    '커뮤니티 합의서 제출',
+};
+
 interface EightStageStepperProps {
   submissions?: Submission[];
-  onResubmit?: (submissionId: string, documentName: string) => void;
+  /** submissionId, requestItems 라벨(매핑 완료), 반려 사유 */
+  onResubmit?: (submissionId: string, requestLabel: string, reason?: string) => void;
 }
 
 export default function EightStageStepper({

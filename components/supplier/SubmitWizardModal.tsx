@@ -42,8 +42,14 @@ interface SubmitWizardModalProps {
   initialSelectedLabels?: string[];
   /** 재제출 모드: true면 Step 1 건너뛰고 Step 2로 시작 */
   reworkMode?: boolean;
+  /** 재제출 모드일 때 Step 2 상단에 표시할 반려 사유 */
+  reworkReason?: string;
+  /** ⑤ 인증서 갱신 모드: Step 1 상단에 갱신 안내 배너 표시 */
+  certRenewalMode?: boolean;
   /** 전체 요청 목록 */
   requestItems: RequestItem[];
+  /** localStorage key 분리용 협력사 ID (기본값: 'supplier') */
+  supplierId?: string;
 }
 
 // ─── 허용 확장자 / 용량 ─────────────────────────────────────────────────────────
@@ -127,13 +133,41 @@ function Step1({
   requestItems,
   selected,
   onToggle,
+  certRenewalMode,
 }: {
   requestItems: RequestItem[];
   selected: Set<string>;
   onToggle: (label: string) => void;
+  /** ⑤ 인증서 갱신 진입 시 상단 안내 배너 표시 */
+  certRenewalMode?: boolean;
 }) {
   return (
     <div className="space-y-3">
+      {/* 딥링크 진입 컨텍스트 배너 — 자동 체크 항목이 있을 때 표시 */}
+      {!certRenewalMode && selected.size > 0 && (
+        <div className="flex items-start gap-2.5 rounded-xs border border-ink-600 bg-ink-800 px-4 py-3">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent-600" />
+          <div>
+            <div className="text-xs font-bold text-ink-200">항목이 자동 선택되었습니다</div>
+            <div className="mt-0.5 text-[11px] text-ink-500">
+              <span className="font-semibold text-ink-300">{Array.from(selected).join(', ')}</span> 항목이 선택된 상태로 진입했습니다. 추가 항목을 함께 제출하려면 아래에서 선택해 주세요.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⑤ 인증서 갱신 진입 안내 배너 */}
+      {certRenewalMode && (
+        <div className="flex items-start gap-2.5 rounded-xs border border-accent-200 bg-accent-50 px-4 py-3">
+          <Upload className="mt-0.5 h-4 w-4 shrink-0 text-accent-700" />
+          <div>
+            <div className="text-xs font-bold text-accent-800">인증서 갱신 증빙 업로드</div>
+            <div className="mt-0.5 text-[11px] text-accent-700">
+              아래에서 갱신 제출 항목을 확인하고, 다음 단계에서 갱신된 인증서 파일을 첨부해 주세요.
+            </div>
+          </div>
+        </div>
+      )}
       <p className="text-xs text-ink-500 leading-5">
         이번에 제출할 요청 항목을 선택해 주세요. 복수 선택이 가능합니다.
       </p>
@@ -203,11 +237,13 @@ function Step2({
   onAddFiles,
   onRemoveFile,
   reworkLabel,
+  reworkReason,
 }: {
   files: UploadedFile[];
   onAddFiles: (fileList: FileList) => void;
   onRemoveFile: (id: string) => void;
   reworkLabel?: string;
+  reworkReason?: string;
 }) {
   const [dragging, setDragging] = useState(false);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
@@ -241,11 +277,25 @@ function Step2({
       {reworkLabel && (
         <div className="flex items-start gap-2 rounded-xs border border-amber-300 bg-amber-50 px-4 py-3">
           <RotateCcw className="h-4 w-4 shrink-0 text-amber-700 mt-0.5" />
-          <div>
+          <div className="flex-1 min-w-0">
             <div className="text-xs font-bold text-amber-800">보완 요청 재제출</div>
             <div className="mt-0.5 text-[10px] text-amber-700">
               원청사 요청 항목: <span className="font-semibold">{reworkLabel}</span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 반려 사유 박스 — EightStageStepper에서 전달된 원청사 반려 사유 */}
+      {reworkReason && (
+        <div className="rounded-xs border border-red-200 bg-red-50 px-4 py-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+            <div className="text-[10px] font-bold text-red-600">원청사 반려 사유</div>
+          </div>
+          <p className="text-xs text-red-800 leading-5">{reworkReason}</p>
+          <div className="mt-2 text-[10px] text-red-500">
+            위 사유를 참고하여 수정된 파일을 첨부해 주세요.
           </div>
         </div>
       )}
@@ -360,7 +410,7 @@ function Step2({
       {files.length === 0 && (
         <p className="flex items-center gap-1.5 text-xs text-amber-700">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-          ファイルを 1개 이상 첨부해야 다음 단계로 이동할 수 있습니다.
+          파일을 1개 이상 첨부해야 다음 단계로 이동할 수 있습니다.
         </p>
       )}
     </div>
@@ -457,6 +507,54 @@ function Step3({
           </div>
         ))}
       </div>
+
+      {/* 이탈 확인 Dialog (기획서 C-3: "저장하지 않은 내용이 있습니다" 확인) */}
+      {showExitConfirm && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center">
+          <div className="relative z-10 w-80 rounded-sm border border-ink-700 bg-white p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
+            <div className="text-xs font-bold text-ink-100">저장하지 않은 내용이 있습니다</div>
+            <p className="mt-2 text-xs leading-5 text-ink-500">
+              선택한 항목 또는 첨부 파일이 초기화됩니다.<br />
+              [임시 저장] 후 나가거나, 그냥 닫으시겠습니까?
+            </p>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowExitConfirm(false)}
+                className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-400 hover:border-ink-600"
+              >
+                계속 작성
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.setItem(draftKey, JSON.stringify({
+                      selectedLabels: Array.from(selected),
+                      savedAt: new Date().toISOString(),
+                    }));
+                  } catch { /* 무시 */ }
+                  setShowExitConfirm(false);
+                  onClose();
+                }}
+                className="rounded-xs border border-ink-600 bg-ink-800 px-3 py-1.5 text-xs font-semibold text-ink-400 hover:bg-ink-700"
+              >
+                임시 저장 후 닫기
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExitConfirm(false);
+                  onClose();
+                }}
+                className="rounded-xs bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700"
+              >
+                그냥 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -468,18 +566,36 @@ export default function SubmitWizardModal({
   onClose,
   initialSelectedLabels = [],
   reworkMode = false,
+  reworkReason,
+  certRenewalMode = false,
   requestItems,
+  supplierId = 'supplier',
 }: SubmitWizardModalProps) {
   const initialStep = reworkMode ? 2 : 1;
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [step, setStep] = useState<1 | 2 | 3>(initialStep as 1 | 2 | 3);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initialSelectedLabels));
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // 이탈 감지 Dialog 상태
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
-  // 대화상자가 열릴 때 또는 전달받은 초기화 라벨 배열의 내용이 변경될 때 상태 동기화
+  // localStorage draft key — 항목별로 분리 (기획서 C-3 스펙)
+  // kira_draft_{supplier_id}_{첫번째_선택항목_슬러그}
+  const draftKey = `kira_draft_${supplierId}_${
+    initialSelectedLabels.length > 0
+      ? initialSelectedLabels[0].replace(/[^a-zA-Z0-9가-힣]/g, '_').slice(0, 40)
+      : 'new'
+  }`;
+
+  // 저장할 내용이 있는지 판단 (이탈 감지 기준)
+  const hasDraft = selected.size > 0 || files.length > 0;
+
+  // 직렬화된 라벨 목록 — 배열 참조가 매 렌더마다 바뀌어도
+  // 내용이 동일하면 Effect를 재실행하지 않기 위해 문자열로 비교
   const serializedLabels = JSON.stringify(initialSelectedLabels);
 
+  // 모달 열릴 때마다, 또는 initialSelectedLabels 내용이 바뀔 때 상태 초기화
   useEffect(() => {
     if (open) {
       setStep(initialStep as 1 | 2 | 3);
@@ -487,16 +603,48 @@ export default function SubmitWizardModal({
       setFiles([]);
       setSubmitted(false);
       setSubmitting(false);
+      setShowExitConfirm(false);
+
+      // localStorage 초안 복원 확인 (기획서 C-3: 재진입 시 토스트 팝업)
+      try {
+        const saved = localStorage.getItem(draftKey);
+        if (saved) {
+          const draft = JSON.parse(saved) as { selectedLabels?: string[] };
+          if (draft.selectedLabels && draft.selectedLabels.length > 0) {
+            // 초안이 있으면 복원 여부를 사용자에게 confirm으로 확인
+            const restore = window.confirm(
+              `이전에 저장된 초안이 있습니다.
+항목: ${draft.selectedLabels.join(', ')}
+
+불러오시겠습니까?`
+            );
+            if (restore) {
+              setSelected(new Set(draft.selectedLabels));
+            }
+          }
+        }
+      } catch {
+        // localStorage 접근 실패 시 무시
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, serializedLabels, initialStep]);
 
-  // ESC 닫기
+  // ESC 닫기 — 미저장 내용 있으면 이탈 확인 Dialog 경유
   useEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitted) onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitted) {
+        if (hasDraft) {
+          setShowExitConfirm(true);
+        } else {
+          onClose();
+        }
+      }
+    };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open, submitted, onClose]);
+  }, [open, submitted, hasDraft, onClose]);
 
   // 파일 추가 — Mock 진행 시뮬레이션
   const handleAddFiles = useCallback((fileList: FileList) => {
@@ -552,6 +700,8 @@ export default function SubmitWizardModal({
     await new Promise(res => setTimeout(res, 1200));
     setSubmitting(false);
     setSubmitted(true);
+    // 제출 성공 시 localStorage 초안 삭제
+    try { localStorage.removeItem(draftKey); } catch { /* 무시 */ }
   }
 
   const canNext =
@@ -570,10 +720,17 @@ export default function SubmitWizardModal({
       aria-modal="true"
       aria-label="자료 제출"
     >
-      {/* 배경 딤 */}
+      {/* 배경 딤 — 미저장 내용 있으면 이탈 확인 Dialog 경유 */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
-        onClick={() => !submitted && onClose()}
+        onClick={() => {
+          if (submitted) return;
+          if (hasDraft) {
+            setShowExitConfirm(true);
+          } else {
+            onClose();
+          }
+        }}
         aria-hidden="true"
       />
 
@@ -591,12 +748,21 @@ export default function SubmitWizardModal({
               {reworkMode && (
                 <div className="text-[10px] text-amber-600 font-semibold">보완 재제출 모드</div>
               )}
+              {certRenewalMode && !reworkMode && (
+                <div className="text-[10px] text-accent-600 font-semibold">인증서 갱신 업로드 모드</div>
+              )}
             </div>
           </div>
           {!submitted && (
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+                if (hasDraft) {
+                  setShowExitConfirm(true);
+                } else {
+                  onClose();
+                }
+              }}
               aria-label="닫기"
               className="flex h-7 w-7 items-center justify-center rounded-xs border border-ink-700 text-ink-400 hover:border-ink-600 hover:text-ink-200"
             >
@@ -615,6 +781,7 @@ export default function SubmitWizardModal({
               requestItems={requestItems}
               selected={selected}
               onToggle={handleToggleItem}
+              certRenewalMode={certRenewalMode}
             />
           )}
           {step === 2 && (
@@ -623,6 +790,7 @@ export default function SubmitWizardModal({
               onAddFiles={handleAddFiles}
               onRemoveFile={handleRemoveFile}
               reworkLabel={reworkMode ? (Array.from(selected)[0] as string) : undefined}
+              reworkReason={reworkMode ? reworkReason : undefined}
             />
           )}
           {step === 3 && (
@@ -658,11 +826,21 @@ export default function SubmitWizardModal({
           {/* 오른쪽: 임시저장 / 다음 / 제출 / 닫기 */}
           <div className="flex items-center gap-2">
             {!submitted && step < 3 && (
-              /* 임시 저장 버튼 (Step 1, 2에서만 노출) */
+              /* 임시 저장 버튼 — localStorage에 선택 항목 저장 (기획서 C-3 스펙) */
               <button
                 type="button"
                 onClick={() => {
-                  alert('초안이 임시 저장되었습니다.');
+                  try {
+                    localStorage.setItem(draftKey, JSON.stringify({
+                      selectedLabels: Array.from(selected),
+                      savedAt: new Date().toISOString(),
+                    }));
+                    // 토스트 대신 간단한 인라인 피드백 (실제 Toast 컴포넌트 연동 시 교체)
+                    alert(`초안이 임시 저장되었습니다.
+항목: ${Array.from(selected).join(', ') || '(선택 없음)'}`);
+                  } catch {
+                    alert('임시 저장에 실패했습니다. 저장 공간을 확인해 주세요.');
+                  }
                 }}
                 className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-semibold text-ink-400 hover:border-ink-600"
               >

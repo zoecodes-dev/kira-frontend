@@ -11,8 +11,10 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  ClipboardCheck,
   ClipboardList,
   Factory,
+  ScanLine,
   FileCheck,
   FileText,
   KeyRound,
@@ -124,8 +126,10 @@ type SupplierView =
   | 'dashboard'
   | 'company-info'
   | 'submit-documents'
+  | 'ai-parsing'
   | 'submission-status'
   | 'supply-chain'
+  | 'audit'
   | 'notifications'
   | 'edit-info';
 
@@ -184,13 +188,15 @@ function SupplierSidebar({
   onSelect: (view: SupplierView) => void;
 }) {
   const menu = [
-    { id: 'dashboard' as const, label: '홈', subtitle: '요약 · 우선 조치', icon: LayoutDashboard },
-    { id: 'company-info' as const, label: '내 기업 정보', subtitle: '기본정보 · 사업장', icon: Building2 },
-    { id: 'submit-documents' as const, label: '자료 제출', subtitle: '요청 자료 업로드', icon: Upload },
-    { id: 'submission-status' as const, label: '제출/검토 현황', subtitle: '검토 결과 · 재요청', icon: ClipboardList },
-    { id: 'supply-chain' as const, label: '공급망 연결', subtitle: '직접 연결 업체', icon: Network },
-    { id: 'notifications' as const, label: '원청사 알림', subtitle: '요청 · 기한', icon: Bell },
-    { id: 'edit-info' as const, label: '계정 설정', subtitle: '비밀번호 · 등록정보', icon: KeyRound },
+    { id: 'dashboard'         as const, label: '홈',         subtitle: '요약 · 우선 조치',      icon: LayoutDashboard },
+    { id: 'company-info'      as const, label: '내 기업 정보', subtitle: '완성도 · 인증서 · 담당자', icon: Building2 },
+    { id: 'submit-documents'  as const, label: '자료 제출',   subtitle: '요청 자료 업로드',       icon: Upload },
+    { id: 'ai-parsing'        as const, label: 'AI 파싱 확인', subtitle: '추출 결과 검토 · 수정',  icon: ScanLine },
+    { id: 'submission-status' as const, label: '검증 현황',   subtitle: '검토 결과 · 재요청',     icon: ClipboardList },
+    { id: 'supply-chain'      as const, label: '공급망 연결', subtitle: '직접 연결 업체',         icon: Network },
+    { id: 'audit'             as const, label: '실사 관리',   subtitle: '현장 실사 이력 · 승인',  icon: ClipboardCheck },
+    { id: 'notifications'     as const, label: '원청사 알림', subtitle: '요청 · 기한',            icon: Bell },
+    { id: 'edit-info'         as const, label: '계정 설정',   subtitle: '비밀번호 · 담당자 정보', icon: KeyRound },
   ];
 
   return (
@@ -254,6 +260,7 @@ function SupplierInfoPreview({
   self = false,
   relation,
   completeness,
+  onCertRenew,
 }: {
   supplierId: string;
   self?: boolean;
@@ -261,6 +268,8 @@ function SupplierInfoPreview({
   relation?: 'parent' | 'child';
   /** ③ 완성도 데이터 — self=true일 때 프로그레스바 표시용 */
   completeness?: { completionRate: number; filledFieldCount: number; requiredFieldCount: number; missingFields: string[] } | null;
+  /** ⑤ 인증서 갱신 딥링크 콜백 — 인증서명을 인자로 받아 모달 진입 */
+  onCertRenew?: (certName: string) => void;
 }) {
   const supplier = suppliers.find(item => item.id === supplierId);
   const name = getSupplierName(supplierId);
@@ -408,9 +417,9 @@ function SupplierInfoPreview({
             ))}
           </div>
         </div>
-      </div>
+      </div>{/* /사업장 카드 */}
 
-      {/* ── 복원된 인증서 카드 영역 ── */}
+      {/* 인증서 카드 */}
       <div className="rounded-sm border border-ink-700 bg-white shadow-control">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-ink-700">
           <div>
@@ -440,13 +449,15 @@ function SupplierInfoPreview({
                     isInactive ? 'border-red-200 bg-red-50' : 'border-ink-700 bg-ink-800'
                   }`}
                 >
+                  {/* 인증서명 + 발급기관 */}
                   <div className="min-w-0">
                     <div className={`truncate text-xs font-semibold ${isInactive ? 'text-red-900' : 'text-ink-100'}`}>
                       {cert.certName}
                     </div>
                     <div className="truncate text-[10px] text-ink-500">{cert.issuingBody}</div>
                   </div>
-                  <div className="shrink-0 flex flex-col items-end gap-1">
+                  {/* ② D-N 배지 + ⑤ 갱신 버튼 */}
+                  <div className="shrink-0 flex flex-col items-end gap-1.5">
                     {isInactive ? (
                       <>
                         <span className={`rounded-xs px-2 py-0.5 text-[11px] font-bold tabular-nums ${badgeCls}`}>
@@ -455,6 +466,17 @@ function SupplierInfoPreview({
                         <span className="text-[10px] text-red-600 font-medium">
                           {certStatusLabel[cert.status]}
                         </span>
+                        {/* ⑤ 갱신 증빙 업로드 버튼 — self 모드 + 콜백 있을 때만 */}
+                        {self && onCertRenew && (
+                          <button
+                            type="button"
+                            onClick={() => onCertRenew(cert.certName)}
+                            className="mt-0.5 inline-flex items-center gap-1 rounded-xs border border-accent-500 bg-accent-50 px-2 py-1 text-[10px] font-bold text-accent-700 transition-colors hover:bg-accent-700 hover:text-white"
+                          >
+                            <Upload className="h-2.5 w-2.5" />
+                            갱신 증빙 업로드
+                          </button>
+                        )}
                       </>
                     ) : (
                       <Badge tone="ok">유효</Badge>
@@ -465,7 +487,7 @@ function SupplierInfoPreview({
             })}
           </div>
         </div>
-      </div>
+      </div>{/* /인증서 카드 */}
     </div>
   );
 }
@@ -477,6 +499,10 @@ export default function SupplierPage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialItems, setWizardInitialItems] = useState<string[]>([]);
   const [wizardReworkMode, setWizardReworkMode] = useState(false);
+  // certRenewalMode: 인증서 갱신 진입 시 Step 1 상단에 안내 배너 표시
+  const [wizardCertRenewalMode, setWizardCertRenewalMode] = useState(false);
+  // reworkReason: 재제출 시 모달 Step 2 상단 배너에 표시할 반려 사유
+  const [wizardReworkReason, setWizardReworkReason] = useState<string | null>(null);
   // ── 시정 조치 모달 상태 ──────────────────────────────────────────────────────
   const [violationModalOpen, setViolationModalOpen] = useState(false);
   // violationId: 특정 위반 건과 모달을 바인딩 — null이면 일반 진입
@@ -489,10 +515,14 @@ export default function SupplierPage() {
     setWizardOpen(true);
   }
 
-  /** 재제출 버튼: 해당 항목 선택 + rework 모드로 Step 2 바로 열기 */
-  function openWizardRework(label: string) {
+  /** 재제출 버튼: 해당 항목 선택 + rework 모드로 Step 2 바로 열기
+   *  @param label   requestItems.label과 일치하는 항목명
+   *  @param reason  반려 사유 (EightStageStepper에서 전달, 모달 배너에 표시)
+   */
+  function openWizardRework(label: string, reason?: string) {
     setWizardInitialItems([label]);
     setWizardReworkMode(true);
+    setWizardReworkReason(reason ?? null);
     setWizardOpen(true);
   }
 
@@ -505,6 +535,26 @@ export default function SupplierPage() {
     const isRework = status === '재요청';
     setWizardInitialItems([label]);
     setWizardReworkMode(isRework);
+    setWizardOpen(true);
+  }
+
+  /**
+   * ⑤ 인증서 갱신 증빙 업로드 딥링크:
+   * - 인증서명을 requestItems 라벨과 매핑 시도
+   * - 매핑 항목이 없으면 '환경영향평가 갱신본 업로드'를 기본 선택
+   * - certRenewalMode=true로 Step 1 상단에 갱신 안내 배너 표시
+   */
+  function openWizardFromCertRenewal(certName: string) {
+    // 인증서명 → requestItems 라벨 매핑 테이블
+    const certToRequestLabel: Record<string, string> = {
+      'Bettercoal Verified': '환경영향평가 갱신본 업로드',
+      // 추후 인증서 추가 시 여기에 확장
+    };
+    const targetLabel = certToRequestLabel[certName] ?? '환경영향평가 갱신본 업로드';
+    setWizardInitialItems([targetLabel]);
+    setWizardReworkMode(false);
+    setWizardCertRenewalMode(true);
+    setActiveView('submit-documents'); // 탭도 자료 제출로 이동
     setWizardOpen(true);
   }
   const supplier = suppliers.find(item => item.id === supplierId);
@@ -692,7 +742,12 @@ export default function SupplierPage() {
           </div>
         </section>
 
-        <SupplierInfoPreview supplierId={supplierId} self completeness={completeness} />
+        <SupplierInfoPreview
+          supplierId={supplierId}
+          self
+          completeness={completeness}
+          onCertRenew={openWizardFromCertRenewal}
+        />
         </>
         )}
 
@@ -920,13 +975,13 @@ export default function SupplierPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Badge tone={item.tone}>{item.status}</Badge>
+                    {/* 상태별 버튼 라벨 + 딥링크 분기:
+                        재요청 → rework Step2 직행 / 제출필요·대기 → Step1 해당 항목 자동체크 */}
                     <button
-                      onClick={() =>
-                        item.status === '재요청'
-                          ? openWizardRework(item.label)
-                          : openWizard()
-                      }
-                      className="rounded-xs border border-accent-100 bg-white px-2.5 py-1.5 text-[11px] font-bold text-accent-700 hover:border-accent-600">
+                      type="button"
+                      onClick={() => openWizardFromActionCenter(item.label, item.status)}
+                      className="rounded-xs border border-accent-100 bg-white px-2.5 py-1.5 text-[11px] font-bold text-accent-700 hover:border-accent-600"
+                    >
                       {item.status === '재요청' ? '재제출' : item.status === '제출 필요' ? '업로드' : '확인'}
                     </button>
                   </div>
@@ -938,22 +993,36 @@ export default function SupplierPage() {
           <Card title="내 제출 자료" subtitle="원청사에 제출할 자료만 표시합니다">
             <div className="space-y-2">
               {[
-                { label: '원산지 증명서', status: '승인', tone: 'ok' as const },
-                { label: '탄소 배출 보고서', status: '검토 중', tone: 'info' as const },
-                { label: '광산 폴리곤 좌표', status: '미제출', tone: 'alert' as const },
+                { label: '원산지 증명서',     status: '승인',   tone: 'ok'   as const },
+                { label: '탄소 배출 보고서',  status: '검토 중', tone: 'info' as const },
+                { label: '광산 폴리곤 좌표',  status: '미제출', tone: 'alert' as const },
                 { label: '환경영향평가 보고서', status: '재요청', tone: 'warn' as const },
               ].map(item => (
                 <div key={item.label} className="flex items-center justify-between gap-3 rounded-xs border border-ink-700 bg-white px-3 py-3">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-ink-500" />
-                    <span className="text-xs font-semibold text-ink-100">{item.label}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="h-4 w-4 shrink-0 text-ink-500" />
+                    <span className="truncate text-xs font-semibold text-ink-100">{item.label}</span>
                   </div>
-                  <Badge tone={item.tone}>{item.status}</Badge>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge tone={item.tone}>{item.status}</Badge>
+                    {/* 재요청 → rework 재제출 / 미제출 → Step1 해당항목 자동체크 */}
+                    {(item.status === '재요청' || item.status === '미제출') && (
+                      <button
+                        type="button"
+                        onClick={() => openWizardFromActionCenter(item.label, item.status)}
+                        className="rounded-xs border border-accent-100 bg-white px-2.5 py-1.5 text-[11px] font-bold text-accent-700 hover:border-accent-600"
+                      >
+                        {item.status === '재요청' ? '재제출' : '업로드'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
               <button
+                type="button"
                 onClick={openWizard}
-                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xs bg-accent-700 px-4 py-3 text-xs font-bold text-white shadow-control hover:bg-accent-900">
+                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xs bg-accent-700 px-4 py-3 text-xs font-bold text-white shadow-control hover:bg-accent-900"
+              >
                 새 서류 업로드
                 <ArrowRight className="h-4 w-4" />
               </button>
@@ -993,7 +1062,9 @@ export default function SupplierPage() {
           {/* ── 8단계 검증 상태 Stepper ── */}
           <Card title="자료 검토 상태 타임라인" subtitle="제출됨 → 검토 중 → 보완 요청 → 최종 승인 흐름">
             <EightStageStepper
-              onResubmit={(_, docName) => openWizardRework(docName)}
+              onResubmit={(_, requestLabel, reason) =>
+                openWizardRework(requestLabel, reason)
+              }
             />
           </Card>
 
@@ -1063,6 +1134,46 @@ export default function SupplierPage() {
         </>
         )}
 
+        {activeView === 'ai-parsing' && (
+        <section className="rounded-sm border border-ink-700 bg-white p-8 shadow-control">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-sm border border-accent-100 bg-accent-50">
+              <ScanLine className="h-7 w-7 text-accent-700" strokeWidth={1.8} />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-ink-100">AI 파싱 확인</div>
+              <p className="mt-1.5 text-xs leading-5 text-ink-500">
+                업로드된 서류의 AI 추출 결과를 검토하고 수정하는 화면입니다.<br />
+                기획서 D화면 — 스플릿뷰(PDF + 편집 테이블) 구현 예정입니다.
+              </p>
+            </div>
+            <span className="rounded-xs border border-accent-200 bg-accent-50 px-3 py-1 text-[11px] font-semibold text-accent-700">
+              개발 예정 · /supplier/portal
+            </span>
+          </div>
+        </section>
+        )}
+
+        {activeView === 'audit' && (
+        <section className="rounded-sm border border-ink-700 bg-white p-8 shadow-control">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-sm border border-amber-200 bg-amber-50">
+              <ClipboardCheck className="h-7 w-7 text-amber-700" strokeWidth={1.8} />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-ink-100">실사 관리</div>
+              <p className="mt-1.5 text-xs leading-5 text-ink-500">
+                현장 실사 이력 조회 및 담당자 승인 화면입니다.<br />
+                멘토링 6항 필수 기능 — 실사 방식·기록·승인 이력 포함 구현 예정입니다.
+              </p>
+            </div>
+            <span className="rounded-xs border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
+              개발 예정 · /supplier/audit
+            </span>
+          </div>
+        </section>
+        )}
+
         {activeView === 'supply-chain' && (
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           <SupplyChainMap
@@ -1118,19 +1229,26 @@ export default function SupplierPage() {
       {/* ── 자료 제출 Wizard 모달 ──────────────────────────────────────────── */}
       <SubmitWizardModal
         open={wizardOpen}
-        onClose={() => setWizardOpen(false)}
+        onClose={() => {
+          setWizardOpen(false);
+          setWizardCertRenewalMode(false);
+          setWizardReworkReason(null);
+        }}
         initialSelectedLabels={wizardInitialItems}
         reworkMode={wizardReworkMode}
+        reworkReason={wizardReworkReason ?? undefined}
+        certRenewalMode={wizardCertRenewalMode}
         requestItems={requestItems}
+        supplierId={supplierId}
       />
-      {/* ── 시정 조치 계획 모달 — violation 속성으로 수정 완료 ─────── */}
+      {/* ── 시정 조치 계획 모달 — violationId로 특정 위반 건 바인딩 ─────── */}
       <ViolationReportModal
         open={violationModalOpen}
         onClose={() => {
           setViolationModalOpen(false);
           setViolationId(null);
         }}
-        violation={violationId ? { violationId: violationId } as any : undefined}
+        {...(violationId !== null && { violationId })}
       />
     </main>
   );
