@@ -970,7 +970,7 @@ export const certifications: Certification[] = [
   { certId: 'CERT-009', supplierId: 'S-REF-001',  certName: 'ISO 14001:2015',      issuingBody: 'Intertek',          certNumber: 'ITK-AU-EMS-2025-018',   issuedAt: '2025-08-14', expiresAt: '2026-08-13', status: 'expiring_soon' },
   { certId: 'CERT-010', supplierId: 'S-REF-002',  certName: 'ISO 14001:2015',      issuingBody: 'CQC',               certNumber: 'CQC-EMS-2023-441',      issuedAt: '2023-04-10', expiresAt: '2026-04-09', status: 'expired' },
   { certId: 'CERT-011', supplierId: 'S-MINE-001', certName: 'ISO 14001:2015',      issuingBody: 'TÜV SÜD',          certNumber: 'TUV-PH-EMS-220',        issuedAt: '2024-07-08', expiresAt: '2027-07-07', status: 'active' },
-  { certId: 'CERT-012', supplierId: 'S-MINE-001', certName: 'Bettercoal Verified', issuingBody: 'Bettercoal',        certNumber: 'BC-PH-2024-12',         issuedAt: '2024-03-15', expiresAt: '2026-03-14', status: 'expiring_soon' },
+  { certId: 'CERT-012', supplierId: 'S-MINE-001', certName: 'Bettercoal Verified', issuingBody: 'Bettercoal',        certNumber: 'BC-PH-2024-12',         issuedAt: '2024-03-15', expiresAt: '2026-06-25', status: 'expiring_soon' },
   { certId: 'CERT-013', supplierId: 'S-MINE-003', certName: 'IRMA-75',             issuingBody: 'IRMA',              certNumber: 'IRMA-MS-2024-CL-08',    issuedAt: '2024-02-28', expiresAt: '2027-02-27', status: 'active' },
 ];
 
