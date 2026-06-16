@@ -14,6 +14,8 @@ import {
   X,
 } from 'lucide-react';
 import clsx from 'clsx';
+import PageHeader from '@/components/PageHeader';
+import { getContacts } from '@/lib/supplier-detail-data';
 
 type InvitationStatus = 'ready' | 'draft' | 'sent';
 
@@ -50,7 +52,14 @@ export default function SupplierInvitationsPage() {
   const contextItem = searchParams.get('item') || '선택 노드';
   const contextSupplier = searchParams.get('supplier') || '선택 협력사';
   const contextNode = searchParams.get('node') || contextItem;
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const contextSupplierId = searchParams.get('supplierId') ?? '';
+  const contactEmail = (() => {
+    if (!contextSupplierId) return 'supplychain.request@partner.example';
+    const contacts = getContacts(contextSupplierId);
+    const primary = contacts.find(c => c.isPrimary) ?? contacts[0];
+    return primary?.email ?? 'supplychain.request@partner.example';
+  })();
+  const [selectedId, setSelectedId] = useState<string | null>(contextSupplierId ? 'from-map' : null);
   const [query, setQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [inviteItems, setInviteItems] = useState<InvitationItem[]>([
@@ -58,7 +67,7 @@ export default function SupplierInvitationsPage() {
       id: 'from-map',
       itemName: contextItem,
       supplierName: contextSupplier,
-      email: 'supplychain.request@partner.example',
+      email: contactEmail,
       status: 'ready',
       subject: 'KIRA ESG 관리 시스템 가입 요청',
       body: '',
@@ -134,26 +143,31 @@ export default function SupplierInvitationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 text-ink-100">
-      <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link href="/supply-chain/map" className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-[#046949]">
-            <ArrowLeft className="h-4 w-4" />
-            공급망 맵으로 돌아가기
-          </Link>
-          <h1 className="text-2xl font-bold tracking-tight text-ink-100">협력사 Invitation 작성</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            선택 노드 기준으로 하위 협력사에게 공급망 정보 입력 요청을 준비합니다.
-          </p>
-        </div>
-        <div className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-          <div className="text-xs font-semibold text-slate-500">선택 노드 context</div>
-          <div className="mt-1 font-semibold text-ink-100">{contextNode}</div>
-          <div className="mt-0.5 text-xs text-slate-500">{contextSupplier}</div>
-        </div>
-      </header>
+    <>
+      <PageHeader
+        title="하위 공급망 정보 요청"
+        description="선택한 협력사에게 하위 공급망 정보 입력을 요청합니다."
+        actions={
+          <>
+            <div className="rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs">
+              <span className="font-semibold text-ink-400">선택 노드</span>
+              <span className="mx-1.5 text-ink-600">·</span>
+              <span className="font-bold text-ink-100">{contextNode}</span>
+              <span className="ml-1.5 text-ink-400">{contextSupplier}</span>
+            </div>
+            <Link
+              href="/supply-chain/map"
+              className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              공급망 맵
+            </Link>
+          </>
+        }
+      />
 
-      <main className="grid h-[calc(100vh-8.5rem)] min-h-[720px] grid-cols-[minmax(440px,0.9fr)_minmax(520px,1.1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
+      <div className="p-8">
+      <main className="grid h-[calc(100vh-13rem)] min-h-[640px] grid-cols-[minmax(440px,0.9fr)_minmax(520px,1.1fr)] overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
         <section className="flex min-h-0 flex-col border-r border-slate-200">
           <div className="border-b border-slate-200 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -287,6 +301,7 @@ export default function SupplierInvitationsPage() {
           )}
         </section>
       </main>
+      </div>
 
       {isSearchOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4">
@@ -332,6 +347,6 @@ export default function SupplierInvitationsPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

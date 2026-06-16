@@ -126,6 +126,33 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           <div>
             <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
+              보고·결재
+            </div>
+            <div className="space-y-0.5 mt-1">
+              <NavLink
+                href="/report"
+                iconName="file-text"
+                label="보고 관리"
+                subtitle="보고서 작성·결재 추적"
+                subItems={[
+                  { href: '/report', label: '보고서 목록', exact: true },
+                  { href: '/report/inbox', label: '결재함' },
+                ]}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
+              대외 전송
+            </div>
+            <div className="space-y-0.5 mt-1">
+              <NavLink href="/transmission" iconName="send" label="대외 전송" subtitle="고객사·비국·협력사 발신" />
+            </div>
+          </div>
+
+          <div>
+            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
               지식·정책
             </div>
             <div className="space-y-0.5 mt-1">

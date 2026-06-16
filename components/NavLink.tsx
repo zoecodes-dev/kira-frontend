@@ -7,7 +7,7 @@ import {
   UserCheck, Upload, GitBranch, Building2, Box, Map,
   AlertTriangle, Package, ChevronDown, ChevronRight,
   Layers, Send, BarChart3, Users, ClipboardCheck,
-  BookOpen, FileSearch, ClipboardList, FlaskConical, KanbanSquare,
+  BookOpen, FileSearch, FileText, ClipboardList, FlaskConical, KanbanSquare,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
@@ -33,6 +33,7 @@ const icons: Record<string, any> = {
   'clipboard-check': ClipboardCheck,
   'book-open':    BookOpen,
   'file-search':  FileSearch,
+  'file-text':    FileText,
   'clipboard-list': ClipboardList,
   flask:          FlaskConical,
   kanban:         KanbanSquare,

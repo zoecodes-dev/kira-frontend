@@ -3,6 +3,7 @@
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { useSearchParams } from 'next/navigation';
 import clsx from 'clsx';
 import {
   ArrowLeft,
@@ -20,7 +21,9 @@ import {
   MessageSquare,
   MoreHorizontal,
   Phone,
+  Send,
   UserRound,
+  X,
   XCircle,
 } from 'lucide-react';
 
@@ -378,7 +381,43 @@ function AccordionSection({
 }
 
 export default function SupplierGeneralReviewPage() {
+  const searchParams = useSearchParams();
+  const supplierId = searchParams.get('supplierId') ?? '';
+  const supplierName = searchParams.get('supplier') ?? supplierSummary.name;
   const [openSections, setOpenSections] = useState<SectionKey[]>(['company']);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
+  const [requestNote, setRequestNote] = useState('');
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(() => {
+    const preChecked = new Set<string>();
+    sections.forEach(section => {
+      if (section.status === '미입력' || section.status === '확인 필요') {
+        section.missing.forEach(item => preChecked.add(`${section.key}:${item}`));
+      }
+    });
+    return preChecked;
+  });
+
+  function toggleItem(key: string) {
+    setCheckedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const urgentCount = sections.reduce((sum, section) =>
+    section.status === '미입력' || section.status === '확인 필요' ? sum + section.missing.length : sum, 0);
+
+  function sendRequest() {
+    setRequestSent(true);
+    setTimeout(() => {
+      setIsRequestModalOpen(false);
+      setRequestSent(false);
+      setRequestNote('');
+    }, 1500);
+  }
 
   function toggleSection(sectionKey: SectionKey) {
     setOpenSections(current =>
@@ -400,7 +439,22 @@ export default function SupplierGeneralReviewPage() {
           협력사 목록으로 돌아가기
         </button>
         <div className="flex items-center gap-2">
-          <ToolbarButton icon={<MessageSquare className="h-4 w-4" />} label="보완 요청하기" />
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsRequestModalOpen(true)}
+              className="inline-flex h-9 items-center gap-2 rounded-sm px-3 text-sm font-semibold text-white shadow-control transition-opacity hover:opacity-90 active:opacity-75"
+              style={{ backgroundColor: '#046949' }}
+            >
+              <MessageSquare className="h-4 w-4" />
+              추가 자료 요청하기
+            </button>
+            {urgentCount > 0 && (
+              <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white">
+                {urgentCount}
+              </span>
+            )}
+          </div>
           <ToolbarButton icon={<BarChart3 className="h-4 w-4" />} label="데이터 비교" />
           <ToolbarButton icon={<Download className="h-4 w-4" />} label="내보내기" />
           <ToolbarButton icon={<MoreHorizontal className="h-4 w-4" />} />
@@ -504,6 +558,105 @@ export default function SupplierGeneralReviewPage() {
         <MetaItem label="마지막 업데이트" value={supplierSummary.lastSubmittedAt} />
         <MetaItem label="다음 제출 예정일" value={supplierSummary.nextDueDate} />
       </section>
+
+      {isRequestModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-sm border border-ink-700 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
+              <div>
+                <div className="text-base font-bold text-ink-100">추가 자료 요청</div>
+                <div className="mt-1 text-xs text-ink-500">{supplierSummary.name} · {supplierSummary.email}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRequestModalOpen(false)}
+                className="rounded-xs border border-ink-700 p-1.5 text-ink-400 hover:text-ink-100"
+                aria-label="닫기"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              {sections
+                .filter(section => section.missing.length > 0)
+                .map(section => (
+                  <div key={section.key}>
+                    <div className="mb-2 flex items-center gap-2 text-xs font-bold text-ink-500">
+                      <span className={clsx('flex h-4 w-4 items-center justify-center', iconTone(section.status))}>
+                        {section.icon}
+                      </span>
+                      {section.title}
+                      <span className={clsx('rounded-full border px-1.5 py-0.5 text-[10px] font-bold', statusClasses(section.status))}>
+                        {section.status}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {section.missing.map(item => {
+                        const key = `${section.key}:${item}`;
+                        return (
+                          <label key={key} className="flex cursor-pointer items-center gap-2.5 rounded-xs border border-ink-700 px-3 py-2 hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={checkedItems.has(key)}
+                              onChange={() => toggleItem(key)}
+                              className="h-3.5 w-3.5 accent-emerald-600"
+                            />
+                            <span className="text-sm text-ink-300">{item}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+              <div>
+                <div className="mb-2 text-xs font-bold text-ink-500">추가 메모 (선택)</div>
+                <textarea
+                  value={requestNote}
+                  onChange={e => setRequestNote(e.target.value)}
+                  placeholder="협력사에게 전달할 추가 안내사항을 입력하세요."
+                  className="w-full rounded-xs border border-ink-700 p-3 text-sm text-ink-300 outline-none placeholder:text-ink-500 focus:border-accent-500"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-ink-700 px-5 py-4">
+              <div className="text-xs text-ink-500">
+                {checkedItems.size}개 항목 선택됨
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRequestModalOpen(false)}
+                  className="rounded-xs border border-ink-700 bg-white px-4 py-2 text-sm font-semibold text-ink-400 hover:border-accent-500 hover:text-accent-700"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={sendRequest}
+                  disabled={checkedItems.size === 0 || requestSent}
+                  className="inline-flex items-center gap-2 rounded-xs bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {requestSent ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      발송 완료
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      요청 발송
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

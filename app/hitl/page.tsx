@@ -336,7 +336,15 @@ export default function HitlPage() {
                   {decision === 'reject' && '반려 처리 및 협력사 통지'}
                   {!decision && '결정을 선택해 주세요'}
                 </button>
-                <button className="px-4 py-2.5 rounded-xs border border-ink-700 bg-white text-xs text-ink-500 hover:bg-ink-800 transition-colors">
+                <button
+                  onClick={() => {
+                    const currentIndex = reviewQueue.findIndex(c => c.id === selectedCase.id);
+                    const nextCase = reviewQueue[(currentIndex + 1) % reviewQueue.length];
+                    setSelectedCase(nextCase);
+                    setDecision(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xs border border-ink-700 bg-white text-xs text-ink-500 hover:bg-ink-800 transition-colors"
+                >
                   나중에 결정
                 </button>
               </div>
@@ -424,8 +432,15 @@ function EvidenceRow({ icon: Icon, nodeType, nodeName, finding, detail, severity
 
 // === 파일 링크 ===
 function FileLink({ name, type, pages }: any) {
+  const handleOpen = () => {
+    const url = `/api/files/${name}`;
+    window.open(url, '_blank');
+  };
   return (
-    <button className="flex items-center gap-2.5 p-2.5 rounded-xs border border-ink-700 bg-white hover:border-accent-600 hover:bg-accent-50 transition-colors text-left">
+    <button
+      onClick={handleOpen}
+      className="flex items-center gap-2.5 p-2.5 rounded-xs border border-ink-700 bg-white hover:border-accent-600 hover:bg-accent-50 transition-colors text-left"
+    >
       <FileText className="w-4 h-4 text-ink-400 shrink-0" strokeWidth={1.5} />
       <div className="flex-1 min-w-0">
         <div className="text-xs font-medium text-ink-100 truncate">{name}</div>
