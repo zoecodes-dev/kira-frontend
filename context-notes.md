@@ -1,5 +1,6 @@
 # Context notes
 
+- 2026-06-16: `/supply-chain/map` should remain a map workspace. Add only a selected-node lower-tier invitation flow and send users to `/suppliers/invitations`; `/suppliers/check-info` remains the received-data review/status page after invitations or status viewing.
 - 2026-06-12: Supplier input status route was renamed from `/suppliers/general` to `/suppliers/check-info`; update navigation and dashboard links to avoid the old URL.
 - 2026-06-12: `/suppliers` should be the supplier list entry point. Sidebar supplier management should show 협력사 목록, contextual 협력사 세부 정보 only when a supplier detail route is active, and 협력사 입력 현황.
 - 2026-06-12: `/supply-chain/map` tree typography should emphasize the top product node over child material/supplier rows. Lower child node names and numeric ratio columns so they do not overpower the product row.
