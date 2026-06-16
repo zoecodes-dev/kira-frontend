@@ -52,6 +52,11 @@ interface SubmitWizardModalProps {
   requestItems: RequestItem[];
   /** localStorage key 분리용 협력사 ID (기본값: 'supplier') */
   supplierId?: string;
+  /**
+   * 최종 제출 완료 후 "AI 파싱 확인으로 이동" 버튼 클릭 시 호출
+   * page.tsx에서 setActiveView('ai-parsing') 전달
+   */
+  onSubmitComplete?: () => void;
 }
 
 // ─── 허용 확장자 / 용량 ─────────────────────────────────────────────────────────
@@ -534,6 +539,7 @@ export default function SubmitWizardModal({
   certRenewalMode = false,
   requestItems,
   supplierId = 'supplier',
+  onSubmitComplete,
 }: SubmitWizardModalProps) {
   const initialStep = reworkMode ? 2 : 1;
   const [step, setStep] = useState<1 | 2 | 3>(initialStep as 1 | 2 | 3);
@@ -789,7 +795,9 @@ export default function SubmitWizardModal({
               </button>
             )}
             {submitted && (
-              <span className="text-xs text-ink-500">검증 현황은 '제출/검토 현황' 탭에서 확인하세요.</span>
+              <span className="text-xs text-ink-500">
+                제출 완료 — AI 파싱 확인에서 추출 결과를 검토해 주세요.
+              </span>
             )}
           </div>
 
@@ -856,13 +864,28 @@ export default function SubmitWizardModal({
             )}
 
             {submitted && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex items-center gap-2 rounded-xs bg-accent-700 px-4 py-2 text-xs font-bold text-white hover:bg-accent-900"
-              >
-                닫기
-              </button>
+              <div className="flex items-center gap-2">
+                {/* 그냥 닫기 */}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-semibold text-ink-400 hover:border-ink-600"
+                >
+                  닫기
+                </button>
+                {/* AI 파싱 확인으로 이동 — onSubmitComplete 연결 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onSubmitComplete?.();
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xs bg-accent-700 px-4 py-2 text-xs font-bold text-white hover:bg-accent-900 shadow-control"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  AI 파싱 확인으로 이동 →
+                </button>
+              </div>
             )}
           </div>
         </div>
