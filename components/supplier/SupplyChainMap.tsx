@@ -79,6 +79,33 @@ const riskConfig: Record<string, { label: string; tone: 'ok' | 'warn' | 'alert' 
   critical: { label: '최고위험', tone: 'alert',   dot: 'bg-red-600',   icon: ShieldAlert },
 };
 
+// ─── status 기반 노드 카드 스타일 (기획서 F-2: green/yellow/red) ─────────────
+function nodeCardStyle(status: string): string {
+  if (status === 'active' || status === 'verified') {
+    return 'border-l-[3px] border-l-[#10B981] bg-[#F0FDF4]';
+  }
+  if (status === 'pending') {
+    return 'border-l-[3px] border-l-amber-400 bg-[#FFFBEB]';
+  }
+  if (status === 'suspended' || status === 'rejected') {
+    return 'border-l-[3px] border-l-red-400 bg-[#FEF2F2]';
+  }
+  return '';
+}
+
+// ─── 규제 풀네임 매핑 (마우스오버 툴팁 — 기획서 F-2) ─────────────────────────
+const REGULATION_FULLNAME: Record<string, string> = {
+  EU_BATTERY: 'EU Battery Regulation 2023/1542',
+  CSDDD:      'EU 공급망 실사 지침',
+  EUDR:       'EU 산림 파괴 방지 규정',
+  UFLPA:      '위구르 강제노동 방지법',
+  IRA:        '미국 인플레이션 감축법',
+  CRMA:       'EU 핵심 원자재법',
+  FEOC:       '외국 우려 기업 규정',
+  CBAM:       'EU 탄소국경조정제도',
+  LkSG:       '독일 공급망 실사법',
+};
+
 const certStatusLabel: Record<string, string> = {
   active: '유효', expiring_soon: '만료 임박', expired: '만료',
 };
@@ -126,6 +153,12 @@ function SupplierNodeCard({
   const displayName = name?.nameEn ?? item.supplier.name;
   const displayNameKo = name?.nameKo ?? item.supplier.role;
 
+  // status 기반 카드 배경색 (기획서 F-2)
+  const statusCls = nodeCardStyle(item.supplier.status);
+  // 노드 하단 규제 배지 — 첫 번째 공장 기준, 최대 3개 (기획서 F-2)
+  const factories = getFactories(item.supplier.id);
+  const regs = factories[0]?.applicableRegulations?.slice(0, 3) ?? [];
+
   return (
     <button
       type="button"
@@ -133,8 +166,9 @@ function SupplierNodeCard({
       className={clsx(
         'group w-full rounded-sm border text-left transition-all duration-150',
         isSelected
-          ? 'border-accent-500 bg-white shadow-[0_0_0_2px_theme(colors.accent.200)] shadow-accent-200'
-          : 'border-ink-700 bg-white hover:border-accent-300 hover:shadow-control'
+          ? 'border-accent-500 shadow-[0_0_0_2px_theme(colors.accent.200)] shadow-accent-200'
+          : 'border-ink-700 hover:border-accent-300 hover:shadow-control',
+        statusCls
       )}
     >
       <div className="p-4">
@@ -170,6 +204,24 @@ function SupplierNodeCard({
             isSelected ? 'text-accent-600' : 'text-ink-600 group-hover:text-accent-400'
           )} />
         </div>
+
+        {/* 규제 배지 — 기획서 F-2: 노드 하단 최대 3개 + 마우스오버 툴팁 */}
+        {regs.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {regs.map(reg => (
+              <div key={reg} className="group/reg relative">
+                <span className="inline-block cursor-default rounded-xs border border-accent-100 bg-accent-50 px-1.5 py-0.5 text-[9px] font-bold text-accent-800">
+                  {regulationMeta[reg]?.label ?? reg}
+                </span>
+                {/* 툴팁 — 규제 풀네임 표시 */}
+                <div className="pointer-events-none absolute bottom-[calc(100%+4px)] left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-xs bg-ink-100 px-2 py-1 text-[9px] font-semibold text-white shadow-lg group-hover/reg:block">
+                  {REGULATION_FULLNAME[reg] ?? reg}
+                  <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-ink-100" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </button>
   );

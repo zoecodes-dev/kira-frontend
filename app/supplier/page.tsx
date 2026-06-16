@@ -34,6 +34,8 @@ import EightStageStepper from '@/components/supplier/EightStageStepper';
 import SupplyChainMap from '@/components/supplier/SupplyChainMap';
 import ViolationReportModal from '@/components/supplier/ViolationReportModal';
 import SelfReportModal from '@/components/supplier/SelfReportModal';
+import AuditView from '@/components/supplier/AuditView';
+import SupplierNotificationBell from '@/components/supplier/SupplierNotificationBell';
 import AiParsingView from '@/components/supplier/AiParsingView';
 import { suppliers, supplyEdges } from '@/lib/data';
 import {
@@ -646,6 +648,8 @@ export default function SupplierPage() {
                   </p>
                 </div>
               </div>
+              {/* 알림 벨 — 드로어 + onNavigate로 탭 전환 */}
+              <SupplierNotificationBell onNavigate={(view) => setActiveView(view as any)} />
               <Link
                 href="/"
                 className="inline-flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
@@ -1166,23 +1170,7 @@ export default function SupplierPage() {
         )}
 
         {activeView === 'audit' && (
-        <section className="rounded-sm border border-ink-700 bg-white p-8 shadow-control">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-sm border border-amber-200 bg-amber-50">
-              <ClipboardCheck className="h-7 w-7 text-amber-700" strokeWidth={1.8} />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-ink-100">실사 관리</div>
-              <p className="mt-1.5 text-xs leading-5 text-ink-500">
-                현장 실사 이력 조회 및 담당자 승인 화면입니다.<br />
-                멘토링 6항 필수 기능 — 실사 방식·기록·승인 이력 포함 구현 예정입니다.
-              </p>
-            </div>
-            <span className="rounded-xs border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
-              개발 예정 · /supplier/audit
-            </span>
-          </div>
-        </section>
+        <AuditView supplierId={supplierId} />
         )}
 
         {activeView === 'supply-chain' && (
@@ -1196,35 +1184,58 @@ export default function SupplierPage() {
 
         {activeView === 'notifications' && (
         <section className="grid grid-cols-[0.95fr_1.05fr] gap-4">
+          {/* 알림 목록은 GNB 알림 벨 드로어에서 확인 */}
           <Card title="원청사 알림" subtitle="원청사에서 보낸 요청과 안내">
-            <div className="space-y-2">
-              {[
-                { label: '광산 폴리곤 좌표 제출 요청', date: '2026-05-21', tone: 'warn' as const },
-                { label: '환경영향평가 갱신본 확인 필요', date: '2026-05-19', tone: 'warn' as const },
-                { label: 'NORI-NCL-RAW 원산지 증빙 승인', date: '2026-05-16', tone: 'ok' as const },
-              ].map(item => (
-                <div key={item.label} className="flex items-center justify-between gap-3 rounded-xs border border-ink-700 bg-ink-800 px-3 py-3">
-                  <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-ink-500" />
-                    <span className="text-xs font-semibold text-ink-100">{item.label}</span>
-                  </div>
-                  <Badge tone={item.tone}>{item.date}</Badge>
-                </div>
-              ))}
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <Bell className="h-8 w-8 text-ink-500" strokeWidth={1.5} />
+              <div className="text-xs font-semibold text-ink-400">
+                상단 알림 벨(🔔)을 클릭해 알림을 확인하세요.
+              </div>
+              <div className="text-[10px] text-ink-600 leading-5">
+                유형별 색상(주황·빨강·파랑) 및 딥링크가 포함된<br />
+                슬라이드 패널에서 확인할 수 있습니다.
+              </div>
             </div>
           </Card>
 
+          {/* 자료 제출 기한 — D-day 배지 추가 */}
           <Card title="자료 제출 기한" subtitle="다가오는 기한만 정리해서 보여줍니다">
             <div className="space-y-2">
-              {requestItems.map(item => (
-                <div key={item.label} className="flex items-center justify-between gap-3 rounded-xs border border-ink-700 bg-white px-3 py-3">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-ink-500" />
-                    <span className="text-xs font-semibold text-ink-100">{item.label}</span>
-                  </div>
-                  <span className="num-mono text-xs font-bold text-ink-400">{item.due}</span>
-                </div>
-              ))}
+              {requestItems.map(item => {
+                const today = new Date('2026-06-16');
+                const due   = new Date(item.due);
+                const dday  = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                const ddayLabel = dday === 0 ? 'D-day' : dday > 0 ? `D-${dday}` : `D+${Math.abs(dday)}`;
+                const ddayCls   =
+                  dday < 0  ? 'border-ink-600 bg-ink-800 text-ink-400' :
+                  dday <= 3  ? 'border-red-200 bg-red-50 text-red-600' :
+                  dday <= 7  ? 'border-amber-200 bg-amber-50 text-amber-700' :
+                               'border-green-200 bg-green-50 text-green-700';
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => openWizardFromActionCenter(item.label, item.status)}
+                    className={`flex w-full items-center justify-between gap-3 rounded-xs border px-3 py-3 text-left transition-colors hover:border-accent-300 hover:shadow-control ${
+                      dday <= 3 ? 'border-red-200 bg-red-50/30' : 'border-ink-700 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Clock className={`h-4 w-4 shrink-0 ${dday <= 3 ? 'text-red-500' : 'text-ink-500'}`} />
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-ink-100 truncate">{item.label}</div>
+                        <div className="text-[10px] text-ink-500">{item.status}</div>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className={`num-mono inline-block rounded-xs border px-2 py-0.5 text-[10px] font-bold ${ddayCls}`}>
+                        {ddayLabel}
+                      </span>
+                      <span className="num-mono text-[10px] text-ink-500">{item.due}</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </Card>
         </section>
@@ -1251,6 +1262,13 @@ export default function SupplierPage() {
         certRenewalMode={wizardCertRenewalMode}
         requestItems={requestItems}
         supplierId={supplierId}
+        onSubmitComplete={() => {
+          // 자료 제출 완료 → AI 파싱 확인 탭으로 자동 이동
+          setWizardOpen(false);
+          setWizardCertRenewalMode(false);
+          setWizardReworkReason(null);
+          setActiveView('ai-parsing');
+        }}
       />
       {/* ── 시정 조치 계획 모달 — violationId로 특정 위반 건 바인딩 ─────── */}
       <ViolationReportModal

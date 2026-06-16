@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Bell, X, AlertTriangle, CheckCircle2, Clock, ChevronRight } from 'lucide-react';
-import Link from 'next/link';
 
 // ─── 타입 정의 ────────────────────────────────────────────────────────────────
 
@@ -16,12 +15,16 @@ interface Notification {
   body: string;
   status: NotificationStatus;
   created_at: string;
-  /** 클릭 시 이동할 내부 경로 (없으면 패널 내에서만 읽음 처리) */
+  /**
+   * 클릭 시 이동할 탭 뷰 ID
+   * 기존 '/supplier/submit' 같은 외부 경로 대신
+   * page.tsx의 setActiveView와 연결되는 내부 탭 키로 변경
+   */
   deep_link?: string;
 }
 
-// ─── Mock 알림 데이터 (notifications.mock.ts 구조 준수) ───────────────────────
-//     실제 API 연동 시 이 상수를 fetch 호출로 교체합니다.
+// ─── Mock 알림 데이터 ────────────────────────────────────────────────────────
+// 실제 API 연동 시 fetch 호출로 교체
 
 const MOCK_NOTIFICATIONS: Notification[] = [
   {
@@ -31,7 +34,7 @@ const MOCK_NOTIFICATIONS: Notification[] = [
     body: '광산 폴리곤 좌표 등록 요청의 마감이 3일 남았습니다. 기한 내 미제출 시 보완 요청으로 전환됩니다.',
     status: 'pending',
     created_at: '2026-06-08T09:30:00Z',
-    deep_link: '/supplier/submit?step=1',
+    deep_link: 'submit-documents',
   },
   {
     notification_id: 'notif-002',
@@ -40,7 +43,7 @@ const MOCK_NOTIFICATIONS: Notification[] = [
     body: '환경영향평가 갱신본이 기준을 충족하지 않아 반려되었습니다. 시정 완료 회신 폼을 제출해 주세요.',
     status: 'pending',
     created_at: '2026-06-07T14:20:00Z',
-    deep_link: '/supplier/status',
+    deep_link: 'submission-status',
   },
   {
     notification_id: 'notif-003',
@@ -49,11 +52,11 @@ const MOCK_NOTIFICATIONS: Notification[] = [
     body: '업로드하신 인증서 PDF의 AI 추출 결과에서 신뢰도 낮은 항목 2건이 발견되었습니다. 검토 후 확인해 주세요.',
     status: 'read',
     created_at: '2026-06-06T11:05:00Z',
-    deep_link: '/supplier/portal',
+    deep_link: 'ai-parsing',
   },
 ];
 
-// ─── 알림 유형별 스타일 맵 ────────────────────────────────────────────────────
+// ─── 알림 유형별 스타일 맵 ───────────────────────────────────────────────────
 
 const TYPE_CONFIG: Record<
   NotificationType,
@@ -90,7 +93,7 @@ const TYPE_CONFIG: Record<
   },
 };
 
-// ─── 날짜 포맷 헬퍼 ───────────────────────────────────────────────────────────
+// ─── 날짜 포맷 헬퍼 ──────────────────────────────────────────────────────────
 
 function formatRelativeTime(isoString: string): string {
   const diff = Date.now() - new Date(isoString).getTime();
@@ -101,15 +104,27 @@ function formatRelativeTime(isoString: string): string {
   return `${Math.floor(hours / 24)}일 전`;
 }
 
-// ─── 메인 컴포넌트 ────────────────────────────────────────────────────────────
+// ─── Props ────────────────────────────────────────────────────────────────────
 
-export default function SupplierNotificationBell() {
+interface SupplierNotificationBellProps {
+  /**
+   * 알림 클릭 시 page.tsx의 setActiveView로 탭 전환
+   * deep_link 값(예: 'submit-documents')을 그대로 전달
+   */
+  onNavigate?: (view: string) => void;
+}
+
+// ─── 메인 컴포넌트 ───────────────────────────────────────────────────────────
+
+export default function SupplierNotificationBell({
+  onNavigate,
+}: SupplierNotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
-  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerRef  = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
-  const unreadCount = notifications.filter((n) => n.status === 'pending').length;
+  const unreadCount = notifications.filter(n => n.status === 'pending').length;
 
   // 드로어 외부 클릭 시 닫기
   useEffect(() => {
@@ -139,23 +154,31 @@ export default function SupplierNotificationBell() {
   }, [open]);
 
   function markAllRead() {
-    setNotifications((prev) => prev.map((n) => ({ ...n, status: 'read' as const })));
+    setNotifications(prev => prev.map(n => ({ ...n, status: 'read' as const })));
   }
 
   function markOneRead(id: string) {
-    setNotifications((prev) =>
-      prev.map((n) => (n.notification_id === id ? { ...n, status: 'read' as const } : n))
+    setNotifications(prev =>
+      prev.map(n => n.notification_id === id ? { ...n, status: 'read' as const } : n)
     );
   }
 
+  // 알림 클릭 — 읽음 처리 + 탭 딥링크 이동
+  function handleNotifClick(notif: Notification) {
+    markOneRead(notif.notification_id);
+    setOpen(false);
+    if (notif.deep_link && onNavigate) {
+      onNavigate(notif.deep_link);
+    }
+  }
+
   return (
-    // position:relative 기준점 — PageHeader의 flex row 안에서 정렬
     <div className="relative">
 
-      {/* ── 알림 벨 버튼 ─────────────────────────────────────── */}
+      {/* ── 알림 벨 버튼 ──────────────────────────────────────── */}
       <button
         ref={triggerRef}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(v => !v)}
         aria-label={`알림 ${unreadCount > 0 ? `(미확인 ${unreadCount}건)` : ''}`}
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -171,8 +194,6 @@ export default function SupplierNotificationBell() {
         `}
       >
         <Bell className="h-3.5 w-3.5" />
-
-        {/* 미확인 배지 */}
         {unreadCount > 0 && (
           <span
             aria-hidden="true"
@@ -191,15 +212,7 @@ export default function SupplierNotificationBell() {
         )}
       </button>
 
-      {/* ── 슬라이드 오버 드로어 ──────────────────────────────── */}
-      {/*
-        PageHeader는 sticky top-0 z-10.
-        드로어는 z-50으로 PageHeader보다 위에 렌더링되어야 하지만,
-        position:fixed로 뷰포트 기준 우측 상단에 붙임으로써
-        사이드바·콘텐츠 영역에 무관하게 올바르게 표시됩니다.
-      */}
-
-      {/* 배경 오버레이 (반투명) */}
+      {/* ── 배경 오버레이 ─────────────────────────────────────── */}
       <div
         aria-hidden="true"
         onClick={() => setOpen(false)}
@@ -211,7 +224,7 @@ export default function SupplierNotificationBell() {
         `}
       />
 
-      {/* 드로어 패널 */}
+      {/* ── 슬라이드 드로어 패널 ──────────────────────────────── */}
       <div
         ref={drawerRef}
         role="dialog"
@@ -222,7 +235,7 @@ export default function SupplierNotificationBell() {
           h-full w-[360px]
           flex flex-col
           bg-white border-l border-ink-700
-          shadow-[−4px_0_24px_rgba(0,0,0,0.08)]
+          shadow-[-4px_0_24px_rgba(0,0,0,0.08)]
           transition-transform duration-250 ease-in-out
           ${open ? 'translate-x-0' : 'translate-x-full'}
         `}
@@ -265,85 +278,67 @@ export default function SupplierNotificationBell() {
               <p className="text-xs font-medium text-ink-500">새 알림이 없습니다</p>
             </li>
           ) : (
-            notifications.map((notif) => {
+            notifications.map(notif => {
               const cfg = TYPE_CONFIG[notif.notification_type];
               const Icon = cfg.icon;
               const isUnread = notif.status === 'pending';
 
-              const cardContent = (
-                <div
-                  className={`
-                    relative flex gap-3 px-5 py-4
-                    transition-colors duration-100
-                    ${isUnread ? 'bg-white' : 'bg-ink-800'}
-                    hover:bg-accent-50/50
-                  `}
-                >
-                  {/* 왼쪽 컬러 바 (알림 유형) */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${isUnread ? cfg.barClass : 'bg-ink-700'} rounded-r-sm`} />
-
-                  {/* 유형 아이콘 */}
-                  <div className={`shrink-0 mt-0.5 ${isUnread ? cfg.iconClass : 'text-ink-500'}`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-
-                  {/* 본문 */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-0.5">
-                      <p className={`text-[11px] font-bold leading-snug ${isUnread ? 'text-ink-100' : 'text-ink-500'}`}>
-                        {notif.subject}
-                      </p>
-                      {isUnread && (
-                        <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-red-500 mt-1" aria-hidden="true" />
-                      )}
-                    </div>
-                    <p className="text-[10px] text-ink-500 leading-relaxed line-clamp-2">
-                      {notif.body}
-                    </p>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className={`text-[9px] font-semibold px-1.5 py-px rounded-xs border ${
-                        isUnread
-                          ? 'bg-ink-800 text-ink-500 border-ink-700'
-                          : 'bg-ink-900 text-ink-500 border-ink-800'
-                      }`}>
-                        {cfg.label}
-                      </span>
-                      <span className="text-[9px] text-ink-500">
-                        {formatRelativeTime(notif.created_at)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 딥링크 화살표 */}
-                  {notif.deep_link && (
-                    <div className={`shrink-0 self-center ${isUnread ? 'text-ink-500' : 'text-ink-600'}`}>
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </div>
-                  )}
-                </div>
-              );
-
               return (
                 <li key={notif.notification_id}>
-                  {notif.deep_link ? (
-                    <Link
-                      href={notif.deep_link}
-                      onClick={() => {
-                        markOneRead(notif.notification_id);
-                        setOpen(false);
-                      }}
-                      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-500"
-                    >
-                      {cardContent}
-                    </Link>
-                  ) : (
-                    <button
-                      onClick={() => markOneRead(notif.notification_id)}
-                      className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-500"
-                    >
-                      {cardContent}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleNotifClick(notif)}
+                    className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-500"
+                  >
+                    <div className={`
+                      relative flex gap-3 px-5 py-4
+                      transition-colors duration-100
+                      ${isUnread ? 'bg-white' : 'bg-ink-800'}
+                      hover:bg-accent-50/50
+                    `}>
+                      {/* 왼쪽 컬러 바 */}
+                      <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${isUnread ? cfg.barClass : 'bg-ink-700'} rounded-r-sm`} />
+
+                      {/* 유형 아이콘 */}
+                      <div className={`shrink-0 mt-0.5 ${isUnread ? cfg.iconClass : 'text-ink-500'}`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+
+                      {/* 본문 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-0.5">
+                          <p className={`text-[11px] font-bold leading-snug ${isUnread ? 'text-ink-100' : 'text-ink-500'}`}>
+                            {notif.subject}
+                          </p>
+                          {isUnread && (
+                            <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-red-500 mt-1" aria-hidden="true" />
+                          )}
+                        </div>
+                        <p className="text-[10px] text-ink-500 leading-relaxed line-clamp-2">
+                          {notif.body}
+                        </p>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className={`text-[9px] font-semibold px-1.5 py-px rounded-xs border ${
+                            isUnread
+                              ? 'bg-ink-800 text-ink-500 border-ink-700'
+                              : 'bg-ink-900 text-ink-500 border-ink-800'
+                          }`}>
+                            {cfg.label}
+                          </span>
+                          <span className="text-[9px] text-ink-500">
+                            {formatRelativeTime(notif.created_at)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 딥링크 화살표 */}
+                      {notif.deep_link && (
+                        <div className={`shrink-0 self-center ${isUnread ? 'text-ink-500' : 'text-ink-600'}`}>
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </div>
+                      )}
+                    </div>
+                  </button>
                 </li>
               );
             })
@@ -352,9 +347,7 @@ export default function SupplierNotificationBell() {
 
         {/* 드로어 푸터 */}
         <div className="px-5 py-3 border-t border-ink-700 bg-ink-800 shrink-0">
-          <p className="text-[9px] text-ink-500 text-center">
-            최근 30일 알림을 표시합니다
-          </p>
+          <p className="text-[9px] text-ink-500 text-center">최근 30일 알림을 표시합니다</p>
         </div>
       </div>
     </div>
