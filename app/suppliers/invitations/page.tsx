@@ -189,12 +189,6 @@ export default function SupplierInvitationsPage() {
                       </span>
                     </div>
                     <div className="truncate text-xs text-slate-500">{item.email}</div>
-                    {item.status === 'draft' && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <span className="inline-flex h-8 items-center rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-700">임시 저장</span>
-                        <span className="inline-flex h-8 items-center rounded-md border border-[#046949] bg-white px-3 text-xs font-semibold text-[#046949]">발송하기</span>
-                      </div>
-                    )}
                   </button>
                 );
               })}
