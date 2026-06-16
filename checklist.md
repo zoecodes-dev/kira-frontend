@@ -91,3 +91,11 @@
 - [x] Rename `/suppliers/general` route to `/suppliers/check-info`.
 - [x] Update sidebar and dashboard links to the new route.
 - [x] Run typecheck and browser verification for `/suppliers/check-info`.
+
+# Supply-chain invitation workflow checklist
+
+- [x] Keep the existing `/supply-chain/map` layout while adding a lower-tier connection confirmation flow.
+- [x] Route confirmed lower-tier connection requests to `/suppliers/invitations` with selected node context.
+- [x] Create `/suppliers/invitations` as a supplier invitation preparation workspace, separate from `/suppliers/check-info`.
+- [x] Add mock invitation list, selectable mail preparation detail, status actions, and supplier search modal.
+- [x] Run typecheck and browser verification for `/supply-chain/map` and `/suppliers/invitations`.

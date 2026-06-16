@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
   Box,
@@ -14,8 +15,10 @@ import {
   Info,
   Maximize2,
   Package,
+  Plus,
   RefreshCw,
   ShieldAlert,
+  X,
 } from 'lucide-react';
 
 type RiskStatus = 'verified' | 'watch' | 'high' | 'feoc_review' | 'audit_required';
@@ -556,6 +559,25 @@ function getSelectedNode(key: string, product: Product, bomVersion: BomVersion, 
   return { type: 'part', key: row.node_key, row };
 }
 
+function getInvitationContext(node: SelectedNode) {
+  if (node.type === 'product') {
+    const row = node.rows[0];
+    return {
+      nodeType: 'product',
+      nodeLabel: node.product.product_name,
+      itemName: node.product.product_name,
+      supplierName: row?.supplier_name ?? '1차 협력사',
+    };
+  }
+
+  return {
+    nodeType: node.type,
+    nodeLabel: node.row.part_name,
+    itemName: node.row.part_name,
+    supplierName: node.row.supplier_name,
+  };
+}
+
 function buildExplorerTree(product: Product, bomVersion: BomVersion, rows: TraceRow[]): ExplorerNode {
   const rowsByPartId = new Map<string, TraceRow>();
   rows.forEach(row => {
@@ -616,6 +638,7 @@ function buildExplorerTree(product: Product, bomVersion: BomVersion, rows: Trace
 }
 
 export default function SupplyChainMapPage() {
+  const router = useRouter();
   const [selectedProductId, setSelectedProductId] = useState(products[0].product_id);
   const availableBomVersions = useMemo(
     () => bom_versions.filter(version => version.product_id === selectedProductId),
@@ -628,6 +651,7 @@ export default function SupplyChainMapPage() {
   const [selectedNodeKey, setSelectedNodeKey] = useState(`product:${products[0].product_id}`);
   const [collapsedNodeKeys, setCollapsedNodeKeys] = useState<Set<string>>(() => new Set());
   const [generatedAt, setGeneratedAt] = useState('');
+  const [showConnectConfirm, setShowConnectConfirm] = useState(false);
 
   const selectedProduct = products.find(product => product.product_id === selectedProductId) ?? products[0];
   const selectedBomVersion = bom_versions.find(version => version.bom_version_id === selectedBomVersionId) ?? availableBomVersions[0];
@@ -656,6 +680,7 @@ export default function SupplyChainMapPage() {
   );
 
   const selectedNode = getSelectedNode(selectedNodeKey, selectedProduct, selectedBomVersion, traceRows);
+  const invitationContext = getInvitationContext(selectedNode);
 
   function handleProductChange(productId: string) {
     const nextVersions = bom_versions.filter(version => version.product_id === productId);
@@ -680,6 +705,17 @@ export default function SupplyChainMapPage() {
       else next.add(key);
       return next;
     });
+  }
+
+  function handleConfirmInvitation() {
+    const params = new URLSearchParams({
+      node: invitationContext.nodeLabel,
+      item: invitationContext.itemName,
+      supplier: invitationContext.supplierName,
+      type: invitationContext.nodeType,
+    });
+    setShowConnectConfirm(false);
+    router.push(`/suppliers/invitations?${params.toString()}`);
   }
 
   return (
@@ -769,9 +805,13 @@ export default function SupplyChainMapPage() {
               onSelect={setSelectedNodeKey}
               onToggle={toggleNode}
             />
-            <button className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-slate-50 text-sm font-bold text-ink-400 hover:bg-slate-100">
-              <span className="text-lg leading-none">+</span>
-              하위 공급망 더보기 (2)
+            <button
+              type="button"
+              onClick={() => setShowConnectConfirm(true)}
+              className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-slate-50 text-sm font-bold text-ink-400 hover:bg-slate-100"
+            >
+              <Plus className="h-4 w-4" />
+              하위 공급망 연결
               <ChevronDown className="h-4 w-4" />
             </button>
           </div>
@@ -780,6 +820,47 @@ export default function SupplyChainMapPage() {
       </section>
 
       <SupplyMapStats rows={traceRows} />
+
+      {showConnectConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4">
+          <div className="w-full max-w-[360px] rounded-lg border border-slate-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-base font-bold text-ink-100">하위 공급망 연결</div>
+                <p className="mt-2 text-sm text-ink-500">하위 공급망을 추가하시겠습니까?</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowConnectConfirm(false)}
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                aria-label="닫기"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mb-5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+              <div className="font-semibold text-slate-700">{invitationContext.itemName}</div>
+              <div>{invitationContext.supplierName} 기준으로 하위 협력사 Invitation을 준비합니다.</div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleConfirmInvitation}
+                className="h-10 rounded-md bg-[#046949] text-sm font-semibold text-white hover:bg-[#03563c]"
+              >
+                예
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowConnectConfirm(false)}
+                className="h-10 rounded-md bg-slate-100 text-sm font-semibold text-slate-600 hover:bg-slate-200"
+              >
+                아니오
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="mt-4 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
         <div className="flex items-start justify-between gap-4 border-b border-ink-700 bg-ink-800/40 px-5 py-4">
