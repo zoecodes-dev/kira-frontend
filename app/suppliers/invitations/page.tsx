@@ -1,7 +1,7 @@
 'use client';
 
 // 하위 협력사에게 공급망 정보 입력 요청을 준비하는 Invitation 화면
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -47,7 +47,7 @@ function getStatusClass(status: InvitationStatus) {
   return 'border-blue-200 bg-blue-50 text-blue-700';
 }
 
-export default function SupplierInvitationsPage() {
+function SupplierInvitationsContent() {
   const searchParams = useSearchParams();
   const contextItem = searchParams.get('item') || '선택 노드';
   const contextSupplier = searchParams.get('supplier') || '선택 협력사';
@@ -348,5 +348,13 @@ export default function SupplierInvitationsPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function SupplierInvitationsPage() {
+  return (
+    <Suspense>
+      <SupplierInvitationsContent />
+    </Suspense>
   );
 }
