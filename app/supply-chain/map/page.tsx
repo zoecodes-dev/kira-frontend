@@ -1064,7 +1064,7 @@ function MapDetailPanel({ selectedNode }: { selectedNode: SelectedNode }) {
   if (!row) {
     return (
       <aside className="bg-white p-6">
-        <h2 className="text-sm font-black text-ink-100">선택 노드 상세 정보</h2>
+        <h2 className="text-sm font-bold text-ink-100">선택 노드 상세 정보</h2>
       </aside>
     );
   }
@@ -1080,36 +1080,36 @@ function MapDetailPanel({ selectedNode }: { selectedNode: SelectedNode }) {
   return (
     <aside className="bg-white">
       <div className="border-b border-slate-200 p-4">
-        <div className="mb-4 flex items-center gap-2 text-sm font-black text-ink-100">
+        <div className="mb-4 flex items-center gap-2 text-sm font-bold text-ink-100">
           선택 노드 상세 정보
           <Info className="h-4 w-4 text-slate-400" />
         </div>
         <div className="flex items-start gap-3">
           <Gem className={`mt-1 h-5 w-5 shrink-0 ${getRiskTone(badge) === 'danger' ? 'text-red-500' : 'text-ink-400'}`} />
           <div>
-            <h3 className="text-base font-black text-ink-100">{row.part_name}</h3>
-            <p className="mt-1 text-xs font-semibold text-slate-500">{row.material_or_mineral}</p>
+            <h3 className="text-base font-bold text-ink-100">{row.part_name}</h3>
+            <p className="mt-1 text-xs font-medium text-slate-500">{row.material_or_mineral}</p>
           </div>
         </div>
         <div className="mt-5 space-y-3">
           {detailRows.map(([label, value]) => (
             <div key={label} className="flex items-center justify-between gap-4 text-sm">
-              <span className="font-semibold text-slate-500">{label}</span>
-              <span className="text-right font-bold text-ink-100">{value}</span>
+              <span className="font-medium text-slate-500">{label}</span>
+              <span className="text-right font-semibold text-ink-100">{value}</span>
             </div>
           ))}
           <div className="flex items-center justify-between gap-4 text-sm">
-            <span className="font-semibold text-slate-500">리스크 상태</span>
+            <span className="font-medium text-slate-500">리스크 상태</span>
             <StatusBadge status={row.risk_status} />
           </div>
           <div className="flex items-center justify-between gap-4 text-sm">
-            <span className="font-semibold text-slate-500">최종 업데이트</span>
-            <span className="text-right font-bold text-ink-100">2025.05.14 09:30</span>
+            <span className="font-medium text-slate-500">최종 업데이트</span>
+            <span className="text-right font-semibold text-ink-100">2025.05.14 09:30</span>
           </div>
         </div>
         <div className="mt-5 rounded-lg bg-amber-50 p-4 text-sm text-ink-400">
-          <div className="mb-2 font-black text-ink-100">리스크 요약</div>
-          <ul className="space-y-1 text-xs font-semibold leading-5">
+          <div className="mb-2 font-bold text-ink-100">리스크 요약</div>
+          <ul className="space-y-1 text-xs font-medium leading-5">
             <li>· 원산지: 중국 발생 가능성 있음</li>
             <li>· FEOC 관련 규제 검토 필요</li>
             <li>· 추가 증빙 서류 요청됨</li>
@@ -1118,8 +1118,8 @@ function MapDetailPanel({ selectedNode }: { selectedNode: SelectedNode }) {
       </div>
       <div className="p-4">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-black text-ink-100">연결 제품</h3>
-          <span className="text-xs font-bold text-slate-500">연결된 제품 수 3개</span>
+          <h3 className="text-sm font-bold text-ink-100">연결 제품</h3>
+          <span className="text-xs font-semibold text-slate-500">연결된 제품 수 3개</span>
         </div>
         <div className="space-y-3 text-sm">
           {[
@@ -1128,12 +1128,12 @@ function MapDetailPanel({ selectedNode }: { selectedNode: SelectedNode }) {
             ['ESS Pack C', 'ESS-PACK-C'],
           ].map(([name, code]) => (
             <div key={name}>
-              <div className="font-black text-ink-100">{name}</div>
+              <div className="font-bold text-ink-100">{name}</div>
               <div className="mt-1 text-xs font-medium text-slate-500">{code}</div>
             </div>
           ))}
         </div>
-        <button className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white text-sm font-bold text-ink-400 hover:bg-slate-50">
+        <button className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white text-sm font-semibold text-ink-400 hover:bg-slate-50">
           공급사 상세 페이지로 이동
           <ExternalLink className="h-4 w-4" />
         </button>
