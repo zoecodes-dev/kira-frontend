@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { AlertTriangle, Edit2, ChevronRight, Info, Save, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Edit2, ChevronRight, Info, Save, CheckCircle2, Send } from 'lucide-react';
 import Badge from '@/components/Badge';
 
 // 신뢰도에 따른 색상/톤 반환 함수 (기획서 D-3 스펙)
@@ -57,6 +57,11 @@ interface ExtractionTableProps {
   doc: any;
   supplierId: string;
   onConfirmComplete: () => void;
+  /**
+   * 현재 탭이 마지막 미완료 문서인지 여부
+   * true → 버튼 텍스트를 "원청사로 제출"로 변경 (submission-review → review 상태로 전송)
+   */
+  isLastDoc?: boolean;
 }
 
 // ─── 토스트 컴포넌트 ────────────────────────────────────────────────────────
@@ -134,7 +139,7 @@ function DraftBanner({
   );
 }
 
-export default function ExtractionTable({ doc, supplierId, onConfirmComplete }: ExtractionTableProps) {
+export default function ExtractionTable({ doc, supplierId, onConfirmComplete, isLastDoc = false }: ExtractionTableProps) {
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
   const [unparsedInputs, setUnparsedInputs] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
@@ -323,9 +328,16 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete }: 
             type="button"
             onClick={handleSubmit}
             disabled={confirming}
-            className="inline-flex items-center gap-1.5 rounded-xs bg-accent-700 px-5 py-2 text-xs font-bold text-white shadow-control hover:bg-accent-900 transition-colors disabled:opacity-70"
+            className={`inline-flex items-center gap-1.5 rounded-xs px-5 py-2 text-xs font-bold text-white shadow-control transition-colors disabled:opacity-70 ${
+              isLastDoc ? 'bg-signal-ok hover:bg-emerald-600' : 'bg-accent-700 hover:bg-accent-900'
+            }`}
           >
-            {confirming ? '처리 중...' : <>저장 및 다음으로 <ChevronRight className="h-3.5 w-3.5" /></>}
+            {confirming ? '처리 중...' : isLastDoc ? (
+              /* 마지막 문서 — submission-review의 review 상태로 원청사 Queue에 전송 */
+              <><Send className="h-3.5 w-3.5" /> 원청사로 제출</>
+            ) : (
+              <>저장 및 다음으로 <ChevronRight className="h-3.5 w-3.5" /></>
+            )}
           </button>
         </div>
       </div>

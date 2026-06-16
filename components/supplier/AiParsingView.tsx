@@ -5,20 +5,47 @@ import { CheckCircle2, FileText, ScanLine } from 'lucide-react';
 import Badge from '@/components/Badge';
 import ExtractionTable from './ExtractionTable';
 
-// ─── Mock Data ──────────────────────────────────────────────────────────
-// 실제 API 연동 시 fetch 호출로 교체
-const MOCK_PARSED_DOCS = [
+// ─── HITL 규격 스키마 타입 (submission-review/page.tsx statusMeta와 동기화) ──
+// submission-review: review | approved | rework | rejected
+// 협력사 AI 파싱 → review(검토 중)로 전송 → 원청사가 approved/rework/rejected 판정
+interface ExtractionField {
+  fieldId: string;     // 원청사 Queue JSON key와 동일
+  label: string;       // 화면 표시명
+  aiValue: string;     // AI 추출값
+  confidence: number;  // 0.0~1.0
+  requiresAttention: boolean; // confidence < 0.80
+  unit?: string;
+  warning?: string;
+}
+
+interface ParsedDoc {
+  docId: string;
+  fileName: string;
+  requestType: string;
+  uploadedAt: string;
+  // submission-review의 statusMeta 상태값으로 전송될 초기값
+  submissionStatus: 'review' | 'approved' | 'rework' | 'rejected';
+  extractionResult: {
+    fields: ExtractionField[];
+    unparsedFields: string[];
+  };
+}
+
+// ─── Mock Data — HITL/Queue 규격과 1:1 동기화 ──────────────────────────────
+// 실제 API 연동 시 fetch 호출로 교체 (인터페이스는 그대로 유지)
+const MOCK_PARSED_DOCS: ParsedDoc[] = [
   {
     docId: 'doc-001',
     fileName: '환경영향평가_보고서_최종.pdf',
     requestType: '탄소 배출 보고서',
     uploadedAt: '2026-05-19',
+    submissionStatus: 'review',  // 원청사 Queue로 전송될 초기 상태
     extractionResult: {
       fields: [
-        { key: 'scope1', label: 'Scope 1 배출량', aiValue: '1,240', confidence: 0.96, unit: 'tCO2e' },
-        { key: 'scope2', label: 'Scope 2 배출량', aiValue: '4,20', confidence: 0.45, unit: 'tCO2e', warning: '숫자 형식이 불확실합니다.' },
-        { key: 'carbon_intensity', label: '탄소 집약도', aiValue: '2.34', confidence: 0.82, unit: 'kgCO2e/kWh' },
-        { key: 'agency', label: '평가 기관명', aiValue: '글로벌에코인증원', confidence: 0.92, unit: '' },
+        { fieldId: 'scope1_emission',   label: 'Scope 1 배출량', aiValue: '1,240', confidence: 0.96, requiresAttention: false, unit: 'tCO2e' },
+        { fieldId: 'scope2_emission',   label: 'Scope 2 배출량', aiValue: '4,20',  confidence: 0.45, requiresAttention: true,  unit: 'tCO2e', warning: '숫자 형식이 불확실합니다.' },
+        { fieldId: 'carbon_intensity',  label: '탄소 집약도',    aiValue: '2.34',  confidence: 0.82, requiresAttention: true,  unit: 'kgCO2e/kWh' },
+        { fieldId: 'certifying_agency', label: '평가 기관명',    aiValue: '글로벌에코인증원', confidence: 0.92, requiresAttention: false, unit: '' },
       ],
       unparsedFields: ['검증 완료일', '현장 실사 여부'],
     },
@@ -28,13 +55,14 @@ const MOCK_PARSED_DOCS = [
     fileName: '원산지_증명서_NORI-NCL-RAW.pdf',
     requestType: '원산지 증명서',
     uploadedAt: '2026-05-20',
+    submissionStatus: 'review',
     extractionResult: {
       fields: [
-        { key: 'origin_country', label: '원산지 국가', aiValue: '대한민국', confidence: 0.98, unit: '' },
-        { key: 'material_name', label: '자재명', aiValue: 'NORI-NCL-RAW', confidence: 0.95, unit: '' },
-        { key: 'hs_code', label: 'HS Code', aiValue: '2604.00', confidence: 0.76, unit: '' },
-        { key: 'issue_date', label: '발급일', aiValue: '2026-05-10', confidence: 0.91, unit: '' },
-        { key: 'feoc_status', label: 'FEOC 해당 여부', aiValue: '해당 없음', confidence: 0.61, unit: '', warning: 'FEOC 판정 근거 서류를 추가로 확인해 주세요.' },
+        { fieldId: 'origin_country', label: '원산지 국가',     aiValue: '대한민국',  confidence: 0.98, requiresAttention: false, unit: '' },
+        { fieldId: 'material_name',  label: '자재명',          aiValue: 'NORI-NCL-RAW', confidence: 0.95, requiresAttention: false, unit: '' },
+        { fieldId: 'hs_code',        label: 'HS Code',         aiValue: '2604.00',  confidence: 0.76, requiresAttention: true,  unit: '' },
+        { fieldId: 'issue_date',     label: '발급일',          aiValue: '2026-05-10', confidence: 0.91, requiresAttention: false, unit: '' },
+        { fieldId: 'feoc_status',    label: 'FEOC 해당 여부',  aiValue: '해당 없음', confidence: 0.61, requiresAttention: true,  unit: '', warning: 'FEOC 판정 근거 서류를 추가로 확인해 주세요.' },
       ],
       unparsedFields: ['광산 GPS 폴리곤 좌표'],
     },
@@ -155,6 +183,12 @@ export default function AiParsingView({
           doc={activeDoc}
           supplierId={supplierId}
           onConfirmComplete={handleDocComplete}
+          isLastDoc={
+            // 현재 탭이 마지막 미완료 문서인지 판단
+            // → 마지막 문서일 때 버튼 텍스트를 "원청사로 제출"로 변경
+            MOCK_PARSED_DOCS.filter(d => !completedDocs[d.docId]).length === 1 &&
+            !completedDocs[activeDoc.docId]
+          }
         />
 
       </div>
