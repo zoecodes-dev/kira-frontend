@@ -396,10 +396,10 @@ function SharePanel({ record }: { record: HistoryRecord }) {
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr]">
         <div className="grid gap-3 xl:grid-cols-[1.15fr_1fr]">
           <div className="grid grid-cols-2 gap-2">
-            <ShareButton icon={Download} label="PDF 다운로드" />
-            <ShareButton icon={Eye} label="DPP 상세 보기" />
-            <ShareButton icon={Mail} label="외부 공유" />
-            <ShareButton icon={Copy} label="공유 링크 복사" />
+            <ShareButton icon={Download} label="PDF 다운로드" onClick={() => window.print()} />
+            <ShareButton icon={Eye} label="DPP 상세 보기" onClick={() => window.open(`/dpp/center`, '_blank')} />
+            <ShareButton icon={Mail} label="외부 공유" onClick={() => window.location.href = `mailto:?subject=DPP 공유 — ${record.id}&body=DPP ID: ${record.id}%0A제품: ${record.modelName}%0A발행일: ${record.issuedAt}`} />
+            <ShareButton icon={Copy} label="공유 링크 복사" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/dpp/center?id=${record.id}`); }} />
           </div>
 
           <div className="rounded-sm border border-ink-700 bg-ink-800/40 p-3">
@@ -421,9 +421,9 @@ function SharePanel({ record }: { record: HistoryRecord }) {
   );
 }
 
-function ShareButton({ icon: Icon, label }: { icon: typeof Download; label: string }) {
+function ShareButton({ icon: Icon, label, onClick }: { icon: typeof Download; label: string; onClick: () => void }) {
   return (
-    <button className="flex items-center justify-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2.5 text-sm font-semibold text-ink-100 hover:border-accent-600 hover:text-accent-700">
+    <button onClick={onClick} className="flex items-center justify-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2.5 text-sm font-semibold text-ink-100 hover:border-accent-600 hover:text-accent-700">
       <Icon className="h-4 w-4" />
       {label}
     </button>

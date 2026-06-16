@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import {
   AlertTriangle,
@@ -211,6 +211,7 @@ export default function DueDiligencePage() {
   const [selectedId, setSelectedId] = useState(audits[0].id);
   const [filter, setFilter] = useState<AuditFilter>('all');
   const [search, setSearch] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selected = audits.find(audit => audit.id === selectedId) ?? audits[0];
   const risk = supplierRiskProfiles.find(item => item.supplierId === selected.supplierId);
@@ -250,6 +251,10 @@ export default function DueDiligencePage() {
         actions={
           <button
             type="button"
+            onClick={() => {
+              const name = window.prompt('실사 계획 ID를 입력하세요 (예: DD-2026-005)');
+              if (name) window.alert(`실사 계획 "${name}" 생성 요청이 접수되었습니다.`);
+            }}
             className="inline-flex items-center gap-2 rounded-xs border border-accent-700/40 bg-accent-50 px-3 py-2 text-xs font-bold text-accent-700 hover:border-accent-600 hover:bg-accent-100"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -450,7 +455,10 @@ export default function DueDiligencePage() {
             <section>
               <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-ink-500">검증 보고서</h4>
               {selected.report ? (
-                <div className="flex items-center justify-between gap-3 rounded-xs border border-ink-700 bg-slate-50 px-3 py-2 text-xs">
+                <div
+                  className="flex cursor-pointer items-center justify-between gap-3 rounded-xs border border-ink-700 bg-slate-50 px-3 py-2 text-xs hover:border-accent-500"
+                  onClick={() => window.open(`/api/files/${selected.report}`, '_blank')}
+                >
                   <div className="flex min-w-0 items-center gap-2">
                     <FileText className="h-4 w-4 shrink-0 text-red-600" />
                     <span className="truncate font-semibold text-ink-100 num-mono">{selected.report}</span>
@@ -458,13 +466,27 @@ export default function DueDiligencePage() {
                   <span className="shrink-0 text-[11px] text-ink-500">{selected.reportSize}</span>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-center gap-2 rounded-xs border border-dashed border-ink-700 px-3 py-3 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  보고서 업로드
-                </button>
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) window.alert(`"${file.name}" 업로드 완료`);
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex w-full items-center justify-center gap-2 rounded-xs border border-dashed border-ink-700 px-3 py-3 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    보고서 업로드
+                  </button>
+                </>
               )}
             </section>
 

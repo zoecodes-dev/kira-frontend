@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
@@ -121,7 +122,9 @@ const severityTone = {
 } as const;
 
 export default function RiskActionsPage() {
+  const router = useRouter();
   const [selectedId, setSelectedId] = useState(riskActions[0].id);
+  const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
   const selected = riskActions.find(action => action.id === selectedId) ?? riskActions[0];
   const selectedSupplier = getSupplierName(selected.supplierId);
   const selectedPart = parts.find(part => part.id === selected.partId);
@@ -243,10 +246,15 @@ export default function RiskActionsPage() {
 
             <Card title="조치 실행" subtitle="실제 운영 액션으로 연결되는 버튼">
               <div className="grid grid-cols-2 gap-2">
-                <Action icon={Send} label="보완 요청" tone="warn" />
-                <Action icon={FileWarning} label="HITL 요청" tone="neutral" />
-                <Action icon={AlertTriangle} label="대체 공급망" tone="alert" />
-                <Action icon={CheckCircle2} label="해결 처리" tone="ok" />
+                <Action icon={Send} label="보완 요청" tone="warn" onClick={() => router.push('/supply-chain/request-map')} />
+                <Action icon={FileWarning} label="HITL 요청" tone="neutral" onClick={() => router.push('/hitl')} />
+                <Action icon={AlertTriangle} label="대체 공급망" tone="alert" onClick={() => router.push('/supply-chain/map')} />
+                <Action
+                  icon={CheckCircle2}
+                  label={resolvedIds.has(selected.id) ? '해결 완료' : '해결 처리'}
+                  tone="ok"
+                  onClick={() => setResolvedIds(prev => new Set([...prev, selected.id]))}
+                />
               </div>
             </Card>
           </div>
@@ -269,7 +277,7 @@ function InfoRow({ label, value, alert }: { label: string; value: string; alert?
   );
 }
 
-function Action({ icon: Icon, label, tone }: { icon: any; label: string; tone: 'ok' | 'warn' | 'alert' | 'neutral' }) {
+function Action({ icon: Icon, label, tone, onClick }: { icon: any; label: string; tone: 'ok' | 'warn' | 'alert' | 'neutral'; onClick: () => void }) {
   const style = {
     ok: 'border-emerald-700/40 text-emerald-500 hover:bg-emerald-500/10',
     warn: 'border-amber-700/40 text-amber-400 hover:bg-amber-500/10',
@@ -277,7 +285,7 @@ function Action({ icon: Icon, label, tone }: { icon: any; label: string; tone: '
     neutral: 'border-ink-700 text-ink-300 hover:bg-ink-800',
   }[tone];
   return (
-    <button className={clsx('inline-flex items-center justify-center gap-2 rounded-xs border px-3 py-2 text-xs font-semibold transition-colors', style)}>
+    <button onClick={onClick} className={clsx('inline-flex items-center justify-center gap-2 rounded-xs border px-3 py-2 text-xs font-semibold transition-colors', style)}>
       <Icon className="w-3.5 h-3.5" />
       {label}
     </button>

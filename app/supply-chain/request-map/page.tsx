@@ -587,8 +587,8 @@ export default function RequestMapPage() {
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)_360px]">
-          <aside className="min-h-[720px] rounded-sm border border-ink-700 bg-white shadow-control">
-            <div className="border-b border-ink-700 p-4">
+          <aside className="flex flex-col rounded-sm border border-ink-700 bg-white shadow-control">
+            <div className="shrink-0 border-b border-ink-700 p-4">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-sm font-bold text-ink-100">업무 큐</h2>
                 <span className="text-xs font-semibold text-ink-500">초과 · 대기 · 임박 · 입력</span>
@@ -621,7 +621,7 @@ export default function RequestMapPage() {
               </div>
             </div>
 
-            <div className="max-h-[628px] space-y-4 overflow-y-auto p-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
               {groupedQueue.length === 0 && (
                 <div className="rounded-xs border border-dashed border-ink-700 p-6 text-center text-sm text-ink-500">
                   조건에 맞는 요청이 없습니다.
@@ -842,23 +842,13 @@ export default function RequestMapPage() {
                 </>
               )}
               {selected.status === 'overdue' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleAction('재요청 리마인드를 발송했습니다.')}
-                    className="flex w-full items-center justify-center gap-2 rounded-xs bg-red-600 py-3 text-sm font-bold text-white shadow-sm hover:bg-red-700"
-                  >
-                    <Send className="h-4 w-4" />
-                    재요청 / 리마인드 발송
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAction('리스크 조치 보드에 공유했습니다.')}
-                    className="w-full rounded-xs border border-red-200 bg-red-50 py-3 text-sm font-bold text-red-700 hover:bg-red-100"
-                  >
-                    리스크 조치 보드 공유
-                  </button>
-                </>
+                <Link
+                  href={`/suppliers/check-info?supplierId=${selected.supplierId}&supplier=${encodeURIComponent(supplierLabel(selected.supplierId))}`}
+                  className="flex w-full items-center justify-center gap-2 rounded-xs bg-red-600 py-3 text-sm font-bold text-white shadow-sm hover:bg-red-700"
+                >
+                  <Send className="h-4 w-4" />
+                  재요청 / 리마인드 발송
+                </Link>
               )}
               {selected.status === 'dueSoon' && (
                 <>

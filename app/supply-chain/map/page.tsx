@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
@@ -325,6 +326,15 @@ const bom_items: BomItem[] = [
   { bom_item_id: 'bomi-cobalt-ore', bom_version_id: 'bomv-ncm811-v32', part_id: 'part-cobalt-ore', required_quantity: 0.36, required_quantity_unit: 't', percentage: 4.1, origin_country: 'CD' },
   { bom_item_id: 'bomi-nickel', bom_version_id: 'bomv-ncm811-v32', part_id: 'part-nickel', required_quantity: 27.8, required_quantity_unit: 'kg', percentage: 21.6, origin_country: 'ID' },
 ];
+
+const supplierDetailIdMap: Record<string, string> = {
+  'sup-hanyang-cell': 'S-CELL-001',
+  'sup-pos-cathode': 'S-CAM-001',
+  'sup-pohang-refining': 'S-REF-001',
+  'sup-ganzhou-rare': 'S-REF-002',
+  'sup-katanga-cobalt': 'S-MINE-002',
+  'sup-sulawesi-nickel': 'S-MINE-001',
+};
 
 const suppliers: Supplier[] = [
   { supplier_id: 'sup-hanyang-cell', company_name: 'EcoBattery Co., Ltd.', company_name_en: 'EcoBattery Co., Ltd.', supplier_type: 'manufacturer', tier: 1, parent_supplier_id: null, status: 'supplier_verified', risk_level: 'low', feoc_status: 'eligible', latest_audit_result: '2026-05 문서 검토 완료' },
@@ -707,6 +717,49 @@ export default function SupplyChainMapPage() {
     });
   }
 
+  const exportHeaders = ['Tier', '품목/부품', '원재료/광물', '공급사', '사업장', '국가', 'PO 번호', '공급기간', '공급비율(%)', '리스크 상태'];
+
+  function getExportRows() {
+    return traceRows.map(row => [
+      row.tier,
+      row.part_name,
+      row.material_or_mineral,
+      row.supplier_name,
+      row.factory_name,
+      row.country,
+      row.po_number,
+      row.supply_period,
+      String(row.supply_ratio),
+      statusMeta[row.risk_status].label,
+    ]);
+  }
+
+  function downloadCsv() {
+    const rows = [exportHeaders, ...getExportRows()];
+    const csv = rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
+    const bom = '﻿';
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `공급망_추적_${selectedProduct.product_code}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadExcel() {
+    const rows = [exportHeaders, ...getExportRows()];
+    const tableHtml = `<table>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</table>`;
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"/></head><body>${tableHtml}</body></html>`;
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `공급망_추적_${selectedProduct.product_code}_${new Date().toISOString().slice(0, 10)}.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function handleConfirmInvitation() {
     const params = new URLSearchParams({
       node: invitationContext.nodeLabel,
@@ -869,11 +922,11 @@ export default function SupplyChainMapPage() {
             <p className="mt-0.5 text-xs text-ink-500">트리와 동일한 join 결과를 표 형태로 제공합니다.</p>
           </div>
           <div className="flex shrink-0 gap-2">
-            <button className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-400 hover:bg-ink-800">
+            <button type="button" onClick={downloadCsv} className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-400 hover:bg-ink-800">
               <Download className="h-3.5 w-3.5" />
               CSV 다운로드
             </button>
-            <button className="inline-flex items-center gap-1.5 rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">
+            <button type="button" onClick={downloadExcel} className="inline-flex items-center gap-1.5 rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">
               <FileSpreadsheet className="h-3.5 w-3.5" />
               Excel 다운로드
             </button>
@@ -1133,10 +1186,20 @@ function MapDetailPanel({ selectedNode }: { selectedNode: SelectedNode }) {
             </div>
           ))}
         </div>
-        <button className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white text-sm font-semibold text-ink-400 hover:bg-slate-50">
-          공급사 상세 페이지로 이동
-          <ExternalLink className="h-4 w-4" />
-        </button>
+        {supplierDetailIdMap[row.supplier_id] ? (
+          <Link
+            href={`/suppliers/${supplierDetailIdMap[row.supplier_id]}/info`}
+            className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white text-sm font-semibold text-ink-400 hover:bg-slate-50"
+          >
+            공급사 상세 페이지로 이동
+            <ExternalLink className="h-4 w-4" />
+          </Link>
+        ) : (
+          <button disabled className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-400 cursor-not-allowed">
+            공급사 상세 페이지로 이동
+            <ExternalLink className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </aside>
   );
