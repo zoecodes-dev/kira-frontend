@@ -37,9 +37,6 @@ const statusLabel: Record<InvitationStatus, string> = {
 const candidateSuppliers = [
   { supplierName: 'Quzhou Precursor Co.', email: 'j.zhao@qz-precursor.cn', itemName: 'NCM 전구체' },
   { supplierName: 'Pilbara International Works', email: 'emma.w@piw-refining.au', itemName: 'Lithium Hydroxide' },
-  { supplierName: 'Katanga Cobalt Mining', email: 'jp.mwamba@kat-cobalt.cd', itemName: 'Cobalt Ore' },
-  { supplierName: 'Sulawesi Nickel Mine', email: 'm.reyes@nori-mining.id', itemName: 'Nickel Ore' },
-  { supplierName: 'Salar de Atacama Lithium', email: 'm.vega@sda-lithium.cl', itemName: 'Lithium Carbonate' },
 ];
 
 function getStatusClass(status: InvitationStatus) {
@@ -93,13 +90,17 @@ export default function SupplierInvitationsPage() {
 
   const filteredCandidates = useMemo(() => {
     const keyword = query.trim().toLowerCase();
-    if (!keyword) return candidateSuppliers;
-    return candidateSuppliers.filter(candidate =>
-      candidate.supplierName.toLowerCase().includes(keyword)
-      || candidate.email.toLowerCase().includes(keyword)
-      || candidate.itemName.toLowerCase().includes(keyword),
-    );
-  }, [query]);
+    return candidateSuppliers.filter(candidate => {
+      const alreadyInvited = inviteItems.some(item =>
+        item.email === candidate.email || item.supplierName === candidate.supplierName,
+      );
+      const matchesKeyword = !keyword
+        || candidate.supplierName.toLowerCase().includes(keyword)
+        || candidate.email.toLowerCase().includes(keyword)
+        || candidate.itemName.toLowerCase().includes(keyword);
+      return !alreadyInvited && matchesKeyword;
+    });
+  }, [inviteItems, query]);
 
   function updateItem(id: string, patch: Partial<InvitationItem>) {
     setInviteItems(items => items.map(item => (item.id === id ? { ...item, ...patch } : item)));
