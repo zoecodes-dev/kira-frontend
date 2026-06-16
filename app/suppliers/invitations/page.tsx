@@ -188,19 +188,10 @@ export default function SupplierInvitationsPage() {
                       </span>
                     </div>
                     <div className="truncate text-xs text-slate-500">{item.email}</div>
-                    {item.status !== 'ready' && (
+                    {item.status === 'draft' && (
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {item.status === 'sent' ? (
-                          <span className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-500">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            발송 완료
-                          </span>
-                        ) : (
-                          <>
-                            <span className="inline-flex h-8 items-center rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-700">임시 저장</span>
-                            <span className="inline-flex h-8 items-center rounded-md border border-[#046949] bg-white px-3 text-xs font-semibold text-[#046949]">발송하기</span>
-                          </>
-                        )}
+                        <span className="inline-flex h-8 items-center rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-700">임시 저장</span>
+                        <span className="inline-flex h-8 items-center rounded-md border border-[#046949] bg-white px-3 text-xs font-semibold text-[#046949]">발송하기</span>
                       </div>
                     )}
                   </button>
