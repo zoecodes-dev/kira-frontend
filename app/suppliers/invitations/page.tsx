@@ -198,46 +198,6 @@ export default function SupplierInvitationsPage() {
                 );
               })}
             </div>
-
-            <div className="mt-5 overflow-hidden rounded-md border border-slate-200">
-              <div className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-ink-100">Invitation 대기 목록 상세</div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-sm">
-                  <thead className="bg-white text-left text-xs text-slate-500">
-                    <tr className="border-b border-slate-200">
-                      <th className="px-3 py-2 font-semibold">요청 대상 품목/소재</th>
-                      <th className="px-3 py-2 font-semibold">협력사명</th>
-                      <th className="px-3 py-2 font-semibold">담당자 이메일</th>
-                      <th className="px-3 py-2 font-semibold">상태</th>
-                      <th className="px-3 py-2 font-semibold">액션</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {inviteItems.map(item => (
-                      <tr key={item.id} className="bg-white">
-                        <td className="px-3 py-3 font-medium text-ink-100">{item.itemName}</td>
-                        <td className="px-3 py-3 text-slate-600">{item.supplierName}</td>
-                        <td className="px-3 py-3 text-slate-500">{item.email}</td>
-                        <td className="px-3 py-3">
-                          <span className={clsx('rounded-full border px-2 py-1 text-xs font-semibold', getStatusClass(item.status))}>{statusLabel[item.status]}</span>
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="flex flex-wrap gap-1.5">
-                            {item.status !== 'sent' && (
-                              <>
-                                <button type="button" onClick={() => markDraft(item)} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">임시 저장</button>
-                                <button type="button" onClick={() => markSent(item)} className="rounded-md bg-[#046949] px-2 py-1 text-xs font-semibold text-white hover:bg-[#03563c]">발송</button>
-                              </>
-                            )}
-                            <Link href="/suppliers/check-info" className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">입력 현황 보기</Link>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </div>
           <div className="border-t border-slate-200 bg-white p-4">
             <button
