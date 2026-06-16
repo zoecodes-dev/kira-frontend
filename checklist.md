@@ -99,3 +99,9 @@
 - [x] Create `/suppliers/invitations` as a supplier invitation preparation workspace, separate from `/suppliers/check-info`.
 - [x] Add mock invitation list, selectable mail preparation detail, status actions, and supplier search modal.
 - [x] Run typecheck and browser verification for `/supply-chain/map` and `/suppliers/invitations`.
+
+# AGENTS token reduction checklist
+
+- [x] Create a shorter root `AGENTS.md` with the essential behavioral rules.
+- [x] Preserve the user name, agent name, minimal-edit preference, Korean sentence rule, evidence-before-edits rule, and verification reporting rule.
+- [x] Verify the markdown change by reading the created file and checking the diff.
