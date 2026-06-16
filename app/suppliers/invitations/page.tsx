@@ -29,7 +29,7 @@ interface InvitationItem {
 }
 
 const statusLabel: Record<InvitationStatus, string> = {
-  ready: '발송하기',
+  ready: '발송 대기',
   draft: '임시 저장',
   sent: '발송 완료',
 };
