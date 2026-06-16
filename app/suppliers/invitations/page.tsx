@@ -152,7 +152,7 @@ export default function SupplierInvitationsPage() {
         </div>
       </header>
 
-      <main className="grid min-h-[720px] grid-cols-[minmax(440px,0.9fr)_minmax(520px,1.1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
+      <main className="grid h-[calc(100vh-8.5rem)] min-h-[720px] grid-cols-[minmax(440px,0.9fr)_minmax(520px,1.1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
         <section className="flex min-h-0 flex-col border-r border-slate-200">
           <div className="border-b border-slate-200 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -160,15 +160,6 @@ export default function SupplierInvitationsPage() {
                 <h2 className="text-base font-bold text-ink-100">Invitation 보낸 협력사 목록</h2>
                 <p className="mt-1 text-xs text-slate-500">상태 버튼을 누르면 우측 메일 발송 준비 화면이 열립니다.</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsSearchOpen(true)}
-                data-testid="open-supplier-invite-search"
-                className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#046949] px-3 text-sm font-semibold text-white hover:bg-[#03563c]"
-              >
-                <Plus className="h-4 w-4" />
-                협력사 초대하기
-              </button>
             </div>
           </div>
 
@@ -256,6 +247,17 @@ export default function SupplierInvitationsPage() {
                 </table>
               </div>
             </div>
+          </div>
+          <div className="border-t border-slate-200 bg-white p-4">
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(true)}
+              data-testid="open-supplier-invite-search"
+              className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-md bg-[#046949] px-3 text-sm font-semibold text-white hover:bg-[#03563c]"
+            >
+              <Plus className="h-4 w-4" />
+              협력사 초대하기
+            </button>
           </div>
         </section>
 
