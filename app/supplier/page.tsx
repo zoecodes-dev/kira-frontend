@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -34,7 +34,7 @@ import EightStageStepper from '@/components/supplier/EightStageStepper';
 import SupplyChainMap from '@/components/supplier/SupplyChainMap';
 import ViolationReportModal from '@/components/supplier/ViolationReportModal';
 import AiParsingView from '@/components/supplier/AiParsingView';
-import { getSuppliers, suppliers, supplyEdges } from '@/lib/data';
+import { suppliers, supplyEdges } from '@/lib/data';
 import {
   getCertifications,
   getCompleteness,
@@ -46,10 +46,6 @@ import {
   purchaseOrders,
   regulationMeta,
 } from '@/lib/supplier-detail-data';
-
-useEffect(() => {
-  getSuppliers().then(r => console.log('[연결검증]', r)).catch(e => console.error(e));
-}, []);
 
 const supplierId = 'S-MINE-001';
 
