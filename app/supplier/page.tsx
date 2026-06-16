@@ -28,7 +28,31 @@ import {
   Upload,
 } from 'lucide-react';
 
-// 1. 타입 정의를 import문 밖, 컴포넌트 상단에 독립적으로 배치합니다.
+import Badge from '@/components/Badge';
+import Card from '@/components/Card';
+import KpiCard from '@/components/KpiCard';
+import SubmitWizardModal from '@/components/supplier/SubmitWizardModal';
+import EightStageStepper from '@/components/supplier/EightStageStepper';
+import SupplyChainMap from '@/components/supplier/SupplyChainMap';
+import ViolationReportModal from '@/components/supplier/ViolationReportModal';
+import SelfReportModal from '@/components/supplier/SelfReportModal';
+import AuditView from '@/components/supplier/AuditView';
+import SupplierNotificationBell from '@/components/supplier/SupplierNotificationBell';
+import AiParsingView from '@/components/supplier/AiParsingView';
+import { suppliers, supplyEdges } from '@/lib/data';
+import {
+  getCertifications,
+  getCompleteness,
+  getContacts,
+  getFactories,
+  getRiskProfile,
+  getSupplierName,
+  parts,
+  purchaseOrders,
+  regulationMeta,
+} from '@/lib/supplier-detail-data';
+
+// ─── 1. 타입 정의 (에러 해결) ────────────────────────────────────────────────────────
 interface Contact {
   contactId: string;
   name: string;
@@ -53,10 +77,9 @@ interface Factory {
   applicableRegulations?: string[];
 }
 
-// 2. 상수 매핑을 정의합니다.
+type SupplierStatus = 'verified' | 'suspended' | 'rejected' | 'supplier_verified' | 'pending' | 'review';
 
-import Badge from '@/components/Badge';
-import Card from '@/components/Card';
+// ─── 2. 상수 매핑 정의 (에러 해결) ───────────────────────────────────────────────────
 const STATUS_TONE_MAP: Record<string, 'ok' | 'alert' | 'neutral'> = {
   verified: 'ok',
   supplier_verified: 'ok',
@@ -65,34 +88,12 @@ const STATUS_TONE_MAP: Record<string, 'ok' | 'alert' | 'neutral'> = {
   pending: 'neutral',
   review: 'neutral'
 };
+
 const DESTINATION_TONE_MAP: Record<string, 'warn' | 'ok' | 'info'> = {
   US: 'warn',
   EU: 'ok',
   KR: 'info',
 };
-import EightStageStepper from '@/components/supplier/EightStageStepper';
-import SupplyChainMap from '@/components/supplier/SupplyChainMap';
-import ViolationReportModal from '@/components/supplier/ViolationReportModal';
-import SubmitWizardModal from '@/components/supplier/SubmitWizardModal';
-import SelfReportModal from '@/components/supplier/SelfReportModal';
-import AuditView from '@/components/supplier/AuditView';
-import SupplierNotificationBell from '@/components/supplier/SupplierNotificationBell';
-import AiParsingView from '@/components/supplier/AiParsingView';
-import { suppliers, supplyEdges } from '@/lib/data';
-import {
-  getCertifications,
-  getCompleteness,
-  getContacts,
-  getFactories,
-  getRiskProfile,
-  getSupplierName,
-  parts,
-  purchaseOrders,
-  regulationMeta,
-} from '@/lib/supplier-detail-data';
-type SupplierStatus = 'verified' | 'suspended' | 'rejected' | 'supplier_verified' | 'pending' | 'review';
-
-const supplierId = 'S-MINE-001';
 
 const riskLabel: Record<string, string> = {
   low: '저위험',
@@ -117,9 +118,9 @@ const certStatusLabel: Record<string, string> = {
   expired: '만료',
 };
 
+const supplierId = 'S-MINE-001';
+
 // ─── D-Day 계산 유틸 ──────────────────────────────────────────────────────────
-// 기준일: 2026-06-13 (시스템 날짜)
-// 반환값: { label: 'D-12' | 'D-Day' | '만료됨', days: number }
 const REFERENCE_DATE = new Date('2026-06-13T00:00:00');
 
 function calculateDDay(expiresAt: string): { label: string; days: number } {
@@ -131,36 +132,19 @@ function calculateDDay(expiresAt: string): { label: string; days: number } {
   return { label: `D-${days}`, days };
 }
 
-// 잔여일 기준 배지 스타일 결정
-// · 만료됨(days<0) or 7일 이하 → 최고 긴급 (진한 빨강)
-// · 8~30일             → 긴급     (중간 빨강)
-// · 31~60일            → 주의     (주황)
 function certDDayStyle(days: number): {
   wrapperCls: string;
   badgeCls: string;
 } {
   if (days <= 7) {
-    return {
-      wrapperCls: 'border-red-300 bg-red-50',
-      badgeCls:   'bg-red-600 text-white',
-    };
+    return { wrapperCls: 'border-red-300 bg-red-50', badgeCls: 'bg-red-600 text-white' };
   }
   if (days <= 30) {
-    return {
-      wrapperCls: 'border-red-200 bg-red-50',
-      badgeCls:   'bg-red-500 text-white',
-    };
+    return { wrapperCls: 'border-red-200 bg-red-50', badgeCls: 'bg-red-500 text-white' };
   }
-  return {
-    wrapperCls: 'border-amber-300 bg-amber-50',
-    badgeCls:   'bg-amber-500 text-white',
-  };
+  return { wrapperCls: 'border-amber-300 bg-amber-50', badgeCls: 'bg-amber-500 text-white' };
 }
 
-// Action Center 제출 기한 D-day → Badge tone 매핑
-// · 기한 초과(days<0) or D-7 이하 → alert (빨강): 즉시 조치 필요
-// · D-8 ~ D-14                   → warn  (주황): 이번 주 내 처리
-// · D-15 이상                     → info  (파랑): 여유 있음
 type BadgeTone = 'ok' | 'warn' | 'alert' | 'info' | 'neutral';
 function dueDateTone(days: number): BadgeTone {
   if (days <= 7)  return 'alert';
@@ -189,7 +173,6 @@ function RelationRow({
   supplier: NonNullable<(typeof suppliers)[number]>;
   detail: string;
   selected?: boolean;
-  /** 로그인 기업 기준 관계 방향 — Tier 숫자 대신 표시 */
   relation: 'parent' | 'child';
   onSelect?: () => void;
 }) {
@@ -214,7 +197,6 @@ function RelationRow({
         <div className="mt-0.5 truncate text-[10px] text-ink-500">{name?.nameKo ?? supplier.region}</div>
       </div>
       <div className="shrink-0 flex flex-col items-end gap-1">
-        {/* Tier 숫자 대신 관계 기반 라벨 표시 */}
         <span className={`rounded-xs border px-1.5 py-0.5 text-[10px] font-bold ${relationBadgeCls}`}>
           {relationLabel}
         </span>
@@ -301,6 +283,7 @@ function SupplierSidebar({
   );
 }
 
+// 기존 SupplierInfoPreview (변경점 없음)
 function SupplierInfoPreview({
   supplierId,
   self = false,
@@ -310,11 +293,8 @@ function SupplierInfoPreview({
 }: {
   supplierId: string;
   self?: boolean;
-  /** 로그인 기업 기준 관계 방향 — self=true이면 불필요 */
   relation?: 'parent' | 'child';
-  /** ③ 완성도 데이터 — self=true일 때 프로그레스바 표시용 */
   completeness?: { completionRate: number; filledFieldCount: number; requiredFieldCount: number; missingFields: string[] } | null;
-  /** ⑤ 인증서 갱신 딥링크 콜백 — 인증서명을 인자로 받아 모달 진입 */
   onCertRenew?: (certName: string) => void;
 }) {
   const supplier = suppliers.find(item => item.id === supplierId);
@@ -325,7 +305,6 @@ function SupplierInfoPreview({
   const primary = contacts.find(contact => contact.isPrimary) ?? contacts[0];
   const certs = getCertifications(supplierId);
 
-  // 관계 라벨 — Tier 숫자 대신 가시성 기반 표시
   const relationLabel = relation === 'parent' ? '직속 상위 (Parent)' : relation === 'child' ? '직속 하위 (Child)' : null;
   const relationBadgeCls = relation === 'parent'
     ? 'bg-blue-50 text-blue-700 border-blue-200'
@@ -335,27 +314,24 @@ function SupplierInfoPreview({
     return <div className="rounded-xs border border-ink-700 bg-white p-4 text-xs text-ink-500">협력사를 찾을 수 없습니다.</div>;
   }
 
-  // ⑥ 상태값 메타 — 존재하지 않는 키는 원문 표시
   const statusMeta = supplierStatusMeta[supplier.status] ?? { label: supplier.status, tone: 'neutral' as const };
 
   return (
     <div className="space-y-4">
+      {/* ... Info Preview 내부 코드 동일 (생략 최소화를 위해 유지) ... */}
       <div className="rounded-sm border border-ink-700 bg-white p-5 shadow-control">
-        {/* ① self 모드: Tier 배지 없이 좌측 텍스트만 / 연결사 모드: 관계 라벨 우측 배치 */}
         <div className={`flex gap-4 ${self ? '' : 'items-start justify-between'}`}>
           <div className="min-w-0">
             <div className="text-xs font-bold text-ink-500">{self ? '내 기업 기본정보' : '직접 연결 업체 정보'}</div>
             <div className="mt-2 text-base font-bold text-ink-100">{name?.nameEn ?? supplier.name}</div>
             <div className="mt-1 text-xs text-ink-500">{name?.nameKo ?? supplier.role} · {supplier.region}</div>
           </div>
-          {/* self=true이면 관계 라벨 영역 자체를 렌더링하지 않음 (Tier 완전 제거) */}
           {!self && relationLabel && (
             <span className={`shrink-0 rounded-xs border px-2.5 py-1.5 text-[11px] font-bold ${relationBadgeCls}`}>
               {relationLabel}
             </span>
           )}
         </div>
-
         <div className="mt-5 grid grid-cols-3 gap-3">
           <div className="rounded-xs border border-ink-700 bg-ink-800 p-3">
             <div className="text-[11px] font-semibold text-ink-500">역할</div>
@@ -365,7 +341,6 @@ function SupplierInfoPreview({
             <div className="text-[11px] font-semibold text-ink-500">국가/지역</div>
             <div className="mt-1 text-xs font-bold text-ink-100">{supplier.country} · {supplier.region}</div>
           </div>
-          {/* ⑥ 상태값 → 한글 Badge 변환 */}
           <div className="rounded-xs border border-ink-700 bg-ink-800 p-3">
             <div className="text-[11px] font-semibold text-ink-500">상태</div>
             <div className="mt-1.5">
@@ -377,13 +352,11 @@ function SupplierInfoPreview({
 
       {primary && (
         <div className="rounded-sm border border-ink-700 bg-white shadow-control">
-          {/* 카드 헤더 — 수정 요청 버튼 포함 */}
           <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-ink-700">
             <div>
               <div className="text-xs font-bold text-ink-100">{self ? '담당자 정보' : '공개 담당 창구'}</div>
               <div className="mt-0.5 text-[11px] text-ink-500">{self ? '내 계정 기준 담당자' : '직접 연결 업무에 필요한 범위만 표시'}</div>
             </div>
-            {/* ④ 수정 요청 버튼 — self 모드에서만 노출 */}
             {self && (
               <button
                 type="button"
@@ -463,9 +436,8 @@ function SupplierInfoPreview({
             ))}
           </div>
         </div>
-      </div>{/* /사업장 카드 */}
+      </div>
 
-      {/* 인증서 카드 */}
       <div className="rounded-sm border border-ink-700 bg-white shadow-control">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-ink-700">
           <div>
@@ -495,14 +467,12 @@ function SupplierInfoPreview({
                     isInactive ? 'border-red-200 bg-red-50' : 'border-ink-700 bg-ink-800'
                   }`}
                 >
-                  {/* 인증서명 + 발급기관 */}
                   <div className="min-w-0">
                     <div className={`truncate text-xs font-semibold ${isInactive ? 'text-red-900' : 'text-ink-100'}`}>
                       {cert.certName}
                     </div>
                     <div className="truncate text-[10px] text-ink-500">{cert.issuingBody}</div>
                   </div>
-                  {/* ② D-N 배지 + ⑤ 갱신 버튼 */}
                   <div className="shrink-0 flex flex-col items-end gap-1.5">
                     {isInactive ? (
                       <>
@@ -512,7 +482,6 @@ function SupplierInfoPreview({
                         <span className="text-[10px] text-red-600 font-medium">
                           {certStatusLabel[cert.status]}
                         </span>
-                        {/* ⑤ 갱신 증빙 업로드 버튼 — self 모드 + 콜백 있을 때만 */}
                         {self && onCertRenew && (
                           <button
                             type="button"
@@ -533,7 +502,7 @@ function SupplierInfoPreview({
             })}
           </div>
         </div>
-      </div>{/* /인증서 카드 */}
+      </div>
     </div>
   );
 }
@@ -541,32 +510,58 @@ function SupplierInfoPreview({
 export default function SupplierPage() {
   const [activeView, setActiveView] = useState<SupplierView>('dashboard');
   const [selectedRelatedId, setSelectedRelatedId] = useState('S-PRE-001');
-  // ── 자료 제출 모달 상태 ──────────────────────────────────────────────────────
+
+  // ── 자료 제출 및 각종 모달 상태 ──
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialItems, setWizardInitialItems] = useState<string[]>([]);
   const [wizardReworkMode, setWizardReworkMode] = useState(false);
-  // certRenewalMode: 인증서 갱신 진입 시 Step 1 상단에 안내 배너 표시
   const [wizardCertRenewalMode, setWizardCertRenewalMode] = useState(false);
-  // reworkReason: 재제출 시 모달 Step 2 상단 배너에 표시할 반려 사유
   const [wizardReworkReason, setWizardReworkReason] = useState<string | null>(null);
-  // ── 시정 조치 모달 상태 ──────────────────────────────────────────────────────
+
   const [violationModalOpen, setViolationModalOpen] = useState(false);
-  // violationId: 특정 위반 건과 모달을 바인딩 — null이면 일반 진입
   const [violationId, setViolationId] = useState<string | null>(null);
-  // ── 자진 신고 모달 상태 (기획서 E-3) ─────────────────────────────────────────
   const [selfReportOpen, setSelfReportOpen] = useState(false);
 
-  /** 일반 업로드 버튼: 항목 미선택 상태로 Step 1 열기 */
+  // ─── 공유 알림 상태 (클로드 작업본 병합) ───
+  type NotifType = 'sla_warning' | 'violation' | 'approval_needed' | 'info';
+  const [notifications, setNotifications] = useState<{
+    notification_id: string; notification_type: NotifType;
+    subject: string; body: string; status: 'pending' | 'read';
+    created_at: string; deep_link?: string;
+  }[]>([
+    { notification_id: 'notif-001', notification_type: 'sla_warning',
+      subject: '원산지 증빙 제출 기한 임박',
+      body: '광산 폴리곤 좌표 등록 요청의 마감이 3일 남았습니다. 기한 내 미제출 시 보완 요청으로 전환됩니다.',
+      status: 'pending', created_at: '2026-06-08T09:30:00Z', deep_link: 'submit-documents' },
+    { notification_id: 'notif-002', notification_type: 'violation',
+      subject: 'EUDR 규정 위반 항목 지적',
+      body: '환경영향평가 갱신본이 기준을 충족하지 않아 반려되었습니다. 시정 완료 회신 폼을 제출해 주세요.',
+      status: 'pending', created_at: '2026-06-07T14:20:00Z', deep_link: 'submission-status' },
+    { notification_id: 'notif-003', notification_type: 'approval_needed',
+      subject: 'AI 파싱 결과 확인 요청',
+      body: '업로드하신 인증서 PDF의 AI 추출 결과에서 신뢰도 낮은 항목 2건이 발견되었습니다. 검토 후 확인해 주세요.',
+      status: 'read', created_at: '2026-06-06T11:05:00Z', deep_link: 'ai-parsing' },
+    { notification_id: 'notif-004', notification_type: 'sla_warning',
+      subject: '커뮤니티 합의서 제출 기한 안내',
+      body: '커뮤니티 합의서의 제출 기한이 2026-06-25로 9일 남았습니다.',
+      status: 'read', created_at: '2026-06-05T10:00:00Z', deep_link: 'submit-documents' },
+  ]);
+  const [selectedNotifId, setSelectedNotifId] = useState<string | null>('notif-001');
+
+  function markNotifRead(id: string) {
+    setNotifications(prev => prev.map(n => n.notification_id === id ? { ...n, status: 'read' as const } : n));
+  }
+  function markAllNotifsRead() {
+    setNotifications(prev => prev.map(n => ({ ...n, status: 'read' as const })));
+  }
+
+  // ── 기능 함수들 ──
   function openWizard() {
     setWizardInitialItems([]);
     setWizardReworkMode(false);
     setWizardOpen(true);
   }
 
-  /** 재제출 버튼: 해당 항목 선택 + rework 모드로 Step 2 바로 열기
-   *  @param label   requestItems.label과 일치하는 항목명
-   *  @param reason  반려 사유 (EightStageStepper에서 전달, 모달 배너에 표시)
-   */
   function openWizardRework(label: string, reason?: string) {
     setWizardInitialItems([label]);
     setWizardReworkMode(true);
@@ -574,11 +569,6 @@ export default function SupplierPage() {
     setWizardOpen(true);
   }
 
-  /**
-   * Action Center 딥링크 진입:
-   * - 일반 항목(제출 필요/대기): Step 1에서 해당 항목 자동 체크된 채로 열기
-   * - 재요청 항목: rework 모드로 Step 2 바로 열기
-   */
   function openWizardFromActionCenter(label: string, status: string) {
     const isRework = status === '재요청';
     setWizardInitialItems([label]);
@@ -586,25 +576,19 @@ export default function SupplierPage() {
     setWizardOpen(true);
   }
 
-  /**
-   * ⑤ 인증서 갱신 증빙 업로드 딥링크:
-   * - 인증서명을 requestItems 라벨과 매핑 시도
-   * - 매핑 항목이 없으면 '환경영향평가 갱신본 업로드'를 기본 선택
-   * - certRenewalMode=true로 Step 1 상단에 갱신 안내 배너 표시
-   */
   function openWizardFromCertRenewal(certName: string) {
-    // 인증서명 → requestItems 라벨 매핑 테이블
     const certToRequestLabel: Record<string, string> = {
       'Bettercoal Verified': '환경영향평가 갱신본 업로드',
-      // 추후 인증서 추가 시 여기에 확장
     };
     const targetLabel = certToRequestLabel[certName] ?? '환경영향평가 갱신본 업로드';
     setWizardInitialItems([targetLabel]);
     setWizardReworkMode(false);
     setWizardCertRenewalMode(true);
-    setActiveView('submit-documents'); // 탭도 자료 제출로 이동
+    setActiveView('submit-documents');
     setWizardOpen(true);
   }
+
+  // ── 데이터 준비 ──
   const supplier = suppliers.find(item => item.id === supplierId);
   const name = getSupplierName(supplierId);
   const contacts = getContacts(supplierId);
@@ -613,32 +597,38 @@ export default function SupplierPage() {
   const factories = getFactories(supplierId).filter(factory => factory.factoryRole !== 'headquarters');
   const certifications = getCertifications(supplierId);
   const myPOs = purchaseOrders.filter(po => po.supplierId === supplierId);
+
+  // ── 공급망 방향성 필터링 (클로드 작업본 병합) ──
   const downstreamEdges = supplyEdges.filter(edge => edge.from === supplierId);
-  const upstreamEdges = supplyEdges.filter(edge => edge.to === supplierId);
-  const downstream = downstreamEdges
+  const upstreamEdges   = supplyEdges.filter(edge => edge.to   === supplierId);
+
+  const downstreamFromEdges = downstreamEdges
     .map(edge => ({ edge, supplier: suppliers.find(item => item.id === edge.to) }))
     .filter((item): item is { edge: typeof downstreamEdges[number]; supplier: NonNullable<typeof supplier> } => Boolean(item.supplier));
+
   const upstreamFromEdges = upstreamEdges
     .map(edge => ({ edge, supplier: suppliers.find(item => item.id === edge.from) }))
     .filter((item): item is { edge: typeof upstreamEdges[number]; supplier: NonNullable<typeof supplier> } => Boolean(item.supplier));
 
-  // ⑦ Parent 데이터 보완: supplyEdges에 S-PRE-001→S-MINE-001 edge가 없을 경우
-  // PO-006(NORI-NCL-RAW)에서 S-MINE-001이 S-PRE-001에 납품하는 관계가 확인되므로 Mock으로 보완
-  const upstreamMockFallback = upstreamFromEdges.length === 0
+  const downstreamMockFallback = downstreamFromEdges.length === 0
     ? (() => {
-        const parentSupplier = suppliers.find(item => item.id === 'S-PRE-001');
-        if (!parentSupplier) return [];
+        const downstreamSupplier = suppliers.find(item => item.id === 'S-PRE-001');
+        if (!downstreamSupplier) return [];
         return [{
-          edge: { from: 'S-PRE-001', to: supplierId, material: '니켈 원광', volume: '21,000 kg/월' } as const,
-          supplier: parentSupplier,
+          edge: { from: supplierId, to: 'S-PRE-001', material: '니켈 원광', volume: '21,000 kg/월' } as const,
+          supplier: downstreamSupplier,
         }];
       })()
-    : upstreamFromEdges;
-  const upstream = upstreamMockFallback;
+    : downstreamFromEdges;
+
+  const upstream   = upstreamFromEdges;
+  const downstream = downstreamMockFallback;
+
   const primary = contacts.find(contact => contact.isPrimary) ?? contacts[0];
   const missing = completeness?.missingFields ?? [];
   const certRisk = certifications.filter(cert => cert.status !== 'active').length;
   const pendingRequests = missing.length + certRisk;
+
   const requestItems = [
     { label: '광산 폴리곤 좌표 등록',    due: '2026-06-16', status: '제출 필요', tone: 'warn'    as const },
     { label: '환경영향평가 갱신본 업로드', due: '2026-06-20', status: '재요청',   tone: 'alert'   as const },
@@ -661,7 +651,6 @@ export default function SupplierPage() {
     { label: '광산 폴리곤 좌표', step: '자료 미제출', date: '2026-05-31', tone: 'alert' as const },
     { label: '환경영향평가 보고서', step: '검토 대기', date: '2026-06-03', tone: 'info' as const },
   ];
-  const selectedRelation = [...upstream, ...downstream].find(item => item.supplier.id === selectedRelatedId);
 
   return (
     <main className="min-h-screen bg-[#F4F7F9] text-ink-100">
@@ -672,10 +661,8 @@ export default function SupplierPage() {
           onSelect={setActiveView}
         />
         <div className="min-w-0 flex-1">
-          {/* 헤더가 찌그러지지 않도록 shrink-0 추가 */}
           <header className="shrink-0 border-b border-ink-700 bg-white px-8 py-5 shadow-control">
             <div className="flex items-center justify-between gap-4">
-              {/* 좌: 타이틀 */}
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-accent-700 text-white">
                   <Factory className="h-5 w-5" strokeWidth={2.3} />
@@ -690,13 +677,19 @@ export default function SupplierPage() {
                   </p>
                 </div>
               </div>
-              {/* 우: 오늘 날짜 + 알림 벨 + 로그아웃 — 원청사 GNB 정합성 */}
+              
+              {/* 클로드 작업본 병합: SupplierNotificationBell 연동 부분 */}
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400">
                   <Calendar className="h-3.5 w-3.5" />
                   {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace(/\.$/, '')}
                 </div>
-                <SupplierNotificationBell onNavigate={(view) => setActiveView(view as any)} />
+                <SupplierNotificationBell
+                  notifications={notifications}
+                  onMarkRead={markNotifRead}
+                  onMarkAllRead={markAllNotifsRead}
+                  onNavigate={(view) => setActiveView(view as any)}
+                />
                 <Link
                   href="/"
                   className="inline-flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
@@ -708,10 +701,8 @@ export default function SupplierPage() {
             </div>
           </header>
 
-          {/* ✨ ai-parsing 뷰일 때는 꽉 찬 높이(h-calc), 아닐 때는 기존 패딩 적용 ✨ */}
           <div className={activeView === 'ai-parsing' ? 'h-[calc(100vh-82px)]' : 'space-y-6 p-8'}>
             
-            {/* AI 파싱 뷰 컴포넌트 삽입 */}
             {activeView === 'ai-parsing' && (
               <AiParsingView
                 supplierId={supplierId}
@@ -719,12 +710,11 @@ export default function SupplierPage() {
               />
             )}
 
+        {/* 안정본 텍스트 병합: (contact: Contact), DESTINATION_TONE_MAP 등이 포함된 company-info 뷰 */}
         {activeView === 'company-info' && (
         <div className="space-y-5">
-
-          {/* ── 1단계: 기업 기본 정보 헤더 (InfoGeneralSection 통합) ── */}
+          {/* 기업 기본 정보 */}
           <section className="rounded-sm border border-ink-700 bg-white shadow-control">
-            {/* 상단 헤더 — 로그인 협력사 + 기본 정보 통합 */}
             <div className="border-b border-ink-700 px-6 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -738,15 +728,13 @@ export default function SupplierPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {supplier && (
-                    <Badge tone={STATUS_TONE_MAP[supplier.status] || 'neutral'}>
+                    <Badge tone={supplierStatusMeta[supplier.status]?.tone ?? 'neutral'}>
                       {supplierStatusMeta[supplier.status]?.label ?? supplier.status}
                     </Badge>
                   )}
                 </div>
               </div>
             </div>
-
-            {/* 기본 정보 그리드 — InfoGeneralSection 스타일 */}
             <div className="px-6 py-5">
               <div className="grid grid-cols-3 gap-4">
                 {[
@@ -763,7 +751,7 @@ export default function SupplierPage() {
             </div>
           </section>
 
-          {/* ── 2단계: 담당자 정보 (InfoContactsSection) ── */}
+          {/* 담당자 정보 (타입 명시 병합 적용) */}
           <section className="rounded-sm border border-ink-700 bg-white shadow-control">
             <div className="flex items-center justify-between border-b border-ink-700 px-6 py-4">
               <div>
@@ -813,7 +801,7 @@ export default function SupplierPage() {
             </div>
           </section>
 
-          {/* ── 3단계: 공장/사업장 정보 (InfoFactoriesSection) ── */}
+          {/* 사업장 정보 (타입 명시 & DESTINATION_TONE_MAP 병합 적용) */}
           <section className="rounded-sm border border-ink-700 bg-white shadow-control">
             <div className="flex items-center justify-between border-b border-ink-700 px-6 py-4">
               <div>
@@ -865,7 +853,7 @@ export default function SupplierPage() {
                     )}
                   </div>
                   {factory.applicableRegulations && factory.applicableRegulations.length > 0 && (
-                    <div className="mt-3">
+                    <div className="mt-3 border-t border-ink-700 pt-3">
                       <div className="mb-1.5 text-[10px] font-bold text-ink-500">적용 규제</div>
                       <div className="flex flex-wrap gap-1.5">
                         {factory.applicableRegulations.map(reg => (
@@ -884,7 +872,7 @@ export default function SupplierPage() {
             </div>
           </section>
 
-          {/* ── 4단계: 인증서 정보 (InfoCertsSection) ── */}
+          {/* 인증서 정보 */}
           <section className="rounded-sm border border-ink-700 bg-white shadow-control">
             <div className="flex items-center justify-between border-b border-ink-700 px-6 py-4">
               <div>
@@ -946,7 +934,6 @@ export default function SupplierPage() {
             </div>
           </section>
 
-          {/* 표시 범위 안내 — 최하단 텍스트로 */}
           <p className="text-[10px] text-ink-500 leading-5">
             이 화면은 내 회사와 직접 연결된 공급망만 표시합니다.
             타 협력사 연락처, PO 단가, FEOC 세부 판정 근거, 내부 HITL 판단 로그는 표시하지 않습니다.
@@ -955,112 +942,70 @@ export default function SupplierPage() {
         </div>
         )}
 
+        {/* ── 기타 뷰들은 기존과 동일 ── */}
         {activeView === 'dashboard' && (
         <>
-        {/* ── 영역 B: 진행 현황 KPI (상단 가로 4개) ── */}
         <section className="grid grid-cols-4 gap-4">
-          <div
-            onClick={() => setActiveView('submit-documents')}
-            className="cursor-pointer rounded-sm border border-ink-700 bg-white p-5 shadow-control transition-shadow hover:shadow-md"
-          >
+          <div onClick={() => setActiveView('submit-documents')} className="cursor-pointer rounded-sm border border-ink-700 bg-white p-5 shadow-control transition-shadow hover:shadow-md">
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="text-[11px] font-bold text-ink-500">제출 완성도</span>
               <CheckCircle2 className="h-4 w-4 text-signal-ok" />
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="num-mono text-3xl font-bold text-ink-100">
-                {completeness?.completionRate ?? 0}
-              </span>
+              <span className="num-mono text-3xl font-bold text-ink-100">{completeness?.completionRate ?? 0}</span>
               <span className="text-sm font-bold text-ink-400">%</span>
             </div>
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-ink-700">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  (completeness?.completionRate ?? 0) >= 90 ? 'bg-signal-ok' :
-                  (completeness?.completionRate ?? 0) >= 70 ? 'bg-accent-700' : 'bg-red-500'
-                }`}
-                style={{ width: `${completeness?.completionRate ?? 0}%` }}
-              />
+              <div className={`h-full rounded-full transition-all duration-500 ${(completeness?.completionRate ?? 0) >= 90 ? 'bg-signal-ok' : (completeness?.completionRate ?? 0) >= 70 ? 'bg-accent-700' : 'bg-red-500'}`} style={{ width: `${completeness?.completionRate ?? 0}%` }} />
             </div>
-            <div className="mt-1.5 text-[10px] text-ink-500">
-              {completeness?.filledFieldCount ?? 0}/{completeness?.requiredFieldCount ?? 0} 항목
-            </div>
+            <div className="mt-1.5 text-[10px] text-ink-500">{completeness?.filledFieldCount ?? 0}/{completeness?.requiredFieldCount ?? 0} 항목</div>
           </div>
 
-          <div
-            onClick={() => setActiveView('submission-status')}
-            className="cursor-pointer rounded-sm border border-ink-700 bg-white p-5 shadow-control transition-shadow hover:shadow-md"
-          >
+          <div onClick={() => setActiveView('submission-status')} className="cursor-pointer rounded-sm border border-ink-700 bg-white p-5 shadow-control transition-shadow hover:shadow-md">
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="text-[11px] font-bold text-ink-500">보완 요청</span>
               <AlertCircle className={`h-4 w-4 ${pendingRequests > 0 ? 'text-amber-500' : 'text-signal-ok'}`} />
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className={`num-mono text-3xl font-bold ${pendingRequests > 0 ? 'text-amber-600' : 'text-ink-100'}`}>
-                {pendingRequests}
-              </span>
+              <span className={`num-mono text-3xl font-bold ${pendingRequests > 0 ? 'text-amber-600' : 'text-ink-100'}`}>{pendingRequests}</span>
               <span className="text-sm font-bold text-ink-400">건</span>
             </div>
             <div className="mt-3 text-[10px] text-ink-500">누락 항목 + 인증서</div>
-            {pendingRequests > 0 && (
-              <div className="mt-1.5 text-[10px] font-bold text-amber-600">즉시 확인 필요</div>
-            )}
+            {pendingRequests > 0 && <div className="mt-1.5 text-[10px] font-bold text-amber-600">즉시 확인 필요</div>}
           </div>
 
           <div className="rounded-sm border border-ink-700 bg-white p-5 shadow-control">
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="text-[11px] font-bold text-ink-500">현재 리스크</span>
-              <ShieldCheck className={`h-4 w-4 ${
-                risk?.riskLevel === 'low' ? 'text-signal-ok' :
-                risk?.riskLevel === 'medium' ? 'text-amber-500' : 'text-red-500'
-              }`} />
+              <ShieldCheck className={`h-4 w-4 ${risk?.riskLevel === 'low' ? 'text-signal-ok' : risk?.riskLevel === 'medium' ? 'text-amber-500' : 'text-red-500'}`} />
             </div>
-            <div className={`text-2xl font-bold ${
-              risk?.riskLevel === 'low' ? 'text-signal-ok' :
-              risk?.riskLevel === 'medium' ? 'text-amber-600' : 'text-red-600'
-            }`}>
+            <div className={`text-2xl font-bold ${risk?.riskLevel === 'low' ? 'text-signal-ok' : risk?.riskLevel === 'medium' ? 'text-amber-600' : 'text-red-600'}`}>
               {risk ? riskLabel[risk.riskLevel] : '미확인'}
             </div>
-            <div className="mt-3 text-[10px] text-ink-500">
-              {risk?.feocStatus === 'eligible' ? 'FEOC 적격' : 'FEOC 검토 필요'}
-            </div>
+            <div className="mt-3 text-[10px] text-ink-500">{risk?.feocStatus === 'eligible' ? 'FEOC 적격' : 'FEOC 검토 필요'}</div>
           </div>
 
-          <div
-            onClick={() => setActiveView('supply-chain')}
-            className="cursor-pointer rounded-sm border border-ink-700 bg-white p-5 shadow-control transition-shadow hover:shadow-md"
-          >
+          <div onClick={() => setActiveView('supply-chain')} className="cursor-pointer rounded-sm border border-ink-700 bg-white p-5 shadow-control transition-shadow hover:shadow-md">
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="text-[11px] font-bold text-ink-500">직접 연결</span>
               <Network className="h-4 w-4 text-accent-700" />
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="num-mono text-3xl font-bold text-ink-100">
-                {upstream.length + downstream.length}
-              </span>
+              <span className="num-mono text-3xl font-bold text-ink-100">{upstream.length + downstream.length}</span>
               <span className="text-sm font-bold text-ink-400">개사</span>
             </div>
-            <div className="mt-3 text-[10px] text-ink-500">
-              상위 {upstream.length} · 하위 {downstream.length}
-            </div>
+            <div className="mt-3 text-[10px] text-ink-500">상위 {upstream.length} · 하위 {downstream.length}</div>
           </div>
         </section>
 
-        {/* ── 메인 2단: 영역 A (오늘의 할 일) + 영역 C-preview (이슈) ── */}
         <section className="grid grid-cols-[1.1fr_0.9fr] gap-4">
-
-          {/* 영역 A: 오늘의 할 일 — 확장 테이블 */}
           <div className="rounded-sm border border-ink-700 bg-white shadow-control">
             <div className="flex items-center justify-between border-b border-ink-700 px-5 py-4">
               <div>
                 <div className="text-sm font-bold text-ink-100">오늘의 할 일</div>
                 <div className="mt-0.5 text-[10px] text-ink-500">제출 기한이 가까운 원청 요청 · 우선순위 순</div>
               </div>
-              <button
-                type="button"
-                onClick={() => setActiveView('notifications')}
-                className="text-[10px] font-semibold text-accent-700 hover:underline"
-              >
+              <button type="button" onClick={() => setActiveView('notifications')} className="text-[10px] font-semibold text-accent-700 hover:underline">
                 전체 보기 →
               </button>
             </div>
@@ -1074,34 +1019,17 @@ export default function SupplierPage() {
                     key={item.label}
                     type="button"
                     onClick={() => openWizardFromActionCenter(item.label, item.status)}
-                    className={`flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-ink-800/30 ${
-                      isUrgent ? 'bg-red-50/30' : 'bg-white'
-                    }`}
+                    className={`flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-ink-800/30 ${isUrgent ? 'bg-red-50/30' : 'bg-white'}`}
                   >
-                    {/* 순서 번호 */}
-                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                      isUrgent ? 'bg-red-100 text-red-600' :
-                      isWarn   ? 'bg-amber-100 text-amber-700' :
-                                 'bg-ink-800 text-ink-400'
-                    }`}>
+                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isUrgent ? 'bg-red-100 text-red-600' : isWarn ? 'bg-amber-100 text-amber-700' : 'bg-ink-800 text-ink-400'}`}>
                       {idx + 1}
                     </div>
-                    {/* 항목명 + 기한 */}
                     <div className="min-w-0 flex-1">
-                      <div className={`text-xs font-bold ${isUrgent ? 'text-red-700' : 'text-ink-100'}`}>
-                        {item.label}
-                      </div>
-                      <div className="mt-0.5 text-[10px] text-ink-500">
-                        제출 기한 <span className="num-mono">{item.due}</span>
-                      </div>
+                      <div className={`text-xs font-bold ${isUrgent ? 'text-red-700' : 'text-ink-100'}`}>{item.label}</div>
+                      <div className="mt-0.5 text-[10px] text-ink-500">제출 기한 <span className="num-mono">{item.due}</span></div>
                     </div>
-                    {/* D-day + 상태 */}
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className={`num-mono rounded-xs border px-2 py-0.5 text-[10px] font-bold ${
-                        isUrgent ? 'border-red-200 bg-red-50 text-red-600' :
-                        isWarn   ? 'border-amber-200 bg-amber-50 text-amber-700' :
-                                   'border-green-200 bg-green-50 text-green-700'
-                      }`}>
+                      <span className={`num-mono rounded-xs border px-2 py-0.5 text-[10px] font-bold ${isUrgent ? 'border-red-200 bg-red-50 text-red-600' : isWarn ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-green-200 bg-green-50 text-green-700'}`}>
                         {ddayLabel}
                       </span>
                       <Badge tone={item.tone}>{item.status}</Badge>
@@ -1113,23 +1041,14 @@ export default function SupplierPage() {
             </div>
           </div>
 
-          {/* 우측 영역 */}
           <div className="flex flex-col gap-4">
-
-            {/* 검토 결과 요약 */}
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="flex items-center justify-between border-b border-ink-700 px-5 py-4">
                 <div>
                   <div className="text-sm font-bold text-ink-100">검토 결과</div>
                   <div className="mt-0.5 text-[10px] text-ink-500">원청사 검토 결과 · 내 자료 기준</div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveView('submission-status')}
-                  className="text-[10px] font-semibold text-accent-700 hover:underline"
-                >
-                  전체 보기 →
-                </button>
+                <button type="button" onClick={() => setActiveView('submission-status')} className="text-[10px] font-semibold text-accent-700 hover:underline">전체 보기 →</button>
               </div>
               <div className="divide-y divide-ink-800">
                 {reviewResults.map(item => (
@@ -1144,7 +1063,6 @@ export default function SupplierPage() {
               </div>
             </div>
 
-            {/* 최근 변경사항 타임라인 */}
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="border-b border-ink-700 px-5 py-4">
                 <div className="text-sm font-bold text-ink-100">최근 변경사항</div>
@@ -1153,11 +1071,7 @@ export default function SupplierPage() {
               <div className="divide-y divide-ink-800">
                 {reviewTimeline.map(item => (
                   <div key={item.label} className="flex items-center gap-3 px-5 py-3">
-                    <div className={`h-2 w-2 shrink-0 rounded-full ${
-                      item.tone === 'ok' ? 'bg-signal-ok' :
-                      item.tone === 'warn' ? 'bg-amber-400' :
-                      item.tone === 'alert' ? 'bg-red-500' : 'bg-accent-500'
-                    }`} />
+                    <div className={`h-2 w-2 shrink-0 rounded-full ${item.tone === 'ok' ? 'bg-signal-ok' : item.tone === 'warn' ? 'bg-amber-400' : item.tone === 'alert' ? 'bg-red-500' : 'bg-accent-500'}`} />
                     <div className="min-w-0 flex-1">
                       <div className="text-[11px] font-bold text-ink-100">{item.label}</div>
                       <div className="mt-0.5 text-[10px] text-ink-500">{item.step}</div>
@@ -1170,10 +1084,7 @@ export default function SupplierPage() {
           </div>
         </section>
 
-        {/* ── 영역 C: 알림 및 이슈 (하단) ── */}
         <section className="grid grid-cols-[1fr_1fr] gap-4">
-
-          {/* 만료 인증서 + 누락 항목 */}
           <div className="rounded-sm border border-ink-700 bg-white shadow-control">
             <div className="flex items-center justify-between border-b border-ink-700 px-5 py-4">
               <div>
@@ -1192,19 +1103,14 @@ export default function SupplierPage() {
                 const { label: ddayLabel, days } = calculateDDay(cert.expiresAt);
                 const { wrapperCls, badgeCls } = certDDayStyle(days);
                 return (
-                  <div
-                    key={cert.certId}
-                    className={`flex items-center justify-between gap-3 rounded-xs border px-3 py-2.5 text-xs ${wrapperCls}`}
-                  >
+                  <div key={cert.certId} className={`flex items-center justify-between gap-3 rounded-xs border px-3 py-2.5 text-xs ${wrapperCls}`}>
                     <div className="flex min-w-0 items-center gap-2">
                       <FileCheck className="h-3.5 w-3.5 shrink-0 text-red-500" />
                       <span className="truncate font-semibold text-red-900">{cert.certName}</span>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
                       <span className="text-[10px] text-red-700">{certStatusLabel[cert.status]}</span>
-                      <span className={`rounded-xs px-2 py-0.5 text-[11px] font-bold tabular-nums ${badgeCls}`}>
-                        {ddayLabel}
-                      </span>
+                      <span className={`rounded-xs px-2 py-0.5 text-[11px] font-bold tabular-nums ${badgeCls}`}>{ddayLabel}</span>
                     </div>
                   </div>
                 );
@@ -1212,7 +1118,6 @@ export default function SupplierPage() {
             </div>
           </div>
 
-          {/* 위반 항목 + 시정 조치 */}
           <div className="rounded-sm border border-ink-700 bg-white shadow-control">
             <div className="flex items-center justify-between border-b border-ink-700 px-5 py-4">
               <div>
@@ -1222,30 +1127,20 @@ export default function SupplierPage() {
             </div>
             <div className="p-4 space-y-2">
               {reviewResults.filter(r => r.tone === 'alert' || r.tone === 'warn').map(item => (
-                <div key={item.label} className={`flex items-start gap-2 rounded-xs border px-3 py-2.5 text-xs ${
-                  item.tone === 'alert' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'
-                }`}>
+                <div key={item.label} className={`flex items-start gap-2 rounded-xs border px-3 py-2.5 text-xs ${item.tone === 'alert' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
                   <ShieldAlert className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${item.tone === 'alert' ? 'text-red-500' : 'text-amber-500'}`} />
                   <div>
-                    <div className={`font-bold ${item.tone === 'alert' ? 'text-red-900' : 'text-amber-900'}`}>
-                      {item.label}
-                    </div>
-                    <div className={`mt-0.5 ${item.tone === 'alert' ? 'text-red-700' : 'text-amber-700'}`}>
-                      {item.reason}
-                    </div>
+                    <div className={`font-bold ${item.tone === 'alert' ? 'text-red-900' : 'text-amber-900'}`}>{item.label}</div>
+                    <div className={`mt-0.5 ${item.tone === 'alert' ? 'text-red-700' : 'text-amber-700'}`}>{item.reason}</div>
                   </div>
                 </div>
               ))}
               <button
                 type="button"
-                onClick={() => {
-                  setViolationId('VIO-2026-0042');
-                  setViolationModalOpen(true);
-                }}
+                onClick={() => { setViolationId('VIO-2026-0042'); setViolationModalOpen(true); }}
                 className="mt-1 flex w-full items-center justify-center gap-2 rounded-xs border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-bold text-red-700 transition-colors hover:bg-red-600 hover:text-white hover:border-red-600 shadow-control"
               >
-                <ShieldAlert className="h-3.5 w-3.5" />
-                시정 조치 계획 제출하기
+                <ShieldAlert className="h-3.5 w-3.5" /> 시정 조치 계획 제출하기
               </button>
             </div>
           </div>
@@ -1274,7 +1169,6 @@ export default function SupplierPage() {
               })}
             </div>
           </Card>
-
           <Card title="내 사업장 정보" subtitle="협력사 본인 사업장만 표시합니다">
             <div className="grid grid-cols-2 gap-3">
               {factories.map(factory => (
@@ -1300,8 +1194,6 @@ export default function SupplierPage() {
 
         {activeView === 'submit-documents' && (
         <div className="space-y-4">
-
-          {/* ── 상태 요약 KPI ── */}
           <section className="grid grid-cols-4 gap-3">
             {[
               { label: '제출 필요', count: requestItems.filter(i => i.status === '제출 필요').length, tone: 'alert' as const },
@@ -1311,47 +1203,25 @@ export default function SupplierPage() {
             ].map(s => (
               <div key={s.label} className="rounded-sm border border-ink-700 bg-white px-4 py-3 shadow-control">
                 <div className="text-[10px] font-bold text-ink-500">{s.label}</div>
-                <div className={`num-mono mt-1 text-2xl font-bold ${
-                  s.tone === 'alert' ? 'text-red-600' :
-                  s.tone === 'warn'  ? 'text-amber-600' :
-                  s.tone === 'info'  ? 'text-accent-700' : 'text-signal-ok'
-                }`}>{s.count}</div>
+                <div className={`num-mono mt-1 text-2xl font-bold ${s.tone === 'alert' ? 'text-red-600' : s.tone === 'warn' ? 'text-amber-600' : s.tone === 'info' ? 'text-accent-700' : 'text-signal-ok'}`}>{s.count}</div>
               </div>
             ))}
           </section>
 
-          {/* ── 통합 관리 테이블 ── */}
           <section className="rounded-sm border border-ink-700 bg-white shadow-control">
-            {/* 테이블 헤더 */}
             <div className="flex items-center justify-between border-b border-ink-700 px-5 py-4">
               <div>
                 <div className="text-sm font-bold text-ink-100">자료 제출 현황</div>
-                <div className="mt-0.5 text-[10px] text-ink-500">
-                  원청 요청사항과 제출 상태를 한눈에 — 상태값은 원청사 검토 시스템과 1:1 동기화
-                </div>
+                <div className="mt-0.5 text-[10px] text-ink-500">원청 요청사항과 제출 상태를 한눈에 — 상태값은 원청사 검토 시스템과 1:1 동기화</div>
               </div>
-              <button
-                type="button"
-                onClick={openWizard}
-                className="inline-flex items-center gap-1.5 rounded-xs bg-accent-700 px-3 py-2 text-xs font-bold text-white shadow-control hover:bg-accent-900 transition-colors"
-              >
-                <Upload className="h-3.5 w-3.5" />
-                새 서류 업로드
+              <button type="button" onClick={openWizard} className="inline-flex items-center gap-1.5 rounded-xs bg-accent-700 px-3 py-2 text-xs font-bold text-white shadow-control hover:bg-accent-900 transition-colors">
+                <Upload className="h-3.5 w-3.5" /> 새 서류 업로드
               </button>
             </div>
-
-            {/* 컬럼 헤더 */}
             <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] border-b border-ink-700 bg-ink-800 px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-ink-500">
-              <div>문서 항목</div>
-              <div>제출 기한</div>
-              <div>원청사 상태</div>
-              <div>D-day</div>
-              <div className="w-20 text-right">액션</div>
+              <div>문서 항목</div><div>제출 기한</div><div>원청사 상태</div><div>D-day</div><div className="w-20 text-right">액션</div>
             </div>
-
-            {/* 통합 데이터 행 — submission-review/page.tsx의 statusMeta와 1:1 매핑 */}
             {(() => {
-              // submission-review의 statusMeta와 동일한 매핑
               const submissionStatusMeta: Record<string, { label: string; tone: 'ok' | 'warn' | 'alert' | 'info' | 'neutral' }> = {
                 pending:  { label: '제출 필요', tone: 'alert'   },
                 review:   { label: '검토 중',   tone: 'info'    },
@@ -1360,7 +1230,6 @@ export default function SupplierPage() {
                 rejected: { label: '반려',      tone: 'alert'   },
               };
 
-              // requestItems를 submission 상태값으로 정규화
               const unifiedRows = [
                 { label: '광산 폴리곤 좌표 등록',     due: '2026-06-16', submissionStatus: 'pending',  reworkReason: null },
                 { label: '환경영향평가 갱신본 업로드', due: '2026-06-20', submissionStatus: 'rework',   reworkReason: 'Scope 3 산정 근거 보완 필요' },
@@ -1375,72 +1244,28 @@ export default function SupplierPage() {
                 const { label: ddayLabel, days } = calculateDDay(row.due);
                 const isRework  = row.submissionStatus === 'rework';
                 const isPending = row.submissionStatus === 'pending';
-                const isActionable = isRework || isPending;
                 const isApproved = row.submissionStatus === 'approved';
 
                 return (
-                  <div
-                    key={row.label}
-                    className={`grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center border-b border-ink-700 px-5 py-3.5 last:border-b-0 transition-colors hover:bg-ink-800/20 ${
-                      isRework ? 'bg-amber-50/30' : isApproved ? 'bg-green-50/20' : ''
-                    }`}
-                  >
-                    {/* 문서명 */}
+                  <div key={row.label} className={`grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center border-b border-ink-700 px-5 py-3.5 last:border-b-0 transition-colors hover:bg-ink-800/20 ${isRework ? 'bg-amber-50/30' : isApproved ? 'bg-green-50/20' : ''}`}>
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <FileText className={`h-4 w-4 shrink-0 ${
-                        isRework ? 'text-amber-500' : isApproved ? 'text-signal-ok' : 'text-ink-500'
-                      }`} />
+                      <FileText className={`h-4 w-4 shrink-0 ${isRework ? 'text-amber-500' : isApproved ? 'text-signal-ok' : 'text-ink-500'}`} />
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-ink-100 truncate">{row.label}</div>
-                        {isRework && row.reworkReason && (
-                          <div className="mt-0.5 text-[10px] text-amber-700 truncate">
-                            사유: {row.reworkReason}
-                          </div>
-                        )}
+                        {isRework && row.reworkReason && <div className="mt-0.5 text-[10px] text-amber-700 truncate">사유: {row.reworkReason}</div>}
                       </div>
                     </div>
-
-                    {/* 제출 기한 */}
                     <div className="num-mono text-[11px] text-ink-400">{row.due}</div>
-
-                    {/* 원청사 상태 — submission-review statusMeta와 동일 */}
+                    <div><Badge tone={meta.tone}>{meta.label}</Badge></div>
                     <div>
-                      <Badge tone={meta.tone}>{meta.label}</Badge>
+                      <span className={`num-mono rounded-xs border px-2 py-0.5 text-[10px] font-bold ${days < 0 ? 'border-ink-600 bg-ink-800 text-ink-400' : days <= 3 ? 'border-red-200 bg-red-50 text-red-600' : days <= 7 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-green-200 bg-green-50 text-green-700'}`}>{ddayLabel}</span>
                     </div>
-
-                    {/* D-day */}
-                    <div>
-                      <span className={`num-mono rounded-xs border px-2 py-0.5 text-[10px] font-bold ${
-                        days < 0  ? 'border-ink-600 bg-ink-800 text-ink-400' :
-                        days <= 3  ? 'border-red-200 bg-red-50 text-red-600' :
-                        days <= 7  ? 'border-amber-200 bg-amber-50 text-amber-700' :
-                                     'border-green-200 bg-green-50 text-green-700'
-                      }`}>
-                        {ddayLabel}
-                      </span>
-                    </div>
-
-                    {/* 액션 버튼 — rework일 때만 [재제출], pending일 때 [업로드], 나머지 비활성 */}
                     <div className="w-20 text-right">
                       {isRework ? (
-                        <button
-                          type="button"
-                          onClick={() => openWizardRework(row.label, row.reworkReason ?? '')}
-                          className="rounded-xs border border-amber-400 bg-amber-50 px-2.5 py-1.5 text-[10px] font-bold text-amber-800 hover:bg-amber-400 hover:text-white transition-colors"
-                        >
-                          재제출
-                        </button>
+                        <button type="button" onClick={() => openWizardRework(row.label, row.reworkReason ?? '')} className="rounded-xs border border-amber-400 bg-amber-50 px-2.5 py-1.5 text-[10px] font-bold text-amber-800 hover:bg-amber-400 hover:text-white transition-colors">재제출</button>
                       ) : isPending ? (
-                        <button
-                          type="button"
-                          onClick={() => openWizardFromActionCenter(row.label, '제출 필요')}
-                          className="rounded-xs border border-accent-100 bg-white px-2.5 py-1.5 text-[10px] font-bold text-accent-700 hover:border-accent-600 transition-colors"
-                        >
-                          업로드
-                        </button>
-                      ) : (
-                        <span className="text-[10px] text-ink-600">—</span>
-                      )}
+                        <button type="button" onClick={() => openWizardFromActionCenter(row.label, '제출 필요')} className="rounded-xs border border-accent-100 bg-white px-2.5 py-1.5 text-[10px] font-bold text-accent-700 hover:border-accent-600 transition-colors">업로드</button>
+                      ) : (<span className="text-[10px] text-ink-600">—</span>)}
                     </div>
                   </div>
                 );
@@ -1448,24 +1273,11 @@ export default function SupplierPage() {
             })()}
           </section>
 
-          {/* ── 가이드 아코디언 (슬림화) ── */}
-          {(() => {
-            const [guideOpen, setGuideOpen] = (
-              // React.useState를 직접 쓸 수 없으므로 외부 상태 활용
-              // 실제 구현 시 컴포넌트 상단에 const [guideOpen, setGuideOpen] = useState(false) 추가
-              [false, (_: boolean) => {}]
-            );
-            return null; // 아래 static 아코디언으로 대체
-          })()}
-
           <details className="group rounded-sm border border-ink-700 bg-white shadow-control">
             <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3.5 select-none">
               <div className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-accent-700" />
-                <div>
-                  <span className="text-xs font-bold text-ink-100">자료 작성 가이드 및 제출 기준</span>
-                  <span className="ml-2 text-[10px] text-ink-500">클릭하여 펼치기</span>
-                </div>
+                <div><span className="text-xs font-bold text-ink-100">자료 작성 가이드 및 제출 기준</span><span className="ml-2 text-[10px] text-ink-500">클릭하여 펼치기</span></div>
               </div>
               <ChevronRight className="h-4 w-4 text-ink-500 transition-transform group-open:rotate-90" />
             </summary>
@@ -1487,8 +1299,7 @@ export default function SupplierPage() {
                   <div className="space-y-2">
                     {['좌표계 누락', '서명본 미첨부', '기간 불일치', '배출 산정 근거 부족'].map(item => (
                       <div key={item} className="flex items-center gap-2 rounded-xs border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-900">
-                        <AlertCircle className="h-3 w-3 shrink-0 text-amber-600" />
-                        {item}
+                        <AlertCircle className="h-3 w-3 shrink-0 text-amber-600" />{item}
                       </div>
                     ))}
                   </div>
@@ -1496,39 +1307,23 @@ export default function SupplierPage() {
               </div>
             </div>
           </details>
-
         </div>
         )}
 
         {activeView === 'submission-status' && (
         <div className="space-y-4">
-
-          {/* ── 원청사 파이프라인 동기화 안내 ── */}
           <div className="flex items-center justify-between rounded-xs border border-ink-700 bg-white px-4 py-3 shadow-control">
             <div className="flex items-center gap-3">
               <div className="text-xs font-bold text-ink-100">자료 검토 상태 타임라인</div>
-              <div className="text-[10px] text-ink-500">
-                제출됨 → 검토 중 → 보완 요청 → 최종 승인 흐름
-              </div>
-              <span className="inline-flex items-center gap-1 rounded-xs border border-accent-100 bg-accent-50 px-2 py-0.5 text-[9px] font-bold text-accent-700">
-                원청사 파이프라인 8단계 동기화
-              </span>
+              <div className="text-[10px] text-ink-500">제출됨 → 검토 중 → 보완 요청 → 최종 승인 흐름</div>
+              <span className="inline-flex items-center gap-1 rounded-xs border border-accent-100 bg-accent-50 px-2 py-0.5 text-[9px] font-bold text-accent-700">원청사 파이프라인 8단계 동기화</span>
             </div>
           </div>
-
-          {/* ── EightStageStepper — 전체 가로 폭 사용 ── */}
           <section className="rounded-sm border border-ink-700 bg-white p-5 shadow-control">
-            <EightStageStepper
-              onResubmit={(_, requestLabel, reason) =>
-                openWizardRework(requestLabel, reason)
-              }
-            />
+            <EightStageStepper onResubmit={(_, requestLabel, reason) => openWizardRework(requestLabel, reason)} />
           </section>
 
-          {/* ── 하단 상세 정보 2단 ── */}
           <section className="grid grid-cols-[1.1fr_0.9fr] gap-4">
-
-            {/* 내 제출 요청 (PO 기반) */}
             <Card title="내 제출 요청" subtitle="내 회사가 원청사에 제출해야 하는 PO 기반 자료">
               <div className="space-y-2">
                 {myPOs.map(po => {
@@ -1551,7 +1346,6 @@ export default function SupplierPage() {
               </div>
             </Card>
 
-            {/* 검토 결과 및 재요청 사유 */}
             <Card title="검토 결과 및 재요청 사유" subtitle="원청사 검토 결과 중 내 자료에 대한 결과만 표시합니다">
               <div className="space-y-3">
                 {reviewResults.map(item => (
@@ -1567,28 +1361,24 @@ export default function SupplierPage() {
             </Card>
           </section>
 
-          {/* ── 자진 신고 배너 — SelfReportModal 연결 유지 ── */}
           <div className="flex items-center justify-between rounded-xs border border-accent-100 bg-accent-50 px-4 py-3">
             <div className="flex items-center gap-2">
               <div className="text-xs font-bold text-accent-800">공급원 변경 사항이 있나요?</div>
               <div className="text-[11px] text-accent-700">사후 적발 전에 자진 신고하면 리스크를 줄일 수 있습니다.</div>
             </div>
-            <button
-              type="button"
-              onClick={() => setSelfReportOpen(true)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-accent-600 bg-white px-3 py-2 text-xs font-bold text-accent-700 shadow-control hover:bg-accent-700 hover:text-white transition-colors"
-            >
+            <button type="button" onClick={() => setSelfReportOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-accent-600 bg-white px-3 py-2 text-xs font-bold text-accent-700 shadow-control hover:bg-accent-700 hover:text-white transition-colors">
               공급원 변경 자진 신고
             </button>
           </div>
-
         </div>
         )}
 
+        {/* ── 클로드 작업본 병합: 실사 관리 뷰 ── */}
         {activeView === 'audit' && (
-        <AuditView supplierId={supplierId} />
+          <AuditView supplierId={supplierId} />
         )}
 
+        {/* ── 클로드 작업본 병합: 공급망 뷰 ── */}
         {activeView === 'supply-chain' && (
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           <SupplyChainMap
@@ -1598,66 +1388,178 @@ export default function SupplierPage() {
           />
         )}
 
-        {activeView === 'notifications' && (
-        <section className="grid grid-cols-[0.95fr_1.05fr] gap-4">
-          {/* 알림 목록은 GNB 알림 벨 드로어에서 확인 */}
-          <Card title="원청사 알림" subtitle="원청사에서 보낸 요청과 안내">
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <Bell className="h-8 w-8 text-ink-500" strokeWidth={1.5} />
-              <div className="text-xs font-semibold text-ink-400">
-                상단 알림 벨(🔔)을 클릭해 알림을 확인하세요.
-              </div>
-              <div className="text-[10px] text-ink-600 leading-5">
-                유형별 색상(주황·빨강·파랑) 및 딥링크가 포함된<br />
-                슬라이드 패널에서 확인할 수 있습니다.
-              </div>
-            </div>
-          </Card>
+        {/* ── 클로드 작업본 병합: 수신함(Inbox) 뷰 ── */}
+        {activeView === 'notifications' && (() => {
+          const NOTIF_TYPE_CONFIG = {
+            sla_warning:     { barCls: 'bg-amber-400',  iconCls: 'text-amber-600',  bgUnread: 'bg-amber-50/40',  label: '기한 임박' },
+            violation:       { barCls: 'bg-red-500',    iconCls: 'text-red-600',    bgUnread: 'bg-red-50/40',    label: '위반 지적' },
+            approval_needed: { barCls: 'bg-accent-500', iconCls: 'text-accent-600', bgUnread: 'bg-accent-50/30', label: '확인 요청' },
+            info:            { barCls: 'bg-ink-500',    iconCls: 'text-ink-500',    bgUnread: 'bg-ink-800/20',   label: '안내' },
+          } as const;
 
-          {/* 자료 제출 기한 — D-day 배지 추가 */}
-          <Card title="자료 제출 기한" subtitle="다가오는 기한만 정리해서 보여줍니다">
-            <div className="space-y-2">
-              {requestItems.map(item => {
-                const today = new Date('2026-06-16');
-                const due   = new Date(item.due);
-                const dday  = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                const ddayLabel = dday === 0 ? 'D-day' : dday > 0 ? `D-${dday}` : `D+${Math.abs(dday)}`;
-                const ddayCls   =
-                  dday < 0  ? 'border-ink-600 bg-ink-800 text-ink-400' :
-                  dday <= 3  ? 'border-red-200 bg-red-50 text-red-600' :
-                  dday <= 7  ? 'border-amber-200 bg-amber-50 text-amber-700' :
-                               'border-green-200 bg-green-50 text-green-700';
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => openWizardFromActionCenter(item.label, item.status)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-xs border px-3 py-3 text-left transition-colors hover:border-accent-300 hover:shadow-control ${
-                      dday <= 3 ? 'border-red-200 bg-red-50/30' : 'border-ink-700 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Clock className={`h-4 w-4 shrink-0 ${dday <= 3 ? 'text-red-500' : 'text-ink-500'}`} />
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-ink-100 truncate">{item.label}</div>
-                        <div className="text-[10px] text-ink-500">{item.status}</div>
+          const unreadCount = notifications.filter(n => n.status === 'pending').length;
+          const selectedNotif = notifications.find(n => n.notification_id === selectedNotifId);
+
+          function handleNotifSelect(id: string) {
+            setSelectedNotifId(id);
+            markNotifRead(id);
+          }
+
+          function formatRelTime(iso: string) {
+            const diff = Date.now() - new Date(iso).getTime();
+            const min = Math.floor(diff / 60000);
+            if (min < 60) return `${min}분 전`;
+            const hr = Math.floor(min / 60);
+            if (hr < 24) return `${hr}시간 전`;
+            return `${Math.floor(hr / 24)}일 전`;
+          }
+
+          const deepLinkLabel: Record<string, string> = {
+            'submit-documents':  '자료 제출',
+            'submission-status': '검증 현황',
+            'ai-parsing':        'AI 파싱 확인',
+            'supply-chain':      '공급망 연결',
+            'audit':             '실사 관리',
+          };
+
+          return (
+            <div className="grid grid-cols-[340px_1fr] items-start gap-4 min-h-[600px]">
+              {/* 좌: 수신함 목록 */}
+              <div className="rounded-sm border border-ink-700 bg-white shadow-control overflow-hidden">
+                <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-ink-500" />
+                    <span className="text-xs font-bold text-ink-100">원청사 알림</span>
+                    {unreadCount > 0 && (
+                      <span className="rounded-xs border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-bold text-red-600">
+                        미확인 {unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  {unreadCount > 0 && (
+                    <button type="button" onClick={markAllNotifsRead} className="text-[10px] font-medium text-accent-600 hover:underline">
+                      모두 읽음
+                    </button>
+                  )}
+                </div>
+                <ul className="divide-y divide-ink-800">
+                  {notifications.map(notif => {
+                    const cfg = NOTIF_TYPE_CONFIG[notif.notification_type];
+                    const isUnread   = notif.status === 'pending';
+                    const isSelected = notif.notification_id === selectedNotifId;
+                    return (
+                      <li key={notif.notification_id}>
+                        <button
+                          type="button"
+                          onClick={() => handleNotifSelect(notif.notification_id)}
+                          className={[
+                            'relative w-full text-left px-4 py-3.5 transition-colors',
+                            isSelected  ? 'bg-accent-50 ring-1 ring-inset ring-accent-400' : '',
+                            !isSelected && isUnread  ? cfg.bgUnread : '',
+                            !isSelected && !isUnread ? 'bg-white hover:bg-ink-800/20' : '',
+                          ].join(' ')}
+                        >
+                          <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-r-xs ${isUnread ? cfg.barCls : 'bg-ink-700'}`} />
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <span className={`text-[11px] font-bold leading-snug ${isUnread ? 'text-ink-100' : 'text-ink-500'}`}>
+                              {notif.subject}
+                            </span>
+                            {isUnread && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />}
+                          </div>
+                          <p className="line-clamp-2 text-[10px] text-ink-500 leading-relaxed mb-1.5">{notif.body}</p>
+                          <div className="flex items-center justify-between">
+                            <span className={`text-[9px] font-semibold rounded-xs border px-1.5 py-px ${isUnread ? 'bg-ink-800 border-ink-700 text-ink-500' : 'bg-ink-900 border-ink-800 text-ink-500'}`}>
+                              {cfg.label}
+                            </span>
+                            <span className="text-[9px] text-ink-600">{formatRelTime(notif.created_at)}</span>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+
+              {/* 우: 상세 내용 패널 */}
+              {selectedNotif ? (
+                <div className="rounded-sm border border-ink-700 bg-white shadow-control overflow-hidden flex flex-col">
+                  {/* 상세 헤더 */}
+                  <div className={`border-b px-6 py-5 ${
+                    selectedNotif.notification_type === 'violation'     ? 'border-red-200 bg-red-600' :
+                    selectedNotif.notification_type === 'sla_warning'   ? 'border-amber-200 bg-amber-600' :
+                                                                          'border-accent-200 bg-accent-700'
+                  }`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-bold text-white/70 uppercase tracking-wider mb-1">
+                          {NOTIF_TYPE_CONFIG[selectedNotif.notification_type].label}
+                        </div>
+                        <div className="text-base font-bold text-white leading-snug">{selectedNotif.subject}</div>
+                      </div>
+                      <span className="shrink-0 rounded-xs border border-white/30 bg-white/20 px-2 py-0.5 text-[10px] font-bold text-white">
+                        {selectedNotif.status === 'pending' ? '미확인' : '읽음'}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-[10px] text-white/60">{formatRelTime(selectedNotif.created_at)}</div>
+                  </div>
+
+                  {/* 본문 */}
+                  <div className="flex-1 px-6 py-6">
+                    <div className="mb-4 text-[10px] font-bold uppercase tracking-wider text-ink-500">메시지 본문</div>
+                    <p className="rounded-xs border border-ink-700 bg-ink-800 px-4 py-4 text-xs leading-6 text-ink-200 whitespace-pre-wrap">
+                      {selectedNotif.body}
+                    </p>
+                    <div className="mt-5 rounded-xs border border-ink-700 bg-white p-4">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-ink-500 mb-3">관련 정보</div>
+                      <div className="space-y-2 text-[11px]">
+                        {[
+                          ['발신', '원청사 ESG 담당팀'],
+                          ['수신', '내 회사 담당자'],
+                          ['유형', NOTIF_TYPE_CONFIG[selectedNotif.notification_type].label],
+                          ...(selectedNotif.deep_link ? [['관련 탭', deepLinkLabel[selectedNotif.deep_link] ?? selectedNotif.deep_link]] : []),
+                        ].map(([k, v]) => (
+                          <div key={k} className="flex gap-3">
+                            <span className="w-16 shrink-0 font-bold text-ink-500">{k}</span>
+                            <span className={`font-semibold ${k === '유형' ? NOTIF_TYPE_CONFIG[selectedNotif.notification_type].iconCls : 'text-ink-200'}`}>{v}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      <span className={`num-mono inline-block rounded-xs border px-2 py-0.5 text-[10px] font-bold ${ddayCls}`}>
-                        {ddayLabel}
-                      </span>
-                      <span className="num-mono text-[10px] text-ink-500">{item.due}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
-        </section>
-        )}
+                  </div>
 
-        {/* 푸터 — ai-parsing 전체화면 모드일 때 숨김 (작업 몰입도 확보) */}
+                  {/* 하단 CTA */}
+                  <div className="border-t border-ink-700 bg-ink-800/20 px-6 py-4 flex items-center justify-between gap-3">
+                    <div className="text-[10px] text-ink-500">
+                      이 알림과 관련된 자료를 즉시 제출하거나 해당 화면으로 이동할 수 있습니다.
+                    </div>
+                    {selectedNotif.deep_link && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedNotif.deep_link === 'submit-documents') {
+                            openWizardFromActionCenter(selectedNotif.subject, '제출 필요');
+                          } else {
+                            setActiveView(selectedNotif.deep_link as any);
+                          }
+                        }}
+                        className="inline-flex shrink-0 items-center gap-2 rounded-xs bg-accent-700 px-4 py-2.5 text-xs font-bold text-white shadow-control hover:bg-accent-900 transition-colors"
+                      >
+                        <ArrowRight className="h-3.5 w-3.5" />
+                        {selectedNotif.deep_link === 'submit-documents' ? '해당 자료 제출하러 가기' : `${deepLinkLabel[selectedNotif.deep_link] ?? '관련 화면'} 바로 가기`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-sm border border-dashed border-ink-700 bg-white py-16 text-center">
+                  <Bell className="h-10 w-10 text-ink-600" strokeWidth={1.2} />
+                  <div className="text-xs font-semibold text-ink-500">좌측에서 알림을 선택하세요</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {activeView !== 'ai-parsing' && (
           <div className="rounded-sm border border-ink-700 bg-white p-4 text-xs leading-5 text-ink-500 shadow-control">
             이 협력사 화면은 전체 공급망 구조, 다른 협력사의 상세 연락처, PO 단가 비교, FEOC 세부 판정 근거, 내부 HITL 판단 로그, 감사 추적 로그, 경쟁 협력사 비교 지표를 표시하지 않습니다.
@@ -1667,7 +1569,6 @@ export default function SupplierPage() {
         </div>
       </div>
 
-      {/* ── 자료 제출 Wizard 모달 ──────────────────────────────────────────── */}
       <SubmitWizardModal
         open={wizardOpen}
         onClose={() => {
@@ -1682,14 +1583,12 @@ export default function SupplierPage() {
         requestItems={requestItems}
         supplierId={supplierId}
         onSubmitComplete={() => {
-          // 자료 제출 완료 → AI 파싱 확인 탭으로 자동 이동
           setWizardOpen(false);
           setWizardCertRenewalMode(false);
           setWizardReworkReason(null);
           setActiveView('ai-parsing');
         }}
       />
-      {/* ── 시정 조치 계획 모달 — violationId로 특정 위반 건 바인딩 ─────── */}
       <ViolationReportModal
         open={violationModalOpen}
         onClose={() => {
@@ -1698,7 +1597,6 @@ export default function SupplierPage() {
         }}
         {...(violationId !== null && { violationId })}
       />
-      {/* 자진 신고 모달 — 기획서 E-3 */}
       <SelfReportModal
         open={selfReportOpen}
         onClose={() => setSelfReportOpen(false)}

@@ -106,10 +106,26 @@ function formatRelativeTime(isoString: string): string {
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
+interface NotificationItem {
+  notification_id: string;
+  notification_type: 'sla_warning' | 'violation' | 'approval_needed' | 'info';
+  subject: string;
+  body: string;
+  status: 'pending' | 'read';
+  created_at: string;
+  deep_link?: string;
+}
+
 interface SupplierNotificationBellProps {
   /**
+   * page.tsx 공유 알림 상태 — 수신함 페이지와 1:1 동기화
+   * 미전달 시 내부 Mock 데이터 사용 (하위 호환)
+   */
+  notifications?: NotificationItem[];
+  onMarkRead?: (id: string) => void;
+  onMarkAllRead?: () => void;
+  /**
    * 알림 클릭 시 page.tsx의 setActiveView로 탭 전환
-   * deep_link 값(예: 'submit-documents')을 그대로 전달
    */
   onNavigate?: (view: string) => void;
 }
@@ -117,10 +133,15 @@ interface SupplierNotificationBellProps {
 // ─── 메인 컴포넌트 ───────────────────────────────────────────────────────────
 
 export default function SupplierNotificationBell({
+  notifications: externalNotifications,
+  onMarkRead: externalMarkRead,
+  onMarkAllRead: externalMarkAllRead,
   onNavigate,
 }: SupplierNotificationBellProps) {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  // 외부 상태(page.tsx 공유) 미전달 시 내부 Mock 사용 — 하위 호환
+  const [internalNotifications, setInternalNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const notifications = externalNotifications ?? internalNotifications;
   const drawerRef  = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -154,13 +175,21 @@ export default function SupplierNotificationBell({
   }, [open]);
 
   function markAllRead() {
-    setNotifications(prev => prev.map(n => ({ ...n, status: 'read' as const })));
+    if (externalMarkAllRead) {
+      externalMarkAllRead();
+    } else {
+      setInternalNotifications(prev => prev.map(n => ({ ...n, status: 'read' as const })));
+    }
   }
 
   function markOneRead(id: string) {
-    setNotifications(prev =>
-      prev.map(n => n.notification_id === id ? { ...n, status: 'read' as const } : n)
-    );
+    if (externalMarkRead) {
+      externalMarkRead(id);
+    } else {
+      setInternalNotifications(prev =>
+        prev.map(n => n.notification_id === id ? { ...n, status: 'read' as const } : n)
+      );
+    }
   }
 
   // 알림 클릭 — 읽음 처리 + 탭 딥링크 이동
