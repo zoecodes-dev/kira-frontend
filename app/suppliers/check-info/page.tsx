@@ -1,7 +1,7 @@
 'use client';
 
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import clsx from 'clsx';
@@ -380,7 +380,7 @@ function AccordionSection({
   );
 }
 
-export default function SupplierGeneralReviewPage() {
+function SupplierGeneralReviewContent() {
   const searchParams = useSearchParams();
   const supplierId = searchParams.get('supplierId') ?? '';
   const supplierName = searchParams.get('supplier') ?? supplierSummary.name;
@@ -658,6 +658,14 @@ export default function SupplierGeneralReviewPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function SupplierGeneralReviewPage() {
+  return (
+    <Suspense>
+      <SupplierGeneralReviewContent />
+    </Suspense>
   );
 }
 
