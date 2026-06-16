@@ -303,3 +303,13 @@ export const auditTrail: AuditEntry[] = [
 ];
 
 export const sampleAuditTrail = auditTrail;
+
+import { api } from '@/lib/api';
+
+// 검증용: 백엔드 연결 증명. 데이터 모양 변환은 다음 단계.
+export async function getSuppliers(): Promise<any[]> {
+  if (process.env.NEXT_PUBLIC_USE_API === 'true') {
+    return api.get<any[]>('/suppliers');   // 진짜 백엔드 (List[SupplierBrief])
+  }
+  return suppliers;                          // 기존 mock 폴백
+}
