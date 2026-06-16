@@ -48,6 +48,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 subItems={[
                   { href: '/supply-chain/map', label: '공급망 맵' },
                   { href: '/supply-chain/request-map', label: '자료 요청 업무 보드' },
+                  { href: '/suppliers/invitations', label: 'Invitation 작성' },
                   { href: '/due-diligence', label: '공급망 실사 관리' },
                 ]}
               />
@@ -93,7 +94,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       {
                         href: '/suppliers/detail-context',
                         label: '협력사 세부 정보',
-                        matchPattern: '^/suppliers/[^/]+',
+                        matchPattern: '^/suppliers/(?!invitations(?:/|$))[^/]+',
                         disabled: true,
                       },
                     ],
