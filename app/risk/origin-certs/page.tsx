@@ -42,6 +42,16 @@ function daysUntilExpiry(expiresAt: string): number {
   return Math.ceil((new Date(expiresAt).getTime() - new Date('2026-05-19').getTime()) / 86400000);
 }
 
+function supplierActionHref(cert: OriginCertificate): string {
+  if (cert.status !== 'expired' && cert.status !== 'expiring_soon') {
+    return `/suppliers/${cert.supplierId}/origin`;
+  }
+
+  const name = getSupplierName(cert.supplierId);
+  const supplier = name?.nameEn ?? cert.supplierId;
+  return `/suppliers/check-info?supplierId=${cert.supplierId}&supplier=${encodeURIComponent(supplier)}`;
+}
+
 // ─── KPI 타일 ─────────────────────────────────────────────────
 function KpiTile({ label, value, status, active, onClick }: {
   label: string; value: number; status: CertificateStatus; active: boolean; onClick: () => void;
@@ -149,6 +159,8 @@ function CertRow({ cert }: { cert: OriginCertificate }) {
   const days = daysUntilExpiry(cert.expiresAt);
   const flag = countryFlag[cert.originCountry] ?? '🌐';
   const country = countryName[cert.originCountry] ?? cert.originCountry;
+  const actionHref = supplierActionHref(cert);
+  const actionLabel = cert.status === 'expired' || cert.status === 'expiring_soon' ? '재요청' : '상세';
 
   const totalDays = Math.ceil(
     (new Date(cert.expiresAt).getTime() - new Date(cert.issuedAt).getTime()) / 86400000
@@ -171,7 +183,7 @@ function CertRow({ cert }: { cert: OriginCertificate }) {
           <span className="mt-0.5 text-base">{flag}</span>
           <div className="min-w-0">
             <Link
-              href={`/suppliers/${cert.supplierId}/origin`}
+              href={actionHref}
               className="block truncate text-sm font-bold text-ink-100 transition-colors group-hover:text-accent-700"
             >
               {name?.nameEn ?? cert.supplierId}
@@ -249,10 +261,10 @@ function CertRow({ cert }: { cert: OriginCertificate }) {
       {/* 액션 */}
       <td className="px-5 py-4 align-top text-right">
         <Link
-          href={`/suppliers/${cert.supplierId}/origin`}
+          href={actionHref}
           className="inline-flex items-center gap-1 whitespace-nowrap rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:text-accent-700"
         >
-          상세
+          {actionLabel}
           <ChevronRight className="h-3.5 w-3.5" />
         </Link>
       </td>
@@ -278,7 +290,7 @@ function CertificateModal({ status, certs, onClose }: {
         <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-6 py-5">
           <div>
             <h2 className="text-lg font-bold text-ink-100">{statusMeta[status].label} 인증서</h2>
-            <p className="mt-1 text-sm text-ink-500">협력사명 또는 인증서 번호를 클릭하면 세부 페이지로 이동합니다.</p>
+            <p className="mt-1 text-sm text-ink-500">만료 또는 만료 임박 건은 협력사 입력 현황으로 이동해 재요청할 수 있습니다.</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-xs border border-ink-700 p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-100" aria-label="팝업 닫기">
             <X className="h-4 w-4" />
@@ -289,16 +301,17 @@ function CertificateModal({ status, certs, onClose }: {
             {certs.map(cert => {
               const name = getSupplierName(cert.supplierId);
               const ctm = certTypeMeta[cert.certType] ?? { label: cert.certType, color: 'text-ink-300' };
+              const actionHref = supplierActionHref(cert);
               return (
                 <div key={cert.certId} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-ink-800">
                   <div className="min-w-0">
-                    <Link href={`/suppliers/${cert.supplierId}/info`} className="text-sm font-bold text-ink-100 hover:text-accent-700">
+                    <Link href={actionHref} className="text-sm font-bold text-ink-100 hover:text-accent-700">
                       {countryFlag[cert.originCountry] ?? '🌐'} {name?.nameEn ?? cert.supplierId}
                     </Link>
                     <div className="mt-1 text-xs text-ink-500">{name?.nameKo} · {cert.issuingAuthority}</div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <Link href={`/suppliers/${cert.supplierId}/origin`} className="text-xs font-semibold num-mono text-accent-700 hover:underline">
+                    <Link href={actionHref} className="text-xs font-semibold num-mono text-accent-700 hover:underline">
                       {cert.certNumber}
                     </Link>
                     <div className={clsx('mt-1 text-xs font-semibold', ctm.color)}>{ctm.label}</div>

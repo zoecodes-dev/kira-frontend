@@ -11,7 +11,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import {
   kpis, violationsByRegulation,
@@ -139,11 +138,67 @@ function BatchRow({ batch }: { batch: any }) {
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="flex items-center justify-center py-12 text-xs text-ink-500 border border-dashed border-ink-700/40 rounded-xs">
+    <div className="flex items-center justify-center rounded-xs border border-dashed border-ink-700/40 py-12 text-[13px] text-ink-500">
       {label}
     </div>
   );
 }
+
+function TabTableShell({
+  title,
+  subtitle,
+  action,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-sm border border-ink-700 bg-white shadow-control">
+      <div className="flex items-start justify-between gap-4 border-b border-ink-700 bg-slate-50 px-5 py-4">
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-semibold text-ink-100">{title}</h3>
+          {subtitle && <p className="mt-1 text-[13px] leading-5 text-ink-500">{subtitle}</p>}
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
+      <div className="overflow-x-auto">{children}</div>
+    </section>
+  );
+}
+
+const tableHeadClass = 'whitespace-nowrap px-4 py-3 text-left text-[13px] font-semibold text-ink-500';
+const tableCellClass = 'px-4 py-3 align-middle text-[13px] text-ink-200';
+const tableMutedCellClass = 'px-4 py-3 align-middle text-[13px] text-ink-500';
+
+const stageDisplayLabel: Record<string, string> = {
+  queued: '대기',
+  supervisor: '조율',
+  extraction: '추출',
+  verification: '검증',
+  'geo-analysis': '지역 분석',
+  compliance: '규제 검토',
+  readiness: '준비도',
+  'hitl-wait': 'HITL 대기',
+  action: '처리',
+  completed: '완료',
+  rejected: '반려',
+};
+
+const severityDisplayLabel: Record<string, string> = {
+  critical: '긴급',
+  high: '높음',
+  medium: '보통',
+};
+
+const feocDisplayLabel: Record<string, string> = {
+  eligible: 'FEOC 적격',
+  ineligible: 'FEOC 부적격',
+  under_review: 'FEOC 검토 중',
+  unknown: 'FEOC 미확인',
+};
 
 function CompactMetric({
   label,
@@ -245,7 +300,7 @@ function CompactMetric({
 
 function DashboardSupplyChainMap() {
   const todayTasks = [
-    { rank: 1, title: '검토 대기', desc: '제출된 자료를 검토해주세요.', level: '높음', count: '8건', href: '/submission-review' },
+    { rank: 1, title: '검토 대기', desc: '제출된 자료를 검토해주세요.', level: '높음', count: '8건', href: '/suppliers/check-info' },
     { rank: 2, title: '보완 요청', desc: '공급사로부터 추가 자료가 필요합니다.', level: '높음', count: '3건', href: '/supply-chain/request-map' },
     { rank: 3, title: '인증서 만료 임박', desc: '30일 이내 만료되는 인증서가 있습니다.', level: '중간', count: '5건', href: '/risk/origin-certs' },
     { rank: 4, title: '실사 필요', desc: '고위험 공급사 중 실사가 필요합니다.', level: '중간', count: '4건', href: '/due-diligence' },
@@ -380,7 +435,7 @@ function DashboardSupplyChainMap() {
         <DashboardPanel title="DPP 현황" action="DPP Center" actionHref="/dpp/center">
           <div className="flex flex-col gap-2">
             {[
-              { label: '발행 가능', value: '12', unit: '건', color: 'text-emerald-600', href: '/dpp/center' },
+              { label: '발행 가능', value: '12', unit: '건', color: 'text-emerald-600', href: '/dpp/readiness' },
               { label: '발행 보류', value: '7',  unit: '건', color: 'text-amber-600',   href: '/dpp/center' },
               { label: 'HITL 대기', value: '3',  unit: '건', color: 'text-purple-600',  href: '/hitl' },
               { label: 'Blocker',   value: '5',  unit: '건', color: 'text-red-600',     href: '/dpp/center' },
@@ -856,19 +911,44 @@ export default function DashboardPage() {
       ══════════════════════════════════════════════════════════ */}
       {activeTab === 'today-batches' && (
         <div className="p-8">
-          <Card
+          <TabTableShell
             title="오늘 처리 배치"
             subtitle={`대시보드 샘플 ${batchesInProgress.length}건 · 전체 KPI ${kpis.todayBatches}건`}
-            action={<Link href="/queue" className="flex items-center gap-1 text-xs text-accent-400 hover:text-accent-300">검증 대기열 열기 <ArrowRight className="w-3 h-3" /></Link>}
+            action={<Link href="/queue" className="flex items-center gap-1 text-[13px] font-semibold text-accent-700 hover:text-accent-600">검증 대기열 열기 <ArrowRight className="h-4 w-4" /></Link>}
           >
             {batchesInProgress.length === 0 ? (
               <EmptyState label="현재 해당 항목이 없습니다" />
             ) : (
-              <div className="space-y-0">
-                {batchesInProgress.map(batch => <BatchRow key={batch.id} batch={batch} />)}
-              </div>
+              <table className="w-full min-w-[920px]">
+                <thead className="border-b border-ink-700 bg-white">
+                  <tr>
+                    <th className={tableHeadClass}>배치 ID</th>
+                    <th className={tableHeadClass}>제품/공급사</th>
+                    <th className={tableHeadClass}>수신 시각</th>
+                    <th className={tableHeadClass}>현재 단계</th>
+                    <th className={tableHeadClass}>대상</th>
+                    <th className={tableHeadClass}>신뢰도</th>
+                    <th className={tableHeadClass}>담당</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-700/50">
+                  {batchesInProgress.map(batch => (
+                    <tr key={batch.id} className="hover:bg-slate-50">
+                      <td className={`${tableCellClass} font-semibold num-mono`}>{batch.batchId}</td>
+                      <td className={`${tableCellClass} max-w-[280px] whitespace-normal break-words font-semibold text-ink-100`}>{batch.supplier}</td>
+                      <td className={`${tableMutedCellClass} num-mono`}>{batch.receivedAt}</td>
+                      <td className={tableCellClass}>
+                        <span className={clsx('font-semibold', stageMeta[batch.currentStage]?.color)}>{stageDisplayLabel[batch.currentStage] ?? stageMeta[batch.currentStage]?.label}</span>
+                      </td>
+                      <td className={tableCellClass}><Badge tone={destMeta[batch.destination]?.tone} size="sm">{destMeta[batch.destination]?.label}</Badge></td>
+                      <td className={`${tableMutedCellClass} num-mono`}>{batch.confidence !== undefined ? `${Math.round(batch.confidence * 100)}%` : '-'}</td>
+                      <td className={`${tableMutedCellClass} max-w-[220px] whitespace-normal break-words`}>{batch.assignedTo ?? '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
-          </Card>
+          </TabTableShell>
         </div>
       )}
 
@@ -877,53 +957,50 @@ export default function DashboardPage() {
       ══════════════════════════════════════════════════════════ */}
       {activeTab === 'violation-cases' && (
         <div className="p-8">
-          <Card
+          <TabTableShell
             title="위반 감지"
             subtitle={`실시간 규제 위반 케이스 ${violationCases.length}건`}
           >
-            <div className="space-y-2">
-              {violationCases.map(item => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-4 p-4 rounded-xs border border-red-700/30 bg-red-500/5"
-                >
-                  <div className="w-8 h-8 rounded-xs border border-red-700/30 bg-red-500/10 flex items-center justify-center shrink-0">
-                    <AlertTriangle className="w-4 h-4 text-red-500" strokeWidth={1.8} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="text-xs font-semibold num-mono text-red-500">{item.id}</span>
-                      <span className="text-sm font-medium text-ink-100">{item.supplier}</span>
-                      <span className={clsx('inline-flex items-center px-1.5 py-0.5 rounded-xs border text-xs font-medium', regionColor[item.region] || 'border-ink-600 text-ink-400')}>
-                        {item.region}
+            <table className="w-full min-w-[980px]">
+              <thead className="border-b border-ink-700 bg-white">
+                <tr>
+                  <th className={tableHeadClass}>케이스 ID</th>
+                  <th className={tableHeadClass}>공급사</th>
+                  <th className={tableHeadClass}>규제</th>
+                  <th className={tableHeadClass}>지역</th>
+                  <th className={tableHeadClass}>요약</th>
+                  <th className={tableHeadClass}>심각도</th>
+                  <th className={tableHeadClass}>상태</th>
+                  <th className={tableHeadClass}>감지 시각</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-700/50">
+                {violationCases.map(item => (
+                  <tr key={item.id} className="hover:bg-slate-50">
+                    <td className={`${tableCellClass} font-semibold num-mono text-red-600`}>{item.id}</td>
+                    <td className={`${tableCellClass} font-semibold text-ink-100`}>{item.supplier}</td>
+                    <td className={tableCellClass}>{item.regulation}</td>
+                    <td className={tableCellClass}>
+                      <span className={clsx('inline-flex items-center rounded-xs border px-2 py-1 text-[13px] font-semibold', regionColor[item.region] || 'border-ink-600 text-ink-400')}>{item.region}</span>
+                    </td>
+                    <td className={`${tableMutedCellClass} max-w-[360px] whitespace-normal break-words`}>{item.summary}</td>
+                    <td className={tableCellClass}>
+                      <span className={clsx(
+                        'inline-flex rounded-xs border px-2 py-1 text-[13px] font-semibold',
+                        item.severity === 'critical' ? 'border-red-200 bg-red-50 text-red-700' :
+                        item.severity === 'high' ? 'border-orange-200 bg-orange-50 text-orange-700' :
+                        'border-amber-200 bg-amber-50 text-amber-700'
+                      )}>
+                        {severityDisplayLabel[item.severity]}
                       </span>
-                    </div>
-                    <div className="text-xs text-ink-500 truncate">{item.summary}</div>
-                    <div className="flex items-center gap-2 mt-1.5 text-xs text-ink-500 num-mono flex-wrap">
-                      <span>{item.batchId}</span>
-                      <span>·</span>
-                      <span>{item.regulation}</span>
-                      <span>·</span>
-                      <span>{item.detectedAt}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={clsx(
-                      'text-xs font-medium px-2 py-1 rounded-xs border',
-                      item.severity === 'critical' ? 'border-red-700/40 bg-red-500/12 text-red-600' :
-                      item.severity === 'high' ? 'border-orange-700/30 bg-orange-500/8 text-orange-500' :
-                      'border-amber-700/30 bg-amber-500/8 text-amber-500'
-                    )}>
-                      {item.severity === 'critical' ? '긴급' : item.severity === 'high' ? '높음' : '보통'}
-                    </span>
-                    <span className="text-xs font-medium px-2 py-1 rounded-xs border border-ink-700 bg-ink-900/40 text-ink-400">
-                      {item.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                    </td>
+                    <td className={tableCellClass}>{item.status}</td>
+                    <td className={`${tableMutedCellClass} num-mono`}>{item.detectedAt}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TabTableShell>
         </div>
       )}
 
@@ -932,60 +1009,63 @@ export default function DashboardPage() {
       ══════════════════════════════════════════════════════════ */}
       {activeTab === 'high-risk' && (
         <div className="p-8">
-          {highRiskList.length === 0 ? (
-            <EmptyState label="현재 해당 항목이 없습니다" />
-          ) : (
-            <div className="space-y-2">
-              {highRiskList.map(r => {
-                const sup  = suppliers.find(s => s.id === r.supplierId);
-                const name = getSupplierName(r.supplierId);
-                return (
-                  <Link
-                    key={r.supplierId}
-                    href={`/suppliers/${r.supplierId}/info`}
-                    className="flex items-center gap-4 p-4 rounded-xs border border-ink-700/60 bg-ink-900/20 hover:border-ink-600 hover:bg-ink-800/30 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="text-sm font-medium text-ink-100">
-                          {name?.nameEn ?? sup?.name ?? r.supplierId}
-                        </span>
-                        {name?.nameKo && <span className="text-xs text-ink-400">{name.nameKo}</span>}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-ink-500">
-                        <span>T{sup?.tier}</span>
-                        <span>·</span>
-                        <span>{sup?.country}</span>
-                        {r.highRiskReasons[0] && (
-                          <>
-                            <span>·</span>
-                            <span className="text-amber-500/80 truncate">{r.highRiskReasons[0]}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={clsx('text-xs font-medium px-2 py-1 rounded-xs border', riskLevelColor[r.riskLevel])}>
-                        {riskLevelLabel[r.riskLevel]}
-                      </span>
-                      <span className={clsx(
-                        'text-xs font-medium px-2 py-1 rounded-xs border',
-                        r.feocStatus === 'eligible'    ? 'border-emerald-700/30 bg-emerald-500/8 text-emerald-500' :
-                        r.feocStatus === 'ineligible'  ? 'border-red-700/30 bg-red-500/8 text-red-500' :
-                        r.feocStatus === 'under_review'? 'border-amber-700/30 bg-amber-500/8 text-amber-500' :
-                                                          'border-ink-700 bg-ink-800 text-ink-400'
-                      )}>
-                        {r.feocStatus === 'eligible' ? 'FEOC 적격' :
-                         r.feocStatus === 'ineligible' ? 'FEOC 부적격' :
-                         r.feocStatus === 'under_review' ? 'FEOC 검토중' : 'FEOC 미파악'}
-                      </span>
-                      <ArrowRight className="w-3.5 h-3.5 text-ink-600" />
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+          <TabTableShell title="고위험 협력사" subtitle={`고위험 또는 최고위험 협력사 ${highRiskList.length}개사`}>
+            {highRiskList.length === 0 ? (
+              <EmptyState label="현재 해당 항목이 없습니다" />
+            ) : (
+              <table className="w-full min-w-[960px]">
+                <thead className="border-b border-ink-700 bg-white">
+                  <tr>
+                    <th className={tableHeadClass}>협력사</th>
+                    <th className={tableHeadClass}>Tier</th>
+                    <th className={tableHeadClass}>국가</th>
+                    <th className={tableHeadClass}>위험 등급</th>
+                    <th className={tableHeadClass}>FEOC</th>
+                    <th className={tableHeadClass}>주요 사유</th>
+                    <th className={tableHeadClass}>이동</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-700/50">
+                  {highRiskList.map(r => {
+                    const sup  = suppliers.find(s => s.id === r.supplierId);
+                    const name = getSupplierName(r.supplierId);
+                    return (
+                      <tr key={r.supplierId} className="hover:bg-slate-50">
+                        <td className={`${tableCellClass} font-semibold text-ink-100`}>
+                          <div>{name?.nameEn ?? sup?.name ?? r.supplierId}</div>
+                          {name?.nameKo && <div className="mt-1 text-[13px] font-normal text-ink-500">{name.nameKo}</div>}
+                        </td>
+                        <td className={`${tableMutedCellClass} num-mono`}>T{sup?.tier}</td>
+                        <td className={tableMutedCellClass}>{sup?.country ?? '-'}</td>
+                        <td className={tableCellClass}>
+                          <span className={clsx('inline-flex rounded-xs border px-2 py-1 text-[13px] font-semibold', riskLevelColor[r.riskLevel])}>
+                            {riskLevelLabel[r.riskLevel]}
+                          </span>
+                        </td>
+                        <td className={tableCellClass}>
+                          <span className={clsx(
+                            'inline-flex rounded-xs border px-2 py-1 text-[13px] font-semibold',
+                            r.feocStatus === 'eligible'    ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
+                            r.feocStatus === 'ineligible'  ? 'border-red-200 bg-red-50 text-red-700' :
+                            r.feocStatus === 'under_review'? 'border-amber-200 bg-amber-50 text-amber-700' :
+                                                              'border-ink-700 bg-slate-50 text-ink-500'
+                          )}>
+                            {feocDisplayLabel[r.feocStatus] ?? 'FEOC 미확인'}
+                          </span>
+                        </td>
+                        <td className={`${tableMutedCellClass} max-w-[340px] whitespace-normal break-words`}>{r.highRiskReasons[0] ?? '-'}</td>
+                        <td className={tableCellClass}>
+                          <Link href={`/suppliers/${r.supplierId}/info`} className="inline-flex items-center gap-1 font-semibold text-accent-700 hover:text-accent-600">
+                            상세 <ArrowRight className="h-4 w-4" />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </TabTableShell>
         </div>
       )}
 
@@ -994,60 +1074,120 @@ export default function DashboardPage() {
       ══════════════════════════════════════════════════════════ */}
       {activeTab === 'pending' && (
         <div className="p-8">
-          {pendingList.length === 0 ? (
-            <EmptyState label="현재 해당 항목이 없습니다" />
-          ) : (
-            <div className="space-y-2">
-              {pendingList.map(c => {
-                const sup      = suppliers.find(s => s.id === c.supplierId);
-                const name     = getSupplierName(c.supplierId);
-                const logs     = getRemindLogs(c.supplierId);
-                const isSlaOver = logs.length >= 2;
-                return (
-                  <Link
-                    key={c.supplierId}
-                    href={`/suppliers/${c.supplierId}/info`}
-                    className="flex items-center gap-4 p-4 rounded-xs border border-ink-700/60 bg-ink-900/20 hover:border-ink-600 hover:bg-ink-800/30 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-2">
-                        <span className="text-sm font-medium text-ink-100">
-                          {name?.nameEn ?? sup?.name ?? c.supplierId}
+          <section className="rounded-sm border border-ink-700 bg-white shadow-control">
+            <div className="flex items-start justify-between gap-4 border-b border-ink-700 bg-slate-50 px-5 py-4">
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-semibold text-ink-100">자료 보완 대기</h3>
+                <p className="mt-1 text-[13px] leading-5 text-ink-500">
+                  누락 항목이 있는 협력사를 우선순위별로 확인합니다.
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-right">
+                <div className="rounded-xs border border-ink-700 bg-white px-3 py-2">
+                  <div className="text-[11px] font-semibold text-ink-500">대상</div>
+                  <div className="text-[15px] font-bold text-ink-100 num-mono">{pendingList.length}</div>
+                </div>
+                <div className="rounded-xs border border-ink-700 bg-white px-3 py-2">
+                  <div className="text-[11px] font-semibold text-ink-500">누락</div>
+                  <div className="text-[15px] font-bold text-amber-700 num-mono">
+                    {pendingList.reduce((sum, item) => sum + item.missingFields.length, 0)}
+                  </div>
+                </div>
+                <div className="rounded-xs border border-ink-700 bg-white px-3 py-2">
+                  <div className="text-[11px] font-semibold text-ink-500">평균</div>
+                  <div className="text-[15px] font-bold text-ink-100 num-mono">
+                    {pendingList.length > 0
+                      ? `${Math.round(pendingList.reduce((sum, item) => sum + item.completionRate, 0) / pendingList.length)}%`
+                      : '-'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 p-5">
+              {pendingList.length === 0 ? (
+                <EmptyState label="현재 해당 항목이 없습니다" />
+              ) : (
+                pendingList.map(c => {
+                  const sup      = suppliers.find(s => s.id === c.supplierId);
+                  const name     = getSupplierName(c.supplierId);
+                  const logs     = getRemindLogs(c.supplierId);
+                  const isSlaOver = logs.length >= 2;
+                  const visibleFields = c.missingFields.slice(0, 4);
+                  const hiddenCount = Math.max(c.missingFields.length - visibleFields.length, 0);
+                  const progressTone =
+                    c.completionRate >= 75 ? 'bg-amber-500' :
+                    c.completionRate >= 60 ? 'bg-orange-500' :
+                    'bg-red-500';
+
+                  return (
+                    <article
+                      key={c.supplierId}
+                      className={clsx(
+                        'rounded-sm border bg-white p-4 transition-colors hover:bg-slate-50',
+                        isSlaOver ? 'border-orange-200 shadow-[inset_3px_0_0_#f97316]' : 'border-ink-700'
+                      )}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-[240px] flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-sm font-semibold text-ink-100">
+                              {name?.nameEn ?? sup?.name ?? c.supplierId}
+                            </h4>
+                            {name?.nameKo && <span className="text-[13px] text-ink-500">{name.nameKo}</span>}
+                            {isSlaOver && (
+                              <span className="inline-flex items-center gap-1 rounded-xs border border-orange-200 bg-orange-50 px-2 py-1 text-[13px] font-semibold text-orange-700">
+                                <Clock className="h-3.5 w-3.5" />
+                                SLA 초과
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-ink-500">
+                            <span className="num-mono">T{sup?.tier ?? '-'}</span>
+                            <span>{sup?.country ?? '-'}</span>
+                            <span>최근 업데이트 {c.lastUpdatedAt}</span>
+                          </div>
+                        </div>
+
+                        <div className="w-full max-w-[260px]">
+                          <div className="mb-1 flex items-center justify-between text-[13px]">
+                            <span className="font-semibold text-ink-500">완성도</span>
+                            <span className="font-bold text-ink-100 num-mono">{c.completionRate}%</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-slate-100">
+                            <div className={clsx('h-full rounded-full', progressTone)} style={{ width: `${c.completionRate}%` }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-xs bg-amber-50 px-2 py-1 text-[13px] font-semibold text-amber-700">
+                          <AlertCircle className="h-3.5 w-3.5" />
+                          누락 {c.missingFields.length}항목
                         </span>
-                        {isSlaOver && (
-                          <span className="flex items-center gap-1 text-xs text-orange-500 border border-orange-700/30 bg-orange-500/8 px-1.5 py-0.5 rounded-xs">
-                            <Clock className="w-2.5 h-2.5" />
-                            SLA 초과
+                        {visibleFields.map(field => (
+                          <span key={field} className="rounded-xs border border-ink-700 bg-slate-50 px-2 py-1 text-[13px] font-medium text-ink-200">
+                            {field}
+                          </span>
+                        ))}
+                        {hiddenCount > 0 && (
+                          <span className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-[13px] font-semibold text-ink-500">
+                            외 {hiddenCount}건
                           </span>
                         )}
+                        <Link
+                          href={`/suppliers/${c.supplierId}/info`}
+                          className="ml-auto inline-flex items-center gap-1 rounded-xs border border-accent-200 bg-accent-50 px-3 py-1.5 text-[13px] font-semibold text-accent-700 hover:border-accent-600"
+                        >
+                          검토 <ArrowRight className="h-4 w-4" />
+                        </Link>
                       </div>
-                      {/* 진행 바 */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 h-1.5 rounded-full bg-ink-700/60">
-                          <div
-                            className={clsx('h-full rounded-full',
-                              c.completionRate >= 80 ? 'bg-emerald-500' :
-                              c.completionRate >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                            )}
-                            style={{ width: `${c.completionRate}%` }}
-                          />
-                        </div>
-                        <span className="text-xs num-mono text-ink-300 shrink-0">{c.completionRate}%</span>
-                      </div>
-                      {c.missingFields.length > 0 && (
-                        <div className="flex items-center gap-1 mt-1.5 text-xs text-ink-500">
-                          <AlertCircle className="w-3 h-3 text-amber-500 shrink-0" />
-                          누락 {c.missingFields.length}항목
-                          <span className="text-ink-600 truncate ml-1">— {c.missingFields.slice(0, 2).join(', ')}{c.missingFields.length > 2 ? ` 외 ${c.missingFields.length - 2}건` : ''}</span>
-                        </div>
-                      )}
-                    </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-ink-600 shrink-0" />
-                  </Link>
-                );
-              })}
+                    </article>
+                  );
+                })
+              )}
             </div>
-          )}
+          </section>
         </div>
       )}
 
@@ -1056,51 +1196,46 @@ export default function DashboardPage() {
       ══════════════════════════════════════════════════════════ */}
       {activeTab === 'dpp-ready' && (
         <div className="p-8">
-          {dppReadyList.length === 0 ? (
-            <EmptyState label="현재 해당 항목이 없습니다" />
-          ) : (
-            <div className="space-y-2">
-              {dppReadyList.map(d => (
-                <div key={d.id} className="flex items-center gap-4 p-4 rounded-xs border border-emerald-700/30 bg-emerald-500/5">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="text-xs font-semibold num-mono text-emerald-500">{d.id}</span>
-                      <span className="text-sm text-ink-100">{d.modelName}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-ink-500 num-mono flex-wrap">
-                      <span>{d.manufacturer}</span>
-                      <span>·</span>
-                      <span>발행: {d.issuedAt.slice(0, 10)}</span>
-                      <span>·</span>
-                      <span>탄소: {d.carbonFootprint} kg CO₂eq</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1.5">
-                      <span className="text-xs text-ink-500">재활용 함량:</span>
-                      {[
-                        { label: `Co ${d.recycledContent.Co}%`, ok: d.recycledContent.Co >= 4 },
-                        { label: `Ni ${d.recycledContent.Ni}%`, ok: d.recycledContent.Ni >= 4 },
-                        { label: `Li ${d.recycledContent.Li}%`, ok: d.recycledContent.Li >= 4 },
-                      ].map(rc => (
-                        <span key={rc.label} className={clsx(
-                          'text-xs px-1.5 py-0.5 rounded-xs border',
-                          rc.ok ? 'border-emerald-700/30 bg-emerald-500/8 text-emerald-500'
-                               : 'border-amber-700/30 bg-amber-500/8 text-amber-500'
-                        )}>
-                          {rc.label}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <span className={clsx('text-xs font-medium px-2 py-1 rounded-xs border', regionColor[d.destination] || 'border-ink-600 text-ink-400')}>
-                      {d.destination}
-                    </span>
-                    <div className="text-xs text-ink-500 mt-1">{d.approvedBy}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <TabTableShell title="DPP 발행 완료" subtitle={`발행 가능한 DPP 레코드 ${dppReadyList.length}건`}>
+            {dppReadyList.length === 0 ? (
+              <EmptyState label="현재 해당 항목이 없습니다" />
+            ) : (
+              <table className="w-full min-w-[1020px]">
+                <thead className="border-b border-ink-700 bg-white">
+                  <tr>
+                    <th className={tableHeadClass}>DPP ID</th>
+                    <th className={tableHeadClass}>제품명</th>
+                    <th className={tableHeadClass}>시리얼</th>
+                    <th className={tableHeadClass}>제조사</th>
+                    <th className={tableHeadClass}>발행일</th>
+                    <th className={tableHeadClass}>목적지</th>
+                    <th className={tableHeadClass}>탄소</th>
+                    <th className={tableHeadClass}>재활용 함량</th>
+                    <th className={tableHeadClass}>승인자</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-700/50">
+                  {dppReadyList.map(d => (
+                    <tr key={d.id} className="hover:bg-slate-50">
+                      <td className={`${tableCellClass} font-semibold num-mono text-emerald-700`}>{d.id}</td>
+                      <td className={`${tableCellClass} max-w-[240px] whitespace-normal break-words font-semibold text-ink-100`}>{d.modelName}</td>
+                      <td className={`${tableMutedCellClass} num-mono`}>{d.serialNumber}</td>
+                      <td className={`${tableMutedCellClass} max-w-[240px] whitespace-normal break-words`}>{d.manufacturer}</td>
+                      <td className={`${tableMutedCellClass} num-mono`}>{d.issuedAt.slice(0, 10)}</td>
+                      <td className={tableCellClass}>
+                        <span className={clsx('inline-flex rounded-xs border px-2 py-1 text-[13px] font-semibold', regionColor[d.destination] || 'border-ink-600 text-ink-400')}>{d.destination}</span>
+                      </td>
+                      <td className={`${tableMutedCellClass} num-mono`}>{d.carbonFootprint} kg CO₂eq</td>
+                      <td className={`${tableMutedCellClass} whitespace-nowrap num-mono`}>
+                        Co {d.recycledContent.Co}% · Ni {d.recycledContent.Ni}% · Li {d.recycledContent.Li}%
+                      </td>
+                      <td className={`${tableMutedCellClass} max-w-[180px] whitespace-normal break-words`}>{d.approvedBy}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </TabTableShell>
         </div>
       )}
 
@@ -1109,43 +1244,44 @@ export default function DashboardPage() {
       ══════════════════════════════════════════════════════════ */}
       {activeTab === 'hitl-queue' && (
         <div className="p-8">
-          {hitlList.length === 0 ? (
-            <EmptyState label="현재 해당 항목이 없습니다" />
-          ) : (
-            <div className="space-y-2">
-              {hitlList.map(b => (
-                <div key={b.id} className="flex items-center gap-4 p-4 rounded-xs border border-red-700/30 bg-red-500/5">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="text-xs font-semibold num-mono text-red-400">{b.batchId}</span>
-                      <span className="text-sm text-ink-100">{b.supplier}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-ink-500 num-mono flex-wrap">
-                      <span>수신: {b.receivedAt}</span>
-                      {b.confidence !== undefined && (
-                        <span className={clsx(
-                          b.confidence >= 0.9 ? 'text-emerald-500' :
-                          b.confidence >= 0.7 ? 'text-amber-500' : 'text-red-500'
-                        )}>
-                          신뢰도 {Math.round(b.confidence * 100)}%
-                        </span>
-                      )}
-                      {b.assignedTo && <span className="text-ink-400">담당: {b.assignedTo}</span>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge tone={destMeta[b.destination]?.tone} size="sm">{b.destination}</Badge>
-                    <Link
-                      href="/hitl"
-                      className="flex items-center gap-1 text-xs text-accent-400 hover:text-accent-300 border border-accent-700/30 bg-accent-700/10 px-2 py-1 rounded-xs transition-colors"
-                    >
-                      검토 <ArrowRight className="w-3 h-3" />
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <TabTableShell title="HITL 대기열" subtitle={`사람 검토가 필요한 배치 ${hitlList.length}건`}>
+            {hitlList.length === 0 ? (
+              <EmptyState label="현재 해당 항목이 없습니다" />
+            ) : (
+              <table className="w-full min-w-[920px]">
+                <thead className="border-b border-ink-700 bg-white">
+                  <tr>
+                    <th className={tableHeadClass}>배치 ID</th>
+                    <th className={tableHeadClass}>공급사</th>
+                    <th className={tableHeadClass}>수신 시각</th>
+                    <th className={tableHeadClass}>신뢰도</th>
+                    <th className={tableHeadClass}>목적지</th>
+                    <th className={tableHeadClass}>담당</th>
+                    <th className={tableHeadClass}>작업</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-700/50">
+                  {hitlList.map(b => (
+                    <tr key={b.id} className="hover:bg-slate-50">
+                      <td className={`${tableCellClass} font-semibold num-mono text-red-600`}>{b.batchId}</td>
+                      <td className={`${tableCellClass} max-w-[260px] whitespace-normal break-words font-semibold text-ink-100`}>{b.supplier}</td>
+                      <td className={`${tableMutedCellClass} num-mono`}>{b.receivedAt}</td>
+                      <td className={`${tableMutedCellClass} num-mono`}>
+                        {b.confidence !== undefined ? `${Math.round(b.confidence * 100)}%` : '-'}
+                      </td>
+                      <td className={tableCellClass}><Badge tone={destMeta[b.destination]?.tone} size="sm">{b.destination}</Badge></td>
+                      <td className={`${tableMutedCellClass} max-w-[220px] whitespace-normal break-words`}>{b.assignedTo ?? '-'}</td>
+                      <td className={tableCellClass}>
+                        <Link href="/hitl" className="inline-flex items-center gap-1 font-semibold text-accent-700 hover:text-accent-600">
+                          검토 <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </TabTableShell>
         </div>
       )}
     </>
