@@ -66,11 +66,12 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
     return pathname === sub.href || pathname.startsWith(sub.href + '/');
   };
   const hasActiveSubItem = subItems?.some(isSubActive) ?? false;
-  const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href) || hasActiveSubItem;
+  const isLinkActive = href === '/' ? pathname === '/' : pathname === href || (!subItems && pathname.startsWith(href + '/'));
+  const isActive = subItems ? hasActiveSubItem || isLinkActive : isLinkActive;
   const Icon = icons[iconName] ?? Activity;
   const mainClassName = clsx(
     'flex items-center gap-3 px-3 py-2.5 rounded-sm transition-colors group flex-1 min-w-0 text-left',
-    isActive
+    isLinkActive
       ? 'bg-accent-50 text-accent-900 border border-accent-100'
       : 'text-ink-300 border border-transparent hover:bg-ink-800 hover:text-ink-100'
   );
@@ -79,15 +80,15 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
     <>
       <div className={clsx(
         'w-8 h-8 rounded-sm flex items-center justify-center shrink-0 border',
-        isActive ? 'bg-accent-700 border-accent-700 text-white' : 'bg-white border-ink-700 text-ink-400 group-hover:text-ink-100'
+        isLinkActive ? 'bg-accent-700 border-accent-700 text-white' : 'bg-white border-ink-700 text-ink-400 group-hover:text-ink-100'
       )}>
-        <Icon className="w-4 h-4" strokeWidth={isActive ? 2.5 : 2} />
+        <Icon className="w-4 h-4" strokeWidth={isLinkActive ? 2.5 : 2} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[13px] font-semibold">{label}</div>
         <div className="text-[10px] text-ink-500 truncate">{subtitle}</div>
       </div>
-      {isActive && !subItems && <div className="w-1 h-1 rounded-full bg-accent-500 shrink-0" />}
+      {isLinkActive && !subItems && <div className="w-1 h-1 rounded-full bg-accent-500 shrink-0" />}
     </>
   );
 

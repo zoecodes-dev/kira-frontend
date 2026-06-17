@@ -1,174 +1,93 @@
 'use client';
 
-// DPP 발행 현황을 한눈에 보는 관제센터 페이지.
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import Badge from '@/components/Badge';
+import TopStatCard from '@/components/TopStatCard';
 import clsx from 'clsx';
 import {
-  ChevronRight,
-  FileBadge,
-  FileSearch,
-  RefreshCw,
-  ShieldAlert,
-  UserCheck,
-  X,
+  ChevronRight, FileBadge, FileSearch,
+  ShieldAlert, UserCheck, X, BookOpen,
 } from 'lucide-react';
+import { dppRecords, type DPP } from '@/lib/data';
 
-type ProductStatus = 'ready' | 'hold' | 'hitl' | 'issued';
+// ── Types ────────────────────────────────────────────────────────────
 type BlockerKey = 'feoc' | 'origin' | 'hitl' | 'audit';
-type ModalKey = ProductStatus | 'blockers' | `blocker:${BlockerKey}`;
 
-interface CenterProduct {
-  id: string;
-  name: string;
-  customer: string;
-  model: string;
-  readiness: number;
-  status: ProductStatus;
-  blocker?: string;
-  blockerKey?: BlockerKey;
-  issue?: string;
-  confidence?: number;
-  dppId?: string;
-  issuedAt?: string;
-  supplier: string;
-  targetHref: string;
+interface HeldProduct {
+  id: string; name: string; customer: string; model: string;
+  readiness: number; blockerKey: BlockerKey; updatedAt: string;
 }
+interface HitlProduct {
+  id: string; name: string; supplier: string; issue: string;
+  confidence: number; requestedAt: string;
+}
+interface IssuedRecord { id: string; name: string; stage: string; issuedAt: string; }
 
-const products: CenterProduct[] = [
-  {
-    id: 'BMW-IX3-NCM811-108',
-    name: 'BMW iX3 Cylindrical NCM811 108Ah',
-    customer: 'BMW',
-    model: 'iX3 50',
-    readiness: 100,
-    status: 'issued',
-    dppId: 'DPP-IX3-20260610',
-    issuedAt: '2026-06-10 09:30',
-    supplier: 'Hanyang Cell Mfg',
-    targetHref: '/dpp',
-  },
-  {
-    id: 'BMW-I4-NCM-81',
-    name: 'BMW i4 Prismatic NCM 81Ah',
-    customer: 'BMW',
-    model: 'i4',
-    readiness: 70,
-    status: 'hitl',
-    blocker: 'HITL 검토 대기',
-    blockerKey: 'hitl',
-    issue: '전구체 미확인, AI 신뢰도 임계치 미달',
-    confidence: 70,
-    supplier: 'Daesung Precision',
-    targetHref: '/hitl',
-  },
-  {
-    id: 'MB-GLC-NCM-94',
-    name: 'Mercedes GLC EV Prismatic NCM 94Ah',
-    customer: 'Mercedes',
-    model: 'GLC EV',
-    readiness: 58,
-    status: 'hold',
-    blocker: 'FEOC 문서 누락',
-    blockerKey: 'feoc',
-    issue: 'Global Mining 신장 리스크 및 외국 지분 25% 이상',
-    confidence: 91,
-    supplier: 'Global Mining Corp',
-    targetHref: '/dpp/readiness',
-  },
-  {
-    id: 'MB-EQS-NCM-118',
-    name: 'Mercedes EQS Prismatic NCM 118Ah',
-    customer: 'Mercedes',
-    model: 'EQS',
-    readiness: 96,
-    status: 'ready',
-    supplier: 'Woojin Battery',
-    targetHref: '/dpp/readiness',
-  },
-];
-
-const extraHeldProducts: CenterProduct[] = [
-  {
-    id: 'SUPPLIER-AUDIT-001',
-    name: 'High-Nickel Cell Audit Package',
-    customer: 'Internal',
-    model: 'Audit pack',
-    readiness: 82,
-    status: 'hold',
-    blocker: '실사 결과 미제출',
-    blockerKey: 'audit',
-    issue: '현장 실사 결과 보고서가 아직 제출되지 않음',
-    supplier: 'Xinjiang Nickel Refinery',
-    targetHref: '/dpp/readiness',
-  },
-  {
-    id: 'ORIGIN-CHECK-001',
-    name: 'Cathode Material Origin Set',
-    customer: 'BMW',
-    model: 'CAM set',
-    readiness: 76,
-    status: 'hold',
-    blocker: '원산지 검증 미완료',
-    blockerKey: 'origin',
-    issue: '광산 원산지 증빙과 BOM 경로 대조 필요',
-    supplier: 'Unverified Precursor Trading',
-    targetHref: '/dpp/readiness',
-  },
-];
-
-const centerProducts = [...products, ...extraHeldProducts];
-
-const blockerMeta: Record<BlockerKey, { label: string; tone: string; icon: typeof FileSearch }> = {
-  feoc: { label: 'FEOC 문서 누락', tone: 'text-red-700', icon: FileSearch },
-  origin: { label: '원산지 검증 미완료', tone: 'text-orange-700', icon: ShieldAlert },
-  hitl: { label: 'HITL 검토 대기', tone: 'text-indigo-700', icon: UserCheck },
-  audit: { label: '실사 결과 미제출', tone: 'text-amber-700', icon: FileBadge },
+// ── Static data ──────────────────────────────────────────────────────
+const blockerMeta: Record<BlockerKey, {
+  label: string; sub: string; color: string; barColor: string; icon: typeof FileSearch;
+}> = {
+  feoc:   { label: 'FEOC 조사 누락',    sub: 'EU 배터리 규정 2031 기준 미충족',     color: 'text-red-700',    barColor: 'bg-red-500',    icon: FileSearch },
+  origin: { label: '원산지 정보 미완료', sub: '공급 원산지 및 레퍼런스 정보 누락',   color: 'text-orange-700', barColor: 'bg-orange-500', icon: ShieldAlert },
+  hitl:   { label: 'HITL 검토 대기',    sub: 'AI 신뢰도 부족으로 사람 검토 필요',   color: 'text-indigo-700', barColor: 'bg-indigo-500', icon: UserCheck },
+  audit:  { label: '실사 평가 미제출',   sub: '공급망 실사 평가 미제출 또는 미통과',  color: 'text-amber-700',  barColor: 'bg-amber-500',  icon: FileBadge },
 };
 
-const kpiMeta: Array<{
-  key: ModalKey;
-  label: string;
-  tone: 'green' | 'orange' | 'indigo' | 'red' | 'blue';
-  getProducts: () => CenterProduct[];
-}> = [
-  { key: 'ready', label: '발행 가능', tone: 'green', getProducts: () => centerProducts.filter(product => product.status === 'ready') },
-  { key: 'hold', label: '발행 보류', tone: 'orange', getProducts: () => centerProducts.filter(product => product.status === 'hold') },
-  { key: 'hitl', label: 'HITL 검토 필요', tone: 'indigo', getProducts: () => centerProducts.filter(product => product.status === 'hitl') },
-  { key: 'blockers', label: '남은 Blocker', tone: 'red', getProducts: () => centerProducts.filter(product => product.blocker) },
-  { key: 'issued', label: '최근 발행', tone: 'blue', getProducts: () => centerProducts.filter(product => product.status === 'issued') },
+const blockerCounts: Record<BlockerKey, number> = { feoc: 13, origin: 9, hitl: 7, audit: 6 };
+const maxBlockerCount = Math.max(...Object.values(blockerCounts));
+const totalBlockers   = Object.values(blockerCounts).reduce((a, b) => a + b, 0);
+
+const heldProducts: HeldProduct[] = [
+  { id: 'MB-GLC-94',      name: 'Mercedes GLC EV Prismatic NCM 94Ah', customer: 'Mercedes', model: 'GCE V',        readiness: 58, blockerKey: 'feoc',   updatedAt: '2026-06-10' },
+  { id: 'HN-AUDIT',       name: 'High-Nickel Cell Audit Package',      customer: 'Internal', model: 'Audit pack',   readiness: 82, blockerKey: 'audit',  updatedAt: '2026-06-10' },
+  { id: 'CAM-ORIGIN',     name: 'Cathode Material Origin Set',          customer: 'BMW',      model: 'CAM set',     readiness: 76, blockerKey: 'origin', updatedAt: '2026-06-09' },
+  { id: 'POUCH-NMC-811',  name: 'Pouch Cell NMC 811 100Ah',            customer: 'BMW',      model: 'Cell',        readiness: 64, blockerKey: 'hitl',   updatedAt: '2026-06-09' },
+  { id: 'AL-FOIL',        name: 'Aluminum Foil Supplier Pack',          customer: 'Supplier', model: 'Raw material', readiness: 45, blockerKey: 'feoc',   updatedAt: '2026-06-08' },
 ];
 
+const hitlProducts: HitlProduct[] = [
+  { id: 'BMW-I4',   name: 'BMW i4 Prismatic NCM 81Ah',  supplier: 'Dalsung Precision', issue: '전구체 데이터, AI 신뢰도 임계치 미달', confidence: 78, requestedAt: '2026-06-10' },
+  { id: 'MB-EQS',  name: 'Mercedes EQS NCM 118Ah',      supplier: 'Global Mining',     issue: 'CoO 원산지 증빙 AI 판독 오류',        confidence: 62, requestedAt: '2026-06-09' },
+];
+
+const recentIssued: IssuedRecord[] = [
+  { id: 'DPP-TX3-20260611', name: 'BMW iX3 Cylindrical NCM811 108Ah', stage: 'Cell Mfg', issuedAt: '2026-06-11 09:30' },
+  { id: 'DPP-TX3-20260610', name: 'BMW X5 Prismatic NCM811 94Ah',     stage: 'Cell Mfg', issuedAt: '2026-06-10 16:45' },
+  { id: 'DPP-TX3-20260610', name: 'Standard NCA 80Ah',                 stage: 'Cell Mfg', issuedAt: '2026-06-10 11:20' },
+  { id: 'DPP-TX3-20260609', name: 'Mercedes EQS Prismatic NCM 118Ah', stage: 'Cell Mfg', issuedAt: '2026-06-09 14:10' },
+  { id: 'DPP-TX3-20260609', name: 'LFP Power 120Ah Export Pack',       stage: 'Pack Mfg', issuedAt: '2026-06-09 10:05' },
+];
+
+const cfTrend = {
+  labels: ['06-05', '06-06', '06-07', '06-08', '06-09', '06-10', '06-11'],
+  series: [
+    { name: 'Standard NCA 80Ah', color: '#ef4444', data: [88.2, 92.1, 85.7, 91.4, 87.3, 90.8, 91.7] },
+    { name: 'LFP Power 120Ah',   color: '#10b981', data: [69.4, 65.2, 71.8, 66.9, 73.1, 68.4, 67.2] },
+  ],
+};
+
+const kpis = [
+  { key: 'ready',    label: '발행 가능',       count: 12, tone: 'ok'     as const },
+  { key: 'hold',     label: '발행 보류',       count: 23, tone: 'warn'   as const },
+  { key: 'hitl',     label: 'HITL 검토 필요',  count: 7,  tone: 'purple' as const },
+  { key: 'blockers', label: '남은 Blocker',    count: 11, tone: 'alert'  as const },
+  { key: 'issued',   label: '최근 발행 (7일)', count: 8,  tone: 'info'   as const },
+];
+
+// ── Page ─────────────────────────────────────────────────────────────
 export default function DppCenterPage() {
-  const [modalKey, setModalKey] = useState<ModalKey | null>(null);
-  const [recentDays, setRecentDays] = useState('7');
-  const [lastUpdated, setLastUpdated] = useState('2026-06-11 14:57');
+  const [modalOpen, setModalOpen] = useState(false);
 
-  const heldProducts = centerProducts.filter(product => product.status === 'hold');
-  const hitlProducts = centerProducts.filter(product => product.status === 'hitl');
-  const issuedProducts = centerProducts.filter(product => product.status === 'issued');
-
-  const blockerRows = useMemo(() => {
-    return (Object.keys(blockerMeta) as BlockerKey[]).map(key => ({
-      key,
-      products: centerProducts.filter(product => product.blockerKey === key),
-      ...blockerMeta[key],
-    }));
-  }, []);
-
-  const modalProducts = modalKey
-    ? modalKey.startsWith('blocker:')
-      ? centerProducts.filter(product => product.blockerKey === modalKey.replace('blocker:', ''))
-      : kpiMeta.find(kpi => kpi.key === modalKey)?.getProducts() ?? []
-    : [];
-
-  const modalTitle = modalKey
-    ? modalKey.startsWith('blocker:')
-      ? blockerMeta[modalKey.replace('blocker:', '') as BlockerKey].label
-      : kpiMeta.find(kpi => kpi.key === modalKey)?.label ?? '제품 목록'
-    : '제품 목록';
+  const cfValues    = dppRecords.map(r => r.carbonFootprint);
+  const cfAvg       = +(cfValues.reduce((a, b) => a + b, 0) / cfValues.length).toFixed(1);
+  const cfMax       = Math.max(...cfValues);
+  const cfMin       = Math.min(...cfValues);
+  const ncmDpps     = dppRecords.filter(r => r.recycledContent.Co > 0);
+  const coAvg       = +(ncmDpps.reduce((s, r) => s + r.recycledContent.Co, 0) / ncmDpps.length).toFixed(1);
+  const niAvg       = +(ncmDpps.reduce((s, r) => s + r.recycledContent.Ni, 0) / ncmDpps.length).toFixed(1);
+  const liAvg       = +(dppRecords.reduce((s, r) => s + r.recycledContent.Li, 0) / dppRecords.length).toFixed(1);
+  const borderlineCo = ncmDpps.filter(r => r.recycledContent.Co <= 16);
 
   return (
     <>
@@ -179,226 +98,243 @@ export default function DppCenterPage() {
       />
 
       <div className="p-8 space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-base font-medium text-ink-500">
-            최종 업데이트 <span className="num-mono text-ink-200">{lastUpdated}</span>
-          </p>
-          <button
-            onClick={() => setLastUpdated('방금 전')}
-            data-testid="dpp-center-refresh"
-            className="inline-flex items-center gap-2 rounded-sm border border-ink-700 bg-white px-4 py-2 text-sm font-semibold text-ink-300 hover:border-accent-600 hover:text-accent-700"
-          >
-            <RefreshCw className="h-4 w-4" />
-            새로고침
-          </button>
-        </div>
-
+        {/* KPI cards */}
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {kpiMeta.map(kpi => (
-            <KpiButton
-              key={kpi.key}
-              label={kpi.label}
-              count={kpi.getProducts().length}
-              tone={kpi.tone}
-              onClick={() => setModalKey(kpi.key)}
-            />
+          {kpis.map(k => (
+            <TopStatCard key={k.key} label={k.label} value={k.count} unit="건" tone={k.tone} onClick={() => setModalOpen(true)} />
           ))}
         </section>
 
-        <div className="rounded-sm border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">
-          KPI 카드와 Blocker 항목을 클릭하면 해당 제품 목록을 팝업으로 확인할 수 있습니다.
-        </div>
-
-        <section className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[1.2fr_1fr]">
-          <Panel
-            title="발행 보류 제품"
-            count={`${heldProducts.length}건`}
-            description="Readiness가 낮거나 핵심 증빙이 막힌 제품입니다."
-            action={<ActionButton testId="dpp-center-hold-all" onClick={() => setModalKey('hold')}>전체 보기</ActionButton>}
-          >
-            <table className="w-full min-w-[720px]">
-              <thead>
-                <tr className="border-b border-ink-700 bg-ink-900/30">
-                  {['제품명', 'Readiness', 'Blocker'].map(head => (
-                    <th key={head} className="px-5 py-3 text-left text-sm font-bold text-ink-500">{head}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {heldProducts.map(product => (
-                  <tr key={product.id} className="border-b border-ink-700/60 hover:bg-ink-900/30">
-                    <td className="px-5 py-4">
-                      <Link href="/dpp/readiness" className="font-semibold text-ink-100 hover:text-accent-700">
-                        {product.name}
-                      </Link>
-                      <div className="mt-1 text-sm text-ink-500">{product.customer} · {product.model}</div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <ReadinessBar value={product.readiness} />
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-red-700">
-                        <span className="h-2 w-2 rounded-full bg-red-500" />
-                        {product.blocker}
-                      </span>
-                    </td>
+        {/* Row 1 */}
+        <section className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[1.35fr_1fr]">
+          {/* 발행 보류 제품 */}
+          <div className="min-w-0 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+            <PanelHeader title="발행 보류 제품" count="23건" sub="Readiness가 낮거나 핵심 증빙이 누락된 제품입니다.">
+              <ActionBtn onClick={() => setModalOpen(true)}>전체 보기</ActionBtn>
+            </PanelHeader>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px]">
+                <thead>
+                  <tr className="border-b border-ink-700 bg-ink-900/30">
+                    {['제품명', 'Readiness', '주요 Blocker', '최근 업데이트'].map(h => (
+                      <th key={h} className="px-5 py-3 text-left text-[13px] font-bold text-ink-500">{h}</th>
+                    ))}
+                    <th className="w-8 px-2" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </Panel>
+                </thead>
+                <tbody>
+                  {heldProducts.map(p => {
+                    const m = blockerMeta[p.blockerKey];
+                    return (
+                      <tr key={p.id} className="border-b border-ink-700/60 cursor-pointer hover:bg-ink-900/20" onClick={() => window.location.href = '/dpp/readiness'}>
+                        <td className="px-5 py-3.5">
+                          <div className="text-[13px] font-semibold text-ink-100">{p.name}</div>
+                          <div className="text-[12px] text-ink-500 mt-0.5">{p.customer} · {p.model}</div>
+                        </td>
+                        <td className="px-5 py-3.5"><ReadinessBar value={p.readiness} /></td>
+                        <td className="px-5 py-3.5">
+                          <span className={clsx('text-[13px] font-semibold', m.color)}>{m.label}</span>
+                        </td>
+                        <td className="px-5 py-3.5 text-[13px] num-mono text-ink-500">{p.updatedAt}</td>
+                        <td className="px-2 py-3.5"><ChevronRight className="h-4 w-4 text-ink-500" /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="border-t border-ink-700/40 px-5 py-3">
+              <button className="text-[13px] font-semibold text-accent-700 hover:underline">+ 18건 더보기</button>
+            </div>
+          </div>
 
-          <Panel
-            title="발행 지연 원인"
-            count={`${centerProducts.filter(product => product.blocker).length}건`}
-            description="그래프 대신 원인별 제품 수를 리스트로 보여줍니다."
-            action={<button onClick={() => setModalKey('blockers')} className="text-sm font-semibold text-accent-800">전체 보기</button>}
-          >
-            <div className="divide-y divide-ink-700">
-              {blockerRows.map(row => {
-                const Icon = row.icon;
+          {/* 발행 지연 원인 */}
+          <div className="min-w-0 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+            <PanelHeader title="발행 지연 원인" count="4건" sub="발행 지연의 주요 원인과 영향을 확인할 수 있습니다.">
+              <ActionBtn onClick={() => setModalOpen(true)}>전체 보기</ActionBtn>
+            </PanelHeader>
+            <div className="divide-y divide-ink-700/40">
+              {(Object.keys(blockerMeta) as BlockerKey[]).map(key => {
+                const m = blockerMeta[key];
+                const Icon = m.icon;
+                const cnt = blockerCounts[key];
+                const pct = Math.round((cnt / totalBlockers) * 100);
                 return (
-                  <button
-                    key={row.key}
-                    onClick={() => setModalKey(`blocker:${row.key}`)}
-                    className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-ink-900/30"
-                  >
-                    <Icon className={clsx('h-6 w-6 shrink-0', row.tone)} />
-                    <span className="flex-1 text-sm font-medium text-ink-100">{row.label}</span>
-                    <span className={clsx('num-mono text-sm font-semibold', row.products.length > 0 ? row.tone : 'text-ink-500')}>
-                      {row.products.length}건
-                    </span>
-                    <ChevronRight className="h-5 w-5 text-ink-500" />
+                  <button key={key} onClick={() => setModalOpen(true)} className="flex w-full items-start gap-4 px-5 py-4 text-left hover:bg-ink-900/20">
+                    <Icon className={clsx('h-5 w-5 shrink-0 mt-0.5', m.color)} />
+                    <div className="min-w-0 flex-1">
+                      <div className={clsx('text-[13px] font-semibold', m.color)}>{m.label}</div>
+                      <div className="text-[11px] text-ink-500 mt-0.5">{m.sub}</div>
+                      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-ink-700/20">
+                        <div className={clsx('h-full rounded-full', m.barColor)} style={{ width: `${(cnt / maxBlockerCount) * 100}%` }} />
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className={clsx('text-[13px] font-semibold num-mono', m.color)}>{cnt}건</div>
+                      <div className="text-[11px] text-ink-500 num-mono">{pct}%</div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-ink-500 mt-0.5" />
                   </button>
                 );
               })}
             </div>
-          </Panel>
+            <div className="border-t border-ink-700/40 p-4">
+              <button className="flex w-full items-center justify-center gap-2 rounded-sm border border-accent-600/30 bg-accent-50 px-4 py-2.5 text-[13px] font-semibold text-accent-700 hover:bg-accent-100">
+                <BookOpen className="h-4 w-4" />
+                모든 Blocker 해결 가이드 보기
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </section>
 
-        <section className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[1fr_1.05fr]">
-          <Panel
-            title="HITL 검토 대기"
-            count={`${hitlProducts.length}건`}
-            description="AI 신뢰도가 낮아 사람 검토가 필요한 항목입니다."
-            action={<ActionButton testId="dpp-center-hitl-all" onClick={() => setModalKey('hitl')}>전체 HITL 보기</ActionButton>}
-          >
-            <table className="w-full min-w-[720px]">
-              <thead>
-                <tr className="border-b border-ink-700 bg-ink-900/30">
-                  {['제품명', '검토 이슈', 'AI 신뢰도'].map(head => (
-                    <th key={head} className="px-5 py-3 text-left text-sm font-bold text-ink-500">{head}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {hitlProducts.map(product => (
-                  <tr key={product.id} className="border-b border-ink-700/60 hover:bg-ink-900/30">
-                    <td className="px-5 py-4">
-                      <Link href="/hitl" className="font-semibold text-ink-100 hover:text-accent-700">
-                        {product.name}
-                      </Link>
-                      <div className="mt-1 text-sm text-ink-500">{product.supplier}</div>
-                    </td>
-                    <td className="px-5 py-4 text-sm font-medium text-ink-300">{product.issue}</td>
-                    <td className="px-5 py-4">
-                      <ReadinessBar value={product.confidence ?? 0} warn />
-                    </td>
-                  </tr>
+        {/* Row 2 */}
+        <section className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
+          {/* 탄소발자국 */}
+          <div className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+            <div className="flex items-center justify-between gap-4 border-b border-ink-700 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <h2 className="text-[16px] font-semibold text-ink-100">탄소발자국 현황</h2>
+                <span className="text-[12px] text-ink-500">Unit: kgCO₂e / kWh</span>
+              </div>
+              <button className="inline-flex items-center gap-1 text-[13px] font-semibold text-accent-700 hover:underline">
+                상세 분석 <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <CfStat label="평균" value={cfAvg} tone="neutral" />
+                <CfStat label="최고" value={cfMax} tone="alert" />
+                <CfStat label="최저" value={cfMin} tone="ok" />
+              </div>
+              <div className="mb-2 flex items-center gap-4">
+                {cfTrend.series.map(s => (
+                  <div key={s.name} className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                    <span className="text-[11px] text-ink-500">{s.name}</span>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </Panel>
+              </div>
+              <LineChart labels={cfTrend.labels} series={cfTrend.series} />
+            </div>
+          </div>
 
-          <Panel
-            title="최근 발행 이력"
-            count={`${issuedProducts.length}건`}
-            description={`최근 ${recentDays}일간 발행된 DPP를 빠르게 열람합니다.`}
-            action={
-              <select
-                value={recentDays}
-                onChange={(event) => setRecentDays(event.target.value)}
-                data-testid="dpp-center-recent-days"
-                className="rounded-sm border border-ink-700 bg-white px-3 py-2 text-sm font-semibold text-ink-300 outline-none hover:border-accent-600 focus:border-accent-600"
-                aria-label="최근 발행 기간"
-              >
+          {/* 재활용 함량 */}
+          <div className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+            <div className="flex items-center justify-between gap-4 border-b border-ink-700 px-5 py-4">
+              <div>
+                <h2 className="text-[16px] font-semibold text-ink-100">재활용 함량 현황</h2>
+                <p className="mt-1 text-[13px] font-medium text-ink-500">EU 배터리 규정 2031년 기준 대비 · NCM/NCA 기준</p>
+              </div>
+              <button className="inline-flex items-center gap-1 text-[13px] font-semibold text-accent-700 hover:underline whitespace-nowrap">
+                상세 분석 <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-5">
+              <RecycledBar metal="Co" label="코발트" avg={coAvg} threshold={16} maxScale={28} />
+              <RecycledBar metal="Ni" label="니켈"   avg={niAvg} threshold={6}  maxScale={14} />
+              <RecycledBar metal="Li" label="리튬"   avg={liAvg} threshold={6}  maxScale={14} />
+              {borderlineCo.length > 0 && (
+                <div className="rounded-xs border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+                  ⚠ {borderlineCo.map(r => r.modelName).join(', ')} – Co 함량이 EU 2031 기준(16%)에 근접
+                </div>
+              )}
+              <p className="text-[11px] text-ink-500">* LFP 전지는 Co·Ni 미사용으로 함량 산정에서 제외</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Row 3 */}
+        <section className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[1fr_1.1fr]">
+          {/* HITL */}
+          <div className="min-w-0 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+            <PanelHeader title="HITL 검토 대기" count="7건" sub="AI 신뢰도가 낮아 사람 검토가 필요한 항목입니다.">
+              <Link href="/hitl" className="inline-flex items-center gap-1.5 rounded-sm border border-ink-700 bg-white px-3 py-2 text-[13px] font-semibold text-ink-300 hover:border-accent-600 hover:text-accent-700 whitespace-nowrap">
+                전체 HITL 보기 <ChevronRight className="h-4 w-4" />
+              </Link>
+            </PanelHeader>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px]">
+                <thead>
+                  <tr className="border-b border-ink-700 bg-ink-900/30">
+                    {['제품명', '검토 이슈', 'AI 신뢰도', '요청일'].map(h => (
+                      <th key={h} className="px-5 py-3 text-left text-[13px] font-bold text-ink-500">{h}</th>
+                    ))}
+                    <th className="w-8 px-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {hitlProducts.map(p => (
+                    <tr key={p.id} className="border-b border-ink-700/60 cursor-pointer hover:bg-ink-900/20" onClick={() => window.location.href = '/hitl'}>
+                      <td className="px-5 py-3.5">
+                        <div className="text-[13px] font-semibold text-ink-100">{p.name}</div>
+                        <div className="text-[12px] text-ink-500 mt-0.5">{p.supplier}</div>
+                      </td>
+                      <td className="px-5 py-3.5 text-[13px] text-ink-400">{p.issue}</td>
+                      <td className="px-5 py-3.5"><ReadinessBar value={p.confidence} warn /></td>
+                      <td className="px-5 py-3.5 text-[13px] num-mono text-ink-500">{p.requestedAt}</td>
+                      <td className="px-2 py-3.5"><ChevronRight className="h-4 w-4 text-ink-500" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 최근 발행 이력 */}
+          <div className="min-w-0 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+            <PanelHeader title="최근 발행 이력" count="8건" sub="최근 7일간 발행된 DPP를 빠르게 열람합니다.">
+              <select className="rounded-sm border border-ink-700 bg-white px-3 py-2 text-[13px] font-semibold text-ink-300 outline-none hover:border-accent-600" defaultValue="7">
                 <option value="7">7일</option>
                 <option value="14">14일</option>
                 <option value="30">30일</option>
               </select>
-            }
-          >
-            <div className="divide-y divide-ink-700">
-              {issuedProducts.map(product => (
-                <Link
-                  key={product.id}
-                  href="/dpp"
-                  className="flex items-center gap-4 px-5 py-4 hover:bg-ink-900/30"
-                >
-                  <FileBadge className="h-6 w-6 shrink-0 text-emerald-700" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="num-mono text-sm font-semibold text-ink-100">{product.dppId}</span>
-                      <Badge tone="ok">발행 완료</Badge>
-                    </div>
-                    <div className="mt-1 text-sm font-medium text-ink-300">{product.name}</div>
-                  </div>
-                  <div className="hidden text-right text-sm text-ink-500 md:block">
-                    <div>{product.supplier}</div>
-                    <div className="num-mono">{product.issuedAt}</div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-ink-500" />
-                </Link>
-              ))}
+            </PanelHeader>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px]">
+                <thead>
+                  <tr className="border-b border-ink-700 bg-ink-900/30">
+                    {['DPP ID', '공급망 단계', '발행일', '상태'].map(h => (
+                      <th key={h} className="px-5 py-3 text-left text-[13px] font-bold text-ink-500">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentIssued.map((r, i) => (
+                    <tr key={i} className="border-b border-ink-700/60 cursor-pointer hover:bg-ink-900/20" onClick={() => window.location.href = '/dpp'}>
+                      <td className="px-5 py-3.5">
+                        <div className="text-[13px] font-semibold text-accent-700 num-mono">{r.id}</div>
+                        <div className="text-[12px] text-ink-500 mt-0.5">{r.name}</div>
+                      </td>
+                      <td className="px-5 py-3.5 text-[13px] text-ink-400">{r.stage}</td>
+                      <td className="px-5 py-3.5 text-[13px] num-mono text-ink-500">{r.issuedAt}</td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-[13px] font-semibold text-emerald-700">발행 완료</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="border-t border-ink-700 p-4">
-              <Link
-                href="/dpp"
-                data-testid="dpp-center-history-all"
-                className="flex w-full items-center justify-center gap-2 rounded-sm border border-ink-700 bg-white px-4 py-3 text-sm font-semibold text-ink-300 hover:border-accent-600 hover:text-accent-700"
-              >
-                전체 발행 이력 보기
-                <ChevronRight className="h-4 w-4" />
+            <div className="border-t border-ink-700/40 p-4">
+              <Link href="/dpp" className="flex w-full items-center justify-center gap-2 rounded-sm border border-ink-700 bg-white px-4 py-3 text-[13px] font-semibold text-ink-300 hover:border-accent-600 hover:text-accent-700">
+                전체 발행 이력 보기 <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
-          </Panel>
+          </div>
         </section>
       </div>
 
-      {modalKey && (
+      {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-100/45 p-6">
-          <div className="w-full max-w-3xl overflow-hidden rounded-sm border border-ink-700 bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-6 py-5">
-              <div>
-                <h2 className="text-lg font-semibold text-ink-100">{modalTitle}</h2>
-                <p className="mt-1 text-sm font-medium text-ink-500">{modalProducts.length}개 제품이 해당 조건에 포함됩니다.</p>
-              </div>
-              <button onClick={() => setModalKey(null)} data-testid="dpp-center-modal-close" className="rounded-sm p-2 text-ink-500 hover:bg-ink-800 hover:text-ink-100">
+          <div className="w-full max-w-sm overflow-hidden rounded-sm border border-ink-700 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-ink-700 px-5 py-4">
+              <h2 className="text-[16px] font-semibold text-ink-100">제품 목록</h2>
+              <button onClick={() => setModalOpen(false)} className="rounded-sm p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-100">
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto">
-              {modalProducts.length > 0 ? (
-                modalProducts.map(product => (
-                  <Link
-                    key={product.id}
-                    href={product.targetHref}
-                    className="flex items-center gap-4 border-b border-ink-700 px-6 py-4 hover:bg-ink-900/30"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-ink-100">{product.name}</div>
-                      <div className="mt-1 text-sm text-ink-500">{product.customer} · {product.model} · {product.supplier}</div>
-                    </div>
-                    <ReadinessPill value={product.readiness} />
-                    <ChevronRight className="h-5 w-5 text-ink-500" />
-                  </Link>
-                ))
-              ) : (
-                <div className="px-6 py-10 text-center text-base font-medium text-ink-500">
-                  해당 조건의 제품이 없습니다.
-                </div>
-              )}
-            </div>
+            <div className="p-6 text-[13px] text-ink-500">선택한 조건의 전체 제품 목록을 표시합니다.</div>
           </div>
         </div>
       )}
@@ -406,99 +342,115 @@ export default function DppCenterPage() {
   );
 }
 
-function KpiButton({
-  label,
-  count,
-  tone,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  tone: 'green' | 'orange' | 'indigo' | 'red' | 'blue';
-  onClick: () => void;
-}) {
-  const toneClass = {
-    green: 'border-emerald-300 bg-emerald-50 text-emerald-900',
-    orange: 'border-orange-300 bg-orange-50 text-orange-900',
-    indigo: 'border-indigo-300 bg-indigo-50 text-indigo-900',
-    red: 'border-red-300 bg-red-50 text-red-900',
-    blue: 'border-sky-300 bg-sky-50 text-sky-900',
-  }[tone];
-  const valueClass = {
-    green: 'text-emerald-700',
-    orange: 'text-orange-700',
-    indigo: 'text-indigo-700',
-    red: 'text-red-700',
-    blue: 'text-blue-700',
-  }[tone];
-
-  return (
-    <button
-      onClick={onClick}
-      className={clsx('flex min-h-[56px] items-center justify-between rounded-sm border px-4 py-3 text-left shadow-control transition-colors hover:bg-white', toneClass)}
-    >
-      <span className="text-sm font-semibold">{label}</span>
-      <div className="flex items-baseline gap-1.5">
-        <span className={clsx('num-mono text-xl font-semibold', valueClass)}>{count}</span>
-        <span className="text-sm font-medium text-ink-500">건</span>
-      </div>
-    </button>
-  );
-}
-
-function Panel({ title, count, description, action, children }: {
-  title: string;
-  count: string;
-  description: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
+// ── Helper components ─────────────────────────────────────────────────
+function PanelHeader({ title, count, sub, children }: {
+  title: string; count: string; sub: string; children?: React.ReactNode;
 }) {
   return (
-    <section className="min-w-0 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
-      <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-ink-100">{title}</h2>
-            <span className="rounded-full bg-accent-50 px-2.5 py-1 text-sm font-semibold text-accent-800">{count}</span>
-          </div>
-          <p className="mt-1 text-sm font-medium text-ink-500">{description}</p>
+    <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
+      <div>
+        <div className="flex items-center gap-2">
+          <h2 className="text-[16px] font-semibold text-ink-100">{title}</h2>
+          <span className="rounded-full bg-accent-50 px-2.5 py-1 text-[13px] font-semibold text-accent-800">{count}</span>
         </div>
-        {action}
+        <p className="mt-1 text-[13px] font-medium text-ink-500">{sub}</p>
       </div>
-      <div className="overflow-x-auto">{children}</div>
-    </section>
+      {children}
+    </div>
   );
 }
 
-function ActionButton({ children, onClick, testId }: { children: React.ReactNode; onClick: () => void; testId: string }) {
+function ActionBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      data-testid={testId}
-      className="inline-flex items-center gap-1.5 rounded-sm border border-ink-700 bg-white px-3 py-2 text-sm font-semibold text-ink-300 hover:border-accent-600 hover:text-accent-700"
-    >
-      {children}
-      <ChevronRight className="h-4 w-4" />
+    <button onClick={onClick} className="inline-flex items-center gap-1.5 rounded-sm border border-ink-700 bg-white px-3 py-2 text-[13px] font-semibold text-ink-300 hover:border-accent-600 hover:text-accent-700 whitespace-nowrap">
+      {children} <ChevronRight className="h-4 w-4" />
     </button>
   );
 }
 
 function ReadinessBar({ value, warn = false }: { value: number; warn?: boolean }) {
-  const color = warn || value < 75 ? 'bg-orange-500' : value < 90 ? 'bg-amber-500' : 'bg-emerald-500';
+  const color = warn
+    ? value < 70 ? 'bg-red-500' : 'bg-orange-400'
+    : value < 75 ? 'bg-orange-500' : value < 90 ? 'bg-amber-500' : 'bg-emerald-500';
   return (
-    <div className="flex min-w-[150px] items-center gap-3">
-      <span className="num-mono w-12 text-sm font-semibold text-ink-100">{value}%</span>
-      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-ink-700">
+    <div className="flex min-w-[120px] items-center gap-2">
+      <span className="num-mono w-10 shrink-0 text-[13px] font-semibold text-ink-100">{value}%</span>
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-ink-700/20">
         <div className={clsx('h-full rounded-full', color)} style={{ width: `${value}%` }} />
       </div>
     </div>
   );
 }
 
-function ReadinessPill({ value }: { value: number }) {
+function CfStat({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'alert' | 'ok' }) {
+  const vCls = { neutral: 'text-ink-100', alert: 'text-red-700', ok: 'text-emerald-700' }[tone];
+  const bg   = { neutral: 'border-slate-200 bg-slate-50', alert: 'border-red-200 bg-red-50', ok: 'border-emerald-200 bg-emerald-50' }[tone];
   return (
-    <span className="rounded-full border border-ink-700 px-3 py-1 text-sm font-semibold text-ink-200">
-      {value}% ready
-    </span>
+    <div className={clsx('rounded-xs border p-3 text-center', bg)}>
+      <div className="text-[11px] font-semibold text-ink-500">{label}</div>
+      <div className={clsx('mt-1 text-[20px] font-bold num-mono', vCls)}>{value}</div>
+      <div className="text-[10px] text-ink-500">kgCO₂e</div>
+    </div>
+  );
+}
+
+function LineChart({ labels, series }: {
+  labels: string[];
+  series: Array<{ name: string; color: string; data: number[] }>;
+}) {
+  const W = 480, H = 130, padL = 32, padR = 16, padT = 8, padB = 28;
+  const cW = W - padL - padR, cH = H - padT - padB;
+  const yMin = 40, yMax = 120;
+  const toX = (i: number) => padL + (i / (labels.length - 1)) * cW;
+  const toY = (v: number) => padT + cH - ((v - yMin) / (yMax - yMin)) * cH;
+  const gridYs = [60, 80, 100, 120];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+      {gridYs.map(y => (
+        <g key={y}>
+          <line x1={padL} x2={W - padR} y1={toY(y)} y2={toY(y)} stroke="#e5e7eb" strokeWidth="1" />
+          <text x={padL - 4} y={toY(y) + 4} textAnchor="end" fontSize="9" fill="#9ca3af">{y}</text>
+        </g>
+      ))}
+      {labels.map((lbl, i) => (
+        <text key={i} x={toX(i)} y={H - 4} textAnchor="middle" fontSize="9" fill="#9ca3af">{lbl}</text>
+      ))}
+      {series.map(s => (
+        <g key={s.name}>
+          <polyline points={s.data.map((v, i) => `${toX(i)},${toY(v)}`).join(' ')} fill="none" stroke={s.color} strokeWidth="1.5" strokeDasharray="5 3" />
+          {s.data.map((v, i) => <circle key={i} cx={toX(i)} cy={toY(v)} r="3" fill={s.color} />)}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function RecycledBar({ metal, label, avg, threshold, maxScale }: {
+  metal: string; label: string; avg: number; threshold: number; maxScale: number;
+}) {
+  const avgPct       = Math.min(100, (avg / maxScale) * 100);
+  const thresholdPct = (threshold / maxScale) * 100;
+  const ok  = avg >= threshold;
+  const diff = +(avg - threshold).toFixed(1);
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="w-5 text-[12px] font-bold text-ink-300 num-mono">{metal}</span>
+          <span className="text-[12px] text-ink-500">{label}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={clsx('text-[13px] font-bold num-mono', ok ? 'text-emerald-700' : 'text-red-700')}>{avg}%</span>
+          <span className={clsx('text-[11px] font-semibold', ok ? 'text-emerald-600' : 'text-red-600')}>
+            {diff >= 0 ? `+${diff}p` : `${diff}p`}
+          </span>
+        </div>
+      </div>
+      <div className="relative h-2.5 rounded-full bg-ink-700/15">
+        <div className={clsx('h-full rounded-full', ok ? 'bg-emerald-500' : 'bg-red-400')} style={{ width: `${avgPct}%` }} />
+        <div className="absolute top-[-3px] h-[20px] w-[2px] rounded-full bg-orange-400" style={{ left: `${thresholdPct}%` }} />
+      </div>
+      <div className="mt-1 text-[10px] text-ink-500" style={{ marginLeft: `calc(${thresholdPct}% - 10px)` }}>기준 {threshold}%</div>
+    </div>
   );
 }
