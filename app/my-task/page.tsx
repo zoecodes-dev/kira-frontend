@@ -148,6 +148,14 @@ const taskFilters: Array<['all' | TaskStatus, string]> = [
   ['done', '완료'],
 ];
 
+const priorityOrder: Record<Task['priority'], number> = { critical: 0, high: 1, medium: 2, low: 3 };
+const sortByPriority = (items: Task[]) =>
+  [...items].sort((a, b) => {
+    if (a.status === 'done' && b.status !== 'done') return 1;
+    if (b.status === 'done' && a.status !== 'done') return -1;
+    const p = priorityOrder[a.priority] - priorityOrder[b.priority];
+    return p !== 0 ? p : a.due.localeCompare(b.due);
+  });
 const sortByDueAsc = (items: Task[]) => [...items].sort((a, b) => a.due.localeCompare(b.due));
 const getTodayKey = () => {
   const date = new Date();
@@ -160,7 +168,7 @@ const isOverdue = (task: Task, todayKey: string) => task.status === 'overdue' ||
 export default function MyTaskPage() {
   const [filter, setFilter] = useState<'all' | TaskStatus>('all');
   const [metricModal, setMetricModal] = useState<MetricKey | null>(null);
-  const filtered = sortByDueAsc(filter === 'all' ? tasks : tasks.filter(task => task.status === filter));
+  const filtered = sortByPriority(filter === 'all' ? tasks : tasks.filter(task => task.status === filter));
 
   const stats = useMemo(() => ({
     total: tasks.filter(task => task.status !== 'done').length,
@@ -199,87 +207,82 @@ export default function MyTaskPage() {
           <Metric label="대기" value={stats.waiting} unit="건" tone="neutral" onClick={() => setMetricModal('waiting')} />
         </div>
 
-        <Card title="업무 출처" subtitle="각 task는 원본 관리 화면으로 연결됩니다">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-            {Object.entries(typeMeta).map(([key, meta]) => {
-              const Icon = meta.icon;
-              const count = tasks.filter(task => task.type === key).length;
-              const href = tasks.find(task => task.type === key)?.targetHref ?? '/my-task';
-              return (
-                <Link key={key} href={href} className="block rounded-xs border border-ink-700/60 bg-ink-900/40 p-3 transition-colors hover:border-accent-600 hover:bg-white">
-                  <div className="flex items-center justify-between gap-2">
-                    <Icon className="w-4 h-4 text-accent-500" />
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs num-mono text-ink-400">{count}</span>
-                      <ArrowRight className="h-3 w-3 text-ink-500" />
-                    </div>
-                  </div>
-                  <div className="text-xs font-semibold text-ink-100 mt-3">{meta.label}</div>
-                </Link>
-              );
-            })}
-          </div>
-        </Card>
-
-        <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_0.9fr] gap-6">
-          <Card
-            title="내 업무 목록"
-            subtitle="마감일이 임박한 업무부터 오름차순 정렬"
-            action={
-              <div className="flex rounded-xs border border-ink-700/60 overflow-hidden">
+        <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_0.85fr] gap-6">
+          {/* 내 업무 목록 — 표 */}
+          <div className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+            <div className="flex items-center justify-between border-b border-ink-700 bg-ink-800/60 px-5 py-4">
+              <div>
+                <h2 className="text-base font-bold text-ink-100">내 업무 목록</h2>
+                <p className="mt-0.5 text-sm text-ink-500">우선순위 · 마감일 순</p>
+              </div>
+              <div className="flex overflow-hidden rounded-xs border border-ink-700/60">
                 {taskFilters.map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setFilter(key)}
                     className={clsx(
-                      'px-2.5 py-1.5 text-[10px] font-semibold transition-colors',
-                      filter === key ? 'bg-ink-700 text-ink-100' : 'text-ink-500 hover:text-ink-300',
+                      'px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                      filter === key ? 'bg-ink-700 text-ink-100' : 'text-ink-500 hover:text-ink-200',
                     )}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-            }
-          >
-            <div className="space-y-2">
-              {filtered.map(task => {
-                const meta = typeMeta[task.type];
-                const Icon = meta.icon;
-                return (
-                  <div key={task.id} className="rounded-xs border border-ink-700/60 bg-ink-900/30 p-3">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-xs bg-ink-800 border border-ink-700 flex items-center justify-center shrink-0">
-                          <Icon className="w-4 h-4 text-accent-500" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[10px] text-ink-500 num-mono">{task.id}</span>
-                            <Badge tone={meta.tone}>{meta.label}</Badge>
-                            <Badge tone={priorityTone[task.priority]}>{task.priority}</Badge>
-                          </div>
-                          <div className="text-sm font-semibold text-ink-100 mt-2">{task.title}</div>
-                          <div className="text-[11px] text-ink-500 mt-1 leading-5">{task.description}</div>
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <Badge tone={statusMeta[task.status].tone}>{statusMeta[task.status].label}</Badge>
-                        <div className="text-[11px] text-ink-500 mt-2 num-mono">{task.due}</div>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex items-center justify-between gap-3 border-t border-ink-700/40 pt-3">
-                      <div className="text-[11px] text-ink-500">{task.owner} · {task.source}</div>
-                      <Link href={task.targetHref} className="inline-flex items-center gap-1 text-xs font-semibold text-accent-500 hover:text-accent-400">
-                        {task.targetLabel}
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
-          </Card>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-ink-700/40 bg-slate-50">
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-500">업무</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">상태</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">담당자</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">마감일</th>
+                  <th className="w-8 px-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-700/30">
+                {filtered.map(task => {
+                  const meta = typeMeta[task.type];
+                  const TypeIcon = meta.icon;
+                  const dot = { critical: 'bg-red-600', high: 'bg-red-400', medium: 'bg-amber-400', low: 'bg-emerald-500' }[task.priority];
+                  const statusCls = { today: 'text-amber-600', overdue: 'text-red-600', waiting: 'text-slate-400', done: 'text-emerald-600' }[task.status];
+                  return (
+                    <tr
+                      key={task.id}
+                      className={clsx(
+                        'cursor-pointer transition-colors hover:bg-slate-50',
+                        task.status === 'done' && 'opacity-50',
+                      )}
+                      onClick={() => window.location.href = task.targetHref}
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className={clsx('h-2 w-2 shrink-0 rounded-full', dot)} />
+                          <div>
+                            <div className="text-[15px] font-semibold text-ink-100">{task.title}</div>
+                            <div className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-500">
+                              <TypeIcon className="h-3 w-3" />
+                              <span>{meta.label}</span>
+                              <span className="mx-0.5 opacity-40">·</span>
+                              <span className="text-ink-500/80">{task.description}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={clsx('text-sm font-semibold', statusCls)}>{statusMeta[task.status].label}</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-ink-400">{task.owner}</td>
+                      <td className="px-4 py-3 text-sm text-ink-400 num-mono">{task.due}</td>
+                      <td className="px-2 py-3">
+                        <ArrowRight className="h-4 w-4 text-ink-500" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           <div className="space-y-6">
             <Card

@@ -50,6 +50,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   { href: '/supply-chain/request-map', label: '자료 요청 업무 보드' },
                   { href: '/suppliers/invitations', label: 'Invitation 작성' },
                   { href: '/due-diligence', label: '공급망 실사 관리' },
+                  { href: '/risk/actions', label: '조치 이력' },
                 ]}
               />
             </div>
@@ -94,7 +95,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       {
                         href: '/suppliers/detail-context',
                         label: '협력사 세부 정보',
-                        matchPattern: '^/suppliers/(?!invitations(?:/|$))[^/]+',
+                        matchPattern: '^/suppliers/(?!invitations(?:/|$)|check-info(?:/|$))[^/]+',
                         disabled: true,
                       },
                     ],
@@ -116,9 +117,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 label="자재·규제 데이터"
                 subtitle="조성·인증·규제"
                 subItems={[
-                  { href: '/materials', label: '물질 관리', exact: true },
+                  { href: '/materials', label: 'BOM 버전 관리', exact: true },
                   { href: '/risk/origin-certs', label: '원산지 증명서 만료 관리' },
-                  { href: '/regulation-results', label: '규제 검증 결과' },
+                  { href: '/materials/regulation-results', label: '규제 검증 결과' },
                 ]}
               />
             </div>
@@ -193,6 +194,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <LogOut className="h-3.5 w-3.5" />
             로그아웃
           </Link>
+          <div className="mt-2.5 text-[10px] text-ink-400 num-mono">
+            마지막 업데이트 2026-06-17 14:57
+          </div>
         </div>
       </aside>
 

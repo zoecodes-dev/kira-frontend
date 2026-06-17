@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import clsx from 'clsx';
-import { CheckRow } from './shared/CheckRow';
+import { CheckRow, checkStatusMeta, type CheckStatus } from './shared/CheckRow';
 import { RegSummaryCard } from './sections/ai-verify/RegSummaryCard';
 import { REG_META, buildChecklists, calcRate, type RegKey } from './utils/aiVerifyChecklists';
 
@@ -78,9 +78,14 @@ export default function SupplierAiVerifyPage() {
 
       {/* ── 범례 ── */}
       <div className="flex items-center gap-4 text-[10px] text-ink-500">
-        <span>✅ 이행 완료</span>
-        <span>❌ 미충족</span>
-        <span>🔄 백엔드 연동 대기</span>
+        {(['pass', 'fail', 'pending'] as CheckStatus[]).map(status => (
+          <span key={status} className="inline-flex items-center gap-1.5">
+            <span className={clsx('rounded-full border px-2 py-0.5 font-semibold leading-none', checkStatusMeta[status].className)}>
+              {checkStatusMeta[status].label}
+            </span>
+            {status === 'pending' && <span>백엔드 연동 대기</span>}
+          </span>
+        ))}
       </div>
     </div>
   );

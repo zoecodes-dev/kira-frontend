@@ -162,6 +162,12 @@ function SupplierInvitationsContent() {
               <ArrowLeft className="h-3.5 w-3.5" />
               공급망 맵
             </Link>
+            <Link
+              href="/risk/actions"
+              className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
+            >
+              조치 이력
+            </Link>
           </>
         }
       />

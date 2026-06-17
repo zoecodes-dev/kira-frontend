@@ -4,7 +4,10 @@
 import { Suspense, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import clsx from 'clsx';
+import { suppliers } from '@/lib/data';
+import { getRemindLogs, getSupplierName, supplierCompleteness } from '@/lib/supplier-detail-data';
 import {
   ArrowLeft,
   BarChart3,
@@ -380,10 +383,188 @@ function AccordionSection({
   );
 }
 
+function inputStatusMeta(rate: number, missingCount: number, reminderCount: number) {
+  if (missingCount === 0) {
+    return { label: '완료', className: 'border-emerald-100 bg-emerald-50 text-emerald-700' };
+  }
+  if (reminderCount >= 2) {
+    return { label: '보완 지연', className: 'border-red-100 bg-red-50 text-red-700' };
+  }
+  if (rate >= 80) {
+    return { label: '검토 대기', className: 'border-amber-100 bg-amber-50 text-amber-700' };
+  }
+  return { label: '작성중', className: 'border-blue-100 bg-blue-50 text-blue-700' };
+}
+
+function SupplierCheckInfoIndex() {
+  const rows = supplierCompleteness
+    .map(item => {
+      const supplier = suppliers.find(entry => entry.id === item.supplierId);
+      const name = getSupplierName(item.supplierId);
+      const reminders = getRemindLogs(item.supplierId);
+      const status = inputStatusMeta(item.completionRate, item.missingFields.length, reminders.length);
+
+      return { ...item, supplier, name, status };
+    })
+    .sort((a, b) => {
+      if (a.missingFields.length !== b.missingFields.length) return b.missingFields.length - a.missingFields.length;
+      return a.completionRate - b.completionRate;
+    });
+
+  const pendingCount = rows.filter(row => row.missingFields.length > 0).length;
+  const reviewCount = rows.filter(row => row.status.label === '검토 대기').length;
+  const delayedCount = rows.filter(row => row.status.label === '보완 지연').length;
+  const avgRate = rows.length > 0 ? Math.round(rows.reduce((sum, row) => sum + row.completionRate, 0) / rows.length) : 0;
+
+  return (
+    <main className="min-h-screen bg-slate-50 px-7 py-5">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-100">협력사 입력 현황</h1>
+          <p className="mt-2 text-sm text-ink-500">작성중이거나 검토가 필요한 협력사를 선택해 상세 수집 현황을 확인합니다.</p>
+        </div>
+        <Link
+          href="/suppliers/invitations"
+          className="inline-flex h-9 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-sm font-semibold text-ink-500 shadow-control hover:border-accent-200 hover:text-accent-700"
+        >
+          <Send className="h-4 w-4" />
+          정보 요청 작성
+        </Link>
+      </div>
+
+      <section className="mb-4 grid gap-3 md:grid-cols-4">
+        {[
+          { label: '전체 협력사', value: rows.length, tone: 'text-ink-100' },
+          { label: '작성중/누락', value: pendingCount, tone: 'text-blue-700' },
+          { label: '검토 대기', value: reviewCount, tone: 'text-amber-700' },
+          { label: '보완 지연', value: delayedCount, tone: 'text-red-700' },
+        ].map(item => (
+          <div key={item.label} className="rounded-sm border border-ink-700 bg-white px-4 py-3 shadow-control">
+            <div className="text-xs font-semibold text-ink-500">{item.label}</div>
+            <div className={clsx('mt-2 text-2xl font-bold num-mono', item.tone)}>{item.value}</div>
+          </div>
+        ))}
+      </section>
+
+      <section className="rounded-sm border border-ink-700 bg-white shadow-control">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-700 bg-slate-50 px-5 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-ink-100">작성중인 협력사</h2>
+            <p className="mt-1 text-sm text-ink-500">평균 입력률 {avgRate}% · 누락 항목이 많은 순으로 정렬</p>
+          </div>
+          <div className="text-sm font-medium text-ink-500">협력사명 또는 검토 버튼을 누르면 상세 화면으로 이동합니다.</div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1080px]">
+            <thead className="border-b border-ink-700 bg-white">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">협력사</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">Tier</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">국가</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">입력률</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">상태</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">누락 항목</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">최근 업데이트</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">작업</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-700/60">
+              {rows.map(row => {
+                const supplierLabel = row.name?.nameEn ?? row.supplier?.name ?? row.supplierId;
+                const visibleMissing = row.missingFields.slice(0, 2);
+                const hiddenCount = Math.max(row.missingFields.length - visibleMissing.length, 0);
+                const progressTone =
+                  row.completionRate >= 90 ? 'bg-emerald-500' :
+                  row.completionRate >= 75 ? 'bg-amber-500' :
+                  row.completionRate >= 60 ? 'bg-orange-500' :
+                  'bg-red-500';
+
+                return (
+                  <tr key={row.supplierId} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 align-middle">
+                      <Link
+                        href={`/suppliers/check-info?supplierId=${row.supplierId}&supplier=${encodeURIComponent(supplierLabel)}`}
+                        className="group inline-block max-w-[280px]"
+                      >
+                        <div className="truncate font-semibold text-ink-100 group-hover:text-accent-700 group-hover:underline">
+                          {supplierLabel}
+                        </div>
+                        <div className="mt-1 truncate text-sm text-ink-500 group-hover:text-accent-600">
+                          {row.name?.nameKo ?? row.supplierId}
+                        </div>
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 align-middle text-sm font-semibold text-ink-300 num-mono">
+                      T{row.supplier?.tier ?? '-'}
+                    </td>
+                    <td className="px-4 py-3 align-middle text-sm text-ink-500">{row.supplier?.country ?? '-'}</td>
+                    <td className="px-4 py-3 align-middle">
+                      <div className="flex min-w-36 items-center gap-3">
+                        <div className="h-2 flex-1 rounded-full bg-slate-100">
+                          <div className={clsx('h-full rounded-full', progressTone)} style={{ width: `${row.completionRate}%` }} />
+                        </div>
+                        <span className="w-12 text-right text-sm font-bold text-ink-100 num-mono">{row.completionRate}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 align-middle">
+                      <span className={clsx('inline-flex rounded-xs border px-2.5 py-1 text-xs font-semibold', row.status.className)}>
+                        {row.status.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 align-middle">
+                      {row.missingFields.length === 0 ? (
+                        <span className="text-sm text-ink-500">없음</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {visibleMissing.map(field => (
+                            <span key={field} className="rounded-xs border border-ink-700 bg-slate-50 px-2 py-1 text-xs font-medium text-ink-300">
+                              {field}
+                            </span>
+                          ))}
+                          {hiddenCount > 0 && (
+                            <span className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500">
+                              외 {hiddenCount}건
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 align-middle text-sm text-ink-500 num-mono">{row.lastUpdatedAt}</td>
+                    <td className="px-4 py-3 align-middle">
+                      <Link
+                        href={`/suppliers/check-info?supplierId=${row.supplierId}&supplier=${encodeURIComponent(supplierLabel)}`}
+                        className="inline-flex items-center gap-1 rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-sm font-semibold text-accent-700 hover:border-accent-600"
+                      >
+                        검토 <ChevronRight className="h-4 w-4" />
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function SupplierGeneralReviewContent() {
   const searchParams = useSearchParams();
   const supplierId = searchParams.get('supplierId') ?? '';
   const supplierName = searchParams.get('supplier') ?? supplierSummary.name;
+  const selectedSupplier = suppliers.find(supplier => supplier.id === supplierId);
+  const selectedName = getSupplierName(supplierId);
+  const selectedCompleteness = supplierCompleteness.find(item => item.supplierId === supplierId);
+  const displayName = selectedName?.nameKo ?? supplierName;
+  const displayRole = selectedSupplier?.role ?? supplierSummary.role;
+  const displayCountry = selectedSupplier?.country ?? supplierSummary.country;
+  const displayTier = selectedSupplier ? `T${selectedSupplier.tier}` : supplierSummary.tier;
+  const displayRate = selectedCompleteness?.completionRate ?? supplierSummary.collectionRate;
+  const displayCompleted = selectedCompleteness?.filledFieldCount ?? supplierSummary.completed;
+  const displayTotal = selectedCompleteness?.requiredFieldCount ?? supplierSummary.total;
+  const displayLastUpdated = selectedCompleteness?.lastUpdatedAt ?? supplierSummary.lastSubmittedAt;
   const [openSections, setOpenSections] = useState<SectionKey[]>(['company']);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
@@ -431,6 +612,10 @@ function SupplierGeneralReviewContent() {
     setOpenSections(open ? sections.map(section => section.key) : []);
   }
 
+  if (!supplierId) {
+    return <SupplierCheckInfoIndex />;
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 px-7 py-5">
       <div className="mb-4 flex items-center justify-between gap-4">
@@ -469,12 +654,12 @@ function SupplierGeneralReviewContent() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="truncate text-2xl font-semibold tracking-tight text-ink-100">{supplierSummary.name}</h1>
+                <h1 className="truncate text-2xl font-semibold tracking-tight text-ink-100">{displayName}</h1>
                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                  {supplierSummary.tier}
+                  {displayTier}
                 </span>
               </div>
-              <div className="mt-2 text-sm font-medium text-ink-500">{supplierSummary.role} <span className="mx-2 text-ink-700">|</span> {supplierSummary.country}</div>
+              <div className="mt-2 text-sm font-medium text-ink-500">{displayRole} <span className="mx-2 text-ink-700">|</span> {displayCountry}</div>
               <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink-500">
                 <span className="font-semibold text-ink-100">담당자</span>
                 <span>{supplierSummary.manager}</span>
@@ -489,18 +674,18 @@ function SupplierGeneralReviewContent() {
           <div className="border-l border-ink-700 pl-6">
             <div className="text-sm font-medium text-ink-500">전체 수집률</div>
             <div className="mt-2 flex items-center gap-5">
-              <span className="text-3xl font-semibold text-emerald-600">{supplierSummary.collectionRate}%</span>
+              <span className="text-3xl font-semibold text-emerald-600">{displayRate}%</span>
               <div className="min-w-28 flex-1">
-                <ProgressBar value={supplierSummary.collectionRate} status="완료" />
+                <ProgressBar value={displayRate} status="완료" />
               </div>
             </div>
-            <div className="mt-2 text-sm text-ink-500">{supplierSummary.completed} / {supplierSummary.total} 항목 수집 완료</div>
+            <div className="mt-2 text-sm text-ink-500">{displayCompleted} / {displayTotal} 항목 수집 완료</div>
           </div>
 
           <div className="border-l border-ink-700 pl-6">
             <div className="text-sm font-medium text-ink-500">최근 제출일</div>
             <div className="mt-3 flex items-center gap-3 text-sm font-semibold text-ink-100">
-              {supplierSummary.lastSubmittedAt}
+              {displayLastUpdated}
               <StatusBadge status="완료" />
             </div>
           </div>
@@ -555,7 +740,7 @@ function SupplierGeneralReviewContent() {
 
       <section className="mt-4 grid rounded-sm border border-ink-700 bg-white shadow-control md:grid-cols-3">
         <MetaItem label="데이터 출처" value={supplierSummary.dataSource} />
-        <MetaItem label="마지막 업데이트" value={supplierSummary.lastSubmittedAt} />
+        <MetaItem label="마지막 업데이트" value={displayLastUpdated} />
         <MetaItem label="다음 제출 예정일" value={supplierSummary.nextDueDate} />
       </section>
 
