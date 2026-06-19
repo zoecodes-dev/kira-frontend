@@ -250,3 +250,261 @@ export const getAuditTrail = (batchId: string) =>
 
 export const getActions = (status?: string) =>
   api.get<ActionItem[]>(status ? `/actions?status=${status}` : "/actions");
+
+// ═══════════════════════════════════════════════════════════
+// 협력사(Suppliers) 도메인  — W5-#18
+//   계약: FRONTEND_W5-18_suppliers_api.md  §1, §3
+//   모든 응답은 request() 래퍼에서 snake_case → camelCase로 변환된다.
+//   따라서 아래 타입은 "변환 후" 형태(camelCase)로 정의한다.
+//   주의: latitude/longitude 처럼 단어 단위 키는 변환되지 않고 그대로 유지된다.
+// ═══════════════════════════════════════════════════════════
+
+// ── Enum 사전 (§3) ──────────────────────────────────────────
+export type SupplierType = "manufacturer" | "recycler" | "trader" | "miner";
+export type SupplierStatusCode =
+  | "supplier_pending"
+  | "supplier_requested"
+  | "supplier_in_progress"
+  | "supplier_review"
+  | "supplier_verified"
+  | "supplier_violation"
+  | "supplier_suspended";
+export type SupplierRiskLevel = "low" | "medium" | "high" | "critical";
+export type SupplierFeocStatus =
+  | "eligible"
+  | "ineligible"
+  | "under_review"
+  | "unknown";
+
+// ── Brief (목록·단건 공통) ──────────────────────────────────
+export interface SupplierBrief {
+  supplierId: string;
+  companyName: string;
+  supplierType: SupplierType;
+  status: SupplierStatusCode;
+  riskLevel: SupplierRiskLevel;
+}
+
+// ── CTI 상세 (provider type별 1종, 나머지는 null) ───────────
+export interface SupplierManufacturerDetail {
+  productionLine?: string | null;
+  annualCapacity?: string | null;
+  qualitySystem?: string | null;
+  processTraceability?: string | null;
+  [key: string]: unknown;
+}
+export interface SupplierRecyclerDetail {
+  recyclingMethod?: string | null;
+  annualRecoveredMaterial?: string | null;
+  wastePermitId?: string | null;
+  recoveryRate?: number | null;
+  [key: string]: unknown;
+}
+export interface SupplierTraderDetail {
+  disclosureCompleteness?: number | null;
+  disclosedUpstreamCount?: number | null;
+  declaredMaterialScope?: string | null;
+  readinessInput?: string | null;
+  [key: string]: unknown;
+}
+export interface SupplierMinerDetail {
+  concessionId?: string | null;
+  extractedMinerals?: string[] | null;
+  geoVerificationStatus?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  [key: string]: unknown;
+}
+
+export interface SupplierDetail extends SupplierBrief {
+  feocStatus: SupplierFeocStatus;
+  manufacturerDetail: SupplierManufacturerDetail | null;
+  recyclerDetail: SupplierRecyclerDetail | null;
+  traderDetail: SupplierTraderDetail | null;
+  minerDetail: SupplierMinerDetail | null;
+}
+
+// ── Risk profile ───────────────────────────────────────────
+export interface SupplierRiskProfileResponse {
+  supplierId: string;
+  overallRiskScore: number;
+  riskLevel: SupplierRiskLevel;
+  feocStatus: SupplierFeocStatus;
+}
+
+// ── ESG (§1 배열/중첩 항목 필드) ───────────────────────────
+export interface EsgCertification {
+  certId: string;
+  certificationType: string;
+  certificationNo: string;
+  issuedAt: string;
+  expiresAt: string;
+  issuingBody: string;
+  documentUrl: string | null;
+}
+export interface EsgHumanRightsIssue {
+  issueId: string;
+  factoryId: string | null;
+  issueType: string;
+  severity: "critical" | "major" | "minor";
+  description: string;
+  detectedAt: string;
+  status: "open" | "in_remediation" | "resolved" | "monitoring";
+  source: string;
+  resolvedAt: string | null;
+}
+export interface EsgIndustrialAccident {
+  accidentId: string;
+  factoryId: string | null;
+  accidentDate: string;
+  accidentType: string;
+  description: string;
+  casualties: number;
+  ltifr: number | null;
+  status: "reported" | "investigating" | "closed";
+  correctiveAction: string | null;
+}
+export interface EsgAuditRecord {
+  auditRecordId: string;
+  auditDate: string;
+  auditType: string;
+  auditor: string;
+  auditStatus: string;
+  result: "pass" | "conditional_pass" | "fail" | "pending";
+  nextAuditDue: string;
+  reportUrl: string | null;
+}
+export interface SupplierEsgResponse {
+  supplierId: string;
+  certifications: EsgCertification[];
+  humanRightsIssues: EsgHumanRightsIssue[];
+  industrialAccidents: EsgIndustrialAccident[];
+  auditRecords: EsgAuditRecord[];
+}
+
+// ── 교육(Training) ─────────────────────────────────────────
+export interface TrainingMaterial {
+  materialId: string;
+  title: string;
+  category: string;
+  format: string;
+  durationMinutes: number;
+}
+export interface TrainingRecord {
+  recordId: string;
+  factoryId: string | null;
+  traineeCount: number;
+  totalEligible: number;
+  completionRate: number;
+  completedAt: string | null;
+  dueDate: string | null;
+  status: "completed" | "in_progress" | "overdue" | "not_started";
+  instructor: string | null;
+  notes: string | null;
+  material: TrainingMaterial | null;
+}
+export interface SupplierTrainingResponse {
+  supplierId: string;
+  records: TrainingRecord[];
+}
+
+// ── 신뢰도(Reliability) ────────────────────────────────────
+export interface SupplierReliabilityResponse {
+  supplierId: string;
+  completenessScore: number | null;
+  overallRiskScore: number | null;
+  riskLevel: SupplierRiskLevel | null;
+  feocStatus: SupplierFeocStatus | null;
+  isHighRiskFlag: boolean | null;
+  lastRiskReviewAt: string | null;
+  consentStatus: "consent_pending" | "consent_agreed" | "consent_rejected" | null;
+  agreementStatus: "pending" | "agreed" | "rejected" | null;
+  slaDueDate: string | null;
+  reminderCount: number | null;
+  lastRemindedAt: string | null;
+  totalAudits: number | null;
+  lastAuditDate: string | null;
+  lastAuditResult: string | null;
+}
+
+// ── 공장(Factories) — 좌표는 latitude/longitude로 분해 (§4 note7) ─
+export interface SupplierFactory {
+  factoryId: string;
+  factoryName: string;
+  factoryNameEn: string | null;
+  address: string;
+  country: string;
+  region: string;
+  factoryRole: "headquarters" | "production" | "outsourcing" | "processing" | "mining";
+  isActive: boolean;
+  operatingPeriodFrom: string;
+  operatingPeriodTo: string | null;
+  monthlyCapacity: string | null;
+  destination: "EU" | "US" | "KR" | "BOTH" | null;
+  destinationDetail: string | null;
+  supplyRatioPercent: number | null;
+  supplyQuantity: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+export interface SupplierFactoriesResponse {
+  supplierId: string;
+  factories: SupplierFactory[];
+}
+
+// ── 목록 필터 (§1 — query는 snake_case) ────────────────────
+export interface SupplierListParams {
+  status?: SupplierStatusCode;
+  riskLevel?: SupplierRiskLevel;
+  feocStatus?: SupplierFeocStatus;
+  page?: number;
+  size?: number;
+}
+
+function buildSupplierQuery(params: SupplierListParams = {}): string {
+  const q = new URLSearchParams();
+  if (params.status) q.set("status", params.status);
+  if (params.riskLevel) q.set("risk_level", params.riskLevel);
+  if (params.feocStatus) q.set("feoc_status", params.feocStatus);
+  if (params.page != null) q.set("page", String(params.page));
+  if (params.size != null) q.set("size", String(params.size));
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+// ── 도메인 함수 (§1·§2 매핑) ───────────────────────────────
+/** 목록. envelope 없는 순수 배열. 빈 결과 → []. (§4 note1) */
+export const getSuppliers = (params?: SupplierListParams) =>
+  api.get<SupplierBrief[]>(`/suppliers${buildSupplierQuery(params)}`);
+
+/** 단건 brief. 없으면 404. */
+export const getSupplier = (id: string) =>
+  api.get<SupplierBrief>(`/suppliers/${id}`);
+
+/** CTI 상세 (provider type별 detail 1종). 없으면 404. */
+export const getSupplierDetail = (id: string) =>
+  api.get<SupplierDetail>(`/suppliers/${id}/detail`);
+
+/** 리스크 프로필. 없으면 404. */
+export const getSupplierRiskProfile = (id: string) =>
+  api.get<SupplierRiskProfileResponse>(`/suppliers/${id}/risk-profile`);
+
+/** 리스크 점수 갱신. 0~100 범위 밖 422, 없으면 404. (§4 note5 — form 금지) */
+export const patchSupplierRiskScore = (id: string, score: number) =>
+  api.patch<SupplierRiskProfileResponse>(`/suppliers/${id}/risk-score`, { score });
+
+/** ESG. supplier 존재 시 빈 항목은 200+빈 배열, supplier 자체가 없으면 404. (§4 note3) */
+export const getSupplierEsg = (id: string) =>
+  api.get<SupplierEsgResponse>(`/suppliers/${id}/esg`);
+
+/** 교육 이수 현황. 200+빈 배열 / 404. */
+export const getSupplierTraining = (id: string) =>
+  api.get<SupplierTrainingResponse>(`/suppliers/${id}/training`);
+
+/** 신뢰도. 프로필/온보딩 없으면 해당 필드 null. 200 / 404. */
+export const getSupplierReliability = (id: string) =>
+  api.get<SupplierReliabilityResponse>(`/suppliers/${id}/reliability`);
+
+/** 공장 목록. 좌표는 latitude/longitude. 200+빈 배열 / 404. */
+export const getSupplierFactories = (id: string) =>
+  api.get<SupplierFactoriesResponse>(`/suppliers/${id}/factories`);

@@ -1,14 +1,14 @@
-import type { IndustrialAccident } from '@/lib/supplier-detail-data';
+import type { EsgIndustrialAccident } from '@/lib/api';
 import { CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
 import { accidentTypeMeta } from '../../utils/esgUtils';
 
 interface Props {
-  accident: IndustrialAccident;
+  accident: EsgIndustrialAccident;
 }
 
 export function IndustrialAccidentCard({ accident: acc }: Props) {
-  const atm     = accidentTypeMeta[acc.accidentType];
+  const atm     = accidentTypeMeta[acc.accidentType] ?? accidentTypeMeta.near_miss;
   const isFatal = acc.accidentType === 'fatality';
 
   return (
@@ -28,7 +28,7 @@ export function IndustrialAccidentCard({ accident: acc }: Props) {
           <div className={clsx('text-lg font-bold num-mono', isFatal ? 'text-red-600' : 'text-amber-600')}>
             {acc.casualties}명
           </div>
-          {acc.ltifr !== undefined && (
+          {acc.ltifr != null && (
             <div className="text-[10px] text-ink-500 num-mono">LTIFR {acc.ltifr}</div>
           )}
         </div>

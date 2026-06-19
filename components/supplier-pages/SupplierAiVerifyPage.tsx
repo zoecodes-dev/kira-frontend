@@ -1,20 +1,88 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import clsx from 'clsx';
+import { Loader2 } from 'lucide-react';
+import {
+  ApiError,
+  getSupplierEsg,
+  getSupplierFactories,
+  getSupplierRiskProfile,
+} from '@/lib/api';
 import { CheckRow, checkStatusMeta, type CheckStatus } from './shared/CheckRow';
 import { RegSummaryCard } from './sections/ai-verify/RegSummaryCard';
-import { REG_META, buildChecklists, calcRate, type RegKey } from './utils/aiVerifyChecklists';
+import { REG_META, buildChecklists, calcRate, type RegKey, type ChecklistInputs } from './utils/aiVerifyChecklists';
+
+const EMPTY_INPUTS: ChecklistInputs = {
+  feocStatus: undefined,
+  auditRecords: [],
+  humanRightsIssues: [],
+  factories: [],
+};
 
 export default function SupplierAiVerifyPage() {
   const { id } = useParams<{ id: string }>();
   const [selected, setSelected] = useState<RegKey>('UFLPA');
 
-  const checklists  = buildChecklists(id);
+  const [inputs, setInputs] = useState<ChecklistInputs>(EMPTY_INPUTS);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [esg, profile, fac] = await Promise.all([
+          getSupplierEsg(id).catch(() => null),
+          getSupplierRiskProfile(id).catch(() => null),
+          getSupplierFactories(id).catch(() => null),
+        ]);
+        if (cancelled) return;
+        if (!esg && !profile && !fac) {
+          setError('규제 이행 데이터를 불러오지 못했습니다');
+          return;
+        }
+        setInputs({
+          feocStatus: profile?.feocStatus,
+          auditRecords: esg?.auditRecords ?? [],
+          humanRightsIssues: esg?.humanRightsIssues ?? [],
+          factories: fac?.factories ?? [],
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof ApiError && err.status === 404
+              ? '협력사를 찾을 수 없습니다'
+              : '규제 이행 데이터를 불러오지 못했습니다',
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  const checklists  = buildChecklists(inputs);
   const regKeys     = Object.keys(REG_META) as RegKey[];
   const activeItems = checklists[selected];
   const activeMeta  = REG_META[selected];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 p-8 text-xs text-ink-500">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        규제 이행 데이터를 불러오는 중…
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="p-8 text-xs text-ink-500">{error}</div>;
+  }
 
   return (
     <div className="p-8 space-y-6 max-w-5xl">

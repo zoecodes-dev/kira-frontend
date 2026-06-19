@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import {
@@ -11,8 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
-  Mail,
-  Phone,
+  Loader2,
   Search,
   ShieldAlert,
   SlidersHorizontal,
@@ -21,34 +20,52 @@ import {
 import Badge from '@/components/Badge';
 import PageHeader from '@/components/PageHeader';
 import TopStatCard from '@/components/TopStatCard';
-import { suppliers, type Supplier, type Tier } from '@/lib/data';
 import {
-  getCompleteness,
-  getContacts,
-  getRemindLogs,
-  getRiskProfile,
-  getSupplierName,
-  supplierExtended,
-} from '@/lib/supplier-detail-data';
+  ApiError,
+  getSuppliers,
+  getSupplierReliability,
+  type SupplierBrief,
+  type SupplierReliabilityResponse,
+  type SupplierRiskLevel,
+  type SupplierStatusCode,
+  type SupplierType,
+} from '@/lib/api';
 
-type StatusFilter = 'all' | 'verified' | 'pending' | 'review' | 'violation';
-type RiskFilter = 'all' | 'low' | 'medium' | 'high' | 'critical';
-type TierFilter = 'all' | Tier;
-type CountryFilter = 'all' | keyof typeof countryName;
+// §4.2 — 요청 노드(KIRA, OEM/tier0)는 협력사 목록에서 제외
+const REQUEST_NODE_ID = 'a0000000-0000-4000-8000-000000000000';
+
+type StatusFilter = 'all' | SupplierStatusCode;
+type RiskFilter = 'all' | SupplierRiskLevel;
 type FeocFilter = 'all' | 'eligible' | 'ineligible' | 'under_review' | 'unknown';
 type InputFilter = 'all' | 'complete' | 'in_progress' | 'partial' | 'missing';
 type ContactFilter = 'all' | 'registered' | 'missing';
 type SummaryFilter = 'all' | 'verified' | 'high-risk' | 'sla-overdue';
-type SupplierFilter = 'all' | Supplier['id'];
+type SupplierFilter = 'all' | string;
 
-const statusMeta: Record<string, { label: string; tone: 'ok' | 'warn' | 'alert' | 'info' | 'neutral'; dot: string }> = {
-  verified: { label: '검증 완료', tone: 'info', dot: 'bg-signal-info' },
-  pending: { label: '검토 대기', tone: 'neutral', dot: 'bg-ink-400' },
-  review: { label: '추가 확인', tone: 'warn', dot: 'bg-signal-warn' },
-  violation: { label: '규제 위반', tone: 'alert', dot: 'bg-signal-alert' },
+/** 목록 행 = brief(필수) + reliability(보강, 실패 시 null) */
+interface SupplierRowData {
+  brief: SupplierBrief;
+  reliability: SupplierReliabilityResponse | null;
+}
+
+const statusMeta: Record<SupplierStatusCode, { label: string; tone: 'ok' | 'warn' | 'alert' | 'info' | 'neutral'; dot: string }> = {
+  supplier_verified: { label: '검증 완료', tone: 'info', dot: 'bg-signal-info' },
+  supplier_pending: { label: '검토 대기', tone: 'neutral', dot: 'bg-ink-400' },
+  supplier_requested: { label: '요청됨', tone: 'neutral', dot: 'bg-ink-400' },
+  supplier_in_progress: { label: '진행 중', tone: 'info', dot: 'bg-signal-info' },
+  supplier_review: { label: '추가 확인', tone: 'warn', dot: 'bg-signal-warn' },
+  supplier_violation: { label: '규제 위반', tone: 'alert', dot: 'bg-signal-alert' },
+  supplier_suspended: { label: '거래 중지', tone: 'alert', dot: 'bg-signal-alert' },
 };
 
-const riskMeta: Record<string, { label: string; className: string }> = {
+const supplierTypeLabel: Record<SupplierType, string> = {
+  manufacturer: '제조사',
+  recycler: '재활용',
+  trader: '트레이더',
+  miner: '광산',
+};
+
+const riskMeta: Record<SupplierRiskLevel, { label: string; className: string }> = {
   low: { label: '저위험', className: 'text-emerald-800' },
   medium: { label: '중위험', className: 'text-amber-800' },
   high: { label: '고위험', className: 'text-red-800' },
@@ -62,17 +79,6 @@ const feocMeta: Record<string, { label: string; className: string }> = {
   unknown: { label: 'FEOC 미파악', className: 'text-ink-500' },
 };
 
-const countryName: Record<string, string> = {
-  KR: '한국',
-  CN: '중국',
-  JP: '일본',
-  AU: '호주',
-  CL: '칠레',
-  PH: '필리핀',
-  CD: '콩고',
-  ID: '인도네시아',
-};
-
 function completenessMeta(rate: number) {
   if (rate >= 100) return { label: '제출 완료', tone: 'info' as const, bar: 'bg-blue-600', text: 'text-blue-800', filter: 'complete' as const };
   if (rate >= 80) return { label: '입력 중', tone: 'ok' as const, bar: 'bg-emerald-600', text: 'text-emerald-800', filter: 'in_progress' as const };
@@ -80,34 +86,26 @@ function completenessMeta(rate: number) {
   return { label: '미제출', tone: 'alert' as const, bar: 'bg-red-600', text: 'text-red-800', filter: 'missing' as const };
 }
 
-function getRegulationWarnings(missingFields: string[]) {
-  const rules = [
-    { label: 'EUDR', match: ['광산 폴리곤', 'EIA'] },
-    { label: 'UFLPA', match: ['광물 추적', '아동노동'] },
-    { label: 'IRA', match: ['FEOC 지분'] },
-    { label: 'EU Battery', match: ['제3자 검증', '탄소'] },
-  ];
-
-  return rules.filter(rule => rule.match.some(keyword => missingFields.some(field => field.includes(keyword))));
+/** reliability 기준 SLA 초과 판정 (sla_due_date 경과 또는 reminder_count >= 2) */
+function isSlaOverdue(rel: SupplierReliabilityResponse | null): boolean {
+  if (!rel) return false;
+  if ((rel.reminderCount ?? 0) >= 2) return true;
+  if (rel.slaDueDate) {
+    const due = new Date(rel.slaDueDate).getTime();
+    if (!Number.isNaN(due) && due < Date.now()) return true;
+  }
+  return false;
 }
 
-function SupplierRow({ supplier }: { supplier: Supplier }) {
-  const name = getSupplierName(supplier.id);
-  const contacts = getContacts(supplier.id);
-  const completeness = getCompleteness(supplier.id);
-  const risk = getRiskProfile(supplier.id);
-  const remindLogs = getRemindLogs(supplier.id);
-  const primary = contacts.find(contact => contact.isPrimary) ?? contacts[0];
-  const extended = supplierExtended.find(item => item.supplierId === supplier.id);
-  const status = statusMeta[supplier.status];
-  const riskLevel = riskMeta[supplier.risk];
-  const feoc = risk ? feocMeta[risk.feocStatus] : null;
-  const rate = completeness?.completionRate ?? 0;
-  const missing = completeness?.missingFields ?? [];
+function SupplierRow({ row }: { row: SupplierRowData }) {
+  const { brief, reliability } = row;
+  const status = statusMeta[brief.status] ?? statusMeta.supplier_pending;
+  const riskLevel = riskMeta[brief.riskLevel] ?? riskMeta.low;
+  const feoc = reliability?.feocStatus ? feocMeta[reliability.feocStatus] : null;
+  const rate = reliability?.completenessScore ?? 0;
   const progress = completenessMeta(rate);
-  const warnings = getRegulationWarnings(missing);
-  const isSlaOver = remindLogs.some(log => log.status === 'overdue') || remindLogs.length >= 2;
-  const detailHref = `/suppliers/${supplier.id}/info`;
+  const slaOver = isSlaOverdue(reliability);
+  const detailHref = `/suppliers/${brief.supplierId}/info`;
 
   return (
     <tr className="group border-b border-ink-700 bg-white transition-colors hover:bg-ink-800">
@@ -119,36 +117,24 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
               href={detailHref}
               className="block truncate text-sm font-bold text-ink-100 transition-colors group-hover:text-accent-700"
             >
-              {name?.nameEn ?? supplier.name}
+              {brief.companyName}
             </Link>
-            {name?.nameKo && <div className="mt-0.5 truncate text-xs text-ink-500">{name.nameKo}</div>}
             <div className="mt-1 flex items-center gap-2 text-[11px] text-ink-500">
-              <span className="num-mono">{supplier.id}</span>
-              {extended && (
-                <>
-                  <span className="text-ink-600">·</span>
-                  <span>{extended.providerType}</span>
-                </>
-              )}
+              <span className="num-mono">{brief.supplierId}</span>
+              <span className="text-ink-600">·</span>
+              <span>{supplierTypeLabel[brief.supplierType] ?? brief.supplierType}</span>
             </div>
           </div>
         </div>
       </td>
 
       <td className="px-5 py-4 align-top">
-        <div className="text-xs font-semibold text-ink-200">{supplier.role}</div>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {supplier.tiers.map(tier => (
-            <span key={tier} className="rounded-xs border border-ink-700 bg-ink-800 px-1.5 py-0.5 text-[10px] font-semibold text-ink-400">
-              T{tier}
-            </span>
-          ))}
-        </div>
+        <div className="text-xs font-semibold text-ink-200">{supplierTypeLabel[brief.supplierType] ?? brief.supplierType}</div>
+        <div className="mt-1 text-[11px] text-ink-500">—</div>
       </td>
 
       <td className="px-5 py-4 align-top">
-        <div className="text-xs font-semibold text-ink-200">{countryName[supplier.country] ?? supplier.country}</div>
-        <div className="mt-0.5 text-[11px] text-ink-500">{supplier.region}</div>
+        <div className="text-xs text-ink-500">—</div>
       </td>
 
       <td className="px-5 py-4 align-top">
@@ -169,53 +155,30 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
             <div className={clsx('h-full rounded-full', progress.bar)} style={{ width: `${Math.min(rate, 100)}%` }} />
           </div>
           <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-            {missing.length > 0 ? (
-              <span className="inline-flex items-center gap-1 text-amber-800">
-                <AlertCircle className="h-3 w-3" />
-                누락 {missing.length}항목
-              </span>
-            ) : (
+            {rate >= 100 ? (
               <span className="inline-flex items-center gap-1 text-emerald-800">
                 <CheckCircle2 className="h-3 w-3" />
-                필수값 완료
+                제출 완료
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-amber-800">
+                <AlertCircle className="h-3 w-3" />
+                입력 진행 중
               </span>
             )}
-            {isSlaOver && (
+            {slaOver && (
               <span className="inline-flex items-center gap-1 rounded-xs border border-orange-300 bg-orange-50 px-1.5 py-0.5 font-semibold text-orange-800">
                 <Clock className="h-3 w-3" />
                 SLA 초과
               </span>
             )}
           </div>
-          {warnings.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {warnings.map(warning => (
-                <span key={warning.label} className="rounded-xs border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-800">
-                  {warning.label}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </td>
 
       <td className="px-5 py-4 align-top">
-        {primary ? (
-          <div className="min-w-[180px]">
-            <div className="truncate text-xs font-semibold text-ink-100">{primary.name}</div>
-            <div className="mt-0.5 text-[11px] text-ink-500">{primary.role}</div>
-            <a href={`mailto:${primary.email}`} className="mt-1 flex items-center gap-1 truncate text-[11px] font-medium text-blue-700 hover:text-blue-900">
-              <Mail className="h-3 w-3 shrink-0" />
-              {primary.email}
-            </a>
-            <div className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-500">
-              <Phone className="h-3 w-3 shrink-0" />
-              <span className="num-mono">{primary.phone}</span>
-            </div>
-          </div>
-        ) : (
-          <span className="text-xs text-ink-500">미등록</span>
-        )}
+        {/* 연락처 API 미제공 (md §2) — 백엔드 추가 전까지 미등록 표시 */}
+        <span className="text-xs text-ink-500">미등록</span>
       </td>
 
       <td className="px-5 py-4 align-top text-right">
@@ -232,7 +195,6 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
 }
 
 function SummaryCard({
-  icon: Icon,
   label,
   value,
   hint,
@@ -240,7 +202,6 @@ function SummaryCard({
   active = false,
   onClick,
 }: {
-  icon: typeof Users;
   label: string;
   value: string | number;
   hint: string;
@@ -316,23 +277,54 @@ function HeaderFilter({
 }
 
 export default function SuppliersPage() {
+  const [rows, setRows] = useState<SupplierRowData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
-  const [tierFilter, setTierFilter] = useState<TierFilter>('all');
-  const [countryFilter, setCountryFilter] = useState<CountryFilter>('all');
   const [feocFilter, setFeocFilter] = useState<FeocFilter>('all');
   const [inputFilter, setInputFilter] = useState<InputFilter>('all');
   const [contactFilter, setContactFilter] = useState<ContactFilter>('all');
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all');
   const [supplierFilter, setSupplierFilter] = useState<SupplierFilter>('all');
 
+  // 목록 brief 로드 → 각 supplier reliability 보강 (N+1, §사용자 결정)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const briefs = await getSuppliers();
+        const visible = briefs.filter(s => s.supplierId !== REQUEST_NODE_ID);
+        const enriched = await Promise.all(
+          visible.map(async (brief): Promise<SupplierRowData> => {
+            try {
+              const reliability = await getSupplierReliability(brief.supplierId);
+              return { brief, reliability };
+            } catch {
+              return { brief, reliability: null };
+            }
+          }),
+        );
+        if (!cancelled) setRows(enriched);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof ApiError ? err.message : '협력사 목록을 불러오지 못했습니다.');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const resetDetailFilters = () => {
     setSearch('');
     setStatusFilter('all');
     setRiskFilter('all');
-    setTierFilter('all');
-    setCountryFilter('all');
     setFeocFilter('all');
     setInputFilter('all');
     setContactFilter('all');
@@ -349,55 +341,41 @@ export default function SuppliersPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return suppliers.filter(supplier => {
-      const remindLogs = getRemindLogs(supplier.id);
-      const isSlaOver = remindLogs.some(log => log.status === 'overdue');
-      const contacts = getContacts(supplier.id);
+    return rows.filter(({ brief, reliability }) => {
+      const slaOver = isSlaOverdue(reliability);
 
-      if (summaryFilter === 'verified' && supplier.status !== 'verified') return false;
-      if (summaryFilter === 'high-risk' && supplier.risk !== 'high' && supplier.risk !== 'critical') return false;
-      if (summaryFilter === 'sla-overdue' && !isSlaOver) return false;
+      if (summaryFilter === 'verified' && brief.status !== 'supplier_verified') return false;
+      if (summaryFilter === 'high-risk' && brief.riskLevel !== 'high' && brief.riskLevel !== 'critical') return false;
+      if (summaryFilter === 'sla-overdue' && !slaOver) return false;
 
-      if (supplierFilter !== 'all' && supplier.id !== supplierFilter) return false;
-      if (statusFilter !== 'all' && supplier.status !== statusFilter) return false;
-      if (riskFilter !== 'all' && supplier.risk !== riskFilter) return false;
-      if (tierFilter !== 'all' && !supplier.tiers.includes(tierFilter as Tier)) return false;
-      if (countryFilter !== 'all' && supplier.country !== countryFilter) return false;
+      if (supplierFilter !== 'all' && brief.supplierId !== supplierFilter) return false;
+      if (statusFilter !== 'all' && brief.status !== statusFilter) return false;
+      if (riskFilter !== 'all' && brief.riskLevel !== riskFilter) return false;
 
-      const completeness = getCompleteness(supplier.id);
-      const inputState = completenessMeta(completeness?.completionRate ?? 0).filter;
+      const inputState = completenessMeta(reliability?.completenessScore ?? 0).filter;
       if (inputFilter !== 'all' && inputState !== inputFilter) return false;
-      if (contactFilter === 'registered' && contacts.length === 0) return false;
-      if (contactFilter === 'missing' && contacts.length > 0) return false;
 
-      const risk = getRiskProfile(supplier.id);
-      if (feocFilter !== 'all' && risk?.feocStatus !== feocFilter) return false;
+      // 연락처 API 미제공 — 모든 행은 '미등록'으로 간주
+      if (contactFilter === 'registered') return false;
+
+      if (feocFilter !== 'all' && reliability?.feocStatus !== feocFilter) return false;
 
       if (!q) return true;
 
-      const name = getSupplierName(supplier.id);
       const haystack = [
-        supplier.id,
-        supplier.name,
-        supplier.role,
-        supplier.country,
-        supplier.region,
-        name?.nameEn,
-        name?.nameKo,
-        name?.shortNameEn,
-        name?.shortNameKo,
-        ...supplier.material,
-        ...contacts.flatMap(contact => [contact.name, contact.email, contact.role]),
+        brief.supplierId,
+        brief.companyName,
+        brief.supplierType,
       ].filter(Boolean).join(' ').toLowerCase();
 
       return haystack.includes(q);
     });
-  }, [contactFilter, countryFilter, feocFilter, inputFilter, riskFilter, search, statusFilter, summaryFilter, supplierFilter, tierFilter]);
+  }, [rows, contactFilter, feocFilter, inputFilter, riskFilter, search, statusFilter, summaryFilter, supplierFilter]);
 
-  const highRiskCount = suppliers.filter(supplier => supplier.risk === 'high' || supplier.risk === 'critical').length;
-  const overdueCount = suppliers.filter(supplier => getRemindLogs(supplier.id).some(log => log.status === 'overdue')).length;
-  const incompleteCount = suppliers.filter(supplier => (getCompleteness(supplier.id)?.completionRate ?? 0) < 80).length;
-  const verifiedCount = suppliers.filter(supplier => supplier.status === 'verified').length;
+  const highRiskCount = rows.filter(({ brief }) => brief.riskLevel === 'high' || brief.riskLevel === 'critical').length;
+  const overdueCount = rows.filter(({ reliability }) => isSlaOverdue(reliability)).length;
+  const incompleteCount = rows.filter(({ reliability }) => (reliability?.completenessScore ?? 0) < 80).length;
+  const verifiedCount = rows.filter(({ brief }) => brief.status === 'supplier_verified').length;
   const summaryLabel: Record<SummaryFilter, string> = {
     all: '전체 협력사',
     verified: '검증 완료 협력사',
@@ -425,15 +403,13 @@ export default function SuppliersPage() {
       <div className="space-y-6 p-8">
         <section className="grid grid-cols-4 gap-4">
           <SummaryCard
-            icon={Users}
             label="시연 협력사"
-            value={suppliers.length}
+            value={rows.length}
             hint="개사"
             active={summaryFilter === 'all'}
             onClick={() => applySummaryFilter('all')}
           />
           <SummaryCard
-            icon={CheckCircle2}
             label="검증 완료"
             value={verifiedCount}
             hint="개사"
@@ -442,7 +418,6 @@ export default function SuppliersPage() {
             onClick={() => applySummaryFilter('verified')}
           />
           <SummaryCard
-            icon={ShieldAlert}
             label="고위험 이상"
             value={highRiskCount}
             hint="개사"
@@ -451,7 +426,6 @@ export default function SuppliersPage() {
             onClick={() => applySummaryFilter('high-risk')}
           />
           <SummaryCard
-            icon={Clock}
             label="SLA 초과"
             value={overdueCount}
             hint={`개사 · 미완료 ${incompleteCount}`}
@@ -469,7 +443,7 @@ export default function SuppliersPage() {
                 <input
                   value={search}
                   onChange={event => setSearch(event.target.value)}
-                  placeholder="협력사명, ID, 담당자, 국가 검색"
+                  placeholder="협력사명, ID, 유형 검색"
                   className="w-full rounded-xs border border-ink-700 bg-white py-2.5 pl-9 pr-3 text-sm text-ink-100 shadow-control outline-none transition-colors placeholder:text-ink-500 focus:border-accent-600 focus:ring-2 focus:ring-accent-500/20"
                 />
               </div>
@@ -479,18 +453,11 @@ export default function SuppliersPage() {
               </div>
               <Select value={statusFilter} onChange={value => { clearSummaryFilter(); setStatusFilter(value as StatusFilter); }} label="상태" options={[
                 { v: 'all', label: '전체' },
-                { v: 'verified', label: '검증 완료' },
-                { v: 'pending', label: '검토 대기' },
-                { v: 'review', label: '추가 확인' },
-                { v: 'violation', label: '규제 위반' },
-              ]} />
-              <Select value={String(tierFilter)} onChange={value => { clearSummaryFilter(); setTierFilter(value === 'all' ? 'all' : Number(value) as Tier); }} label="Tier" options={[
-                { v: 'all', label: '전체' },
-                { v: '1', label: 'T1' },
-                { v: '2', label: 'T2' },
-                { v: '3', label: 'T3' },
-                { v: '4', label: 'T4' },
-                { v: '5', label: 'T5' },
+                { v: 'supplier_verified', label: '검증 완료' },
+                { v: 'supplier_pending', label: '검토 대기' },
+                { v: 'supplier_review', label: '추가 확인' },
+                { v: 'supplier_violation', label: '규제 위반' },
+                { v: 'supplier_suspended', label: '거래 중지' },
               ]} />
               <Select value={riskFilter} onChange={value => { clearSummaryFilter(); setRiskFilter(value as RiskFilter); }} label="위험도" options={[
                 { v: 'all', label: '전체' },
@@ -513,7 +480,7 @@ export default function SuppliersPage() {
             <div className="flex items-center gap-2 text-xs text-ink-500">
               <Building2 className="h-4 w-4 text-ink-400" />
               <span>
-                {summaryLabel[summaryFilter]} <strong className="num-mono text-ink-100">{filtered.length}</strong> / {suppliers.length}개사 표시
+                {summaryLabel[summaryFilter]} <strong className="num-mono text-ink-100">{filtered.length}</strong> / {rows.length}개사 표시
               </span>
               {summaryFilter !== 'all' && (
                 <button
@@ -553,35 +520,18 @@ export default function SuppliersPage() {
                       onChange={value => { clearSummaryFilter(); setSupplierFilter(value as SupplierFilter); }}
                       options={[
                         { v: 'all', label: '전체' },
-                        ...suppliers.map(supplier => ({
-                          v: supplier.id,
-                          label: getSupplierName(supplier.id)?.nameEn ?? supplier.name,
+                        ...rows.map(({ brief }) => ({
+                          v: brief.supplierId,
+                          label: brief.companyName,
                         })),
                       ]}
                     />
                   </th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
-                    <HeaderFilter
-                      label="Tier · 역할"
-                      value={String(tierFilter)}
-                      onChange={value => { clearSummaryFilter(); setTierFilter(value === 'all' ? 'all' : Number(value) as Tier); }}
-                      options={[
-                        { v: 'all', label: '전체' },
-                        { v: '1', label: 'T1' },
-                        { v: '2', label: 'T2' },
-                        { v: '3', label: 'T3' },
-                        { v: '4', label: 'T4' },
-                        { v: '5', label: 'T5' },
-                      ]}
-                    />
+                    Tier · 역할
                   </th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
-                    <HeaderFilter
-                      label="국가"
-                      value={countryFilter}
-                      onChange={value => { clearSummaryFilter(); setCountryFilter(value as CountryFilter); }}
-                      options={[{ v: 'all', label: '전체' }, ...Object.entries(countryName).map(([v, label]) => ({ v, label }))]}
-                    />
+                    국가
                   </th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
                     <HeaderFilter
@@ -590,10 +540,10 @@ export default function SuppliersPage() {
                       onChange={value => { clearSummaryFilter(); setStatusFilter(value as StatusFilter); }}
                       options={[
                         { v: 'all', label: '전체' },
-                        { v: 'verified', label: '검증 완료' },
-                        { v: 'review', label: '추가 확인' },
-                        { v: 'pending', label: '검토 대기' },
-                        { v: 'violation', label: '규제 위반' },
+                        { v: 'supplier_verified', label: '검증 완료' },
+                        { v: 'supplier_review', label: '추가 확인' },
+                        { v: 'supplier_pending', label: '검토 대기' },
+                        { v: 'supplier_violation', label: '규제 위반' },
                       ]}
                     />
                   </th>
@@ -627,7 +577,25 @@ export default function SuppliersPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-16 text-center">
+                      <div className="mx-auto flex max-w-sm flex-col items-center gap-2 text-ink-500">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <div className="text-sm font-semibold text-ink-200">협력사 목록을 불러오는 중…</div>
+                      </div>
+                    </td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-16 text-center">
+                      <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-sm border border-dashed border-red-200 bg-red-50 p-6">
+                        <ShieldAlert className="h-5 w-5 text-red-600" />
+                        <div className="text-sm font-semibold text-red-800">{error}</div>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-5 py-16 text-center">
                       <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-sm border border-dashed border-ink-700 bg-ink-800 p-6">
@@ -638,7 +606,7 @@ export default function SuppliersPage() {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map(supplier => <SupplierRow key={supplier.id} supplier={supplier} />)
+                  filtered.map(row => <SupplierRow key={row.brief.supplierId} row={row} />)
                 )}
               </tbody>
             </table>

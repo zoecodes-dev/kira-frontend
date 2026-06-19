@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { TrainingRecord, TrainingMaterial, Factory } from '@/lib/supplier-detail-data';
+import type { TrainingRecord, SupplierFactory } from '@/lib/api';
 import { BookOpen, Video, Monitor, Users, FileText, Clock, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -29,11 +29,11 @@ export const categoryLabel: Record<string, string> = {
 
 interface Props {
   record:   TrainingRecord;
-  material: TrainingMaterial | undefined;
-  factory:  Factory | undefined;
+  factory:  SupplierFactory | undefined;
 }
 
-export function TrainingRecordCard({ record, material, factory }: Props) {
+export function TrainingRecordCard({ record, factory }: Props) {
+  const material   = record.material;
   const sm         = statusMeta[record.status];
   const FormatIcon = material ? (formatIcon[material.format] ?? BookOpen) : BookOpen;
 
@@ -48,11 +48,8 @@ export function TrainingRecordCard({ record, material, factory }: Props) {
           <div className="flex items-start justify-between gap-2 mb-1.5 flex-wrap">
             <div className="min-w-0">
               <div className="text-xs font-semibold text-ink-100 truncate">
-                {material?.title ?? record.materialId}
+                {material?.title ?? '교육 자료'}
               </div>
-              {material?.titleEn && (
-                <div className="text-[10px] text-ink-500 truncate">{material.titleEn}</div>
-              )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {material?.category && (
