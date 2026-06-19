@@ -61,6 +61,9 @@ interface SupplyChainMapProps {
   supplierId: string;
   upstream: RelationItem[];    // 나에게 원재료를 공급하는 쪽
   downstream: RelationItem[];  // 내가 납품하는 쪽 (납품처)
+  selectedId?: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onSelectNode?: (node: any) => void;
 }
 
 // ─── 리스크 레벨 스타일 ────────────────────────────────────────────────────────

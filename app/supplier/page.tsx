@@ -30,7 +30,6 @@ import {
 } from 'lucide-react';
 import Badge from '@/components/Badge';
 import Card from '@/components/Card';
-import KpiCard from '@/components/KpiCard';
 import SubmitWizardModal from '@/components/supplier/SubmitWizardModal';
 import EightStageStepper from '@/components/supplier/EightStageStepper';
 import SupplyChainMap from '@/components/supplier/SupplyChainMap';

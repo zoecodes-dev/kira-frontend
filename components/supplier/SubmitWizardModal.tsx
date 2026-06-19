@@ -13,7 +13,9 @@ import {
   Paperclip,
   Loader2,
   RotateCcw,
-  AlertTriangle, 
+  AlertTriangle,
+  Download,
+  TableProperties,
 } from 'lucide-react';
 import Badge from '@/components/Badge';
 import { ViolationReportModalProps } from './ViolationReportModal';
@@ -64,6 +66,11 @@ interface SubmitWizardModalProps {
 const ALLOWED_EXTENSIONS = ['pdf', 'xlsx', 'xls', 'csv', 'docx', 'doc', 'png', 'jpg', 'jpeg'];
 const MAX_FILE_SIZE_MB = 50;
 
+// 4-1. 공급망 정보 수집 전용 모드 — 이 라벨이 단독 선택된 경우에만 전용 UI 표시
+const SUPPLY_MAP_REQUEST_LABEL = 'Nori-Nickel 제품 공급망 정보 입력 요망';
+// 엑셀 전용 업로드 허용 확장자
+const SUPPLY_MAP_EXTENSIONS = ['xlsx', 'xls', 'csv'];
+
 function getExtension(filename: string) {
   return filename.split('.').pop()?.toLowerCase() ?? '';
 }
@@ -72,6 +79,17 @@ function validateFile(file: File): string | null {
   const ext = getExtension(file.name);
   if (!ALLOWED_EXTENSIONS.includes(ext)) {
     return `허용되지 않는 파일 형식입니다. (${ALLOWED_EXTENSIONS.join(', ')})`;
+  }
+  if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+    return `파일 크기가 ${MAX_FILE_SIZE_MB}MB를 초과합니다.`;
+  }
+  return null;
+}
+
+function validateSupplyMapFile(file: File): string | null {
+  const ext = getExtension(file.name);
+  if (!SUPPLY_MAP_EXTENSIONS.includes(ext)) {
+    return `표준 양식은 .xlsx, .xls, .csv 파일만 업로드 가능합니다.`;
   }
   if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
     return `파일 크기가 ${MAX_FILE_SIZE_MB}MB를 초과합니다.`;
@@ -231,6 +249,227 @@ function Step1({
         <p className="flex items-center gap-1.5 text-xs text-amber-700 pt-1">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           항목을 1개 이상 선택해야 다음 단계로 이동할 수 있습니다.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Step 2 (공급망 전용): 표준 양식 다운로드 + 엑셀 업로드 ──────────────────────
+// 4-2. 표준 양식 전용 UI
+
+function SupplyMapStep({
+  files,
+  onAddFiles,
+  onRemoveFile,
+}: {
+  files: UploadedFile[];
+  onAddFiles: (fileList: FileList) => void;
+  onRemoveFile: (id: string) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const [fileErrors, setFileErrors] = useState<string[]>([]);
+  const [downloaded, setDownloaded] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function processFiles(fileList: FileList) {
+    const errors: string[] = [];
+    const validFiles: File[] = [];
+    Array.from(fileList).forEach(f => {
+      const err = validateSupplyMapFile(f);
+      if (err) errors.push(`${f.name}: ${err}`);
+      else validFiles.push(f);
+    });
+    setFileErrors(errors);
+    if (validFiles.length > 0) {
+      const dt = new DataTransfer();
+      validFiles.forEach(f => dt.items.add(f));
+      onAddFiles(dt.files);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    if (e.dataTransfer.files.length > 0) processFiles(e.dataTransfer.files);
+  }
+
+  function handleDownload() {
+    // Mock 다운로드 — 실제 API 연동 시 fetch(blob) 또는 <a href> 교체
+    setDownloaded(true);
+    // 가상 파일명으로 anchor 클릭 시뮬레이션
+    const a = document.createElement('a');
+    a.href = '#';
+    a.download = 'Nori-Nickel_공급망_표준양식_v1.xlsx';
+    a.click();
+  }
+
+  return (
+    <div className="space-y-5">
+
+      {/* 안내 배너 */}
+      <div className="flex items-start gap-3 rounded-xs border border-accent-200 bg-accent-50 px-4 py-4">
+        <TableProperties className="mt-0.5 h-5 w-5 shrink-0 text-accent-700" />
+        <div>
+          <div className="text-xs font-bold text-accent-800">표준 엑셀 양식 제출 안내</div>
+          <p className="mt-1 text-[11px] text-accent-700 leading-5">
+            원청사 지정 표준 엑셀 양식을 다운로드하여 광물 스펙과 비율을 작성한 후 업로드해 주세요.<br />
+            <span className="font-semibold">허용 형식: .xlsx, .xls, .csv</span>
+          </p>
+        </div>
+      </div>
+
+      {/* 4-2. 표준 양식 다운로드 버튼 */}
+      <div className="flex items-center justify-between rounded-xs border border-ink-700 bg-ink-800 px-4 py-4">
+        <div>
+          <div className="text-xs font-bold text-ink-100">표준 양식 파일</div>
+          <div className="mt-0.5 text-[10px] text-ink-500">
+            Nori-Nickel_공급망_표준양식_v1.xlsx · 원청사 지정 서식
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleDownload}
+          className={`inline-flex items-center gap-2 rounded-xs border px-4 py-2 text-xs font-bold transition-colors shadow-control ${
+            downloaded
+              ? 'border-signal-ok/40 bg-signal-ok/10 text-signal-ok'
+              : 'border-accent-600 bg-white text-accent-700 hover:bg-accent-700 hover:text-white'
+          }`}
+        >
+          {downloaded ? (
+            <><CheckCircle2 className="h-3.5 w-3.5" /> 다운로드 완료</>
+          ) : (
+            <><Download className="h-3.5 w-3.5" /> 표준 양식 다운로드 (.xlsx)</>
+          )}
+        </button>
+      </div>
+
+      {/* 4-2. 엑셀 전용 Drag & Drop 업로드 영역 */}
+      <div>
+        <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-ink-500">
+          작성 완료된 양식 업로드
+        </div>
+        <div
+          onDragEnter={() => setDragging(true)}
+          onDragLeave={() => setDragging(false)}
+          onDragOver={e => e.preventDefault()}
+          onDrop={handleDrop}
+          onClick={() => inputRef.current?.click()}
+          className={`
+            flex flex-col items-center justify-center gap-3
+            rounded-sm border-2 border-dashed px-6 py-10
+            cursor-pointer select-none transition-colors duration-150
+            ${dragging
+              ? 'border-accent-500 bg-accent-50/60'
+              : 'border-ink-600 bg-ink-800/20 hover:border-accent-400 hover:bg-accent-50/30'
+            }
+          `}
+        >
+          <div className={`flex h-12 w-12 items-center justify-center rounded-full border-2 ${
+            dragging ? 'border-accent-500 bg-accent-100' : 'border-ink-600 bg-white'
+          }`}>
+            <FileText className={`h-5 w-5 ${dragging ? 'text-accent-600' : 'text-ink-400'}`} />
+          </div>
+          <div className="text-center">
+            <p className="text-xs font-bold text-ink-200">
+              {dragging ? '파일을 놓아주세요' : '엑셀 파일을 드래그하거나 클릭해서 업로드'}
+            </p>
+            <p className="mt-1 text-xs text-ink-500">
+              .xlsx, .xls, .csv · 최대 {MAX_FILE_SIZE_MB}MB
+            </p>
+          </div>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={e => { if (e.target.files) processFiles(e.target.files); }}
+          />
+        </div>
+      </div>
+
+      {/* 파일 에러 */}
+      {fileErrors.length > 0 && (
+        <div className="space-y-1.5">
+          {fileErrors.map((err, i) => (
+            <div key={i} className="flex items-start gap-2 rounded-xs border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              {err}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 4-2. 업로드된 파일 목록 + 진행률 바 + "파일 검증 완료" 시각 효과 */}
+      {files.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-bold text-ink-400">첨부된 파일 ({files.length})</div>
+          {files.map(uf => {
+            const isValidating = uf.state === 'uploading' && uf.progress >= 80;
+            return (
+              <div key={uf.id} className="rounded-xs border border-ink-700 bg-white px-3 py-3">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-4 w-4 shrink-0 text-accent-500" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs font-semibold text-ink-100">{uf.file.name}</span>
+                      <span className="shrink-0 text-[10px] text-ink-500 num-mono">{formatBytes(uf.file.size)}</span>
+                    </div>
+                    {/* 4-2. 진행률 바 */}
+                    <div className="mt-2 h-1.5 w-full rounded-full bg-ink-700 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          uf.state === 'done'  ? 'bg-signal-ok' :
+                          uf.state === 'error' ? 'bg-red-500' :
+                          isValidating         ? 'bg-accent-400 animate-pulse' :
+                                                 'bg-accent-600'
+                        }`}
+                        style={{ width: `${uf.progress}%` }}
+                      />
+                    </div>
+                    {/* 4-2. 상태 텍스트 — "파일 검증 완료" 전환 */}
+                    <div className="mt-1 flex items-center justify-between">
+                      {uf.state === 'uploading' && !isValidating && (
+                        <span className="flex items-center gap-1 text-[10px] text-ink-500">
+                          <Loader2 className="h-3 w-3 animate-spin" /> 업로드 중 {uf.progress}%
+                        </span>
+                      )}
+                      {uf.state === 'uploading' && isValidating && (
+                        <span className="flex items-center gap-1 text-[10px] text-accent-600 font-semibold">
+                          <Loader2 className="h-3 w-3 animate-spin" /> 파일 검증 중...
+                        </span>
+                      )}
+                      {uf.state === 'done' && (
+                        <span className="flex items-center gap-1 text-[10px] text-signal-ok font-bold">
+                          <CheckCircle2 className="h-3 w-3" /> 파일 검증 완료
+                        </span>
+                      )}
+                      {uf.state === 'error' && (
+                        <span className="flex items-center gap-1 text-[10px] text-red-500">
+                          <AlertCircle className="h-3 w-3" /> 검증 실패 — 파일을 다시 확인해 주세요
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveFile(uf.id)}
+                    className="shrink-0 rounded-xs p-1 text-ink-500 hover:bg-red-50 hover:text-red-500"
+                    aria-label={`${uf.file.name} 삭제`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {files.length === 0 && (
+        <p className="flex items-center gap-1.5 text-xs text-amber-700">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          작성 완료된 표준 양식 파일을 업로드해야 다음 단계로 이동할 수 있습니다.
         </p>
       )}
     </div>
@@ -541,7 +780,14 @@ export default function SubmitWizardModal({
   supplierId = 'supplier',
   onSubmitComplete,
 }: SubmitWizardModalProps) {
-  const initialStep = reworkMode ? 2 : 1;
+  // 4-1. 공급망 정보 수집 전용 모드 판별
+  // initialSelectedLabels가 해당 라벨 하나만 포함할 때 전용 UI 적용
+  const isSupplyMapMode =
+    initialSelectedLabels.length === 1 &&
+    initialSelectedLabels[0] === SUPPLY_MAP_REQUEST_LABEL;
+
+  // 공급망 전용 모드는 Step 1(항목 선택) 건너뛰고 Step 2(파일 업로드)로 직행
+  const initialStep = isSupplyMapMode ? 2 : reworkMode ? 2 : 1;
   const [step, setStep] = useState<1 | 2 | 3>(initialStep as 1 | 2 | 3);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initialSelectedLabels));
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -661,7 +907,9 @@ export default function SubmitWizardModal({
   }
 
   function handleBack() {
-    if (step === 2) setStep(reworkMode ? 2 : 1);  // rework면 step1이 없으므로 유지
+    // 공급망 전용 모드: Step 1이 없으므로 Step 2에서 뒤로 안 감
+    if (step === 2 && (reworkMode || isSupplyMapMode)) return;
+    if (step === 2) setStep(1);
     if (step === 3) setStep(2);
   }
 
@@ -716,10 +964,13 @@ export default function SubmitWizardModal({
             </div>
             <div>
               <div className="text-xs font-bold text-ink-100">자료 제출</div>
-              {reworkMode && (
+              {isSupplyMapMode && (
+                <div className="text-[10px] text-accent-600 font-semibold">공급망 표준 양식 제출 모드</div>
+              )}
+              {!isSupplyMapMode && reworkMode && (
                 <div className="text-[10px] text-amber-600 font-semibold">보완 재제출 모드</div>
               )}
-              {certRenewalMode && !reworkMode && (
+              {!isSupplyMapMode && certRenewalMode && !reworkMode && (
                 <div className="text-[10px] text-accent-600 font-semibold">인증서 갱신 업로드 모드</div>
               )}
             </div>
@@ -755,7 +1006,14 @@ export default function SubmitWizardModal({
               certRenewalMode={certRenewalMode}
             />
           )}
-          {step === 2 && (
+          {step === 2 && isSupplyMapMode ? (
+            /* 4-2. 공급망 정보 수집 전용 UI */
+            <SupplyMapStep
+              files={files}
+              onAddFiles={handleAddFiles}
+              onRemoveFile={handleRemoveFile}
+            />
+          ) : step === 2 ? (
             <Step2
               files={files}
               onAddFiles={handleAddFiles}
@@ -763,7 +1021,7 @@ export default function SubmitWizardModal({
               reworkLabel={reworkMode ? (Array.from(selected)[0] as string) : undefined}
               reworkReason={reworkMode ? reworkReason : undefined}
             />
-          )}
+          ) : null}
           {step === 3 && (
             <Step3
               selectedItems={selected}
