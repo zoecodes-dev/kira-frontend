@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { getActions, type ActionItem } from '@/lib/api';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
@@ -29,7 +30,7 @@ type Task = {
   description: string;
 };
 
-const tasks: Task[] = [
+const _MOCK_TASKS: Task[] = [
   {
     id: 'TASK-001',
     title: 'FEOC 지분 공시 제출자료 보완 요청',
@@ -165,9 +166,47 @@ const getTodayKey = () => {
 };
 const isOverdue = (task: Task, todayKey: string) => task.status === 'overdue' || task.due < todayKey;
 
+const _STATUS_FROM_API: Record<string, TaskStatus> = {
+  open: 'waiting', sent: 'waiting', review: 'today', resolved: 'done', blocked: 'overdue',
+};
+const _TYPE_FROM_API: Record<string, TaskType> = {
+  SUB: 'submission_review', DD: 'due_diligence', HITL: 'hitl',
+};
+const _HREF_FROM_TYPE: Record<TaskType, string> = {
+  submission_review: '/submission-review', risk_action: '/risk/actions',
+  hitl: '/hitl', reminder: '/submission-status', dpp_blocker: '/dpp/readiness',
+  due_diligence: '/due-diligence',
+};
+
+function adaptAction(item: ActionItem): Task {
+  const type = _TYPE_FROM_API[item.sourceType] ?? 'submission_review';
+  const status = _STATUS_FROM_API[item.actionStatus] ?? 'waiting';
+  return {
+    id: item.actionId,
+    title: item.title,
+    type,
+    status,
+    priority: 'medium',
+    owner: item.assignedTo ?? '-',
+    due: item.dueDate?.slice(0, 10) ?? '-',
+    source: item.sourceType,
+    targetHref: _HREF_FROM_TYPE[type],
+    targetLabel: `${type} 이동`,
+    description: item.title,
+  };
+}
+
 export default function MyTaskPage() {
+  const [tasks, setTasks] = useState<Task[]>(_MOCK_TASKS);
   const [filter, setFilter] = useState<'all' | TaskStatus>('all');
   const [metricModal, setMetricModal] = useState<MetricKey | null>(null);
+
+  useEffect(() => {
+    getActions().then(items => {
+      if (items && items.length > 0) setTasks(items.map(adaptAction));
+    }).catch(() => {/* mock 유지 */});
+  }, []);
+
   const filtered = sortByPriority(filter === 'all' ? tasks : tasks.filter(task => task.status === filter));
 
   const stats = useMemo(() => ({
@@ -175,18 +214,18 @@ export default function MyTaskPage() {
     overdue: tasks.filter(task => task.status === 'overdue').length,
     today: tasks.filter(task => task.status === 'today').length,
     waiting: tasks.filter(task => task.status === 'waiting').length,
-  }), []);
+  }), [tasks]);
 
   const metricTasks = useMemo<Record<MetricKey, typeof tasks>>(() => ({
     active: sortByDueAsc(tasks.filter(task => task.status !== 'done')),
     overdue: sortByDueAsc(tasks.filter(task => task.status === 'overdue')),
     today: sortByDueAsc(tasks.filter(task => task.status === 'today')),
     waiting: sortByDueAsc(tasks.filter(task => task.status === 'waiting')),
-  }), []);
+  }), [tasks]);
 
   const priorityTasks = useMemo(
     () => sortByDueAsc(tasks.filter(task => task.status !== 'done' && (task.priority === 'critical' || task.priority === 'high'))),
-    [],
+    [tasks],
   );
   const todayKey = useMemo(getTodayKey, []);
   const priorityOverdueCount = priorityTasks.filter(task => isOverdue(task, todayKey)).length;

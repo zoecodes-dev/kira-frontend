@@ -1,11 +1,50 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
-import { batchesInProgress, AgentStage } from '@/lib/data';
+import { getBatches, type BatchesResponse } from '@/lib/api';
 import { Clock, AlertCircle, CheckCircle2, XCircle, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
+
+type AgentStage = 'queued' | 'supervisor' | 'extraction' | 'verification' | 'geo-analysis' | 'compliance' | 'readiness' | 'hitl-wait' | 'action' | 'completed' | 'rejected';
+
+interface QueueBatch {
+  id: string; batchId: string; supplier: string; destination: string;
+  receivedAt: string; currentStage: AgentStage; confidence?: number;
+  agentModel?: string;
+}
+
+const _DB_STAGE: Record<string, AgentStage> = {
+  stage_queued: 'queued', stage_extraction: 'extraction',
+  stage_verification: 'verification', stage_geo: 'geo-analysis',
+  stage_compliance: 'compliance', stage_risk: 'compliance',
+  stage_readiness: 'readiness', stage_issuance: 'action',
+};
+
+function flattenQueue(res: BatchesResponse): QueueBatch[] {
+  const out: QueueBatch[] = [];
+  for (const list of Object.values(res.byStage)) {
+    for (const b of list) {
+      let stage: AgentStage;
+      if (b.status === 'batch_hitl_wait') stage = 'hitl-wait';
+      else if (b.status === 'batch_completed') stage = 'completed';
+      else if (b.status === 'batch_rejected') stage = 'rejected';
+      else stage = _DB_STAGE[b.currentStage] ?? 'queued';
+      out.push({
+        id: b.batchId,
+        batchId: b.externalId ?? b.batchId.slice(0, 12),
+        supplier: b.externalId ?? '-',
+        destination: b.destination ?? 'EU',
+        receivedAt: b.receivedAt?.slice(0, 16).replace('T', ' ') ?? '-',
+        currentStage: stage,
+        confidence: b.confidenceScore ?? undefined,
+      });
+    }
+  }
+  return out;
+}
 
 const stages = [
   { key: 'supervisor',   label: '지혜',   model: 'Coordinator' },
@@ -26,6 +65,22 @@ function stageIndex(stage: AgentStage): number {
 }
 
 export default function QueuePage() {
+  const [batches, setBatches] = useState<QueueBatch[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      getBatches('processing'),
+      getBatches('hitl_wait'),
+      getBatches('completed'),
+      getBatches('rejected'),
+    ]).then(([p, h, c, r]) => {
+      setBatches([
+        ...flattenQueue(p), ...flattenQueue(h),
+        ...flattenQueue(c), ...flattenQueue(r),
+      ]);
+    }).catch(() => {});
+  }, []);
+
   return (
     <>
       <PageHeader 
@@ -39,25 +94,25 @@ export default function QueuePage() {
         <div className="grid grid-cols-4 gap-4">
           <SummaryTile 
             label="처리 중" 
-            count={batchesInProgress.filter(b => !['completed', 'rejected', 'hitl-wait'].includes(b.currentStage)).length}
+            count={batches.filter(b => !['completed', 'rejected', 'hitl-wait'].includes(b.currentStage)).length}
             icon={Clock}
             tone="info"
           />
           <SummaryTile 
             label="HITL 대기" 
-            count={batchesInProgress.filter(b => b.currentStage === 'hitl-wait').length}
+            count={batches.filter(b => b.currentStage === 'hitl-wait').length}
             icon={AlertCircle}
             tone="warn"
           />
           <SummaryTile 
             label="완료" 
-            count={batchesInProgress.filter(b => b.currentStage === 'completed').length}
+            count={batches.filter(b => b.currentStage === 'completed').length}
             icon={CheckCircle2}
             tone="ok"
           />
           <SummaryTile 
             label="반려" 
-            count={batchesInProgress.filter(b => b.currentStage === 'rejected').length}
+            count={batches.filter(b => b.currentStage === 'rejected').length}
             icon={XCircle}
             tone="alert"
           />
@@ -65,7 +120,7 @@ export default function QueuePage() {
 
         {/* 진행 상황 카드들 */}
         <div className="space-y-3">
-          {batchesInProgress.map(batch => (
+          {batches.map(batch => (
             <BatchProgressCard key={batch.id} batch={batch} />
           ))}
         </div>

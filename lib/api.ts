@@ -168,3 +168,85 @@ export function listSuppliers<T = unknown>(): Promise<T> {
   // API_BASE_URL("/api") + "/suppliers" → "/api/suppliers" → rewrite로 EC2 전달
   return api.get<T>("/suppliers");
 }
+
+// ───────────────────────────────────────────────────────────
+// 도메인 타입 & 함수
+// ───────────────────────────────────────────────────────────
+
+export interface HitlQueueItem {
+  reviewId: string;
+  batchId: string;
+  reason: string;
+  triggerStage: string | null;
+  status: string;
+  createdAt: string;
+  confidenceScore: number | null;
+}
+
+export interface BatchItem {
+  batchId: string;
+  productId: string | null;
+  tenantId: string | null;
+  destination: string;
+  currentStage: string;
+  status: string;
+  confidenceScore: number | null;
+  receivedAt: string | null;
+  sourceSystem: string | null;
+  externalId: string | null;
+}
+
+export interface BatchesResponse {
+  status: string;
+  total: number;
+  byStage: Record<string, BatchItem[]>;
+}
+
+export interface DashboardKpis {
+  totalBatches: number;
+  processingBatches: number;
+  hitlWaitBatches: number;
+  completedBatches: number;
+  rejectedBatches: number;
+  dppIssuedCount: number;
+  compliancePassRate: number;
+  avgConfidenceScore: number;
+}
+
+export interface AuditTrailItem {
+  stepNumber: number;
+  timestamp: string;
+  nodeType: "agent" | "tool" | "human";
+  nodeName: string;
+  model: string | null;
+  promptVersion: string | null;
+  durationMs: number;
+  inputHash: string;
+  outputHash: string;
+  decision: string | null;
+  citations: string[] | null;
+}
+
+export interface ActionItem {
+  actionId: string;
+  sourceType: string;
+  title: string;
+  supplierId: string | null;
+  assignedTo: string | null;
+  dueDate: string | null;
+  actionStatus: string;
+}
+
+export const getHitlQueue = () => api.get<HitlQueueItem[]>("/hitl/queue");
+
+export const getBatches = (
+  status: "processing" | "hitl_wait" | "completed" | "rejected"
+) => api.get<BatchesResponse>(`/batches?status=${status}`);
+
+export const getDashboardKpis = () => api.get<DashboardKpis>("/dashboard/kpis");
+
+export const getAuditTrail = (batchId: string) =>
+  api.get<AuditTrailItem[]>(`/audit/trail/${batchId}`);
+
+export const getActions = (status?: string) =>
+  api.get<ActionItem[]>(status ? `/actions?status=${status}` : "/actions");
