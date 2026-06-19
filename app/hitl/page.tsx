@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { api, type HitlQueueItem } from '@/lib/api';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
@@ -64,18 +65,48 @@ const reviewQueue: ReviewCase[] = [
   },
 ];
 
+function adaptHitlItem(item: HitlQueueItem): ReviewCase {
+  const verdictMap: Record<string, ReviewCase['agentVerdict']> = {
+    gray_zone: 'gray-zone',
+    low_confidence: 'low-confidence',
+  };
+  const confidence = item.confidenceScore ?? 0.75;
+  return {
+    id: item.reviewId,
+    batchId: item.batchId.slice(-12),
+    productName: `배치 ${item.batchId.slice(-8)}`,
+    supplier: item.triggerStage ?? '-',
+    destination: 'EU',
+    receivedAt: item.createdAt?.slice(0, 16).replace('T', ' ') ?? '-',
+    triggerReason: item.reason ?? '-',
+    confidence,
+    agentVerdict: verdictMap[item.reason] ?? 'gray-zone',
+    priority: confidence < 0.75 ? 'high' : confidence < 0.85 ? 'medium' : 'low',
+  };
+}
+
 export default function HitlPage() {
+  const [queue, setQueue] = useState<ReviewCase[]>(reviewQueue);
   const [selectedCase, setSelectedCase] = useState<ReviewCase>(reviewQueue[0]);
   const [decision, setDecision] = useState<'approve' | 'reject' | null>(null);
   const [reasonExpanded, setReasonExpanded] = useState(true);
   const [evidenceExpanded, setEvidenceExpanded] = useState(true);
+
+  useEffect(() => {
+    api.get<HitlQueueItem[]>('/hitl/queue').then(items => {
+      if (!items || items.length === 0) return;
+      const mapped = items.map(adaptHitlItem);
+      setQueue(mapped);
+      setSelectedCase(mapped[0]);
+    }).catch(() => {/* mock 유지 */});
+  }, []);
 
   return (
     <>
       <PageHeader 
         title="HITL 검토"
         description="에이전트 판단 신뢰도 미달 또는 회색지대 사례 · 인간 검토자 승인 필요"
-        badge={`${reviewQueue.length}건 대기`}
+        badge={`${queue.length}건 대기`}
         actions={
           <div className="flex items-center gap-2 text-xs text-ink-500">
             <div className="w-6 h-6 rounded-full bg-accent-50 border border-accent-100 flex items-center justify-center text-xs font-semibold text-accent-700">김</div>
@@ -90,11 +121,11 @@ export default function HitlPage() {
         <aside className="min-h-0 overflow-y-auto rounded-sm border border-ink-700 bg-white shadow-control">
           <div className="p-4 border-b border-ink-700 sticky top-0 bg-white/95 backdrop-blur">
             <div className="text-xs font-semibold text-ink-500 mb-1">검토 대기열</div>
-            <div className="text-xl font-semibold num-mono text-ink-100">{reviewQueue.length}<span className="text-xs text-ink-500 ml-1">건</span></div>
+            <div className="text-xl font-semibold num-mono text-ink-100">{queue.length}<span className="text-xs text-ink-500 ml-1">건</span></div>
           </div>
           
           <div className="divide-y divide-ink-700/60">
-            {reviewQueue.map(c => (
+            {queue.map(c => (
               <button
                 key={c.id}
                 onClick={() => { setSelectedCase(c); setDecision(null); }}
@@ -338,8 +369,8 @@ export default function HitlPage() {
                 </button>
                 <button
                   onClick={() => {
-                    const currentIndex = reviewQueue.findIndex(c => c.id === selectedCase.id);
-                    const nextCase = reviewQueue[(currentIndex + 1) % reviewQueue.length];
+                    const currentIndex = queue.findIndex(c => c.id === selectedCase.id);
+                    const nextCase = queue[(currentIndex + 1) % queue.length];
                     setSelectedCase(nextCase);
                     setDecision(null);
                   }}

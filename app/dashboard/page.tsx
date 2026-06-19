@@ -13,9 +13,13 @@
 import { useEffect, useState } from 'react';
 import Badge from '@/components/Badge';
 import {
-  kpis, violationsByRegulation,
-  batchesInProgress, dppRecords, suppliers, productInstances,
+  violationsByRegulation,
+  dppRecords, suppliers, productInstances,
 } from '@/lib/data';
+import {
+  getDashboardKpis, getBatches,
+  type DashboardKpis, type BatchItem, type BatchesResponse,
+} from '@/lib/api';
 import {
   supplierRiskProfiles, supplierCompleteness, getRemindLogs, getSupplierName,
 } from '@/lib/supplier-detail-data';
@@ -70,6 +74,47 @@ const supplierStatusMeta = {
   review: { label: '추가 확인', className: 'border-amber-100 bg-amber-50 text-amber-700' },
   violation: { label: '규제 위반', className: 'border-red-100 bg-red-50 text-red-700' },
 };
+
+// ── DB stage/status → UI stage 매핑 ─────────────────────────────
+const DB_STAGE_UI: Record<string, string> = {
+  stage_queued: 'queued',
+  stage_extraction: 'extraction',
+  stage_verification: 'verification',
+  stage_geo: 'geo-analysis',
+  stage_compliance: 'compliance',
+  stage_risk: 'compliance',
+  stage_readiness: 'readiness',
+  stage_issuance: 'action',
+};
+
+interface UiBatch {
+  id: string; batchId: string; supplier: string;
+  receivedAt: string; destination: string;
+  currentStage: string; confidence?: number; assignedTo?: string;
+}
+
+function flattenBatchesResponse(res: BatchesResponse): UiBatch[] {
+  const out: UiBatch[] = [];
+  for (const list of Object.values(res.byStage)) {
+    for (const b of list) {
+      let stage: string;
+      if (b.status === 'batch_hitl_wait') stage = 'hitl-wait';
+      else if (b.status === 'batch_completed') stage = 'completed';
+      else if (b.status === 'batch_rejected') stage = 'rejected';
+      else stage = DB_STAGE_UI[b.currentStage] ?? 'queued';
+      out.push({
+        id: b.batchId,
+        batchId: b.externalId ?? b.batchId.slice(0, 12),
+        supplier: b.externalId ?? '-',
+        receivedAt: b.receivedAt?.slice(0, 16).replace('T', ' ') ?? '-',
+        destination: b.destination ?? 'EU',
+        currentStage: stage,
+        confidence: b.confidenceScore ?? undefined,
+      });
+    }
+  }
+  return out;
+}
 
 // ── 탭 정의 ──────────────────────────────────────────────────────
 type TabKey = 'overview' | 'today-batches' | 'violation-cases' | 'high-risk' | 'pending' | 'dpp-ready' | 'hitl-queue';
@@ -568,6 +613,15 @@ function ChangeRow({ change }: { change: { time: string; title: string; desc: st
 // ── 메인 페이지 ────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [apiKpis, setApiKpis] = useState<DashboardKpis | null>(null);
+  const [apiBatches, setApiBatches] = useState<UiBatch[]>([]);
+
+  useEffect(() => {
+    getDashboardKpis().then(setApiKpis).catch(() => {});
+    Promise.all([getBatches('processing'), getBatches('hitl_wait')]).then(([p, h]) => {
+      setApiBatches([...flattenBatchesResponse(p), ...flattenBatchesResponse(h)]);
+    }).catch(() => {});
+  }, []);
 
   const handleTabChange = (tab: TabKey) => {
     setActiveTab(tab);
@@ -591,7 +645,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener('popstate', syncTabFromUrl);
   }, []);
 
-  const hitlWaiting = batchesInProgress.filter(b => b.currentStage === 'hitl-wait').length;
+  const hitlWaiting = apiKpis?.hitlWaitBatches ?? apiBatches.filter(b => b.currentStage === 'hitl-wait').length;
   const euViolations = violationsByRegulation.filter(v => v.region === 'EU' || v.region === 'DE').reduce((s, v) => s + v.count, 0);
   const usViolations = violationsByRegulation.filter(v => v.region === 'US').reduce((s, v) => s + v.count, 0);
 
@@ -601,7 +655,7 @@ export default function DashboardPage() {
   );
   const pendingList = supplierCompleteness.filter(c => c.completionRate < 80);
   const dppReadyList = dppRecords.filter(d => d.status === 'issued');
-  const hitlList = batchesInProgress.filter(b => b.currentStage === 'hitl-wait');
+  const hitlList = apiBatches.filter(b => b.currentStage === 'hitl-wait');
   const missingFieldCount = supplierCompleteness.reduce((sum, item) => sum + item.missingFields.length, 0);
   const verifiedSuppliers = suppliers.filter(s => s.status === 'verified').length;
   const highRiskSuppliers = suppliers.filter(s => s.risk === 'high' || s.risk === 'critical').length;
@@ -660,7 +714,7 @@ export default function DashboardPage() {
             <CompactMetric label="Traceability Coverage" value={92} unit="%" icon={Activity} tone="ok" hint="원산지 추적 가능 비율" delta="7%" deltaGood onClick={() => handleTabChange('dpp-ready')} />
             <CompactMetric label="High Risk Region" value={highRiskSuppliers + 16} icon={ShieldAlert} tone="alert" hint="고위험 지역 연결 업체" delta="3" deltaGood={false} deltaDirection="up" onClick={() => handleTabChange('high-risk')} />
             <CompactMetric label="Missing Documents" value={missingFieldCount} icon={FileText} tone="warn" hint="원산지/인증 문서 누락 업체" delta="5" deltaGood deltaDirection="down" onClick={() => handleTabChange('pending')} />
-            <CompactMetric label="Due Diligence Alerts" value={kpis.violations + hitlWaiting + 3} icon={AlertTriangle} tone="alert" hint="EUDR/CSDDD 검토 필요 건수" delta="2" deltaGood deltaDirection="down" onClick={() => handleTabChange('violation-cases')} />
+            <CompactMetric label="Due Diligence Alerts" value={(apiKpis?.rejectedBatches ?? 0) + hitlWaiting + 3} icon={AlertTriangle} tone="alert" hint="EUDR/CSDDD 검토 필요 건수" delta="2" deltaGood deltaDirection="down" onClick={() => handleTabChange('violation-cases')} />
             <CompactMetric label="ESG Compliance Score" value="84.2" icon={CheckCircle2} tone="ok" hint="규제 대응 종합 점수" delta="4.3" deltaGood onClick={() => handleTabChange('dpp-ready')} />
           </section>
 
@@ -913,10 +967,10 @@ export default function DashboardPage() {
         <div className="p-8">
           <TabTableShell
             title="오늘 처리 배치"
-            subtitle={`대시보드 샘플 ${batchesInProgress.length}건 · 전체 KPI ${kpis.todayBatches}건`}
+            subtitle={`${apiBatches.length}건 · 전체 배치 ${apiKpis?.totalBatches ?? 0}건`}
             action={<Link href="/queue" className="flex items-center gap-1 text-[13px] font-semibold text-accent-700 hover:text-accent-600">검증 대기열 열기 <ArrowRight className="h-4 w-4" /></Link>}
           >
-            {batchesInProgress.length === 0 ? (
+            {apiBatches.length === 0 ? (
               <EmptyState label="현재 해당 항목이 없습니다" />
             ) : (
               <table className="w-full min-w-[920px]">
@@ -932,7 +986,7 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-700/50">
-                  {batchesInProgress.map(batch => (
+                  {apiBatches.map(batch => (
                     <tr key={batch.id} className="hover:bg-slate-50">
                       <td className={`${tableCellClass} font-semibold num-mono`}>{batch.batchId}</td>
                       <td className={`${tableCellClass} max-w-[280px] whitespace-normal break-words font-semibold text-ink-100`}>{batch.supplier}</td>
