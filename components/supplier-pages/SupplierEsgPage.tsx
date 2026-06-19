@@ -1,10 +1,17 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getRiskProfile } from '@/lib/supplier-detail-data';
+import {
+  ApiError,
+  getSupplierEsg,
+  getSupplierRiskProfile,
+  type SupplierEsgResponse,
+  type SupplierRiskProfileResponse,
+} from '@/lib/api';
 import {
   AlertTriangle, CheckCircle2, AlertCircle,
-  Shield, HardHat, Heart, MessageSquare, RefreshCw,
+  Shield, HardHat, Heart, MessageSquare, RefreshCw, Loader2,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { KpiTile } from './shared/KpiTile';
@@ -32,17 +39,68 @@ function Section({ title, icon: Icon, iconColor, children }: {
 
 export default function SupplierEsgPage() {
   const { id } = useParams<{ id: string }>();
-  const risk = getRiskProfile(id);
 
-  if (!risk) {
-    return <div className="p-8 text-xs text-ink-500">리스크 데이터가 없습니다</div>;
+  const [esg, setEsg] = useState<SupplierEsgResponse | null>(null);
+  const [riskProfile, setRiskProfile] = useState<SupplierRiskProfileResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [esgRes, profile] = await Promise.all([
+          getSupplierEsg(id),
+          // 종합 점수는 risk-profile에서 — 실패해도 ESG 본문은 표시
+          getSupplierRiskProfile(id).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setEsg(esgRes);
+        setRiskProfile(profile);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof ApiError && err.status === 404
+              ? '협력사를 찾을 수 없습니다'
+              : 'ESG 데이터를 불러오지 못했습니다',
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 p-8 text-xs text-ink-500">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        ESG 데이터를 불러오는 중…
+      </div>
+    );
   }
+
+  if (error || !esg) {
+    return <div className="p-8 text-xs text-ink-500">{error ?? 'ESG 데이터가 없습니다'}</div>;
+  }
+
+  // API는 risk-profile/esg로 분리 — 화면 모델로 합성. highRiskReasons는 API 미제공 → []
+  const risk = {
+    auditRecords: esg.auditRecords,
+    humanRightsIssues: esg.humanRightsIssues,
+    industrialAccidents: esg.industrialAccidents,
+    overallRiskScore: riskProfile?.overallRiskScore ?? 0,
+    highRiskReasons: [] as string[],
+  };
 
   const openIssues     = risk.humanRightsIssues.filter(i => i.status !== 'resolved').length;
   const criticalIssues = risk.humanRightsIssues.filter(i => i.severity === 'critical').length;
   const fatalAccidents = risk.industrialAccidents.filter(a => a.accidentType === 'fatality').length;
 
-  const currentStep = getAuditStep(risk.auditRecords);
+  const currentStep = getAuditStep(risk.auditRecords.map(a => ({ result: a.result, correctiveActions: [] })));
 
   const steps: { label: string; desc: string }[] = [
     { label: '수립', desc: '실사 정책 수립' },
@@ -147,7 +205,7 @@ export default function SupplierEsgPage() {
         ) : (
           <div className="space-y-3">
             {risk.auditRecords.map(a => (
-              <AuditRecordCard key={a.auditId} audit={a} />
+              <AuditRecordCard key={a.auditRecordId} audit={a} />
             ))}
           </div>
         )}
