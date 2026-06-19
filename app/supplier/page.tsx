@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -50,6 +50,12 @@ import {
   purchaseOrders,
   regulationMeta,
 } from '@/lib/supplier-detail-data';
+// '내 기업 정보'(company-info) 탭 전용 — 공장/인증서를 실제 API로 연동
+import {
+  getSupplierEsg,
+  getSupplierFactories,
+  type SupplierFactory,
+} from '@/lib/api';
 interface MockSupplier {
   id: string; name?: string; region?: string; country?: string; 
   status?: string; role?: string; 
@@ -118,6 +124,16 @@ function calculateDDay(expiresAt: string): { label: string; days: number } {
   if (days < 0) return { label: '만료됨', days };
   if (days === 0) return { label: 'D-Day', days };
   return { label: `D-${days}`, days };
+}
+
+// ESG API는 인증서 status를 주지 않음 → 만료일 기준으로 파생 (기준일 REFERENCE_DATE)
+function deriveCertStatusPortal(expiresAt: string): 'active' | 'expiring_soon' | 'expired' {
+  const exp = new Date(expiresAt + 'T00:00:00').getTime();
+  if (Number.isNaN(exp)) return 'active';
+  const days = Math.ceil((exp - REFERENCE_DATE.getTime()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return 'expired';
+  if (days <= 60) return 'expiring_soon';
+  return 'active';
 }
 
 // 잔여일 기준 배지 스타일 결정
@@ -567,6 +583,46 @@ export default function SupplierPage() {
   const [isProfilePending, setIsProfilePending] = useState(false);
   // ── 공급망 연결 화면 — 선택된 노드 ID (supply-chain 뷰 상세 패널 연동) ──────
   const [selectedSupplyNodeId, setSelectedSupplyNodeId] = useState<string | null>(null);
+
+  // ── '내 기업 정보'(company-info) 탭 전용 — 공장/인증서 실제 API 연동 ──────────
+  // NOTE: supplierId는 데모 페르소나(S-CELL-001). 운영 시 로그인 세션의 협력사 UUID로 대체.
+  const [apiFactories, setApiFactories] = useState<MockFactory[]>([]);
+  const [apiCerts, setApiCerts] = useState<{ certId: string; certName: string; issuingBody: string; status: 'active' | 'expiring_soon' | 'expired'; expiresAt: string }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [fac, esg] = await Promise.all([
+        getSupplierFactories(supplierId).catch(() => null),
+        getSupplierEsg(supplierId).catch(() => null),
+      ]);
+      if (cancelled) return;
+      const mapFactory = (f: SupplierFactory): MockFactory => ({
+        factoryId: f.factoryId,
+        factoryName: f.factoryName,
+        factoryNameEn: f.factoryNameEn ?? undefined,
+        destination: f.destination ?? undefined,
+        address: f.address ?? undefined,
+        operatingPeriodFrom: f.operatingPeriodFrom,
+        operatingPeriodTo: f.operatingPeriodTo ?? undefined,
+        establishedAt: f.operatingPeriodFrom,
+        capacity: f.monthlyCapacity ?? undefined,
+        monthlyCapacity: f.monthlyCapacity ?? undefined,
+        destinationDetail: f.destinationDetail ?? undefined,
+        applicableRegulations: undefined,
+        factoryRole: f.factoryRole,
+        region: f.region,
+      });
+      setApiFactories((fac?.factories ?? []).filter(f => f.factoryRole !== 'headquarters').map(mapFactory));
+      setApiCerts((esg?.certifications ?? []).map(c => ({
+        certId: c.certId,
+        certName: c.certificationType,
+        issuingBody: c.issuingBody,
+        status: deriveCertStatusPortal(c.expiresAt),
+        expiresAt: c.expiresAt,
+      })));
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // ─── 공유 알림 상태 — GNB 벨 + 수신함 페이지 1:1 동기화 ─────────────────────
   type NotifType = 'sla_warning' | 'violation' | 'approval_needed' | 'info';
@@ -1034,7 +1090,7 @@ export default function SupplierPage() {
               <div>
                 <div className="text-sm font-bold text-ink-100">내 사업장 정보</div>
                 <div className="mt-0.5 text-[10px] text-ink-500">
-                  {factories.length}개소 · 납품처별 규제 자동
+                  {apiFactories.length}개소 · 납품처별 규제 자동
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1054,9 +1110,9 @@ export default function SupplierPage() {
               </div>
             </div>
             <div className="divide-y divide-ink-800 px-6">
-              {factories.length === 0 ? (
+              {apiFactories.length === 0 ? (
                 <div className="py-8 text-center text-xs text-ink-500">등록된 사업장이 없습니다.</div>
-              ) : factories.map(factory => (
+              ) : apiFactories.map(factory => (
                 <div key={factory.factoryId} className="py-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -1118,23 +1174,23 @@ export default function SupplierPage() {
               <div>
                 <div className="text-sm font-bold text-ink-100">인증서</div>
                 <div className="mt-0.5 text-[10px] text-ink-500">
-                  {certifications.length}건 · 제출/검토 기준
+                  {apiCerts.length}건 · 제출/검토 기준
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => openWizardFromCertRenewal(certifications[0]?.certName)}
+                onClick={() => openWizardFromCertRenewal(apiCerts[0]?.certName)}
                 className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-[10px] font-semibold text-ink-400 hover:border-accent-600 hover:text-accent-700 transition-colors"
               >
                 수정 요청
               </button>
             </div>
             <div className="grid grid-cols-2 gap-4 p-6">
-              {certifications.length === 0 ? (
+              {apiCerts.length === 0 ? (
                 <div className="col-span-2 py-8 text-center text-xs text-ink-500">
                   등록된 인증서가 없습니다.
                 </div>
-              ) : certifications.map(cert => {
+              ) : apiCerts.map(cert => {
                 const { label: ddayLabel, days } = calculateDDay(cert.expiresAt);
                 const { wrapperCls, badgeCls } = certDDayStyle(days);
                 const isExpiring = cert.status !== 'active';

@@ -1,10 +1,14 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import {
-  getCompleteness, getOriginCertificates, getCertifications, getFactories,
-} from '@/lib/supplier-detail-data';
 import clsx from 'clsx';
+import { Loader2 } from 'lucide-react';
+import {
+  ApiError,
+  getSupplierFactories,
+  type SupplierFactory,
+} from '@/lib/api';
 import { UflpaSection } from './sections/origin/UflpaSection';
 import { EudrSection } from './sections/origin/EudrSection';
 import { ConflictMineralsSection } from './sections/origin/ConflictMineralsSection';
@@ -27,21 +31,34 @@ function Section({ title, accent, dot, children }: {
 export default function SupplierOriginPage() {
   const { id } = useParams<{ id: string }>();
 
-  const completeness = getCompleteness(id);
-  const certs        = getOriginCertificates(id);
-  const certis       = getCertifications(id);
-  const factories    = getFactories(id);
-  const missing      = completeness?.missingFields ?? [];
-  const hasMissing   = (keyword: string) => missing.some(m => m.includes(keyword));
+  const [factories, setFactories] = useState<SupplierFactory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const uflpaCerts         = certs.filter(c => c.certType === 'UFLPA_REBUTTAL');
-  const hasMineralTracking = !hasMissing('광물 추적 시스템');
-  const eudrFactories      = factories.filter(f => f.applicableRegulations?.includes('EUDR'));
-  const hasFsc             = certis.some(c => c.certName.includes('FSC') || c.certName.includes('EUDR'));
-  const hasPolygon         = !hasMissing('광산 폴리곤 좌표');
-  const conflictCerts      = certs.filter(c => c.certType === 'CONFLICT_FREE');
-  const fscCerts           = certis.filter(c => c.certName.includes('FSC'));
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await getSupplierFactories(id);
+        if (!cancelled) setFactories(res.factories ?? []);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof ApiError && err.status === 404
+              ? '협력사를 찾을 수 없습니다'
+              : '원산지·추적 데이터를 불러오지 못했습니다',
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
 
+  // 국가별 공급 의존도 — factories.supply_ratio_percent 합산 (CRMA, 유일하게 API 백킹)
   const countryMap: Record<string, number> = {};
   factories.forEach(f => {
     if (f.supplyRatioPercent) {
@@ -49,6 +66,28 @@ export default function SupplierOriginPage() {
     }
   });
   const countryEntries = Object.entries(countryMap).sort((a, b) => b[1] - a[1]);
+
+  // 아래 항목들은 현재 API 미제공(원산지증명서·완성도 누락항목·공장별 적용규제·FSC) → 빈/미검증 상태
+  const uflpaCerts: never[] = [];
+  const conflictCerts: never[] = [];
+  const fscCerts: never[] = [];
+  const eudrFactories: never[] = [];
+  const hasMineralTracking = false;
+  const hasPolygon = false;
+  const hasFsc = false;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 p-8 text-xs text-ink-500">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        원산지·추적 데이터를 불러오는 중…
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="p-8 text-xs text-ink-500">{error}</div>;
+  }
 
   return (
     <div className="p-8 space-y-8 max-w-5xl">
