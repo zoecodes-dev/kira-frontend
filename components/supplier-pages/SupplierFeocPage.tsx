@@ -1,14 +1,31 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { suppliers } from '@/lib/data';
-import { getSupplierName, getRiskProfile, getOriginCertificates } from '@/lib/supplier-detail-data';
-import { Clock, FileCheck } from 'lucide-react';
+import {
+  ApiError,
+  getSupplier,
+  getSupplierRiskProfile,
+  type SupplierFeocStatus,
+} from '@/lib/api';
+import { Clock, FileCheck, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { CheckRow } from './shared/CheckRow';
 import { OriginCertCard } from './shared/OriginCertCard';
 import { feocStatusMeta, originCertTypeMeta } from './utils/feocMeta';
 import { SUPPLIER_NOW } from './utils/supplierNow';
+
+// API가 제공하지 않는 FEOC 세부(지분율·평가일·인증만료)는 화면 모델에서 옵셔널.
+interface FeocRiskModel {
+  feocStatus: SupplierFeocStatus;
+  feocDirectOwnership?: number;
+  feocIndirectOwnership?: number;
+  feocLastAssessedAt?: string;
+  feocCertExpiry?: string;
+}
+
+// 원산지 증명서 API 미제공 — 빈 배열 고정. 카드가 기대하는 최소 형태.
+type OriginCert = Parameters<typeof OriginCertCard>[0]['cert'];
 
 function OwnershipTile({ label, value, threshold }: {
   label: string; value?: number; threshold: number;
@@ -63,14 +80,56 @@ function OwnershipTile({ label, value, threshold }: {
 }
 
 export default function SupplierFeocPage() {
-  const { id }    = useParams<{ id: string }>();
-  const supplier  = suppliers.find(s => s.id === id);
-  const name      = supplier ? getSupplierName(id) : null;
-  const risk      = getRiskProfile(id);
-  const certs     = getOriginCertificates(id);
+  const { id } = useParams<{ id: string }>();
 
-  if (!risk) {
-    return <div className="p-8 text-xs text-ink-500">리스크 데이터가 없습니다</div>;
+  const [risk, setRisk] = useState<FeocRiskModel | null>(null);
+  const [displayName, setDisplayName] = useState<string>(id);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // 원산지 증명서 API 미제공 — 항상 빈 배열
+  const certs: OriginCert[] = [];
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [profile, brief] = await Promise.all([
+          getSupplierRiskProfile(id),
+          getSupplier(id).catch(() => null),
+        ]);
+        if (cancelled) return;
+        // 지분율·평가일·인증만료는 API 미제공 → undefined
+        setRisk({ feocStatus: profile.feocStatus });
+        if (brief) setDisplayName(brief.companyName);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof ApiError && err.status === 404
+              ? '협력사를 찾을 수 없습니다'
+              : 'FEOC 데이터를 불러오지 못했습니다',
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 p-8 text-xs text-ink-500">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        FEOC 데이터를 불러오는 중…
+      </div>
+    );
+  }
+
+  if (error || !risk) {
+    return <div className="p-8 text-xs text-ink-500">{error ?? 'FEOC 데이터가 없습니다'}</div>;
   }
 
   const feocMeta   = feocStatusMeta[risk.feocStatus as keyof typeof feocStatusMeta] ?? feocStatusMeta.unknown;
@@ -80,7 +139,7 @@ export default function SupplierFeocPage() {
   const expiringSoon  = certs.filter(c => c.status === 'expiring_soon').length;
   const validCerts    = certs.filter(c => c.status === 'valid').length;
 
-  const supplierDisplayName = name?.shortNameEn ?? supplier?.name ?? id;
+  const supplierDisplayName = displayName;
 
   const checks = {
     판정완료: risk.feocStatus !== 'unknown',
