@@ -39,25 +39,28 @@ export function SupplyChainMapPageContent({
   dataset = mockDataset,
   onNodeSelect,
   onConnectClick,
+  onProductChange,
 }: {
   formationMode?: boolean;
   // 데이터 주입(선택): 미전달 시 데모 mockDataset. 허브는 빈/API/데모 dataset을 넘긴다.
   dataset?: SupplyChainDataset;
   // 허브 연동용(선택): 노드 선택 변화 통지 / "하위 공급망 연결" 클릭을 허브 모달로 위임
-  onNodeSelect?: (node: SelectedNode) => void;
+  onNodeSelect?: (node: SelectedNode | null) => void;
   onConnectClick?: (context: ReturnType<typeof getInvitationContext> & { supplierId: string }) => void;
+  // 제품 선택 변화 통지 (허브가 해당 제품 BOM을 API로 불러오도록)
+  onProductChange?: (productId: string) => void;
 }) {
   const router = useRouter();
-  const [selectedProductId, setSelectedProductId] = useState(dataset.products[0].product_id);
+  const [selectedProductId, setSelectedProductId] = useState(dataset.products[0]?.product_id ?? '');
   const availableBomVersions = useMemo(
     () => dataset.bom_versions.filter(version => version.product_id === selectedProductId),
-    [selectedProductId],
+    [dataset, selectedProductId],
   );
-  const [selectedBomVersionId, setSelectedBomVersionId] = useState(availableBomVersions[0].bom_version_id);
+  const [selectedBomVersionId, setSelectedBomVersionId] = useState(availableBomVersions[0]?.bom_version_id ?? '');
   const [period, setPeriod] = useState('2026-05-01 ~ 2026-05-31');
   const [selectedFactoryId, setSelectedFactoryId] = useState('ALL');
   const [selectedPoNumber, setSelectedPoNumber] = useState('ALL');
-  const [selectedNodeKey, setSelectedNodeKey] = useState(`product:${dataset.products[0].product_id}`);
+  const [selectedNodeKey, setSelectedNodeKey] = useState(dataset.products[0] ? `product:${dataset.products[0].product_id}` : '');
   const [collapsedNodeKeys, setCollapsedNodeKeys] = useState<Set<string>>(() => new Set());
   const [generatedAt, setGeneratedAt] = useState('');
   const [showConnectConfirm, setShowConnectConfirm] = useState(false);
@@ -65,6 +68,8 @@ export function SupplyChainMapPageContent({
 
   const selectedProduct = dataset.products.find(product => product.product_id === selectedProductId) ?? dataset.products[0];
   const selectedBomVersion = dataset.bom_versions.find(version => version.bom_version_id === selectedBomVersionId) ?? availableBomVersions[0];
+  const hasProducts = dataset.products.length > 0;
+  const hasSelection = Boolean(selectedProduct && selectedBomVersion);
   const [periodFrom, periodTo] = period.split(' ~ ');
 
   const factoryOptions = useMemo(() => {
@@ -73,25 +78,27 @@ export function SupplyChainMapPageContent({
       mapRows.flatMap(row => dataset.supply_chain_ratios.filter(ratio => ratio.map_id === row.map_id).map(ratio => ratio.factory_id)),
     );
     return dataset.supplier_factories.filter(factory => factoryIds.has(factory.factory_id));
-  }, [selectedBomVersionId]);
+  }, [dataset, selectedBomVersionId]);
 
   const poOptions = useMemo(
     () => Array.from(new Set(dataset.supply_chain_map.filter(row => row.bom_version_id === selectedBomVersionId).map(row => row.po_number))),
-    [selectedBomVersionId],
+    [dataset, selectedBomVersionId],
   );
 
   const traceRows = useMemo(
-    () => buildTraceRows(dataset, selectedBomVersionId, period, selectedFactoryId, selectedPoNumber),
-    [dataset, selectedBomVersionId, period, selectedFactoryId, selectedPoNumber],
+    () => (selectedBomVersion ? buildTraceRows(dataset, selectedBomVersionId, period, selectedFactoryId, selectedPoNumber) : []),
+    [dataset, selectedBomVersion, selectedBomVersionId, period, selectedFactoryId, selectedPoNumber],
   );
 
   const explorerTree = useMemo(
-    () => buildExplorerTree(dataset, selectedProduct, selectedBomVersion, traceRows),
+    () => (selectedProduct && selectedBomVersion ? buildExplorerTree(dataset, selectedProduct, selectedBomVersion, traceRows) : null),
     [dataset, selectedProduct, selectedBomVersion, traceRows],
   );
 
-  const selectedNode = getSelectedNode(selectedNodeKey, selectedProduct, selectedBomVersion, traceRows);
-  const invitationContext = getInvitationContext(selectedNode);
+  const selectedNode = selectedProduct && selectedBomVersion
+    ? getSelectedNode(selectedNodeKey, selectedProduct, selectedBomVersion, traceRows)
+    : null;
+  const invitationContext = selectedNode ? getInvitationContext(selectedNode) : null;
 
   // 허브가 현재 선택 노드를 추적할 수 있도록 통지 (미전달 시 무동작)
   useEffect(() => {
@@ -109,12 +116,29 @@ export function SupplyChainMapPageContent({
     setSelectedPoNumber('ALL');
     setSelectedNodeKey(`product:${productId}`);
     setCollapsedNodeKeys(new Set());
+    onProductChange?.(productId);
   }
+
+  // 제품 목록이 로드되면(또는 데이터셋 교체 시) 유효한 제품을 자동 선택
+  useEffect(() => {
+    if (dataset.products.length > 0 && !dataset.products.some(p => p.product_id === selectedProductId)) {
+      handleProductChange(dataset.products[0].product_id);
+    }
+    // dataset.products 변화에만 반응
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataset.products]);
+
+  // 선택 제품의 BOM이 도착하면 첫 BOM 버전을 자동 선택
+  useEffect(() => {
+    if (availableBomVersions.length > 0 && !availableBomVersions.some(v => v.bom_version_id === selectedBomVersionId)) {
+      setSelectedBomVersionId(availableBomVersions[0].bom_version_id);
+    }
+  }, [availableBomVersions, selectedBomVersionId]);
 
   function handleGenerate() {
     setGeneratedAt(new Date().toLocaleString('ko-KR'));
     setFormationGenerated(true);
-    setSelectedNodeKey(`product:${selectedProduct.product_id}`);
+    if (selectedProduct) setSelectedNodeKey(`product:${selectedProduct.product_id}`);
     setCollapsedNodeKeys(new Set());
   }
 
@@ -144,7 +168,7 @@ export function SupplyChainMapPageContent({
     return traceRows.map(row => [
       customerName,
       period,
-      selectedProduct.product_name,
+      selectedProduct?.product_name ?? '-',
       row.bom_version,
       row.tier,
       row.part_name,
@@ -168,7 +192,7 @@ export function SupplyChainMapPageContent({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `고객사제출_${selectedProduct.product_code}_${new Date().toISOString().slice(0, 10)}.xls`;
+    a.download = `고객사제출_${selectedProduct?.product_code ?? 'export'}_${new Date().toISOString().slice(0, 10)}.xls`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -181,7 +205,7 @@ export function SupplyChainMapPageContent({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `공급망_추적_${selectedProduct.product_code}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `공급망_추적_${selectedProduct?.product_code ?? 'export'}_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -194,12 +218,13 @@ export function SupplyChainMapPageContent({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `공급망_추적_${selectedProduct.product_code}_${new Date().toISOString().slice(0, 10)}.xls`;
+    a.download = `공급망_추적_${selectedProduct?.product_code ?? 'export'}_${new Date().toISOString().slice(0, 10)}.xls`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
   function handleConnectClick() {
+    if (!selectedNode || !invitationContext) return;
     if (onConnectClick) {
       const supplierId = selectedNode.type === 'product'
         ? (selectedNode.rows[0]?.supplier_id ?? '')
@@ -211,6 +236,7 @@ export function SupplyChainMapPageContent({
   }
 
   function handleConfirmInvitation() {
+    if (!invitationContext) return;
     const params = new URLSearchParams({
       node: invitationContext.nodeLabel,
       item: invitationContext.itemName,
@@ -331,12 +357,25 @@ export function SupplyChainMapPageContent({
 
       {generatedAt && (
         <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
-          {selectedProduct.product_name} / {selectedBomVersion.version_number} 기준으로 갱신되었습니다.
+          {selectedProduct?.product_name} / {selectedBomVersion?.version_number} 기준으로 갱신되었습니다.
           <span className="ml-2 font-medium text-emerald-700">{generatedAt}</span>
         </div>
       )}
 
-      {formationGenerated && (
+      {!hasSelection && (
+        <section className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
+          <div className="text-base font-bold text-ink-100">
+            {hasProducts ? '대표 제품의 BOM이 비어 있습니다.' : '등록된 제품이 없습니다.'}
+          </div>
+          <p className="mt-2 text-sm text-slate-500">
+            {hasProducts
+              ? '상단에서 대표 제품을 선택하면 MBOM 자재 구조가 표시됩니다.'
+              : '제품이 동기화되면 표시됩니다. 시연하려면 "데모 데이터 불러오기"를 사용하세요.'}
+          </p>
+        </section>
+      )}
+
+      {formationGenerated && hasSelection && explorerTree && selectedNode && (
         <>
           <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.06)]">
             <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 bg-white px-4 py-3">
@@ -418,7 +457,7 @@ export function SupplyChainMapPageContent({
         </div>
       )}
 
-      {formationGenerated && (
+      {formationGenerated && hasSelection && (
         <section className="mt-4 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
           <div className="flex items-start justify-between gap-4 border-b border-ink-700 bg-ink-800/40 px-5 py-4">
             <div>

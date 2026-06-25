@@ -508,3 +508,49 @@ export const getSupplierReliability = (id: string) =>
 /** 공장 목록. 좌표는 latitude/longitude. 200+빈 배열 / 404. */
 export const getSupplierFactories = (id: string) =>
   api.get<SupplierFactoriesResponse>(`/suppliers/${id}/factories`);
+
+// ── 제품 / BOM (신규 — 백엔드 엔드포인트 추가 예정. 없으면 ApiError) ──
+export interface ApiProduct {
+  productId: string;
+  productCode: string;
+  productName: string;
+  type: string;
+}
+export interface ApiBomVersion {
+  bomVersionId: string;
+  productId: string;
+  versionNumber: string;
+  status: string;
+}
+export interface ApiBomPart {
+  partId: string;
+  partCode: string;
+  partName: string;
+  tierLevel: number;
+  parentPartId: string | null;
+  materialType: string;
+  functionPurpose: string;
+  purchaseUnit: string;
+  kind: string; // component | material | mineral
+}
+export interface ApiBomItem {
+  bomItemId: string;
+  bomVersionId: string;
+  partId: string;
+  requiredQuantity: number;
+  requiredQuantityUnit: string;
+  percentage: number;
+  originCountry: string;
+}
+export interface ApiProductBom {
+  bomVersions: ApiBomVersion[];
+  parts: ApiBomPart[];
+  bomItems: ApiBomItem[];
+}
+
+/** 대표 제품 목록. 없으면 빈 배열(또는 404). */
+export const getProducts = () => api.get<ApiProduct[]>("/products");
+
+/** 제품의 MBOM 구조(버전·자재·항목). 없으면 404. */
+export const getProductBom = (productId: string) =>
+  api.get<ApiProductBom>(`/products/${productId}/bom`);
