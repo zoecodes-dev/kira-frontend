@@ -1,7 +1,7 @@
 'use client';
 
 // 원청 공급망 맵 허브 상단의 8단계 흐름 액션 바
-import { ClipboardCheck, FileSpreadsheet, FileText, Layers, Mail, RefreshCw, Users } from 'lucide-react';
+import { ClipboardCheck, FileSpreadsheet, FileText, Layers, Mail, Network, PackageSearch, RefreshCw, Users } from 'lucide-react';
 
 interface HubStepBarProps {
   poolCount: number;
@@ -67,7 +67,27 @@ export default function HubStepBar({
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2 pb-4">
+        <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50/60 px-3 py-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
+            <PackageSearch className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[11px] font-bold text-emerald-600">STEP 1</span>
+            <span className="block truncate text-sm font-bold text-ink-100">맵 생성 · 대표 제품 선택</span>
+            <span className="block truncate text-[11px] font-medium text-emerald-700">아래에서 제품을 선택하세요</span>
+          </span>
+        </div>
         <StepButton index={2} label="협력사 Pool 구성" hint={poolCount > 0 ? `${poolCount}개사 선택됨` : '1차 협력사 선택'} Icon={Users} onClick={onOpenPool} />
+        <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-ink-400">
+            <Network className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[11px] font-bold text-slate-400">STEP 3</span>
+            <span className="block truncate text-sm font-bold text-ink-100">자재·협력사 자동 맵핑</span>
+            <span className="block truncate text-[11px] font-medium text-slate-500">MBOM 기준 자동 구성</span>
+          </span>
+        </div>
         <StepButton index={4} label="협력사 정보 확인" hint={hasSelection ? '선택 노드 기준' : '노드를 먼저 선택'} Icon={ClipboardCheck} onClick={onOpenSupplierInfo} disabled={!hasSelection} />
         <StepButton index={5} label="자료 업데이트 요청" hint="검증 후 보완 요청" Icon={RefreshCw} onClick={onOpenDataRequest} disabled={!hasSelection} />
         <StepButton index={6} label="정보 입력 요청" hint="표준 템플릿 메일" Icon={Mail} onClick={onOpenInvite} />

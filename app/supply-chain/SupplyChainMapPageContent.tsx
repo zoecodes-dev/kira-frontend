@@ -37,11 +37,14 @@ import {
 export function SupplyChainMapPageContent({
   formationMode = false,
   dataset = mockDataset,
+  embedded = false,
   onNodeSelect,
   onConnectClick,
   onProductChange,
 }: {
   formationMode?: boolean;
+  // 허브 안에 임베드될 때 true — 중복 헤더와 별도 "맵 형성하기" 링크를 숨긴다.
+  embedded?: boolean;
   // 데이터 주입(선택): 미전달 시 데모 mockDataset. 허브는 빈/API/데모 dataset을 넘긴다.
   dataset?: SupplyChainDataset;
   // 허브 연동용(선택): 노드 선택 변화 통지 / "하위 공급망 연결" 클릭을 허브 모달로 위임
@@ -249,14 +252,16 @@ export function SupplyChainMapPageContent({
 
   return (
     <div className="min-h-screen bg-white p-6 text-ink-100">
-      <header className="mb-5">
-        <h1 className="text-2xl font-black tracking-tight text-ink-100">{formationMode ? '공급망 맵 형성하기' : '공급망 맵'}</h1>
-        <p className="mt-2 text-sm font-medium text-ink-500">
-          {formationMode
-            ? 'E-BOM 구조를 먼저 펼쳐 보고, 공급망 연결 전 단계의 맵 형성 상태를 확인하세요.'
-            : '제품에서 원자재까지 공급망 구조와 리스크 현황을 한눈에 확인하세요.'}
-        </p>
-      </header>
+      {!embedded && (
+        <header className="mb-5">
+          <h1 className="text-2xl font-black tracking-tight text-ink-100">{formationMode ? '공급망 맵 형성하기' : '공급망 맵'}</h1>
+          <p className="mt-2 text-sm font-medium text-ink-500">
+            {formationMode
+              ? 'E-BOM 구조를 먼저 펼쳐 보고, 공급망 연결 전 단계의 맵 형성 상태를 확인하세요.'
+              : '제품에서 원자재까지 공급망 구조와 리스크 현황을 한눈에 확인하세요.'}
+          </p>
+        </header>
+      )}
 
       <section className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -334,12 +339,12 @@ export function SupplyChainMapPageContent({
               <Plus className="h-4 w-4" />
               맵 형성하기
             </button>
-          ) : (
+          ) : !embedded ? (
             <Link href="/supply-chain/bom-trace" className="inline-flex h-11 items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700 shadow-sm hover:bg-emerald-100">
               <Plus className="h-4 w-4" />
               맵 형성하기
             </Link>
-          )}
+          ) : null}
           <button
             type="button"
             onClick={downloadExcel}

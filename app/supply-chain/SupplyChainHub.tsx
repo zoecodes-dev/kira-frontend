@@ -110,6 +110,7 @@ export default function SupplyChainHub() {
 
       <SupplyChainMapPageContent
         dataset={dataset}
+        embedded
         onNodeSelect={setSelectedNode}
         onConnectClick={() => setActiveModal('invite')}
         onProductChange={handleProductChange}
