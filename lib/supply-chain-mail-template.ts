@@ -12,7 +12,7 @@ export function buildInviteMailBody(companyName: string): string {
     '· 동의 사항: 첨부된 제3자 정보 확인 동의서 확인 후 진행해 주세요.',
     '· 본인인증: 담당자(PIC) 정보가 정확한지 확인 후 로그인해 주세요.',
     '',
-    '[공급망 정보 입력 바로가기]',
+    '[공급망 정보 입력 바로가기] → /supplier/onboarding',
     '',
     '문의 사항은 본 메일로 회신 부탁드립니다. 감사합니다.',
     'KIRA ESG 관리팀 드림',
