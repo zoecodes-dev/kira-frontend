@@ -1352,9 +1352,9 @@ export default function SupplierPage() {
                     key={item.label}
                     type="button"
                     onClick={() => {
-                      // 3-3. 공급망 정보 요청 항목은 별도 폼 이동 alert
+                      // 3-3. 공급망 정보 요청 항목은 본인 공급망맵 입력 화면으로 이동
                       if (item.label === SUPPLY_MAP_REQUEST_LABEL) {
-                        alert('제품 공급망 맵 상세 정보(광물 종류, 비율 등) 입력 폼으로 이동합니다.');
+                        window.location.href = `/supplier/supply-chain?supplierId=${supplierId}`;
                       } else {
                         openWizardFromActionCenter(item.label, item.status);
                       }
@@ -1829,9 +1829,9 @@ export default function SupplierPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            // 3-3. 공급망 정보 요청 항목은 별도 폼 이동 alert
+                            // 3-3. 공급망 정보 요청 항목은 본인 공급망맵 입력 화면으로 이동
                             if (row.isSupplyMapRequest) {
-                              alert('제품 공급망 맵 상세 정보(광물 종류, 비율 등) 입력 폼으로 이동합니다.');
+                              window.location.href = `/supplier/supply-chain?supplierId=${supplierId}`;
                             } else {
                               openWizardFromActionCenter(row.label, '제출 필요');
                             }
