@@ -1,8 +1,8 @@
 'use client';
 
-// 원본 공급망 맵 화면을 여는 라우트입니다.
-import { SupplyChainMapPageContent } from '../SupplyChainMapPageContent';
+// 원청 공급망 맵 허브 라우트입니다.
+import SupplyChainHub from '../SupplyChainHub';
 
 export default function SupplyChainMapPage() {
-  return <SupplyChainMapPageContent />;
+  return <SupplyChainHub />;
 }
