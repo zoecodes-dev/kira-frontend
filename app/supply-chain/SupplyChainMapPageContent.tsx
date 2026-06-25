@@ -19,11 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import {
-  products,
-  bom_versions,
-  supplier_factories,
-  supply_chain_map,
-  supply_chain_ratios,
+  mockDataset,
   supplierDetailIdMap,
   statusMeta,
   getRiskTone,
@@ -31,6 +27,7 @@ import {
   buildExplorerTree,
   getSelectedNode,
   getInvitationContext,
+  type SupplyChainDataset,
   type TraceRow,
   type SelectedNode,
   type ExplorerNode,
@@ -39,55 +36,58 @@ import {
 
 export function SupplyChainMapPageContent({
   formationMode = false,
+  dataset = mockDataset,
   onNodeSelect,
   onConnectClick,
 }: {
   formationMode?: boolean;
+  // 데이터 주입(선택): 미전달 시 데모 mockDataset. 허브는 빈/API/데모 dataset을 넘긴다.
+  dataset?: SupplyChainDataset;
   // 허브 연동용(선택): 노드 선택 변화 통지 / "하위 공급망 연결" 클릭을 허브 모달로 위임
   onNodeSelect?: (node: SelectedNode) => void;
   onConnectClick?: (context: ReturnType<typeof getInvitationContext> & { supplierId: string }) => void;
 }) {
   const router = useRouter();
-  const [selectedProductId, setSelectedProductId] = useState(products[0].product_id);
+  const [selectedProductId, setSelectedProductId] = useState(dataset.products[0].product_id);
   const availableBomVersions = useMemo(
-    () => bom_versions.filter(version => version.product_id === selectedProductId),
+    () => dataset.bom_versions.filter(version => version.product_id === selectedProductId),
     [selectedProductId],
   );
   const [selectedBomVersionId, setSelectedBomVersionId] = useState(availableBomVersions[0].bom_version_id);
   const [period, setPeriod] = useState('2026-05-01 ~ 2026-05-31');
   const [selectedFactoryId, setSelectedFactoryId] = useState('ALL');
   const [selectedPoNumber, setSelectedPoNumber] = useState('ALL');
-  const [selectedNodeKey, setSelectedNodeKey] = useState(`product:${products[0].product_id}`);
+  const [selectedNodeKey, setSelectedNodeKey] = useState(`product:${dataset.products[0].product_id}`);
   const [collapsedNodeKeys, setCollapsedNodeKeys] = useState<Set<string>>(() => new Set());
   const [generatedAt, setGeneratedAt] = useState('');
   const [showConnectConfirm, setShowConnectConfirm] = useState(false);
   const [formationGenerated, setFormationGenerated] = useState(!formationMode);
 
-  const selectedProduct = products.find(product => product.product_id === selectedProductId) ?? products[0];
-  const selectedBomVersion = bom_versions.find(version => version.bom_version_id === selectedBomVersionId) ?? availableBomVersions[0];
+  const selectedProduct = dataset.products.find(product => product.product_id === selectedProductId) ?? dataset.products[0];
+  const selectedBomVersion = dataset.bom_versions.find(version => version.bom_version_id === selectedBomVersionId) ?? availableBomVersions[0];
   const [periodFrom, periodTo] = period.split(' ~ ');
 
   const factoryOptions = useMemo(() => {
-    const mapRows = supply_chain_map.filter(row => row.bom_version_id === selectedBomVersionId);
+    const mapRows = dataset.supply_chain_map.filter(row => row.bom_version_id === selectedBomVersionId);
     const factoryIds = new Set(
-      mapRows.flatMap(row => supply_chain_ratios.filter(ratio => ratio.map_id === row.map_id).map(ratio => ratio.factory_id)),
+      mapRows.flatMap(row => dataset.supply_chain_ratios.filter(ratio => ratio.map_id === row.map_id).map(ratio => ratio.factory_id)),
     );
-    return supplier_factories.filter(factory => factoryIds.has(factory.factory_id));
+    return dataset.supplier_factories.filter(factory => factoryIds.has(factory.factory_id));
   }, [selectedBomVersionId]);
 
   const poOptions = useMemo(
-    () => Array.from(new Set(supply_chain_map.filter(row => row.bom_version_id === selectedBomVersionId).map(row => row.po_number))),
+    () => Array.from(new Set(dataset.supply_chain_map.filter(row => row.bom_version_id === selectedBomVersionId).map(row => row.po_number))),
     [selectedBomVersionId],
   );
 
   const traceRows = useMemo(
-    () => buildTraceRows(selectedBomVersionId, period, selectedFactoryId, selectedPoNumber),
-    [selectedBomVersionId, period, selectedFactoryId, selectedPoNumber],
+    () => buildTraceRows(dataset, selectedBomVersionId, period, selectedFactoryId, selectedPoNumber),
+    [dataset, selectedBomVersionId, period, selectedFactoryId, selectedPoNumber],
   );
 
   const explorerTree = useMemo(
-    () => buildExplorerTree(selectedProduct, selectedBomVersion, traceRows),
-    [selectedProduct, selectedBomVersion, traceRows],
+    () => buildExplorerTree(dataset, selectedProduct, selectedBomVersion, traceRows),
+    [dataset, selectedProduct, selectedBomVersion, traceRows],
   );
 
   const selectedNode = getSelectedNode(selectedNodeKey, selectedProduct, selectedBomVersion, traceRows);
@@ -101,7 +101,7 @@ export function SupplyChainMapPageContent({
   }, [selectedNodeKey, selectedBomVersionId, selectedProductId]);
 
   function handleProductChange(productId: string) {
-    const nextVersions = bom_versions.filter(version => version.product_id === productId);
+    const nextVersions = dataset.bom_versions.filter(version => version.product_id === productId);
     setSelectedProductId(productId);
     setSelectedBomVersionId(nextVersions[0]?.bom_version_id ?? '');
     setPeriod('2026-05-01 ~ 2026-05-31');
@@ -236,7 +236,7 @@ export function SupplyChainMapPageContent({
         <div className="flex flex-wrap items-center gap-3">
           <FilterSelect label="제품">
             <select value={selectedProductId} onChange={event => handleProductChange(event.target.value)} className="h-11 min-w-[210px] rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-ink-100 shadow-sm outline-none focus:border-emerald-400">
-              {products.map(product => (
+              {dataset.products.map(product => (
                 <option key={product.product_id} value={product.product_id}>
                   {product.product_name}
                 </option>
