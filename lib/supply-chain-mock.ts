@@ -1,6 +1,7 @@
 // 공급망 맵 허브와 협력사 포털이 공유하는 제품/BOM/공급망 mock 데이터·타입·순수 헬퍼 모듈
 // (제품/BOM/맵엣지/비율은 백엔드 엔드포인트가 없어 로컬 mock 으로 유지한다. 협력사 상세는 lib/api 사용.)
 import { AlertTriangle, CheckCircle2, Clock, ShieldAlert } from 'lucide-react';
+import type { ApiProduct, ApiProductBom } from '@/lib/api';
 
 export type RiskStatus = 'verified' | 'watch' | 'high' | 'feoc_review' | 'audit_required';
 export type PartKind = 'component' | 'material' | 'mineral';
@@ -663,3 +664,65 @@ export const emptyDataset: SupplyChainDataset = {
   supply_chain_map: [],
   supply_chain_ratios: [],
 };
+
+// ── API(camelCase) → dataset(snake) 어댑터 (트리 엔진 무변경) ──
+export function apiProductsToDataset(apiProducts: ApiProduct[]): Product[] {
+  return apiProducts.map(p => ({
+    product_id: p.productId,
+    product_code: p.productCode,
+    product_name: p.productName,
+    manufacturer_id: '',
+    type: p.type,
+    specs: {
+      capacity: '-',
+      shipment_info: '-',
+      mineral_composition: '-',
+      hazardous_substances: '-',
+      regulation_status: 'verified',
+    },
+    source_system: 'API',
+    external_id: '',
+    synced_at: '',
+  }));
+}
+
+/** 제품의 BOM(API)을 dataset에 병합한다. 공급망 연결(엣지/비율/협력사)은 형성으로 채워진다. */
+export function mergeProductBom(ds: SupplyChainDataset, productId: string, bom: ApiProductBom): SupplyChainDataset {
+  const bom_versions: BomVersion[] = bom.bomVersions.map(v => ({
+    bom_version_id: v.bomVersionId,
+    product_id: v.productId,
+    version_number: v.versionNumber,
+    effective_from: '',
+    effective_to: null,
+    status: (v.status as BomVersion['status']) ?? 'active',
+    source_system: 'API',
+  }));
+  const parts: Part[] = bom.parts.map(p => ({
+    part_id: p.partId,
+    part_code: p.partCode,
+    part_name: p.partName,
+    tier_level: p.tierLevel,
+    parent_part_id: p.parentPartId,
+    material_type: p.materialType,
+    function_purpose: p.functionPurpose,
+    purchase_unit: p.purchaseUnit,
+    kind: (p.kind as PartKind) ?? 'material',
+  }));
+  const bom_items: BomItem[] = bom.bomItems.map(i => ({
+    bom_item_id: i.bomItemId,
+    bom_version_id: i.bomVersionId,
+    part_id: i.partId,
+    required_quantity: i.requiredQuantity,
+    required_quantity_unit: i.requiredQuantityUnit,
+    percentage: i.percentage,
+    origin_country: i.originCountry,
+  }));
+  // 다른 제품의 BOM은 유지하고 현재 제품 것만 교체
+  const otherVersionIds = new Set(ds.bom_versions.filter(v => v.product_id === productId).map(v => v.bom_version_id));
+  return {
+    ...ds,
+    bom_versions: [...ds.bom_versions.filter(v => v.product_id !== productId), ...bom_versions],
+    parts: [...ds.parts.filter(p => !parts.some(np => np.part_id === p.part_id)), ...parts],
+    bom_items: [...ds.bom_items.filter(i => !otherVersionIds.has(i.bom_version_id)), ...bom_items],
+  };
+}
