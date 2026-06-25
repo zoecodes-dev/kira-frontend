@@ -330,7 +330,7 @@ export function SupplyChainMapPageContent({
           </button>
         </div>
         <div className="flex items-center gap-2">
-          {formationMode ? (
+          {formationMode && (
             <button
               type="button"
               onClick={handleGenerate}
@@ -339,12 +339,7 @@ export function SupplyChainMapPageContent({
               <Plus className="h-4 w-4" />
               맵 형성하기
             </button>
-          ) : !embedded ? (
-            <Link href="/supply-chain/bom-trace" className="inline-flex h-11 items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700 shadow-sm hover:bg-emerald-100">
-              <Plus className="h-4 w-4" />
-              맵 형성하기
-            </Link>
-          ) : null}
+          )}
           <button
             type="button"
             onClick={downloadExcel}
