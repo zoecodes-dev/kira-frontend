@@ -46,7 +46,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 label="공급망 워크스페이스"
                 subtitle="맵·요청·실사"
                 subItems={[
-                  { href: '/supply-chain/map', label: '공급망 맵' },
+                  { href: '/supply-chain/map', label: '공급망 맵 허브' },
                   { href: '/supply-chain/bom-trace', label: '공급망 맵 형성하기' },
                   { href: '/supply-chain/request-map', label: '자료 요청 업무 보드' },
                   { href: '/suppliers/invitations', label: 'Invitation 작성' },
