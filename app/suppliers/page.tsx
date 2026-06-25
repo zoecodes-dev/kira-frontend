@@ -391,7 +391,7 @@ export default function SuppliersPage() {
         badge="운영 관제"
         actions={
           <Link
-            href="/supply-chain/product-map"
+            href="/supply-chain/map"
             className="inline-flex items-center gap-2 rounded-xs border border-accent-100 bg-accent-50 px-3 py-2 text-xs font-bold text-accent-700 transition-colors hover:border-accent-600 hover:bg-white"
           >
             공급망 맵

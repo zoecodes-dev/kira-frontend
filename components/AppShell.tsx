@@ -46,12 +46,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 label="공급망 워크스페이스"
                 subtitle="맵·요청·실사"
                 subItems={[
-                  { href: '/supply-chain/map', label: '공급망 맵' },
+                  { href: '/supply-chain/map', label: '공급망 맵 허브' },
                   { href: '/supply-chain/bom-trace', label: '공급망 맵 형성하기' },
                   { href: '/supply-chain/request-map', label: '자료 요청 업무 보드' },
                   { href: '/suppliers/invitations', label: 'Invitation 작성' },
                   { href: '/due-diligence', label: '공급망 실사 관리' },
-                  { href: '/risk/actions', label: '조치 이력' },
                 ]}
               />
             </div>
@@ -112,17 +111,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               물질·자재 관리
             </div>
             <div className="space-y-0.5 mt-1">
-              <NavLink
-                href="/materials"
-                iconName="flask"
-                label="자재·규제 데이터"
-                subtitle="조성·인증·규제"
-                subItems={[
-                  { href: '/materials', label: 'BOM 버전 관리', exact: true },
-                  { href: '/risk/origin-certs', label: '원산지 증명서 만료 관리' },
-                  { href: '/materials/regulation-results', label: '규제 검증 결과' },
-                ]}
-              />
+              <NavLink href="/materials/regulation-results" iconName="flask" label="규제 검증 결과" subtitle="자재 규제 판정" />
             </div>
           </div>
 
@@ -141,24 +130,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   { href: '/report/inbox', label: '결재함' },
                 ]}
               />
-            </div>
-          </div>
-
-          <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
-              대외 전송
-            </div>
-            <div className="space-y-0.5 mt-1">
-              <NavLink href="/transmission" iconName="send" label="대외 전송" subtitle="고객사·비국·협력사 발신" />
-            </div>
-          </div>
-
-          <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
-              지식·정책
-            </div>
-            <div className="space-y-0.5 mt-1">
-              <NavLink href="/knowledge" iconName="book-open" label="지표·규제 사전" subtitle="용어·판정 기준" />
             </div>
           </div>
 
@@ -201,7 +172,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className={`flex-1 min-w-0 ${pathname === '/risk/high-risk' ? 'overflow-x-clip' : 'overflow-x-auto'}`}>
+      <main className="flex-1 min-w-0 overflow-x-auto">
         {pathname === '/dashboard' ? (
           children
         ) : (
