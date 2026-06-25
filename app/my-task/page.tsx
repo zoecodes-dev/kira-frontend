@@ -52,9 +52,9 @@ const _MOCK_TASKS: Task[] = [
     priority: 'high',
     owner: '구매실사 최하린',
     due: '2026-06-10',
-    source: '리스크 조치 보드',
-    targetHref: '/risk/actions',
-    targetLabel: '조치 보드로 이동',
+    source: '공급망 실사 관리',
+    targetHref: '/due-diligence',
+    targetLabel: '실사 관리로 이동',
     description: 'Katanga Cobalt Mining의 공급망 인권 실사 CAPA가 요청 발송 상태입니다.',
   },
   {
@@ -173,7 +173,7 @@ const _TYPE_FROM_API: Record<string, TaskType> = {
   SUB: 'submission_review', DD: 'due_diligence', HITL: 'hitl',
 };
 const _HREF_FROM_TYPE: Record<TaskType, string> = {
-  submission_review: '/submission-review', risk_action: '/risk/actions',
+  submission_review: '/submission-review', risk_action: '/due-diligence',
   hitl: '/hitl', reminder: '/submission-status', dpp_blocker: '/dpp/readiness',
   due_diligence: '/due-diligence',
 };
@@ -351,7 +351,7 @@ export default function MyTaskPage() {
             <Card title="빠른 실행" subtitle="자주 쓰는 운영 액션">
               <div className="grid grid-cols-2 gap-2">
                 <QuickAction href="/submission-review" icon={FileCheck2} label="자료 검토" />
-                <QuickAction href="/risk/actions" icon={ShieldAlert} label="리스크 조치" />
+                <QuickAction href="/due-diligence" icon={ShieldAlert} label="공급망 실사" />
                 <QuickAction href="/submission-status" icon={Send} label="리마인드" />
                 <QuickAction href="/hitl" icon={UserCheck} label="HITL" />
               </div>

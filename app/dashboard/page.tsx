@@ -347,7 +347,7 @@ function DashboardSupplyChainMap() {
   const todayTasks = [
     { rank: 1, title: '검토 대기', desc: '제출된 자료를 검토해주세요.', level: '높음', count: '8건', href: '/suppliers/check-info' },
     { rank: 2, title: '보완 요청', desc: '공급사로부터 추가 자료가 필요합니다.', level: '높음', count: '3건', href: '/supply-chain/request-map' },
-    { rank: 3, title: '인증서 만료 임박', desc: '30일 이내 만료되는 인증서가 있습니다.', level: '중간', count: '5건', href: '/risk/origin-certs' },
+    { rank: 3, title: '인증서 만료 임박', desc: '30일 이내 만료되는 인증서가 있습니다.', level: '중간', count: '5건', href: '/suppliers/check-info' },
     { rank: 4, title: '실사 필요', desc: '고위험 공급사 중 실사가 필요합니다.', level: '중간', count: '4건', href: '/due-diligence' },
     { rank: 5, title: 'HITL 검토 대기', desc: 'AI 검토가 완료되어 최종 확인이 필요합니다.', level: '낮음', count: '2건', href: '/hitl' },
   ];
@@ -401,8 +401,8 @@ function DashboardSupplyChainMap() {
   const changes = [
     { time: '09:21', title: '공급망 경로 변경', desc: 'Battery Pack A > 핵심광물 경로 변경', tag: '공급망', tone: 'success', href: '/supply-chain/map' },
     { time: '08:30', title: '신규 공급사 등록', desc: 'Eco Materials Co., Ltd.', tag: '공급사', tone: 'info', href: '/suppliers/check-info' },
-    { time: '07:12', title: '인증서 갱신', desc: 'ISO 14001 한양 제조(주)', tag: '인증서', tone: 'success', href: '/risk/origin-certs' },
-    { time: '06:45', title: 'BOM 변경', desc: 'Battery Cell Module v2.1', tag: '제품', tone: 'warning', href: '/materials' },
+    { time: '07:12', title: '인증서 갱신', desc: 'ISO 14001 한양 제조(주)', tag: '인증서', tone: 'success', href: '/suppliers/check-info' },
+    { time: '06:45', title: 'BOM 변경', desc: 'Battery Cell Module v2.1', tag: '제품', tone: 'warning', href: '/materials/regulation-results' },
     { time: '06:10', title: '실사 완료', desc: 'XYZ Metals Co., Ltd.', tag: '실사', tone: 'purple', href: '/due-diligence' },
   ];
 
@@ -848,7 +848,7 @@ export default function DashboardPage() {
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
                 <h2 className="text-sm font-semibold text-ink-100">공급망 활동 타임라인</h2>
-                <Link href="/queue" className="text-xs font-semibold text-accent-700">전체 보기</Link>
+                <Link href="/supply-chain/request-map" className="text-xs font-semibold text-accent-700">전체 보기</Link>
               </div>
               <div className="px-4 py-2">
                 {[
@@ -879,7 +879,7 @@ export default function DashboardPage() {
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
                 <h2 className="text-sm font-semibold text-ink-100">고위험 국가/지역 현황</h2>
-                <Link href="/supply-chain/product-map" className="text-xs font-semibold text-accent-700">전체 보기</Link>
+                <Link href="/supply-chain/map" className="text-xs font-semibold text-accent-700">전체 보기</Link>
               </div>
               <div className="p-4">
                 <div className="rounded-sm border border-ink-700 bg-white">
@@ -968,7 +968,7 @@ export default function DashboardPage() {
           <TabTableShell
             title="오늘 처리 배치"
             subtitle={`${apiBatches.length}건 · 전체 배치 ${apiKpis?.totalBatches ?? 0}건`}
-            action={<Link href="/queue" className="flex items-center gap-1 text-[13px] font-semibold text-accent-700 hover:text-accent-600">검증 대기열 열기 <ArrowRight className="h-4 w-4" /></Link>}
+            action={<Link href="/hitl" className="flex items-center gap-1 text-[13px] font-semibold text-accent-700 hover:text-accent-600">검토 큐 열기 <ArrowRight className="h-4 w-4" /></Link>}
           >
             {apiBatches.length === 0 ? (
               <EmptyState label="현재 해당 항목이 없습니다" />

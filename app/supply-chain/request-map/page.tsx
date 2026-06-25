@@ -513,7 +513,7 @@ export default function RequestMapPage() {
         actions={
           <div className="hidden items-center gap-2 lg:flex">
             <Link
-              href="/supply-chain/product-map"
+              href="/supply-chain/map"
               className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
             >
               공급망 지도
