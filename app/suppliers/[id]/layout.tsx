@@ -36,12 +36,6 @@ const supplierTypeLabel: Record<SupplierType, string> = {
 const subTabs = [
   { href: 'info', label: '협력사 요약', icon: Info, mode: 'summary' },
   { href: 'info?tab=general', label: '일반 정보', icon: Info, mode: 'general' },
-  { href: 'esg', label: '인권·노동', icon: ShieldAlert },
-  { href: 'feoc', label: 'FEOC·원산지', icon: FileCheck },
-  { href: 'training', label: '교육 관리', icon: GraduationCap },
-  { href: 'origin', label: '원산지·추적', icon: Package },
-  { href: 'timeline', label: '제출 타임라인', icon: GitBranch },
-  { href: 'ai-verify', label: '규제 이행 현황', icon: ShieldCheck },
 ];
 
 const riskColors: Record<string, string> = {
