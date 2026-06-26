@@ -686,7 +686,7 @@ export default function DashboardPage() {
           </>
         }
       />
-      <nav className="sticky top-[57px] z-10 border-b border-ink-700 bg-white px-8 py-3">
+      <nav className="sticky top-[57px] z-10 bg-white px-8 pt-3">
         <TabBar tabs={TABS} value={activeTab} onChange={handleTabChange} />
       </nav>
 

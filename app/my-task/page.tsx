@@ -1,21 +1,18 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getActions, type ActionItem } from '@/lib/api';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import TabBar from '@/components/TabBar';
-import Card from '@/components/Card';
-import Badge from '@/components/Badge';
 import {
-  AlertTriangle, CheckCircle2, Clock3, FileCheck2,
-  ShieldAlert, UserCheck, ArrowRight, Bell, X,
+  AlertTriangle, CheckCircle2, FileCheck2,
+  ShieldAlert, UserCheck, ArrowRight, Bell,
 } from 'lucide-react';
 import clsx from 'clsx';
 
 type TaskStatus = 'today' | 'overdue' | 'waiting' | 'done';
 type TaskType = 'submission_review' | 'risk_action' | 'hitl' | 'reminder' | 'dpp_blocker' | 'due_diligence';
-type MetricKey = 'active' | 'overdue' | 'today' | 'waiting';
 
 type Task = {
   id: string;
@@ -128,20 +125,6 @@ const statusMeta = {
   done: { label: '완료', tone: 'ok' as const },
 };
 
-const priorityTone = {
-  critical: 'alert',
-  high: 'alert',
-  medium: 'warn',
-  low: 'neutral',
-} as const;
-
-const metricMeta: Record<MetricKey, { label: string }> = {
-  active: { label: '진행 업무' },
-  overdue: { label: '기한 초과' },
-  today: { label: '오늘 처리' },
-  waiting: { label: '대기' },
-};
-
 const taskFilters: Array<['all' | TaskStatus, string]> = [
   ['all', '전체'],
   ['overdue', '초과'],
@@ -158,14 +141,6 @@ const sortByPriority = (items: Task[]) =>
     const p = priorityOrder[a.priority] - priorityOrder[b.priority];
     return p !== 0 ? p : a.due.localeCompare(b.due);
   });
-const sortByDueAsc = (items: Task[]) => [...items].sort((a, b) => a.due.localeCompare(b.due));
-const getTodayKey = () => {
-  const date = new Date();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
-};
-const isOverdue = (task: Task, todayKey: string) => task.status === 'overdue' || task.due < todayKey;
 
 const _STATUS_FROM_API: Record<string, TaskStatus> = {
   open: 'waiting', sent: 'waiting', review: 'today', resolved: 'done', blocked: 'overdue',
@@ -278,7 +253,6 @@ function RequestArea() {
 export default function MyTaskPage() {
   const [tasks, setTasks] = useState<Task[]>(_MOCK_TASKS);
   const [filter, setFilter] = useState<'all' | TaskStatus>('all');
-  const [metricModal, setMetricModal] = useState<MetricKey | null>(null);
 
   useEffect(() => {
     getActions().then(items => {
@@ -288,26 +262,6 @@ export default function MyTaskPage() {
 
   const filtered = sortByPriority(filter === 'all' ? tasks : tasks.filter(task => task.status === filter));
 
-  const stats = useMemo(() => ({
-    total: tasks.filter(task => task.status !== 'done').length,
-    overdue: tasks.filter(task => task.status === 'overdue').length,
-    today: tasks.filter(task => task.status === 'today').length,
-    waiting: tasks.filter(task => task.status === 'waiting').length,
-  }), [tasks]);
-
-  const metricTasks = useMemo<Record<MetricKey, typeof tasks>>(() => ({
-    active: sortByDueAsc(tasks.filter(task => task.status !== 'done')),
-    overdue: sortByDueAsc(tasks.filter(task => task.status === 'overdue')),
-    today: sortByDueAsc(tasks.filter(task => task.status === 'today')),
-    waiting: sortByDueAsc(tasks.filter(task => task.status === 'waiting')),
-  }), [tasks]);
-
-  const priorityTasks = useMemo(
-    () => sortByDueAsc(tasks.filter(task => task.status !== 'done' && (task.priority === 'critical' || task.priority === 'high'))),
-    [tasks],
-  );
-  const todayKey = useMemo(getTodayKey, []);
-  const priorityOverdueCount = priorityTasks.filter(task => isOverdue(task, todayKey)).length;
   const [view, setView] = useState<'list' | 'request'>('list');
 
   return (
@@ -331,17 +285,9 @@ export default function MyTaskPage() {
           <RequestArea />
         </div>
       ) : (
-      <div className="p-8 pt-4 space-y-6">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Metric label="진행 업무" value={stats.total} unit="건" tone="info" onClick={() => setMetricModal('active')} />
-          <Metric label="기한 초과" value={stats.overdue} unit="건" tone="alert" onClick={() => setMetricModal('overdue')} />
-          <Metric label="오늘 처리" value={stats.today} unit="건" tone="warn" onClick={() => setMetricModal('today')} />
-          <Metric label="대기" value={stats.waiting} unit="건" tone="neutral" onClick={() => setMetricModal('waiting')} />
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_0.85fr] gap-6">
-          {/* 내 업무 목록 — 표 */}
-          <div className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+      <div className="p-8 pt-4">
+        {/* 내 업무 목록 — 표 (전체 폭) */}
+        <div className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
             <div className="flex items-center justify-between border-b border-ink-700 bg-ink-800/60 px-5 py-4">
               <div>
                 <h2 className="text-base font-bold text-ink-100">내 업무 목록</h2>
@@ -400,135 +346,8 @@ export default function MyTaskPage() {
               })}
             </div>
           </div>
-
-          <div className="space-y-6">
-            <Card
-              title={`오늘의 우선순위 (${priorityTasks.length})`}
-              subtitle={priorityOverdueCount > 0 ? `기한 초과 ${priorityOverdueCount}건` : undefined}
-            >
-              <div className="space-y-3">
-                {priorityTasks.map(task => (
-                  <div key={task.id} className="flex items-start gap-3 rounded-xs border border-ink-700/60 bg-ink-900/30 p-3">
-                    <Clock3 className="w-3.5 h-3.5 text-warn-text shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-xs font-semibold text-ink-100">{task.title}</div>
-                        {isOverdue(task, todayKey) && (
-                          <span className="rounded-xs border border-alert-border bg-alert-bg px-1.5 py-0.5 text-[10px] font-bold text-alert-text">
-                            기한 초과
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-ink-500 mt-1">{task.owner} · {task.due}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-        </div>
       </div>
-      )}
-
-      {metricModal && (
-        <TaskModal
-          title={metricMeta[metricModal].label}
-          tasks={metricTasks[metricModal]}
-          onClose={() => setMetricModal(null)}
-        />
       )}
     </>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  unit,
-  tone,
-  onClick,
-}: {
-  label: string;
-  value: number;
-  unit: string;
-  tone: 'neutral' | 'info' | 'warn' | 'alert';
-  onClick: () => void;
-}) {
-  const color = {
-    neutral: 'text-slate-700',
-    info: 'text-info-text',
-    warn: 'text-warn-text',
-    alert: 'text-alert-text',
-  }[tone];
-  const cardTone = {
-    neutral: 'border-slate-300 bg-slate-50/80 hover:border-slate-400',
-    info: 'border-info-border bg-info-bg hover:border-info-border',
-    warn: 'border-warn-border bg-warn-bg hover:border-warn-border',
-    alert: 'border-alert-border bg-alert-bg hover:border-alert-border',
-  }[tone];
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={clsx('rounded-xs border px-4 py-3 text-left transition-colors hover:bg-white', cardTone)}
-    >
-      <div className="flex items-baseline justify-between gap-4">
-        <span className="text-sm font-bold text-ink-100">{label}</span>
-        <span className="flex items-baseline gap-2">
-          <span className={clsx('text-xl font-bold num-mono', color)}>{value}</span>
-          <span className="text-sm font-semibold text-ink-500">{unit}</span>
-        </span>
-      </div>
-    </button>
-  );
-}
-
-function TaskModal({ title, tasks, onClose }: { title: string; tasks: Task[]; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-6">
-      <div className="w-full max-w-2xl rounded-sm border border-ink-700 bg-white shadow-panel">
-        <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
-          <div>
-            <h2 className="text-base font-bold text-ink-100">{title} {tasks.length}건</h2>
-            <p className="mt-1 text-xs text-ink-500">마감일 오름차순으로 정렬된 관련 업무입니다</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-xs border border-ink-700 text-ink-500 hover:bg-ink-800 hover:text-ink-100"
-            aria-label="닫기"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="max-h-[60vh] space-y-2 overflow-y-auto p-5">
-          {tasks.length === 0 ? (
-            <div className="rounded-xs border border-dashed border-ink-700 p-8 text-center text-sm text-ink-500">해당 업무가 없습니다</div>
-          ) : (
-            tasks.map(task => (
-              <Link
-                key={task.id}
-                href={task.targetHref}
-                onClick={onClose}
-                className="block rounded-xs border border-ink-700 bg-white p-3 transition-colors hover:border-accent-600 hover:bg-accent-50"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[10px] text-ink-500 num-mono">{task.id}</span>
-                      <Badge tone={statusMeta[task.status].tone}>{statusMeta[task.status].label}</Badge>
-                      <Badge tone={priorityTone[task.priority]}>{task.priority}</Badge>
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-ink-100">{task.title}</div>
-                    <div className="mt-1 text-[11px] leading-5 text-ink-500">{task.owner} · {task.source}</div>
-                  </div>
-                  <div className="shrink-0 text-[11px] text-ink-500 num-mono">{task.due}</div>
-                </div>
-              </Link>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
