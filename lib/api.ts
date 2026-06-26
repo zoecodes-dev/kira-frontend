@@ -527,7 +527,9 @@ export const getSupplierReliability = (id: string) =>
 export const getSupplierFactories = (id: string) =>
   api.get<SupplierFactoriesResponse>(`/suppliers/${id}/factories`);
 
-// ── 제품 / BOM (신규 — 백엔드 엔드포인트 추가 예정. 없으면 ApiError) ──
+// ── 제품 / BOM (백엔드 구현됨: backend/domains/product/router.py) ──
+// GET /products, GET /products/{id}, GET /products/{id}/bom(트리),
+// GET /products/{id}/bom-versions(버전목록). 응답은 request()에서 camelCase 변환됨.
 export interface ApiProduct {
   productId: string;
   productCode: string;
@@ -605,11 +607,12 @@ function pick<T>(node: Record<string, unknown>, camel: string, snake: string): T
  * - parts: 트리 DFS 전체 노드. kind 는 tier_level/leaf 여부로 파생(백엔드 미제공).
  * - bomItems: required_quantity 가 있는 노드만(= 백엔드 bom_items 실 데이터). percentage 는 노드값 ?? 0.
  */
-export function normalizeProductBom(resp: BomTreeResponse): ApiProductBom {
+export function normalizeProductBom(resp: BomTreeResponse, overrideBomVersionId?: string): ApiProductBom {
   const productId = resp.productId ?? resp.product_id ?? "";
   const versionNumber = resp.bomVersion ?? resp.bom_version ?? "";
   const status = resp.bomStatus ?? resp.bom_status ?? "active";
-  const bomVersionId = versionNumber ? `${productId}:${versionNumber}` : productId;
+  // 실 bomVersionId(getProductBomVersions 매칭)가 있으면 그걸 키로, 없으면 version 문자열 기반 합성키.
+  const bomVersionId = overrideBomVersionId ?? (versionNumber ? `${productId}:${versionNumber}` : productId);
 
   const bomVersions: ApiBomVersion[] = versionNumber
     ? [{ bomVersionId, productId, versionNumber, status }]
@@ -671,7 +674,135 @@ export const getProducts = () => api.get<ApiProduct[]>("/products");
  * 백엔드는 중첩 트리(BomTreeResponse)를 주지만 소비부는 평면 배열을 기대하므로
  * 여기(API 경계)에서 한 번만 변환한다(anti-corruption layer).
  */
-export const getProductBom = async (productId: string): Promise<ApiProductBom> => {
+export const getProductBom = async (
+  productId: string,
+  bomVersionId?: string,
+): Promise<ApiProductBom> => {
   const resp = await api.get<BomTreeResponse>(`/products/${productId}/bom`);
-  return normalizeProductBom(resp);
+  return normalizeProductBom(resp, bomVersionId);
 };
+
+/** 제품 단건. 내 테넌트 소유만(아니면 404). */
+export interface ApiProductDetail extends ApiProduct {
+  manufacturerId: string | null;
+  customerId: string | null;
+  modelName: string | null;
+  amperageAh: number | null;
+  specs: Record<string, unknown> | null;
+  sourceSystem: string | null;
+  syncedAt: string | null;
+}
+export const getProduct = (productId: string) =>
+  api.get<ApiProductDetail>(`/products/${productId}`);
+
+/**
+ * 제품의 BOM 버전 목록(active + deprecated). 제품 없으면 404, 버전 0개면 200+[].
+ * 실 bomVersionId 를 주므로 버전 드롭다운·선택에 사용(BOM 트리는 active 고정이라 트리만으론 부족).
+ */
+export interface ApiBomVersionListItem {
+  bomVersionId: string;
+  productId: string;
+  versionNumber: string;
+  status: string; // draft | active | deprecated
+  isCurrent: boolean;
+  productionFrom: string | null;
+  productionTo: string | null;
+  sourceSystem: string | null;
+}
+export const getProductBomVersions = (productId: string) =>
+  api.get<ApiBomVersionListItem[]>(`/products/${productId}/bom-versions`);
+
+// ═══════════════════════════════════════════════════════════
+// 공급망(Supply Chain) 도메인 — backend/domains/supplychain (develop)
+//   §10.2a GET /products/{id}/supply-chain-map  → 맵/비율/협력사/공장 (프론트 dataset 1:1)
+//   §10.2b POST /supply-chain/maps/{mapId}/confirm  → link_status confirmed 전이
+//   (저수준 대안: GET /supply-chain/tree?product_id= — 엣지 평면 리스트. 허브는 §10.2a 사용)
+// ═══════════════════════════════════════════════════════════
+
+/** §10.2a 맵 노드 — 대표 factory_id는 비율 최댓값 공장. */
+export interface ApiSupplyChainMapNode {
+  mapId: string;
+  partId: string;
+  supplierId: string;        // child_supplier_id
+  factoryId: string | null;
+  tierLevel: number | null;
+  linkStatus: "supplychain_declared" | "supplychain_confirmed";
+}
+/** §10.2a 비율 — ratioPercent(엣지 내 공장 분할) + cumulativeContribution(루트→공장 경로 곱). */
+export interface ApiSupplyChainRatio {
+  partId: string;
+  supplierId: string;
+  ratioPercent: number | null;
+  mapId: string;
+  factoryId: string | null;
+  cumulativeContribution: number | null;
+}
+export interface ApiSupplyChainSupplier {
+  supplierId: string;
+  companyName: string;
+  providerType: SupplierType;
+  status: string;
+  riskLevel: SupplierRiskLevel | null;
+  feocStatus: SupplierFeocStatus | null;
+  completenessScore: number | null;
+}
+export interface ApiSupplyChainFactory {
+  factoryId: string;
+  supplierId: string;
+  factoryName: string;
+  address: string | null;
+  country: string | null;
+  region: string | null;
+  factoryRole: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  isActive: boolean;
+}
+export interface ApiSupplyChainValidationRow {
+  sum: number;
+  ok: boolean;
+  [key: string]: unknown; // mapId / supplierId+partId 등 식별 키 포함
+}
+export interface ApiSupplyChainValidation {
+  edges: ApiSupplyChainValidationRow[];
+  tiers: ApiSupplyChainValidationRow[];
+  allValid: boolean;
+}
+export interface ApiProductSupplyChainMap {
+  supplyChainMap: ApiSupplyChainMapNode[];
+  supplyChainRatios: ApiSupplyChainRatio[];
+  supplyChainContributions?: ApiSupplyChainRatio[];
+  validation: ApiSupplyChainValidation;
+  suppliers: ApiSupplyChainSupplier[];
+  supplierFactories: ApiSupplyChainFactory[];
+}
+
+export interface SupplyChainMapParams {
+  bomVersionId?: string;
+  periodFrom?: string;
+  periodTo?: string;
+  factoryId?: string;
+  poNumber?: string;
+}
+
+function buildSupplyMapQuery(p: SupplyChainMapParams = {}): string {
+  const q = new URLSearchParams();
+  if (p.bomVersionId) q.set("bom_version_id", p.bomVersionId);
+  if (p.periodFrom) q.set("period_from", p.periodFrom);
+  if (p.periodTo) q.set("period_to", p.periodTo);
+  if (p.factoryId) q.set("factory_id", p.factoryId);
+  if (p.poNumber) q.set("po_number", p.poNumber);
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+/**
+ * §10.2a 제품 공급망 맵. 맵/비율/협력사/공장을 한 번에 반환(프론트 dataset 1:1).
+ * supply_chain_map 시드/데이터가 있어야 채워진다. 인증·테넌트 격리 적용(401/403 가능).
+ */
+export const getProductSupplyChainMap = (productId: string, params?: SupplyChainMapParams) =>
+  api.get<ApiProductSupplyChainMap>(`/products/${productId}/supply-chain-map${buildSupplyMapQuery(params)}`);
+
+/** §10.2b 공급망 맵 확인 → link_status = supplychain_confirmed. */
+export const confirmSupplyChainMap = (mapId: string) =>
+  api.post<{ mapId: string; status: string }>(`/supply-chain/maps/${mapId}/confirm`, { confirmed: true });
