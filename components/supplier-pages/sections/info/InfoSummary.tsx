@@ -74,11 +74,11 @@ export function InfoSummary({
           <div className="rounded-sm border border-ink-700 bg-ink-800/50 p-4">
             <div className="mb-2 flex items-center justify-between gap-4">
               <span className="text-sm font-bold text-ink-100">정보 입력 완성도</span>
-              <span className="num-mono text-lg font-bold text-emerald-700">{rate}%</span>
+              <span className="num-mono text-lg font-bold text-ok-text">{rate}%</span>
             </div>
             <div className="h-2.5 overflow-hidden rounded-full bg-ink-700">
               <div
-                className={clsx('h-full rounded-full', rate >= 90 ? 'bg-emerald-600' : rate >= 70 ? 'bg-amber-500' : 'bg-red-600')}
+                className={clsx('h-full rounded-full', rate >= 90 ? 'bg-ok-solid' : rate >= 70 ? 'bg-warn-solid' : 'bg-alert-solid')}
                 style={{ width: `${Math.min(rate, 100)}%` }}
               />
             </div>
@@ -147,7 +147,7 @@ export function InfoSummary({
                 </div>
                 <div className="mt-1 text-xs text-ink-500">{contact.department ? `${contact.department} · ` : ''}{contact.role}</div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-400">
-                  <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-blue-700 hover:text-blue-900">
+                  <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-info-text hover:text-info-text">
                     <Mail className="h-3 w-3" />{contact.email}
                   </a>
                   <span className="flex items-center gap-1.5"><Phone className="h-3 w-3" />{contact.phone}</span>
@@ -165,7 +165,7 @@ export function InfoSummary({
             <div key={cert.certId} className="rounded-sm border border-ink-700 bg-ink-800/40 p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok-text" />
                   <div>
                     <div className="text-sm font-bold text-ink-100">{cert.certName}</div>
                     <div className="mt-1 text-[11px] text-ink-500">{cert.issuingBody}</div>

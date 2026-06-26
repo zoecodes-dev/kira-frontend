@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import TopStatCard from '@/components/TopStatCard';
+import DueDiligenceBoard from '@/components/DueDiligenceBoard';
 import {
   getSupplierName, getContacts, purchaseOrders, parts, remindLogs,
 } from '@/lib/supplier-detail-data';
@@ -96,10 +96,15 @@ const resultMeta = {
 };
 
 export default function SubmissionReviewPage() {
-  const router = useRouter();
   const [submissionItems, setSubmissionItems] = useState(submissions);
   const [selectedId, setSelectedId] = useState(submissions[0].id);
   const [notice, setNotice] = useState<string | null>(null);
+  const [tab, setTab] = useState<'review' | 'dd'>('review');
+
+  // 딥링크(?tab=dd)로 공급망 실사 탭 진입
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('tab') === 'dd') setTab('dd');
+  }, []);
   const selected = submissionItems.find(item => item.id === selectedId) ?? submissionItems[0];
   const supplier = getSupplierName(selected.supplierId);
   const primary = getContacts(selected.supplierId).find(c => c.isPrimary) ?? getContacts(selected.supplierId)[0];
@@ -149,13 +154,12 @@ export default function SubmissionReviewPage() {
     )));
     setNotice(
       requestStatus === 'reviewed'
-        ? 'request-map의 검토 대기를 검토 완료로 변경했습니다.'
+        ? '검토 완료로 처리했습니다.'
         : requestStatus === 'rework'
-          ? 'request-map 상태를 보완 요청으로 변경했습니다.'
-          : 'request-map 상태를 반려로 변경했습니다.',
+          ? '보완 요청으로 처리했습니다.'
+          : '반려로 처리했습니다.',
     );
     window.setTimeout(() => setNotice(null), 2500);
-    router.push(`/supply-chain/request-map?syncSupplierId=${selected.supplierId}&syncStatus=${requestStatus}${requestStatus === 'reviewed' ? `&reviewedAt=${REVIEWED_DATE}` : ''}`);
   };
 
   return (
@@ -167,11 +171,32 @@ export default function SubmissionReviewPage() {
       />
 
       {notice && (
-        <div className="fixed right-6 bottom-6 z-50 rounded-xs border border-emerald-200 bg-white px-4 py-3 text-sm font-bold text-emerald-700 shadow-lg">
+        <div className="fixed right-6 bottom-6 z-50 rounded-xs border border-ok-border bg-white px-4 py-3 text-sm font-bold text-ok-text shadow-lg">
           {notice}
         </div>
       )}
 
+      <nav className="sticky top-[57px] z-10 border-b border-ink-700 bg-white px-8">
+        <div className="flex">
+          {([['review', '자료 검토'], ['dd', '공급망 실사']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              className={clsx(
+                'border-b-2 px-4 py-3 text-xs font-bold transition-colors',
+                tab === key ? 'border-accent-600 text-accent-700' : 'border-transparent text-ink-400 hover:text-ink-100',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {tab === 'dd' ? (
+        <DueDiligenceBoard />
+      ) : (
       <div className="p-8 space-y-6">
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           <Metric label="검토 중" value={stats.review} unit="건" tone="info" />
@@ -180,7 +205,7 @@ export default function SubmissionReviewPage() {
           <Metric label="실패 체크" value={stats.failedChecks} unit="건" tone="alert" />
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.5fr] gap-6">
+        <div className="space-y-6">
           <Card title="제출 건 목록" subtitle="요청 ID, 협력사, 유형, 마감일 기준 검토">
             <div className="space-y-2">
               {submissionItems.map(item => {
@@ -243,7 +268,7 @@ export default function SubmissionReviewPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold mb-2">업로드 파일</div>
                   <div className="space-y-2">
@@ -265,7 +290,7 @@ export default function SubmissionReviewPage() {
                     {selected.checks.map(check => (
                       <div key={check.label} className="flex items-center justify-between rounded-xs border border-ink-700/60 bg-ink-900/30 px-3 py-2">
                         <div className="flex items-center gap-2">
-                          {check.result === 'pass' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : check.result === 'fail' ? <XCircle className="w-3.5 h-3.5 text-red-500" /> : <AlertCircle className="w-3.5 h-3.5 text-amber-400" />}
+                          {check.result === 'pass' ? <CheckCircle2 className="w-3.5 h-3.5 text-ok-text" /> : check.result === 'fail' ? <XCircle className="w-3.5 h-3.5 text-alert-text" /> : <AlertCircle className="w-3.5 h-3.5 text-warn-text" />}
                           <span className="text-xs text-ink-200">{check.label}</span>
                         </div>
                         <Badge tone={resultMeta[check.result as keyof typeof resultMeta].tone}>{resultMeta[check.result as keyof typeof resultMeta].label}</Badge>
@@ -276,7 +301,7 @@ export default function SubmissionReviewPage() {
               </div>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
               <Card title="관련 PO" subtitle="승인 결과가 영향을 주는 납품 항목">
                 <div className="space-y-2">
                   {relatedPOs.length > 0 ? relatedPOs.map(po => {
@@ -314,6 +339,7 @@ export default function SubmissionReviewPage() {
           </div>
         </div>
       </div>
+      )}
     </>
   );
 }
@@ -343,9 +369,9 @@ function ActionButton({
   onClick?: () => void;
 }) {
   const style = {
-    ok: 'border-emerald-700/40 text-emerald-500 hover:bg-emerald-500/10',
-    warn: 'border-amber-700/40 text-amber-400 hover:bg-amber-500/10',
-    alert: 'border-red-700/40 text-red-400 hover:bg-red-500/10',
+    ok: 'border-ok-border text-ok-text hover:bg-ok-bg',
+    warn: 'border-warn-border text-warn-text hover:bg-warn-bg',
+    alert: 'border-alert-border text-alert-text hover:bg-alert-bg',
     neutral: 'border-ink-700 text-ink-300 hover:bg-ink-800',
   }[tone];
   return (

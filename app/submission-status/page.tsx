@@ -20,10 +20,10 @@ import clsx from 'clsx';
 function getSubmissionStatus(rate: number, missingCount: number): {
   label: string; color: string; bg: string; border: string; icon: any;
 } {
-  if (rate >= 100) return { label: '제출 완료', color: 'text-emerald-500', bg: 'bg-emerald-500/8', border: 'border-emerald-700/30', icon: CheckCircle2 };
-  if (rate >= 80)  return { label: '입력 중',   color: 'text-blue-400',    bg: 'bg-blue-500/8',    border: 'border-blue-700/30',    icon: Clock };
-  if (rate >= 50)  return { label: '부분 제출', color: 'text-amber-400',   bg: 'bg-amber-500/8',   border: 'border-amber-700/30',   icon: AlertCircle };
-  return             { label: '미제출',    color: 'text-red-400',     bg: 'bg-red-500/8',     border: 'border-red-700/30',     icon: XCircle };
+  if (rate >= 100) return { label: '제출 완료', color: 'text-ok-text', bg: 'bg-ok-bg', border: 'border-ok-border', icon: CheckCircle2 };
+  if (rate >= 80)  return { label: '입력 중',   color: 'text-info-text',    bg: 'bg-info-bg',    border: 'border-info-border',    icon: Clock };
+  if (rate >= 50)  return { label: '부분 제출', color: 'text-warn-text',   bg: 'bg-warn-bg',   border: 'border-warn-border',   icon: AlertCircle };
+  return             { label: '미제출',    color: 'text-alert-text',     bg: 'bg-alert-bg',     border: 'border-alert-border',     icon: XCircle };
 }
 
 // ─── KPI 타일 ─────────────────────────────────────────────────
@@ -37,19 +37,19 @@ function KpiTile({ label, value, unit, icon: Icon, tone, subLabel, onClick, acti
 
 // ─── 리마인드 타입 메타 ───────────────────────────────────────
 const remindTypeMeta: Record<string, { label: string; color: string }> = {
-  initial:  { label: '최초 요청',   color: 'text-blue-400' },
-  remind_1: { label: '1차 리마인드', color: 'text-amber-400' },
-  remind_2: { label: '2차 리마인드', color: 'text-orange-400' },
-  final:    { label: '최종 통보',   color: 'text-red-400' },
-  response: { label: '응답 수신',   color: 'text-emerald-400' },
+  initial:  { label: '최초 요청',   color: 'text-info-text' },
+  remind_1: { label: '1차 리마인드', color: 'text-warn-text' },
+  remind_2: { label: '2차 리마인드', color: 'text-warn-text' },
+  final:    { label: '최종 통보',   color: 'text-alert-text' },
+  response: { label: '응답 수신',   color: 'text-ok-text' },
 };
 
 const remindStatusMeta: Record<string, { label: string; color: string }> = {
   sent:        { label: '발송됨',   color: 'text-ink-400' },
-  opened:      { label: '열람됨',   color: 'text-blue-400' },
-  in_progress: { label: '진행 중',  color: 'text-amber-400' },
-  completed:   { label: '완료',     color: 'text-emerald-400' },
-  overdue:     { label: '기한 초과', color: 'text-red-400' },
+  opened:      { label: '열람됨',   color: 'text-info-text' },
+  in_progress: { label: '진행 중',  color: 'text-warn-text' },
+  completed:   { label: '완료',     color: 'text-ok-text' },
+  overdue:     { label: '기한 초과', color: 'text-alert-text' },
 };
 
 function getPortalSubmissionSummary(supplierId: string) {
@@ -148,7 +148,7 @@ function SupplierSubmissionRow({
         {completeness.missingFields.length > 0 ? (
           <div className="space-y-0.5">
             {completeness.missingFields.slice(0, 2).map((f, i) => (
-              <div key={i} className="flex items-center gap-1 text-[10px] text-amber-400">
+              <div key={i} className="flex items-center gap-1 text-[10px] text-warn-text">
                 <AlertCircle className="w-2.5 h-2.5 shrink-0" />
                 {f}
               </div>
@@ -158,7 +158,7 @@ function SupplierSubmissionRow({
             )}
           </div>
         ) : (
-          <span className="text-[10px] text-emerald-500">모든 항목 완료</span>
+          <span className="text-[10px] text-ok-text">모든 항목 완료</span>
         )}
       </td>
 
@@ -167,7 +167,7 @@ function SupplierSubmissionRow({
         {primary ? (
           <div>
             <div className="text-[11px] text-ink-200 font-medium">{primary.name}</div>
-            <a href={`mailto:${primary.email}`} className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 truncate max-w-[140px]">
+            <a href={`mailto:${primary.email}`} className="flex items-center gap-1 text-[10px] text-info-text hover:text-info-text truncate max-w-[140px]">
               <Mail className="w-2.5 h-2.5 shrink-0" />
               {primary.email}
             </a>
@@ -184,7 +184,7 @@ function SupplierSubmissionRow({
             </div>
             <div className="text-[10px] text-ink-500 num-mono">{lastLog.sentAt.slice(0, 10)}</div>
             {overdueCount > 0 && (
-              <div className="text-[10px] text-red-400">{overdueCount}건 기한 초과</div>
+              <div className="text-[10px] text-alert-text">{overdueCount}건 기한 초과</div>
             )}
           </div>
         ) : <span className="text-[10px] text-ink-500">요청 없음</span>}
@@ -245,8 +245,8 @@ function DetailPanel({ supplierId, onClose }: { supplierId: string; onClose: () 
           <span className="text-[11px] text-ink-400 uppercase tracking-wider font-semibold">데이터 완성도</span>
           <span className={clsx(
             'text-xl font-bold num-mono',
-            completeness.completionRate >= 90 ? 'text-emerald-400' :
-            completeness.completionRate >= 70 ? 'text-amber-400' : 'text-red-400',
+            completeness.completionRate >= 90 ? 'text-ok-text' :
+            completeness.completionRate >= 70 ? 'text-warn-text' : 'text-alert-text',
           )}>
             {completeness.completionRate}%
           </span>
@@ -268,13 +268,13 @@ function DetailPanel({ supplierId, onClose }: { supplierId: string; onClose: () 
 
         {/* 누락 항목 */}
         {completeness.missingFields.length > 0 && (
-          <div className="mt-3 rounded-xs border border-amber-700/30 bg-amber-500/5 p-3">
-            <div className="text-[10px] uppercase tracking-wider text-amber-500 font-semibold mb-2">
+          <div className="mt-3 rounded-xs border border-warn-border bg-warn-bg p-3">
+            <div className="text-[10px] uppercase tracking-wider text-warn-text font-semibold mb-2">
               누락 항목 ({completeness.missingFields.length}개)
             </div>
             <div className="space-y-1">
               {completeness.missingFields.map((f, i) => (
-                <div key={i} className="flex items-center gap-1.5 text-[11px] text-amber-300">
+                <div key={i} className="flex items-center gap-1.5 text-[11px] text-warn-text">
                   <AlertCircle className="w-3 h-3 shrink-0" />
                   {f}
                 </div>
@@ -292,7 +292,7 @@ function DetailPanel({ supplierId, onClose }: { supplierId: string; onClose: () 
         </div>
         <div className="rounded-xs border border-accent-700/30 bg-accent-500/5 p-3 mb-3">
           <div className="flex items-center gap-2 text-[11px] text-ink-200">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-ok-text" />
             협력사 포털 입력값이 원청사 확인 뷰에 반영됨
           </div>
           {portalSubmission.submittedBy && (
@@ -332,7 +332,7 @@ function DetailPanel({ supplierId, onClose }: { supplierId: string; onClose: () 
                 <div key={m.name} className="rounded-xs border border-ink-700/60 bg-ink-900/40 p-2">
                   <div className="text-[10px] text-ink-400">{m.name}</div>
                   <div className="text-xs text-ink-100 font-semibold num-mono">{m.amount}</div>
-                  <div className="text-[10px] text-emerald-500">재활용 {m.recycled}</div>
+                  <div className="text-[10px] text-ok-text">재활용 {m.recycled}</div>
                 </div>
               ))}
             </div>
@@ -361,12 +361,12 @@ function DetailPanel({ supplierId, onClose }: { supplierId: string; onClose: () 
             <div className="space-y-1">
               {portalSubmission.files.map(file => (
                 <div key={file.name} className="flex items-center gap-2 rounded-xs border border-ink-700/60 bg-ink-900/40 px-2.5 py-1.5">
-                  <FileCheck className="w-3 h-3 text-emerald-500" />
+                  <FileCheck className="w-3 h-3 text-ok-text" />
                   <div className="min-w-0 flex-1">
                     <div className="text-[11px] text-ink-100 truncate">{file.name}</div>
                     <div className="text-[10px] text-ink-500">{file.type}</div>
                   </div>
-                  <span className="text-[10px] text-emerald-500">{file.status}</span>
+                  <span className="text-[10px] text-ok-text">{file.status}</span>
                 </div>
               ))}
             </div>
@@ -381,7 +381,7 @@ function DetailPanel({ supplierId, onClose }: { supplierId: string; onClose: () 
           <div className="rounded-xs border border-ink-700/60 bg-ink-900/40 p-3">
             <div className="text-xs font-semibold text-ink-100">{primary.name}</div>
             <div className="text-[10px] text-ink-500 mb-1.5">{primary.role} · {primary.department}</div>
-            <a href={`mailto:${primary.email}`} className="flex items-center gap-1.5 text-[10px] text-blue-400 hover:text-blue-300 mb-1">
+            <a href={`mailto:${primary.email}`} className="flex items-center gap-1.5 text-[10px] text-info-text hover:text-info-text mb-1">
               <Mail className="w-3 h-3" /> {primary.email}
             </a>
             <div className="flex items-center gap-1.5 text-[10px] text-ink-400">
@@ -554,7 +554,7 @@ export default function SubmissionStatusPage() {
                     </div>
                     <div>
                       <div className="text-[10px] text-ink-500">첨부 서류</div>
-                      <div className="flex items-center gap-1 text-xs text-emerald-500">
+                      <div className="flex items-center gap-1 text-xs text-ok-text">
                         <FileCheck className="w-3 h-3" />
                         {row.summary.files.length}건
                       </div>

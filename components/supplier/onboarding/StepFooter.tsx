@@ -32,7 +32,7 @@ export default function StepFooter({
           type="button"
           onClick={onNext}
           disabled={nextDisabled}
-          className="rounded-md bg-[#046949] px-4 py-2 text-sm font-semibold text-white hover:bg-[#03563c] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {nextLabel}
         </button>

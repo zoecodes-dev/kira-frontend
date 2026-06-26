@@ -7,7 +7,7 @@ import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import {
-  AlertTriangle, CheckCircle2, Clock3, FileCheck2, Send,
+  AlertTriangle, CheckCircle2, Clock3, FileCheck2,
   ShieldAlert, UserCheck, ArrowRight, Bell, X,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -53,7 +53,7 @@ const _MOCK_TASKS: Task[] = [
     owner: '구매실사 최하린',
     due: '2026-06-10',
     source: '공급망 실사 관리',
-    targetHref: '/due-diligence',
+    targetHref: '/submission-review?tab=dd',
     targetLabel: '실사 관리로 이동',
     description: 'Katanga Cobalt Mining의 공급망 인권 실사 CAPA가 요청 발송 상태입니다.',
   },
@@ -105,7 +105,7 @@ const _MOCK_TASKS: Task[] = [
     owner: 'ESG팀 박지훈',
     due: '2026-05-15',
     source: '공급망 실사 관리',
-    targetHref: '/due-diligence',
+    targetHref: '/submission-review?tab=dd',
     targetLabel: '실사 관리로 이동',
     description: '공정도 4단계 문서 최신화가 완료되어 CAPA 종료 승인이 필요합니다.',
   },
@@ -173,9 +173,9 @@ const _TYPE_FROM_API: Record<string, TaskType> = {
   SUB: 'submission_review', DD: 'due_diligence', HITL: 'hitl',
 };
 const _HREF_FROM_TYPE: Record<TaskType, string> = {
-  submission_review: '/submission-review', risk_action: '/due-diligence',
+  submission_review: '/submission-review', risk_action: '/submission-review?tab=dd',
   hitl: '/hitl', reminder: '/submission-status', dpp_blocker: '/dpp/readiness',
-  due_diligence: '/due-diligence',
+  due_diligence: '/submission-review?tab=dd',
 };
 
 function adaptAction(item: ActionItem): Task {
@@ -194,6 +194,84 @@ function adaptAction(item: ActionItem): Task {
     targetLabel: `${type} 이동`,
     description: item.title,
   };
+}
+
+// 자료 요청 작업 구역 (구 자료요청 업무 보드의 핵심을 흡수 — 상태별 요청 + 액션)
+type RequestStatus = 'overdue' | 'submitted' | 'dueSoon' | 'progress';
+const requestStatusMeta: Record<RequestStatus, { label: string; chip: string; dot: string }> = {
+  overdue:   { label: '기한 초과', chip: 'border-alert-border bg-alert-bg text-alert-text', dot: 'bg-alert-solid' },
+  submitted: { label: '검토 대기', chip: 'border-ok-border bg-ok-bg text-ok-text', dot: 'bg-ok-solid' },
+  dueSoon:   { label: '만료 임박', chip: 'border-warn-border bg-warn-bg text-warn-text', dot: 'bg-warn-solid' },
+  progress:  { label: '입력 중', chip: 'border-info-border bg-info-bg text-info-text', dot: 'bg-info-solid' },
+};
+
+interface DataRequest {
+  supplier: string;
+  supplierId: string;
+  title: string;
+  status: RequestStatus;
+  due: string;
+  missing: number;
+}
+const dataRequests: DataRequest[] = [
+  { supplier: 'DRC Mining Co.', supplierId: 'S-MINE-002', title: '코발트 원광 원산지·인권 실사 자료', status: 'overdue', due: '2026-06-03', missing: 4 },
+  { supplier: 'Ganzhou Rare Metals', supplierId: 'S-REF-002', title: '정제 코발트 FEOC·소유 구조 확인', status: 'dueSoon', due: '2026-06-07', missing: 2 },
+  { supplier: 'POS Cathode Materials', supplierId: 'S-CAM-001', title: 'NCM811 양극재 공정·탄소 배출 산정서', status: 'submitted', due: '2026-06-12', missing: 3 },
+  { supplier: 'QZ Precursor', supplierId: 'S-PRE-001', title: '전구체 배합 데이터·제조 공정도', status: 'progress', due: '2026-06-14', missing: 2 },
+];
+
+function RequestArea() {
+  const order: RequestStatus[] = ['overdue', 'submitted', 'dueSoon', 'progress'];
+  const counts = order.map(s => ({ s, n: dataRequests.filter(r => r.status === s).length }));
+  return (
+    <section className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-700 bg-ink-800/60 px-5 py-4">
+        <div>
+          <h2 className="text-base font-bold text-ink-100">자료 요청</h2>
+          <p className="mt-0.5 text-sm text-ink-500">협력사 자료 요청의 기한·제출·검토 대기를 한 곳에서 처리</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {counts.map(({ s, n }) => (
+            <span key={s} className={clsx('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold', requestStatusMeta[s].chip)}>
+              {requestStatusMeta[s].label} {n}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="divide-y divide-ink-700/30">
+        {dataRequests.map(req => {
+          const meta = requestStatusMeta[req.status];
+          const reviewMode = req.status === 'submitted';
+          const href = reviewMode
+            ? '/submission-review'
+            : `/suppliers/check-info?supplierId=${req.supplierId}&supplier=${encodeURIComponent(req.supplier)}`;
+          return (
+            <div key={req.supplierId} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50">
+              <span className={clsx('h-2 w-2 shrink-0 rounded-full', meta.dot)} />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="truncate text-sm font-bold text-ink-100">{req.supplier}</span>
+                  <span className={clsx('rounded-full border px-2 py-0.5 text-[10px] font-bold', meta.chip)}>{meta.label}</span>
+                </div>
+                <div className="mt-0.5 truncate text-xs text-ink-500">{req.title}</div>
+              </div>
+              <div className="hidden shrink-0 text-right sm:block">
+                <div className="text-[11px] text-ink-500">마감 {req.due}</div>
+                <div className="text-[11px] text-ink-500">누락 {req.missing}건</div>
+              </div>
+              <Link
+                href={href}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
+              >
+                {reviewMode ? '검토' : '재요청·확인'}
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 export default function MyTaskPage() {
@@ -269,58 +347,43 @@ export default function MyTaskPage() {
                 ))}
               </div>
             </div>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-ink-700/40 bg-slate-50">
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-500">업무</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">상태</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">담당자</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">마감일</th>
-                  <th className="w-8 px-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-700/30">
-                {filtered.map(task => {
-                  const meta = typeMeta[task.type];
-                  const TypeIcon = meta.icon;
-                  const dot = { critical: 'bg-red-600', high: 'bg-red-400', medium: 'bg-amber-400', low: 'bg-emerald-500' }[task.priority];
-                  const statusCls = { today: 'text-amber-600', overdue: 'text-red-600', waiting: 'text-slate-400', done: 'text-emerald-600' }[task.status];
-                  return (
-                    <tr
-                      key={task.id}
-                      className={clsx(
-                        'cursor-pointer transition-colors hover:bg-slate-50',
-                        task.status === 'done' && 'opacity-50',
-                      )}
-                      onClick={() => window.location.href = task.targetHref}
-                    >
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className={clsx('h-2 w-2 shrink-0 rounded-full', dot)} />
-                          <div>
-                            <div className="text-[15px] font-semibold text-ink-100">{task.title}</div>
-                            <div className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-500">
-                              <TypeIcon className="h-3 w-3" />
-                              <span>{meta.label}</span>
-                              <span className="mx-0.5 opacity-40">·</span>
-                              <span className="text-ink-500/80">{task.description}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={clsx('text-sm font-semibold', statusCls)}>{statusMeta[task.status].label}</span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-ink-400">{task.owner}</td>
-                      <td className="px-4 py-3 text-sm text-ink-400 num-mono">{task.due}</td>
-                      <td className="px-2 py-3">
-                        <ArrowRight className="h-4 w-4 text-ink-500" />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="divide-y divide-ink-700/30">
+              {filtered.length === 0 && (
+                <div className="px-5 py-12 text-center text-sm text-ink-500">해당하는 업무가 없습니다.</div>
+              )}
+              {filtered.map(task => {
+                const meta = typeMeta[task.type];
+                const TypeIcon = meta.icon;
+                const dot = { critical: 'bg-alert-solid', high: 'bg-alert-solid', medium: 'bg-warn-solid', low: 'bg-ok-solid' }[task.priority];
+                const statusCls = { today: 'text-warn-text', overdue: 'text-alert-text', waiting: 'text-ink-400', done: 'text-ok-text' }[task.status];
+                return (
+                  <button
+                    key={task.id}
+                    onClick={() => (window.location.href = task.targetHref)}
+                    className={clsx(
+                      'flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-slate-50',
+                      task.status === 'done' && 'opacity-50',
+                    )}
+                  >
+                    <span className={clsx('h-2.5 w-2.5 shrink-0 rounded-full', dot)} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[15px] font-bold text-ink-100">{task.title}</div>
+                      <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
+                        <TypeIcon className="h-3.5 w-3.5 shrink-0" />
+                        <span className="font-semibold">{meta.label}</span>
+                        <span className="opacity-40">·</span>
+                        <span className="truncate">{task.description}</span>
+                      </div>
+                    </div>
+                    <div className="hidden shrink-0 text-right sm:block">
+                      <div className={clsx('text-sm font-bold', statusCls)}>{statusMeta[task.status].label}</div>
+                      <div className="mt-0.5 text-[11px] text-ink-500">{task.owner} · <span className="num-mono">{task.due}</span></div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-ink-500" />
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="space-y-6">
@@ -331,12 +394,12 @@ export default function MyTaskPage() {
               <div className="space-y-3">
                 {priorityTasks.map(task => (
                   <div key={task.id} className="flex items-start gap-3 rounded-xs border border-ink-700/60 bg-ink-900/30 p-3">
-                    <Clock3 className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                    <Clock3 className="w-3.5 h-3.5 text-warn-text shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="text-xs font-semibold text-ink-100">{task.title}</div>
                         {isOverdue(task, todayKey) && (
-                          <span className="rounded-xs border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
+                          <span className="rounded-xs border border-alert-border bg-alert-bg px-1.5 py-0.5 text-[10px] font-bold text-alert-text">
                             기한 초과
                           </span>
                         )}
@@ -347,17 +410,10 @@ export default function MyTaskPage() {
                 ))}
               </div>
             </Card>
-
-            <Card title="빠른 실행" subtitle="자주 쓰는 운영 액션">
-              <div className="grid grid-cols-2 gap-2">
-                <QuickAction href="/submission-review" icon={FileCheck2} label="자료 검토" />
-                <QuickAction href="/due-diligence" icon={ShieldAlert} label="공급망 실사" />
-                <QuickAction href="/submission-status" icon={Send} label="리마인드" />
-                <QuickAction href="/hitl" icon={UserCheck} label="HITL" />
-              </div>
-            </Card>
           </div>
         </div>
+
+        <RequestArea />
       </div>
 
       {metricModal && (
@@ -386,15 +442,15 @@ function Metric({
 }) {
   const color = {
     neutral: 'text-slate-700',
-    info: 'text-blue-700',
-    warn: 'text-orange-700',
-    alert: 'text-red-700',
+    info: 'text-info-text',
+    warn: 'text-warn-text',
+    alert: 'text-alert-text',
   }[tone];
   const cardTone = {
     neutral: 'border-slate-300 bg-slate-50/80 hover:border-slate-400',
-    info: 'border-blue-300 bg-blue-50/80 hover:border-blue-400',
-    warn: 'border-orange-300 bg-orange-50/80 hover:border-orange-400',
-    alert: 'border-red-300 bg-red-50/80 hover:border-red-400',
+    info: 'border-info-border bg-info-bg hover:border-info-border',
+    warn: 'border-warn-border bg-warn-bg hover:border-warn-border',
+    alert: 'border-alert-border bg-alert-bg hover:border-alert-border',
   }[tone];
   return (
     <button
@@ -410,15 +466,6 @@ function Metric({
         </span>
       </div>
     </button>
-  );
-}
-
-function QuickAction({ href, icon: Icon, label }: { href: string; icon: any; label: string }) {
-  return (
-    <Link href={href} className="inline-flex items-center justify-center gap-2 rounded-xs border border-ink-700 px-3 py-2 text-xs font-semibold text-ink-300 hover:bg-ink-800 hover:text-ink-100 transition-colors">
-      <Icon className="w-3.5 h-3.5" />
-      {label}
-    </Link>
   );
 }
 

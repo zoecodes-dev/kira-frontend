@@ -55,7 +55,7 @@ function FieldLabel({ label, sub, required }: { label: string; sub?: string; req
     <div className="mb-1.5">
       <span className="text-xs font-bold text-ink-400">
         {label}
-        {required && <span className="ml-1 text-red-500">*</span>}
+        {required && <span className="ml-1 text-alert-text">*</span>}
       </span>
       {sub && <span className="ml-2 text-[10px] text-ink-600">{sub}</span>}
     </div>
@@ -193,7 +193,7 @@ export default function SelfReportModal({ open, onClose }: SelfReportModalProps)
                     onClick={() => setTypeOpen(v => !v)}
                     className={clsx(
                       'flex w-full items-center justify-between rounded-xs border px-3 py-2.5 text-xs transition-colors',
-                      errors.changeType ? 'border-red-400 bg-red-50' : 'border-ink-600 bg-white hover:border-accent-600',
+                      errors.changeType ? 'border-alert-border bg-alert-bg' : 'border-ink-600 bg-white hover:border-accent-600',
                       selectedOption ? 'text-ink-100 font-semibold' : 'text-ink-500'
                     )}
                   >
@@ -217,7 +217,7 @@ export default function SelfReportModal({ open, onClose }: SelfReportModalProps)
                   )}
                 </div>
                 {errors.changeType && (
-                  <p className="mt-1 flex items-center gap-1 text-[10px] text-red-600">
+                  <p className="mt-1 flex items-center gap-1 text-[10px] text-alert-text">
                     <AlertTriangle className="h-3 w-3" /> {errors.changeType}
                   </p>
                 )}
@@ -257,11 +257,11 @@ export default function SelfReportModal({ open, onClose }: SelfReportModalProps)
                     onChange={e => { setNewName(e.target.value); if (errors.newName) setErrors(p => ({ ...p, newName: '' })); }}
                     className={clsx(
                       'w-full rounded-xs border px-3 py-2.5 text-xs font-semibold outline-none transition-colors',
-                      errors.newName ? 'border-red-400 bg-red-50' : 'border-ink-600 bg-white focus:border-accent-600'
+                      errors.newName ? 'border-alert-border bg-alert-bg' : 'border-ink-600 bg-white focus:border-accent-600'
                     )}
                   />
                   {errors.newName && (
-                    <p className="mt-1 flex items-center gap-1 text-[10px] text-red-600">
+                    <p className="mt-1 flex items-center gap-1 text-[10px] text-alert-text">
                       <AlertTriangle className="h-3 w-3" /> {errors.newName}
                     </p>
                   )}
@@ -275,11 +275,11 @@ export default function SelfReportModal({ open, onClose }: SelfReportModalProps)
                     onChange={e => { setNewCountry(e.target.value); if (errors.newCountry) setErrors(p => ({ ...p, newCountry: '' })); }}
                     className={clsx(
                       'w-full rounded-xs border px-3 py-2.5 text-xs font-semibold outline-none transition-colors',
-                      errors.newCountry ? 'border-red-400 bg-red-50' : 'border-ink-600 bg-white focus:border-accent-600'
+                      errors.newCountry ? 'border-alert-border bg-alert-bg' : 'border-ink-600 bg-white focus:border-accent-600'
                     )}
                   />
                   {errors.newCountry && (
-                    <p className="mt-1 flex items-center gap-1 text-[10px] text-red-600">
+                    <p className="mt-1 flex items-center gap-1 text-[10px] text-alert-text">
                       <AlertTriangle className="h-3 w-3" /> {errors.newCountry}
                     </p>
                   )}
@@ -306,11 +306,11 @@ export default function SelfReportModal({ open, onClose }: SelfReportModalProps)
                   rows={4}
                   className={clsx(
                     'w-full resize-y rounded-xs border px-3 py-2.5 text-xs leading-5 outline-none transition-colors',
-                    errors.reason ? 'border-red-400 bg-red-50' : 'border-ink-600 bg-white focus:border-accent-600'
+                    errors.reason ? 'border-alert-border bg-alert-bg' : 'border-ink-600 bg-white focus:border-accent-600'
                   )}
                 />
                 {errors.reason && (
-                  <p className="mt-1 flex items-center gap-1 text-[10px] text-red-600">
+                  <p className="mt-1 flex items-center gap-1 text-[10px] text-alert-text">
                     <AlertTriangle className="h-3 w-3" /> {errors.reason}
                   </p>
                 )}
@@ -330,7 +330,7 @@ export default function SelfReportModal({ open, onClose }: SelfReportModalProps)
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex items-center gap-2 rounded-xs bg-signal-ok px-5 py-2 text-xs font-bold text-white hover:bg-emerald-600 shadow-control"
+                className="inline-flex items-center gap-2 rounded-xs bg-signal-ok px-5 py-2 text-xs font-bold text-white hover:bg-ok-solid shadow-control"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" /> 확인 후 닫기
               </button>

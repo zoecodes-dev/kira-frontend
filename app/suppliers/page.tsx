@@ -66,24 +66,24 @@ const supplierTypeLabel: Record<SupplierType, string> = {
 };
 
 const riskMeta: Record<SupplierRiskLevel, { label: string; className: string }> = {
-  low: { label: '저위험', className: 'text-emerald-800' },
-  medium: { label: '중위험', className: 'text-amber-800' },
-  high: { label: '고위험', className: 'text-red-800' },
-  critical: { label: '최고위험', className: 'text-red-900 font-bold' },
+  low: { label: '저위험', className: 'text-ok-text' },
+  medium: { label: '중위험', className: 'text-warn-text' },
+  high: { label: '고위험', className: 'text-alert-text' },
+  critical: { label: '최고위험', className: 'text-alert-text font-bold' },
 };
 
 const feocMeta: Record<string, { label: string; className: string }> = {
-  eligible: { label: 'FEOC 적격', className: 'text-emerald-800' },
-  ineligible: { label: 'FEOC 부적격', className: 'text-red-800' },
-  under_review: { label: 'FEOC 검토중', className: 'text-amber-800' },
+  eligible: { label: 'FEOC 적격', className: 'text-ok-text' },
+  ineligible: { label: 'FEOC 부적격', className: 'text-alert-text' },
+  under_review: { label: 'FEOC 검토중', className: 'text-warn-text' },
   unknown: { label: 'FEOC 미파악', className: 'text-ink-500' },
 };
 
 function completenessMeta(rate: number) {
-  if (rate >= 100) return { label: '제출 완료', tone: 'info' as const, bar: 'bg-blue-600', text: 'text-blue-800', filter: 'complete' as const };
-  if (rate >= 80) return { label: '입력 중', tone: 'ok' as const, bar: 'bg-emerald-600', text: 'text-emerald-800', filter: 'in_progress' as const };
-  if (rate >= 50) return { label: '부분 제출', tone: 'warn' as const, bar: 'bg-amber-500', text: 'text-amber-800', filter: 'partial' as const };
-  return { label: '미제출', tone: 'alert' as const, bar: 'bg-red-600', text: 'text-red-800', filter: 'missing' as const };
+  if (rate >= 100) return { label: '제출 완료', tone: 'info' as const, bar: 'bg-info-solid', text: 'text-info-text', filter: 'complete' as const };
+  if (rate >= 80) return { label: '입력 중', tone: 'ok' as const, bar: 'bg-ok-solid', text: 'text-ok-text', filter: 'in_progress' as const };
+  if (rate >= 50) return { label: '부분 제출', tone: 'warn' as const, bar: 'bg-warn-solid', text: 'text-warn-text', filter: 'partial' as const };
+  return { label: '미제출', tone: 'alert' as const, bar: 'bg-alert-solid', text: 'text-alert-text', filter: 'missing' as const };
 }
 
 /** reliability 기준 SLA 초과 판정 (sla_due_date 경과 또는 reminder_count >= 2) */
@@ -156,18 +156,18 @@ function SupplierRow({ row }: { row: SupplierRowData }) {
           </div>
           <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
             {rate >= 100 ? (
-              <span className="inline-flex items-center gap-1 text-emerald-800">
+              <span className="inline-flex items-center gap-1 text-ok-text">
                 <CheckCircle2 className="h-3 w-3" />
                 제출 완료
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-amber-800">
+              <span className="inline-flex items-center gap-1 text-warn-text">
                 <AlertCircle className="h-3 w-3" />
                 입력 진행 중
               </span>
             )}
             {slaOver && (
-              <span className="inline-flex items-center gap-1 rounded-xs border border-orange-300 bg-orange-50 px-1.5 py-0.5 font-semibold text-orange-800">
+              <span className="inline-flex items-center gap-1 rounded-xs border border-warn-border bg-warn-bg px-1.5 py-0.5 font-semibold text-warn-text">
                 <Clock className="h-3 w-3" />
                 SLA 초과
               </span>
@@ -589,9 +589,9 @@ export default function SuppliersPage() {
                 ) : error ? (
                   <tr>
                     <td colSpan={7} className="px-5 py-16 text-center">
-                      <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-sm border border-dashed border-red-200 bg-red-50 p-6">
-                        <ShieldAlert className="h-5 w-5 text-red-600" />
-                        <div className="text-sm font-semibold text-red-800">{error}</div>
+                      <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-sm border border-dashed border-alert-border bg-alert-bg p-6">
+                        <ShieldAlert className="h-5 w-5 text-alert-text" />
+                        <div className="text-sm font-semibold text-alert-text">{error}</div>
                       </div>
                     </td>
                   </tr>

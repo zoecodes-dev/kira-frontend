@@ -195,10 +195,10 @@ export default function HitlPage() {
             >
               {reasonExpanded && (
                 <div className="space-y-3">
-                  <div className="rounded-xs border border-amber-200 bg-amber-50 p-3 flex items-start gap-2.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="rounded-xs border border-warn-border bg-warn-bg p-3 flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-warn-text shrink-0 mt-0.5" />
                     <div className="text-sm text-ink-100 leading-relaxed">
-                      <span className="font-semibold text-amber-800">{selectedCase.triggerReason}</span>
+                      <span className="font-semibold text-warn-text">{selectedCase.triggerReason}</span>
                       <p className="mt-1 text-xs text-ink-500">
                         Compliance 에이전트(Opus)가 UFLPA / IRA / EU Battery 규제별로 추론한 결과, 
                         최종 판정 신뢰도가 시스템 임계치(0.85) 미만입니다. 
@@ -296,13 +296,13 @@ export default function HitlPage() {
                   className={clsx(
                     'rounded-xs border p-4 transition-all text-left',
                     decision === 'approve' 
-                      ? 'border-emerald-500 bg-emerald-50'
-                      : 'border-ink-700 bg-white hover:border-emerald-300'
+                      ? 'border-ok-border bg-ok-bg'
+                      : 'border-ink-700 bg-white hover:border-ok-border'
                   )}
                 >
                   <div className="flex items-center gap-2 mb-1.5">
-                    <CheckCircle2 className={clsx('w-5 h-5', decision === 'approve' ? 'text-emerald-700' : 'text-ink-500')} />
-                    <span className={clsx('text-sm font-semibold', decision === 'approve' ? 'text-emerald-800' : 'text-ink-100')}>
+                    <CheckCircle2 className={clsx('w-5 h-5', decision === 'approve' ? 'text-ok-text' : 'text-ink-500')} />
+                    <span className={clsx('text-sm font-semibold', decision === 'approve' ? 'text-ok-text' : 'text-ink-100')}>
                       승인
                     </span>
                   </div>
@@ -316,13 +316,13 @@ export default function HitlPage() {
                   className={clsx(
                     'rounded-xs border p-4 transition-all text-left',
                     decision === 'reject' 
-                      ? 'border-red-500 bg-red-50'
-                      : 'border-ink-700 bg-white hover:border-red-300'
+                      ? 'border-alert-border bg-alert-bg'
+                      : 'border-ink-700 bg-white hover:border-alert-border'
                   )}
                 >
                   <div className="flex items-center gap-2 mb-1.5">
-                    <XCircle className={clsx('w-5 h-5', decision === 'reject' ? 'text-red-700' : 'text-ink-500')} />
-                    <span className={clsx('text-sm font-semibold', decision === 'reject' ? 'text-red-800' : 'text-ink-100')}>
+                    <XCircle className={clsx('w-5 h-5', decision === 'reject' ? 'text-alert-text' : 'text-ink-500')} />
+                    <span className={clsx('text-sm font-semibold', decision === 'reject' ? 'text-alert-text' : 'text-ink-100')}>
                       반려
                     </span>
                   </div>
@@ -358,8 +358,8 @@ export default function HitlPage() {
                   disabled={!decision}
                   className={clsx(
                     'flex-1 py-2.5 rounded-xs text-sm font-medium transition-colors',
-                    decision === 'approve' && 'bg-emerald-600 hover:bg-emerald-500 text-white',
-                    decision === 'reject' && 'bg-red-600 hover:bg-red-500 text-white',
+                    decision === 'approve' && 'bg-ok-solid hover:bg-ok-solid text-white',
+                    decision === 'reject' && 'bg-alert-solid hover:bg-alert-solid text-white',
                     !decision && 'bg-ink-700 text-ink-500 cursor-not-allowed'
                   )}
                 >
@@ -391,9 +391,9 @@ export default function HitlPage() {
 // === 우선순위 점 ===
 function PriorityDot({ priority }: { priority: string }) {
   const colors: any = {
-    high: 'bg-red-500',
-    medium: 'bg-amber-500',
-    low: 'bg-blue-500',
+    high: 'bg-alert-solid',
+    medium: 'bg-warn-solid',
+    low: 'bg-info-solid',
   };
   return <div className={clsx('w-2 h-2 rounded-full', colors[priority])} />;
 }
@@ -416,9 +416,9 @@ function VerdictBadge({ verdict }: { verdict: string }) {
 // === 메트릭 박스 ===
 function MetricBox({ label, value, tone }: any) {
   const colors: any = {
-    ok: 'text-emerald-700',
-    warn: 'text-amber-700',
-    alert: 'text-red-700',
+    ok: 'text-ok-text',
+    warn: 'text-warn-text',
+    alert: 'text-alert-text',
   };
   return (
     <div>
@@ -433,14 +433,14 @@ function MetricBox({ label, value, tone }: any) {
 // === 증거 행 ===
 function EvidenceRow({ icon: Icon, nodeType, nodeName, finding, detail, severity }: any) {
   const sevColors: any = {
-    ok:    'border-emerald-200 bg-emerald-50',
-    warn:  'border-amber-200 bg-amber-50',
-    alert: 'border-red-200 bg-red-50',
+    ok:    'border-ok-border bg-ok-bg',
+    warn:  'border-warn-border bg-warn-bg',
+    alert: 'border-alert-border bg-alert-bg',
     info:  'border-ink-700 bg-white',
   };
   const iconColors: any = {
     agent: 'text-accent-700 bg-accent-50',
-    tool: 'text-blue-700 bg-blue-50',
+    tool: 'text-info-text bg-info-bg',
   };
 
   return (

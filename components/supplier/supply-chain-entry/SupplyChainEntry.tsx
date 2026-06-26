@@ -126,7 +126,7 @@ export default function SupplyChainEntry() {
     <main className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-4xl items-center gap-2.5 px-6 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#046949]">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand">
             <Network className="h-4 w-4 text-white" strokeWidth={2.5} />
           </div>
           <div>
@@ -148,7 +148,7 @@ export default function SupplyChainEntry() {
               <li key={s} className="flex flex-1 items-center gap-2">
                 <span
                   className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                    done ? 'bg-[#046949] text-white' : active ? 'border-2 border-[#046949] text-[#046949]' : 'border border-slate-300 text-slate-400'
+                    done ? 'bg-brand text-white' : active ? 'border-2 border-brand text-brand' : 'border border-slate-300 text-slate-400'
                   }`}
                 >
                   {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
@@ -205,7 +205,7 @@ export default function SupplyChainEntry() {
         )}
 
         {savedAt && !submitted && step === 'review' && (
-          <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+          <div className="mt-3 rounded-md border border-ok-border bg-ok-bg px-3 py-2 text-xs font-semibold text-ok-text">
             임시 저장되었습니다 · {savedAt}
           </div>
         )}

@@ -317,7 +317,7 @@ function DppDetail({ record }: { record: HistoryRecord }) {
             <div className="rounded-sm border border-ink-700 bg-white p-4">
               <div className="text-xs font-semibold text-ink-500">재활용 함량</div>
               <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-2xl font-semibold text-emerald-700 num-mono">{recycledTotal}</span>
+                <span className="text-2xl font-semibold text-ok-text num-mono">{recycledTotal}</span>
                 <span className="text-sm text-ink-500">%</span>
               </div>
               <div className="mt-3 space-y-2">
@@ -365,7 +365,7 @@ function MetricPanel({ label, value, unit }: { label: string; value: string; uni
     <div className="rounded-sm border border-ink-700 bg-white p-4">
       <div className="text-xs font-semibold text-ink-500">{label}</div>
       <div className="mt-3 flex items-baseline gap-2">
-        <span className="text-2xl font-semibold text-emerald-700 num-mono">{value}</span>
+        <span className="text-2xl font-semibold text-ok-text num-mono">{value}</span>
         <span className="text-sm text-ink-500">{unit}</span>
       </div>
     </div>
@@ -378,7 +378,7 @@ function RecycledRow({ metal, label, value }: { metal: string; label: string; va
       <span className="w-7 shrink-0 text-ink-500 num-mono">{metal}</span>
       <span className="w-14 shrink-0 text-ink-500">{label}</span>
       <div className="h-2 flex-1 overflow-hidden rounded-full bg-ink-700">
-        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, value * 4)}%` }} />
+        <div className="h-full rounded-full bg-ok-solid" style={{ width: `${Math.min(100, value * 4)}%` }} />
       </div>
       <span className="w-12 shrink-0 text-right font-semibold text-ink-100 num-mono">{value}%</span>
     </div>

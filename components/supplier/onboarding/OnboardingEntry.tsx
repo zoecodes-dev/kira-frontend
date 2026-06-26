@@ -66,11 +66,11 @@ export default function OnboardingEntry({
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
       {/* 초대 안내 */}
-      <div className="flex items-start gap-3 rounded-md border border-emerald-100 bg-emerald-50/60 p-4">
-        <Mail className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+      <div className="flex items-start gap-3 rounded-md border border-ok-border bg-ok-bg p-4">
+        <Mail className="mt-0.5 h-5 w-5 shrink-0 text-ok-text" />
         <div>
           <div className="text-sm font-bold text-ink-100">원청으로부터 공급망 정보 입력 요청을 받았습니다.</div>
-          <p className="mt-1 text-xs leading-5 text-emerald-800">
+          <p className="mt-1 text-xs leading-5 text-ok-text">
             {type === 'firstTier'
               ? '1차 협력사로서 하위 협력사의 담당자(PIC) 정보를 등록해 주세요.'
               : '아래 회원가입 절차에 따라 기본 정보와 필요 문서를 등록해 주세요.'}
@@ -118,7 +118,7 @@ export default function OnboardingEntry({
       {/* 제3자 정보 확인 동의서 */}
       <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
         <div className="flex items-center gap-1.5 text-sm font-bold text-ink-100">
-          <FileCheck2 className="h-4 w-4 text-[#046949]" />
+          <FileCheck2 className="h-4 w-4 text-brand" />
           제3자 정보 확인 동의서
         </div>
         <p className="mt-2 text-xs leading-5 text-slate-500">
@@ -129,7 +129,7 @@ export default function OnboardingEntry({
             type="checkbox"
             checked={consentChecked}
             onChange={e => onConsentChange(e.target.checked)}
-            className="h-4 w-4 accent-emerald-600"
+            className="h-4 w-4 accent-brand"
           />
           메일로 받은 제3자 정보 확인 동의서를 확인했습니다.
         </label>

@@ -10,10 +10,10 @@ interface BadgeProps {
 }
 
 const toneStyles: Record<BadgeTone, string> = {
-  ok:      'bg-emerald-50 text-emerald-800 border-emerald-300',
-  warn:    'bg-amber-50 text-amber-800 border-amber-300',
-  alert:   'bg-red-50 text-red-800 border-red-300',
-  info:    'bg-blue-50 text-blue-800 border-blue-300',
+  ok:      'bg-ok-bg text-ok-text border-ok-border',
+  warn:    'bg-warn-bg text-warn-text border-warn-border',
+  alert:   'bg-alert-bg text-alert-text border-alert-border',
+  info:    'bg-info-bg text-info-text border-info-border',
   neutral: 'bg-slate-50 text-slate-700 border-slate-300',
 };
 

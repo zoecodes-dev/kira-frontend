@@ -11,14 +11,14 @@ function Labeled({ label, required, children }: { label: string; required?: bool
     <label className="block">
       <span className="text-xs font-semibold text-slate-600">
         {label}
-        {required && <span className="ml-0.5 text-red-500">*</span>}
+        {required && <span className="ml-0.5 text-alert-text">*</span>}
       </span>
       <div className="mt-1">{children}</div>
     </label>
   );
 }
 
-const inputCls = 'h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949] disabled:bg-slate-50 disabled:text-slate-500';
+const inputCls = 'h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand disabled:bg-slate-50 disabled:text-slate-500';
 
 export default function SignupForm({
   data,
@@ -84,7 +84,7 @@ export default function SignupForm({
       {/* 필요 문서 */}
       <div className="mt-5 rounded-md border border-slate-200 p-4">
         <div className="flex items-center gap-1.5 text-sm font-bold text-ink-100">
-          <FileUp className="h-4 w-4 text-[#046949]" />
+          <FileUp className="h-4 w-4 text-brand" />
           필요 문서
         </div>
         <p className="mt-1 text-xs text-slate-500">사업자 등록증을 첨부하세요. 해외 기업은 기업 정보 서류로 대체합니다.</p>
@@ -105,14 +105,14 @@ export default function SignupForm({
             업로드
           </button>
         </div>
-        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-semibold text-amber-800">
-          <input type="checkbox" checked={data.unverified} onChange={e => set({ unverified: e.target.checked })} className="h-4 w-4 accent-amber-600" />
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-semibold text-warn-text">
+          <input type="checkbox" checked={data.unverified} onChange={e => set({ unverified: e.target.checked })} className="h-4 w-4 accent-brand" />
           서류 미보유 — 미확인 상태로 등록 (원청/상위가 검증)
         </label>
       </div>
 
       {touched && !valid && (
-        <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+        <div className="mt-4 rounded-md border border-alert-border bg-alert-bg px-3 py-2 text-xs font-semibold text-alert-text">
           필수 항목과 필요 문서(또는 미확인 등록)를 확인해 주세요.
         </div>
       )}

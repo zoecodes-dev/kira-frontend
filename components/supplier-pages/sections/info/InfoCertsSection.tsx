@@ -21,8 +21,8 @@ export function InfoCertsSection({ certs }: { certs: Certs }) {
             return (
               <div key={c.certId} className={clsx(
                 'flex items-center justify-between px-3 py-2.5 rounded-xs border',
-                c.status === 'expired'       ? 'border-red-700/30 bg-red-500/5' :
-                c.status === 'expiring_soon' ? 'border-amber-700/30 bg-amber-500/5' :
+                c.status === 'expired'       ? 'border-alert-border bg-alert-bg' :
+                c.status === 'expiring_soon' ? 'border-warn-border bg-warn-bg' :
                                                'border-ink-700/60 bg-ink-900/20',
               )}>
                 <div className="min-w-0">
@@ -31,8 +31,8 @@ export function InfoCertsSection({ certs }: { certs: Certs }) {
                 </div>
                 <div className="text-right shrink-0 ml-3">
                   <div className={clsx('text-[10px] font-semibold',
-                    c.status === 'expired'       ? 'text-red-500' :
-                    c.status === 'expiring_soon' ? 'text-amber-500' : 'text-emerald-600',
+                    c.status === 'expired'       ? 'text-alert-text' :
+                    c.status === 'expiring_soon' ? 'text-warn-text' : 'text-ok-text',
                   )}>
                     {c.status === 'expired'       ? '만료' :
                      c.status === 'expiring_soon' ? `${daysLeft}일 남음` : '유효'}

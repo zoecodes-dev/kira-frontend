@@ -45,7 +45,7 @@ export default function PicRegister({
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-center gap-2 text-base font-bold text-ink-100">
-        <UserPlus className="h-5 w-5 text-[#046949]" />
+        <UserPlus className="h-5 w-5 text-brand" />
         {isFirstTier ? '하위 협력사 담당자(PIC) 등록' : '담당자(PIC) 등록'}
       </div>
       <p className="mt-1 text-sm text-slate-500">
@@ -63,7 +63,7 @@ export default function PicRegister({
                 <button
                   type="button"
                   onClick={() => remove(i)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-red-600"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-alert-text"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   삭제
@@ -75,7 +75,7 @@ export default function PicRegister({
                 value={pic.company}
                 onChange={e => update(i, { company: e.target.value })}
                 placeholder="하위 협력사 회사명"
-                className="mb-2 h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949]"
+                className="mb-2 h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand"
               />
             )}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -83,19 +83,19 @@ export default function PicRegister({
                 value={pic.name}
                 onChange={e => update(i, { name: e.target.value })}
                 placeholder="담당자명"
-                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949]"
+                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand"
               />
               <input
                 value={pic.email}
                 onChange={e => update(i, { email: e.target.value })}
                 placeholder="이메일"
-                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949]"
+                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand"
               />
               <input
                 value={pic.phone}
                 onChange={e => update(i, { phone: e.target.value })}
                 placeholder="전화번호"
-                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949]"
+                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand"
               />
             </div>
           </div>
@@ -106,7 +106,7 @@ export default function PicRegister({
         <button
           type="button"
           onClick={add}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-500 hover:border-[#046949] hover:text-[#046949]"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-500 hover:border-brand hover:text-brand"
         >
           <Plus className="h-4 w-4" />
           담당자 추가 ({pics.length}/{MAX_PICS})

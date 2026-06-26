@@ -19,13 +19,13 @@ export default function DocRow({
       <div className="flex w-44 shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-600">
         <Paperclip className="h-3.5 w-3.5 text-slate-400" />
         <span className="truncate" title={label}>{label}</span>
-        {required && <span className="text-red-500">*</span>}
+        {required && <span className="text-alert-text">*</span>}
       </div>
       <input
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder="첨부 파일명"
-        className="h-9 min-w-0 flex-1 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949]"
+        className="h-9 min-w-0 flex-1 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand"
       />
       <button
         type="button"

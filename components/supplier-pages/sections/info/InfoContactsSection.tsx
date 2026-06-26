@@ -46,7 +46,7 @@ export function InfoContactsSection({ contacts, factories }: {
                 </div>
 
                 <div className="space-y-1.5">
-                  <a href={`mailto:${c.email}`} className="flex items-center gap-2 text-[11px] text-blue-500 hover:text-blue-400">
+                  <a href={`mailto:${c.email}`} className="flex items-center gap-2 text-[11px] text-info-text hover:text-info-text">
                     <Mail className="w-3 h-3 shrink-0" />
                     {c.email}
                   </a>

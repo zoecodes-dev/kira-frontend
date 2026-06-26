@@ -14,15 +14,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-64 shrink-0 border-r border-ink-700 bg-white flex flex-col shadow-control">
-        <div className="p-5 border-b border-ink-700 shrink-0">
+      <aside className="w-64 shrink-0 border-r border-white/10 bg-brand text-white flex flex-col shadow-control">
+        <div className="p-5 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-sm bg-accent-700 flex items-center justify-center shadow-control">
-              <ShieldCheck className="w-4 h-4 text-white" strokeWidth={2.5} />
+            <div className="w-9 h-9 rounded-sm bg-white flex items-center justify-center shadow-control">
+              <ShieldCheck className="w-4 h-4 text-brand" strokeWidth={2.5} />
             </div>
             <div>
-              <div className="text-sm font-bold text-ink-100 tracking-tight">Battery DPP</div>
-              <div className="text-[11px] text-ink-500">규제 대응 관제</div>
+              <div className="text-sm font-bold text-white tracking-tight">Battery DPP</div>
+              <div className="text-[11px] text-white/55">규제 대응 관제</div>
             </div>
           </div>
         </div>
@@ -36,7 +36,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
               공급망 워크스페이스
             </div>
             <div className="space-y-0.5 mt-1">
@@ -47,16 +47,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 subtitle="맵·요청·실사"
                 subItems={[
                   { href: '/supply-chain/map', label: '공급망 맵 허브' },
-                  { href: '/supply-chain/request-map', label: '자료 요청 업무 보드' },
-                  { href: '/suppliers/invitations', label: 'Invitation 작성' },
-                  { href: '/due-diligence', label: '공급망 실사 관리' },
                 ]}
               />
             </div>
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
               DPP 센터
             </div>
             <div className="space-y-0.5 mt-1">
@@ -76,7 +73,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
               협력사 관리
             </div>
             <div className="space-y-0.5 mt-1">
@@ -106,7 +103,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
               물질·자재 관리
             </div>
             <div className="space-y-0.5 mt-1">
@@ -115,7 +112,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
               보고·결재
             </div>
             <div className="space-y-0.5 mt-1">
@@ -133,7 +130,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-ink-500 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
               감사·추적
             </div>
             <div className="space-y-0.5 mt-1">
@@ -151,21 +148,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        <div className="p-4 border-t border-ink-700 bg-ink-800 shrink-0">
-          <div className="text-[11px] text-ink-500 font-semibold mb-1">시스템 상태</div>
+        <div className="p-4 border-t border-white/10 bg-black/15 shrink-0">
+          <div className="text-[11px] text-white/50 font-semibold mb-1">시스템 상태</div>
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-signal-ok pulse-soft" />
-            <div className="text-xs text-ink-200">정상 운영 중</div>
+            <div className="w-1.5 h-1.5 rounded-full bg-ok-solid pulse-soft" />
+            <div className="text-xs text-white/80">정상 운영 중</div>
           </div>
-          <div className="text-[10px] text-ink-400 mt-2 num-mono">v0.6.0 · 2026.05.21</div>
+          <div className="text-[10px] text-white/40 mt-2 num-mono">v0.6.0 · 2026.05.21</div>
           <Link
             href="/"
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xs border border-white/20 bg-transparent px-3 py-2 text-xs font-bold text-white/80 hover:bg-white/10 hover:text-white"
           >
             <LogOut className="h-3.5 w-3.5" />
             로그아웃
           </Link>
-          <div className="mt-2.5 text-[10px] text-ink-400 num-mono">
+          <div className="mt-2.5 text-[10px] text-white/40 num-mono">
             마지막 업데이트 2026-06-17 14:57
           </div>
         </div>
