@@ -346,7 +346,7 @@ function CompactMetric({
 function DashboardSupplyChainMap() {
   const todayTasks = [
     { rank: 1, title: '검토 대기', desc: '제출된 자료를 검토해주세요.', level: '높음', count: '8건', href: '/suppliers/check-info' },
-    { rank: 2, title: '보완 요청', desc: '공급사로부터 추가 자료가 필요합니다.', level: '높음', count: '3건', href: '/supply-chain/request-map' },
+    { rank: 2, title: '보완 요청', desc: '공급사로부터 추가 자료가 필요합니다.', level: '높음', count: '3건', href: '/my-task' },
     { rank: 3, title: '인증서 만료 임박', desc: '30일 이내 만료되는 인증서가 있습니다.', level: '중간', count: '5건', href: '/suppliers/check-info' },
     { rank: 4, title: '실사 필요', desc: '고위험 공급사 중 실사가 필요합니다.', level: '중간', count: '4건', href: '/due-diligence' },
     { rank: 5, title: 'HITL 검토 대기', desc: 'AI 검토가 완료되어 최종 확인이 필요합니다.', level: '낮음', count: '2건', href: '/hitl' },
@@ -848,7 +848,7 @@ export default function DashboardPage() {
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
                 <h2 className="text-sm font-semibold text-ink-100">공급망 활동 타임라인</h2>
-                <Link href="/supply-chain/request-map" className="text-xs font-semibold text-accent-700">전체 보기</Link>
+                <Link href="/my-task" className="text-xs font-semibold text-accent-700">전체 보기</Link>
               </div>
               <div className="px-4 py-2">
                 {[
