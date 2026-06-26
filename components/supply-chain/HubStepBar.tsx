@@ -70,16 +70,31 @@ export default function HubStepBar({
           </span>
         </div>
         <StepButton index={2} label="협력사 Pool 구성" hint={poolCount > 0 ? `${poolCount}개사 선택됨` : '1차 협력사 선택'} Icon={Users} onClick={onOpenPool} />
-        <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-ink-400">
-            <Network className="h-4 w-4" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[11px] font-bold text-slate-400">STEP 3</span>
-            <span className="block truncate text-sm font-bold text-ink-100">자재·협력사 자동 맵핑</span>
-            <span className="block truncate text-[11px] font-medium text-slate-500">MBOM 기준 자동 구성</span>
-          </span>
-        </div>
+        {/* STEP 3 — Pool 확정 시 활성화. 공급망 맵(§10.2a)은 제품 선택 시 이미 자동 구성되므로,
+            여기서는 확정된 Pool 기준으로 맵핑이 적용됐음을 상태로 표면화한다. */}
+        {poolCount > 0 ? (
+          <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-ok-border bg-ok-bg px-3 py-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ok-bg text-ok-text">
+              <Network className="h-4 w-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[11px] font-bold text-ok-text">STEP 3</span>
+              <span className="block truncate text-sm font-bold text-ink-100">자재·협력사 자동 맵핑</span>
+              <span className="block truncate text-[11px] font-medium text-ok-text">{poolCount}개사 기준 자동 구성됨 · 아래 맵 확인</span>
+            </span>
+          </div>
+        ) : (
+          <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-ink-400">
+              <Network className="h-4 w-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[11px] font-bold text-slate-400">STEP 3</span>
+              <span className="block truncate text-sm font-bold text-ink-100">자재·협력사 자동 맵핑</span>
+              <span className="block truncate text-[11px] font-medium text-slate-500">STEP 2 Pool 확정 후 자동 구성</span>
+            </span>
+          </div>
+        )}
         <StepButton index={4} label="협력사 정보 확인" hint={hasSelection ? '선택 노드 기준' : '노드를 먼저 선택'} Icon={ClipboardCheck} onClick={onOpenSupplierInfo} disabled={!hasSelection} />
         <StepButton index={5} label="자료 업데이트 요청" hint="검증 후 보완 요청" Icon={RefreshCw} onClick={onOpenDataRequest} disabled={!hasSelection} />
         <StepButton index={6} label="정보 입력 요청" hint="표준 템플릿 메일" Icon={Mail} onClick={onOpenInvite} />

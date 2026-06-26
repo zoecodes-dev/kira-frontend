@@ -37,6 +37,7 @@ export function SupplyChainMapPageContent({
   formationMode = false,
   dataset = mockDataset,
   embedded = false,
+  initialProductId,
   onNodeSelect,
   onConnectClick,
   onProductChange,
@@ -44,6 +45,8 @@ export function SupplyChainMapPageContent({
   formationMode?: boolean;
   // 허브 안에 임베드될 때 true — 중복 헤더와 별도 "맵 형성하기" 링크를 숨긴다.
   embedded?: boolean;
+  // 공급망 목록에서 넘어온 초기 선택 제품(선택). 제품 목록 로드 후 이 제품을 우선 선택한다.
+  initialProductId?: string;
   // 데이터 주입(선택): 미전달 시 데모 mockDataset. 허브는 빈/API/데모 dataset을 넘긴다.
   dataset?: SupplyChainDataset;
   // 허브 연동용(선택): 노드 선택 변화 통지 / "하위 공급망 연결" 클릭을 허브 모달로 위임
