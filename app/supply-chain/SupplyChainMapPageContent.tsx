@@ -3,7 +3,6 @@
 // 공급망 맵과 E-BOM 형성 화면이 공유하는 원본 화면 컴포넌트입니다.
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   Box,
   ChevronDown,
@@ -53,7 +52,6 @@ export function SupplyChainMapPageContent({
   // 제품 선택 변화 통지 (허브가 해당 제품 BOM을 API로 불러오도록)
   onProductChange?: (productId: string) => void;
 }) {
-  const router = useRouter();
   const [selectedProductId, setSelectedProductId] = useState(dataset.products[0]?.product_id ?? '');
   const availableBomVersions = useMemo(
     () => dataset.bom_versions.filter(version => version.product_id === selectedProductId),
@@ -240,14 +238,8 @@ export function SupplyChainMapPageContent({
 
   function handleConfirmInvitation() {
     if (!invitationContext) return;
-    const params = new URLSearchParams({
-      node: invitationContext.nodeLabel,
-      item: invitationContext.itemName,
-      supplier: invitationContext.supplierName,
-      type: invitationContext.nodeType,
-    });
+    // 레거시 경로 — 허브에서는 onConnectClick(초대 메일 팝업)로 처리된다.
     setShowConnectConfirm(false);
-    router.push(`/suppliers/invitations?${params.toString()}`);
   }
 
   return (
