@@ -735,6 +735,10 @@ export interface ApiSupplyChainMapNode {
   factoryId: string | null;
   tierLevel: number | null;
   linkStatus: "supplychain_declared" | "supplychain_confirmed";
+  // 납품(=생산 lot) 단위기간 + 생성 시각. §10.2a SELECT 에 추가됨(미배포 백엔드면 undefined).
+  supplyPeriodFrom?: string | null;
+  supplyPeriodTo?: string | null;
+  createdAt?: string | null;
 }
 /** §10.2a 비율 — ratioPercent(엣지 내 공장 분할) + cumulativeContribution(루트→공장 경로 곱). */
 export interface ApiSupplyChainRatio {

@@ -1,6 +1,7 @@
 'use client';
 
-// 공급망 목록(랜딩) — 지금까지 생성된 모든 공급망을 (제품 × 고객사 × 단위기간)으로 묶어 보여준다.
+// 공급망 목록(랜딩) — 지금까지 생성된 모든 공급망을 (제품 × BOM 버전=생산기간) 단위로 묶어 보여준다.
+// 단위기간 범위로 필터하면 그 기간에 생산(=납품)된 적이 있는 공급망만 추려진다.
 // 행을 누르면 해당 공급망의 맵 허브(/supply-chain/map?productId=…)로 진입한다.
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -16,9 +17,10 @@ import {
 import {
   apiProductsToDataset,
   buildSupplyChainList,
+  chainOverlapsPeriod,
   chainRiskMeta,
+  chainStatusMeta,
   emptyDataset,
-  isSentinelPeriod,
   mergeSupplyChainMap,
   mockDataset,
   type BomVersion,
@@ -31,6 +33,9 @@ export default function SupplyChainListPage() {
   const [chains, setChains] = useState<SupplyChainSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDemo, setIsDemo] = useState(false);
+  // 단위기간(생산기간) 범위 필터 — 빈 값이면 전체. 겹치는(overlap) 공급망만 표시.
+  const [filterFrom, setFilterFrom] = useState('');
+  const [filterTo, setFilterTo] = useState('');
   // 조회 상태 알림: 'auth'=토큰 없음/401·403, 'error'=그 외 실패, null=정상
   const [loadStatus, setLoadStatus] = useState<'auth' | 'error' | null>(null);
 
@@ -48,37 +53,42 @@ export default function SupplyChainListPage() {
       }
       try {
         const apiProducts = await getProducts();
-        // 제품별로 현재 BOM 버전 + §10.2a 공급망 맵을 모아 하나의 데이터셋으로 접는다.
+        // 제품마다 모든 BOM 버전(생산 Lot)을 돌며 §10.2a 맵을 조회 → 맵이 있는 버전마다 공급망 1건.
+        // (같은 제품의 기간별 Lot도 각각 별도 공급망으로 잡힌다 — 예: GLC 2024 / 2025.)
         const perProduct = await Promise.all(
           apiProducts.map(async p => {
             const versions = await getProductBomVersions(p.productId).catch(() => []);
-            const current = versions.find(v => v.isCurrent) ?? versions[0];
-            if (!current) return null;
-            try {
-              const map = await getProductSupplyChainMap(p.productId, { bomVersionId: current.bomVersionId });
-              return { productId: p.productId, current, map };
-            } catch {
-              // 맵 미형성/미배포 — 목록에서 제외
-              return null;
-            }
+            const versionMaps = await Promise.all(
+              versions.map(async v => {
+                try {
+                  const map = await getProductSupplyChainMap(p.productId, { bomVersionId: v.bomVersionId });
+                  return map.supplyChainMap.length > 0 ? { version: v, map } : null;
+                } catch {
+                  return null;
+                }
+              }),
+            );
+            return { productId: p.productId, versionMaps: versionMaps.filter(Boolean) };
           }),
         );
 
         let ds: SupplyChainDataset = { ...emptyDataset, products: apiProductsToDataset(apiProducts) };
-        for (const entry of perProduct) {
-          if (!entry || entry.map.supplyChainMap.length === 0) continue;
-          const { productId, current, map } = entry;
-          const bomVersion: BomVersion = {
-            bom_version_id: current.bomVersionId,
-            product_id: productId,
-            version_number: current.versionNumber,
-            effective_from: current.productionFrom ?? '',
-            effective_to: current.productionTo,
-            status: (current.status as BomVersion['status']) ?? 'active',
-            source_system: current.sourceSystem ?? 'API',
-          };
-          ds = { ...ds, bom_versions: [...ds.bom_versions, bomVersion] };
-          ds = mergeSupplyChainMap(ds, productId, current.bomVersionId, map);
+        for (const { productId, versionMaps } of perProduct) {
+          for (const vm of versionMaps) {
+            if (!vm) continue;
+            const { version, map } = vm;
+            const bomVersion: BomVersion = {
+              bom_version_id: version.bomVersionId,
+              product_id: productId,
+              version_number: version.versionNumber,
+              effective_from: version.productionFrom ?? '',
+              effective_to: version.productionTo,
+              status: (version.status as BomVersion['status']) ?? 'active',
+              source_system: version.sourceSystem ?? 'API',
+            };
+            ds = { ...ds, bom_versions: [...ds.bom_versions, bomVersion] };
+            ds = mergeSupplyChainMap(ds, productId, version.bomVersionId, map);
+          }
         }
 
         if (!cancelled) setChains(buildSupplyChainList(ds));
@@ -95,6 +105,12 @@ export default function SupplyChainListPage() {
     };
   }, []);
 
+  // 단위기간 범위 필터 적용 — 생산기간이 [filterFrom, filterTo] 와 겹치는 공급망만.
+  const visibleChains = useMemo(
+    () => chains.filter(c => chainOverlapsPeriod(c, filterFrom || undefined, filterTo || undefined)),
+    [chains, filterFrom, filterTo],
+  );
+
   function loadDemo() {
     setIsDemo(true);
     setLoadStatus(null);
@@ -104,10 +120,8 @@ export default function SupplyChainListPage() {
   function openChain(chain: SupplyChainSummary) {
     const params = new URLSearchParams({ productId: chain.product_id });
     if (chain.bom_version_id) params.set('bomVersionId', chain.bom_version_id);
-    if (!isSentinelPeriod(chain.period_from, chain.period_to)) {
-      params.set('periodFrom', chain.period_from);
-      params.set('periodTo', chain.period_to);
-    }
+    if (chain.period_from) params.set('periodFrom', chain.period_from);
+    if (chain.period_to) params.set('periodTo', chain.period_to);
     router.push(`/supply-chain/map?${params.toString()}`);
   }
 
@@ -156,7 +170,51 @@ export default function SupplyChainListPage() {
           </div>
         )}
 
-        <ChainListBody loading={loading} chains={chains} onOpen={openChain} />
+        <section className="mb-4 flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500">단위기간 (생산기간) 시작</span>
+            <input
+              type="date"
+              value={filterFrom}
+              onChange={e => setFilterFrom(e.target.value)}
+              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border"
+              aria-label="단위기간 시작"
+            />
+          </label>
+          <span className="pb-2.5 text-xs font-bold text-slate-400">~</span>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500">단위기간 종료</span>
+            <input
+              type="date"
+              value={filterTo}
+              onChange={e => setFilterTo(e.target.value)}
+              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border"
+              aria-label="단위기간 종료"
+            />
+          </label>
+          {(filterFrom || filterTo) && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilterFrom('');
+                setFilterTo('');
+              }}
+              className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-500 shadow-sm hover:bg-slate-50"
+            >
+              기간 초기화
+            </button>
+          )}
+          <span className="pb-2.5 text-xs font-medium text-slate-400">
+            이 기간에 생산(=납품)된 적이 있는 공급망만 표시합니다.
+          </span>
+        </section>
+
+        <ChainListBody
+          loading={loading}
+          chains={visibleChains}
+          totalCount={chains.length}
+          onOpen={openChain}
+        />
       </div>
     </div>
   );
@@ -165,10 +223,12 @@ export default function SupplyChainListPage() {
 function ChainListBody({
   loading,
   chains,
+  totalCount,
   onOpen,
 }: {
   loading: boolean;
   chains: SupplyChainSummary[];
+  totalCount: number;
   onOpen: (chain: SupplyChainSummary) => void;
 }) {
   const summary = useMemo(() => {
@@ -187,11 +247,17 @@ function ChainListBody({
   }
 
   if (chains.length === 0) {
+    // 전체는 있는데 현재 기간 필터에 안 걸린 경우 vs 애초에 생성된 공급망이 없는 경우 구분.
+    const filtered = totalCount > 0;
     return (
       <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
-        <div className="text-base font-bold text-ink-100">생성된 공급망이 없습니다</div>
+        <div className="text-base font-bold text-ink-100">
+          {filtered ? '이 기간에 해당하는 공급망이 없습니다' : '생성된 공급망이 없습니다'}
+        </div>
         <p className="mt-2 text-sm text-slate-500">
-          제품의 공급망 맵이 형성되면 여기에 표시됩니다. 시연하려면 우측 상단 “데모 데이터”를 사용하세요.
+          {filtered
+            ? '단위기간을 넓히거나 초기화해 보세요.'
+            : '제품의 공급망 맵이 형성되면 여기에 표시됩니다. 시연하려면 우측 상단 “데모 데이터”를 사용하세요.'}
         </p>
       </div>
     );
@@ -210,7 +276,7 @@ function ChainListBody({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                {['제품', '고객사', '단위기간', '협력사 수', '리스크', '갱신일', ''].map(header => (
+                {['제품', '고객사', '단위기간', '협력사 수', '상태', '리스크', '갱신일', ''].map(header => (
                   <th key={header} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold text-slate-500">
                     {header}
                   </th>
@@ -230,7 +296,12 @@ function ChainListBody({
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-ink-400">{chain.customer_name || '-'}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-ink-400">{formatPeriod(chain)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 font-semibold text-ink-300">{chain.supplier_count}개사</td>
+                  <td className="whitespace-nowrap px-4 py-3 font-semibold text-ink-300">
+                    {chain.completed_supplier_count}/{chain.supplier_count}개사
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <StatusBadge status={chain.status} />
+                  </td>
                   <td className="whitespace-nowrap px-4 py-3">
                     <RiskBadge level={chain.risk_level} />
                   </td>
@@ -286,9 +357,18 @@ function RiskBadge({ level }: { level: SupplyChainSummary['risk_level'] }) {
   );
 }
 
+function StatusBadge({ status }: { status: SupplyChainSummary['status'] }) {
+  const meta = chainStatusMeta[status];
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold ${meta.className}`}>
+      {meta.label}
+    </span>
+  );
+}
+
 function formatPeriod(chain: SupplyChainSummary) {
-  if (isSentinelPeriod(chain.period_from, chain.period_to)) return '전체';
-  return `${chain.period_from} ~ ${chain.period_to}`;
+  if (!chain.period_from) return '-';
+  return `${chain.period_from} ~ ${chain.period_to ?? '진행중'}`;
 }
 
 function formatDate(value: string) {

@@ -71,6 +71,8 @@ export interface MockSupplier {
   risk_level: 'low' | 'medium' | 'high' | 'critical';
   feoc_status: 'eligible' | 'ineligible' | 'under_review' | 'unknown';
   latest_audit_result: string;
+  // 협력사 입력 완성도(0~100). §10.2a completenessScore. 공급망 진행 상태 판정에 사용.
+  completeness_score?: number;
 }
 
 export interface MockSupplierFactory {
@@ -97,6 +99,8 @@ export interface SupplyChainMapRow {
   link_status: 'supplychain_declared' | 'supplychain_confirmed';
   source_system: 'ERP' | 'SUPPLIER_DECLARED';
   verification_status: 'unverified' | 'verified';
+  // 맵 노드 생성 시각(§10.2a). 갱신일 롤업에 사용. 미노출 백엔드/데모면 빈 값.
+  created_at?: string;
 }
 
 export interface SupplyChainRatio {
@@ -649,24 +653,42 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
 }
 
 // ── 공급망 목록(랜딩) ──
-// "지금까지 생성된 모든 공급망" = supply_chain_map 행을 (제품 × 고객사 × 단위기간)으로 묶은 단위.
-// map_id 는 부품-협력사 엣지 1개라 한 제품에 여러 개 존재 → 같은 묶음으로 집계해 목록 1행을 만든다.
+// "지금까지 생성된 모든 공급망" = supply_chain_map 이 형성된 (제품 × BOM 버전) 단위.
+// 단위기간 = BOM 버전의 생산기간(effective_from/to) — 고객사 납품기간을 생산기간으로 관리하므로
+// 같은 제품이라도 생산 Lot(기간)이 다르면 별도 공급망 행이 된다(예: GLC 2024 Lot / 2025 Lot).
 export type ChainRiskLevel = 'low' | 'medium' | 'high';
 
 export interface SupplyChainSummary {
-  chain_id: string;            // productId__customerId__periodFrom__periodTo 합성 키
+  chain_id: string;            // = bom_version_id (제품·고객사·생산기간을 함의)
   product_id: string;
   product_name: string;
   product_code: string;
   customer_id: string;
   customer_name: string;
   bom_version_id: string;
-  period_from: string;
-  period_to: string;
+  version_number: string;
+  period_from: string;         // 생산기간 시작(effective_from)
+  period_to: string | null;    // 생산기간 종료(effective_to) — null 이면 진행중
   supplier_count: number;      // child_supplier_id 중복 제거 카운트
+  completed_supplier_count: number; // 입력 완료(verified/completeness≥THRESHOLD) 협력사 수
+  status: ChainStatus;         // 협력사 입력 완성도 기준 진행 상태
   risk_level: ChainRiskLevel;  // 묶음 내 최악 협력사 위험도 (critical/high → high)
-  last_updated: string;        // 묶음 대표 갱신 시각 (현재: 제품 synced_at — 맵 created_at 미노출)
+  last_updated: string;        // 맵 노드 created_at 최신값 (없으면 생산기간 시작으로 폴백)
   map_ids: string[];
+}
+
+// 단위기간 범위 조회용 — 공급망의 생산기간 [from,to] 가 필터 [filterFrom,filterTo] 와 겹치는지.
+// to 가 null(진행중)이면 열린 구간으로 본다. 필터 일부만 주어져도 동작.
+export function chainOverlapsPeriod(
+  chain: Pick<SupplyChainSummary, 'period_from' | 'period_to'>,
+  filterFrom?: string,
+  filterTo?: string,
+): boolean {
+  const from = chain.period_from || '0000-01-01';
+  const to = chain.period_to || '9999-12-31';
+  if (filterFrom && to < filterFrom) return false;
+  if (filterTo && from > filterTo) return false;
+  return true;
 }
 
 const CHAIN_RISK_RANK: Record<ChainRiskLevel, number> = { low: 0, medium: 1, high: 2 };
@@ -684,6 +706,24 @@ export const chainRiskMeta: Record<ChainRiskLevel, { label: string; className: s
   low: { label: '저위험', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
 };
 
+// 공급망 진행 상태 — 협력사 입력 완성도(status/completeness) 기준.
+//  complete   = 묶음의 모든 협력사가 입력 완료(verified 또는 completeness≥THRESHOLD)
+//  awaiting   = 입력 완료된 협력사가 하나도 없음(초대/요청만 됨 — 자료 대기)
+//  collecting = 일부만 완료(수집 진행 중)
+export type ChainStatus = 'complete' | 'collecting' | 'awaiting';
+
+const COMPLETENESS_THRESHOLD = 80;
+
+export function isSupplierComplete(s: MockSupplier): boolean {
+  return s.status === 'supplier_verified' || (s.completeness_score ?? 0) >= COMPLETENESS_THRESHOLD;
+}
+
+export const chainStatusMeta: Record<ChainStatus, { label: string; className: string }> = {
+  complete: { label: '완료', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+  collecting: { label: '수집 중', className: 'border-sky-200 bg-sky-50 text-sky-700' },
+  awaiting: { label: '자료 대기', className: 'border-slate-200 bg-slate-100 text-slate-600' },
+};
+
 // 백엔드 §10.2a 병합 시 기간이 없는 맵 노드는 sentinel 범위로 채워진다(mergeSupplyChainMap).
 // 그 경우 목록의 단위기간은 의미가 없으므로 표시에서 '전체'로 보정한다.
 export const SENTINEL_PERIOD_FROM = '0000-01-01';
@@ -693,14 +733,15 @@ export function isSentinelPeriod(from: string, to: string) {
 }
 
 /**
- * 데이터셋의 공급망 맵을 (제품 × 고객사 × 단위기간)으로 묶어 목록 행을 만든다.
- * - 제품: bom_version_id → product_id 로 역추적, 고객사는 제품에 매달림.
+ * 데이터셋의 공급망 맵을 (제품 × BOM 버전) 단위로 묶어 목록 행을 만든다.
+ * - 묶음 키 = bom_version_id (제품·고객사·생산기간을 함의). 같은 제품의 다른 Lot은 별도 행.
+ * - 단위기간: BOM 버전의 생산기간(effective_from/to).
  * - 협력사 수: child_supplier_id 중복 제거.
  * - 리스크: 묶음 내 협력사 위험도 최악값(critical/high→고위험).
- * - 갱신일: 제품 synced_at (맵 노드에 created_at 이 노출되면 그 최신값으로 교체).
+ * - 갱신일: 맵 노드 created_at 최신값(없으면 생산기간 시작으로 폴백).
  */
 export function buildSupplyChainList(ds: SupplyChainDataset): SupplyChainSummary[] {
-  const productByBomVersion = new Map(ds.bom_versions.map(v => [v.bom_version_id, v.product_id]));
+  const bomVersionById = new Map(ds.bom_versions.map(v => [v.bom_version_id, v]));
   const productById = new Map(ds.products.map(p => [p.product_id, p]));
   const supplierById = new Map(ds.suppliers.map(s => [s.supplier_id, s]));
 
@@ -708,27 +749,30 @@ export function buildSupplyChainList(ds: SupplyChainDataset): SupplyChainSummary
   const groups = new Map<string, Acc>();
 
   for (const row of ds.supply_chain_map) {
-    const productId = productByBomVersion.get(row.bom_version_id);
-    if (!productId) continue;
-    const product = productById.get(productId);
+    const bomVersion = bomVersionById.get(row.bom_version_id);
+    if (!bomVersion) continue;
+    const product = productById.get(bomVersion.product_id);
     if (!product) continue;
 
-    const key = `${productId}__${product.customer_id}__${row.supply_period_from}__${row.supply_period_to}`;
+    const key = row.bom_version_id;
     let g = groups.get(key);
     if (!g) {
       g = {
         chain_id: key,
-        product_id: productId,
+        product_id: product.product_id,
         product_name: product.product_name,
         product_code: product.product_code,
         customer_id: product.customer_id,
         customer_name: product.customer_name,
-        bom_version_id: row.bom_version_id,
-        period_from: row.supply_period_from,
-        period_to: row.supply_period_to,
+        bom_version_id: bomVersion.bom_version_id,
+        version_number: bomVersion.version_number,
+        period_from: bomVersion.effective_from,
+        period_to: bomVersion.effective_to,
         supplier_count: 0,
+        completed_supplier_count: 0,
+        status: 'awaiting',
         risk_level: 'low',
-        last_updated: product.synced_at || '',
+        last_updated: '',
         map_ids: [],
         _supplierIds: new Set<string>(),
         _worst: 0,
@@ -737,6 +781,7 @@ export function buildSupplyChainList(ds: SupplyChainDataset): SupplyChainSummary
     }
     g.map_ids.push(row.map_id);
     if (row.child_supplier_id) g._supplierIds.add(row.child_supplier_id);
+    if (row.created_at && row.created_at > g.last_updated) g.last_updated = row.created_at;
     const supplier = supplierById.get(row.child_supplier_id);
     if (supplier) {
       const lvl = toChainRiskLevel(supplier.risk_level);
@@ -748,11 +793,33 @@ export function buildSupplyChainList(ds: SupplyChainDataset): SupplyChainSummary
   }
 
   return Array.from(groups.values())
-    .map(({ _supplierIds, _worst, ...rest }) => ({ ...rest, supplier_count: _supplierIds.size }))
+    .map(({ _supplierIds, _worst, ...rest }) => {
+      const supplierIds = Array.from(_supplierIds);
+      const completed = supplierIds.filter(id => {
+        const s = supplierById.get(id);
+        return s ? isSupplierComplete(s) : false;
+      }).length;
+      // 모두 완료=완료, 하나도 없음=자료 대기, 일부=수집 중.
+      const status: ChainStatus =
+        supplierIds.length > 0 && completed === supplierIds.length
+          ? 'complete'
+          : completed === 0
+            ? 'awaiting'
+            : 'collecting';
+      return {
+        ...rest,
+        supplier_count: supplierIds.length,
+        completed_supplier_count: completed,
+        status,
+        // created_at 이 하나도 없으면(데모/미노출) 생산기간 시작을 갱신일로 폴백.
+        last_updated: rest.last_updated || rest.period_from || '',
+      };
+    })
     .sort(
       (a, b) =>
         CHAIN_RISK_RANK[b.risk_level] - CHAIN_RISK_RANK[a.risk_level] ||
-        a.product_name.localeCompare(b.product_name),
+        a.product_name.localeCompare(b.product_name) ||
+        (a.period_from < b.period_from ? 1 : -1),
     );
 }
 
@@ -889,11 +956,13 @@ export function mergeSupplyChainMap(
     part_id: n.partId,
     po_number: '',
     invoice_number: '',
-    supply_period_from: '0000-01-01', // 기간 필터(겹침) 항상 통과 — 실 필터는 서버(§10.2a)에서
-    supply_period_to: '9999-12-31',
+    // 실 납품 단위기간(§10.2a). 미노출이면 sentinel 로 폴백해 기간 필터(겹침)를 항상 통과시킨다.
+    supply_period_from: n.supplyPeriodFrom ?? '0000-01-01',
+    supply_period_to: n.supplyPeriodTo ?? '9999-12-31',
     link_status: n.linkStatus,
     source_system: 'ERP',
     verification_status: n.linkStatus === 'supplychain_confirmed' ? 'verified' : 'unverified',
+    created_at: n.createdAt ?? '',
   }));
 
   const supply_chain_ratios: SupplyChainRatio[] = resp.supplyChainRatios.map(r => ({
@@ -915,6 +984,7 @@ export function mergeSupplyChainMap(
     risk_level: (s.riskLevel as MockSupplier['risk_level']) ?? 'low',
     feoc_status: (s.feocStatus as MockSupplier['feoc_status']) ?? 'unknown',
     latest_audit_result: '',
+    completeness_score: s.completenessScore ?? undefined,
   }));
 
   const supplier_factories: MockSupplierFactory[] = resp.supplierFactories.map(f => ({

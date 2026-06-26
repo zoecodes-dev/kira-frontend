@@ -38,6 +38,7 @@ export function SupplyChainMapPageContent({
   dataset = mockDataset,
   embedded = false,
   initialProductId,
+  initialBomVersionId,
   highlightSupplierIds,
   onNodeSelect,
   onConnectClick,
@@ -48,6 +49,8 @@ export function SupplyChainMapPageContent({
   embedded?: boolean;
   // 공급망 목록에서 넘어온 초기 선택 제품(선택). 제품 목록 로드 후 이 제품을 우선 선택한다.
   initialProductId?: string;
+  // 공급망 목록에서 넘어온 초기 BOM 버전(생산 Lot). 해당 버전을 드롭다운에서 우선 선택한다.
+  initialBomVersionId?: string;
   // STEP 2에서 확정된 Pool의 supplierId 집합(선택). 해당 협력사 행을 맵에서 하이라이트한다.
   highlightSupplierIds?: Set<string>;
   // 데이터 주입(선택): 미전달 시 데모 mockDataset. 허브는 빈/API/데모 dataset을 넘긴다.
@@ -137,12 +140,14 @@ export function SupplyChainMapPageContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset.products]);
 
-  // 선택 제품의 BOM이 도착하면 첫 BOM 버전을 자동 선택
+  // 선택 제품의 BOM이 도착하면 BOM 버전을 자동 선택.
+  // 목록에서 넘어온 initialBomVersionId 가 목록에 있으면 그 버전(생산 Lot)을 우선 선택한다.
   useEffect(() => {
     if (availableBomVersions.length > 0 && !availableBomVersions.some(v => v.bom_version_id === selectedBomVersionId)) {
-      setSelectedBomVersionId(availableBomVersions[0].bom_version_id);
+      const preferred = initialBomVersionId && availableBomVersions.find(v => v.bom_version_id === initialBomVersionId);
+      setSelectedBomVersionId((preferred || availableBomVersions[0]).bom_version_id);
     }
-  }, [availableBomVersions, selectedBomVersionId]);
+  }, [availableBomVersions, selectedBomVersionId, initialBomVersionId]);
 
   function handleGenerate() {
     setGeneratedAt(new Date().toLocaleString('ko-KR'));

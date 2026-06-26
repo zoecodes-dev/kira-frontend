@@ -29,14 +29,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* 그룹 구분은 가로 구분선(border-t)만 사용 — 그룹 헤더 라벨은 렌더링하지 않음.
             구분선은 그룹 컨테이너(좌우 패딩 없음)에, 좌우 패딩은 NavLink 항목 내부(px-3)에만. */}
         <nav className="flex-1 overflow-y-auto py-1">
-          {/* 공급망 워크스페이스 — 메인 엔트리 포인트(최상단) */}
+          {/* 공급망 워크스페이스 — 메인 엔트리 포인트(최상단). 기본 진입은 공급망 목록. */}
           <div className="py-2.5">
             <div className="space-y-0.5">
               <NavLink
-                href="/supply-chain/map"
+                href="/supply-chain"
                 iconName="network"
                 label="공급망 워크스페이스"
-                subtitle="맵·요청·실사"
+                subtitle="목록·맵·요청·실사"
+                subItems={[
+                  { href: '/supply-chain', label: '공급망 목록', exact: true },
+                  { href: '/supply-chain/map', label: '공급망 맵' },
+                ]}
               />
             </div>
           </div>

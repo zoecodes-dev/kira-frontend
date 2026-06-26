@@ -19,9 +19,10 @@ import MapManageModal from '@/components/supply-chain/MapManageModal';
 export type HubModal = null | 'pool' | 'supplierInfo' | 'dataRequest' | 'invite' | 'mapManage';
 
 export default function SupplyChainHub() {
-  // 공급망 목록에서 특정 공급망을 누르고 들어오면 productId 로 해당 제품을 선택해 연다.
+  // 공급망 목록에서 특정 공급망을 누르고 들어오면 productId(+bomVersionId)로 해당 Lot을 선택해 연다.
   const searchParams = useSearchParams();
   const initialProductId = searchParams.get('productId') ?? undefined;
+  const initialBomVersionId = searchParams.get('bomVersionId') ?? undefined;
   const [pool, setPool] = useState<SupplierBrief[]>([]);
   // STEP 2 Pool 후보 — 선택된 제품의 §10.2a 맵 tier-1 협력사만. 제품 미선택이면 빈 배열.
   const [tier1Pool, setTier1Pool] = useState<SupplierBrief[]>([]);
@@ -86,8 +87,13 @@ export default function SupplyChainHub() {
     } catch {
       // 구버전 백엔드 — 합성 버전 사용
     }
+    // 목록에서 특정 Lot으로 진입했으면(URL bomVersionId) 그 버전을 우선 사용 — 단, 이 제품의 버전일 때만.
+    const preferredVersionId =
+      initialBomVersionId && versions.some(v => v.bomVersionId === initialBomVersionId)
+        ? initialBomVersionId
+        : undefined;
     const activeVersionId =
-      versions.find(v => v.isCurrent)?.bomVersionId ?? versions[0]?.bomVersionId;
+      preferredVersionId ?? versions.find(v => v.isCurrent)?.bomVersionId ?? versions[0]?.bomVersionId;
 
     // 2) BOM 트리 → 평면. 실 bomVersionId가 있으면 그 키로 정합.
     try {
@@ -232,6 +238,7 @@ export default function SupplyChainHub() {
         dataset={dataset}
         embedded
         initialProductId={initialProductId}
+        initialBomVersionId={initialBomVersionId}
         highlightSupplierIds={new Set(pool.map(s => s.supplierId))}
         onNodeSelect={setSelectedNode}
         onConnectClick={() => setActiveModal('invite')}
