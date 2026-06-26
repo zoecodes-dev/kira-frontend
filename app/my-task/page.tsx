@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { getActions, type ActionItem } from '@/lib/api';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
+import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
 import {
   CheckCircle2, FileCheck2,
   ShieldAlert, UserCheck, ArrowRight, Bell,
@@ -247,7 +248,7 @@ export default function MyTaskPage() {
 
   const filtered = sortByPriority(filter === 'all' ? tasks : tasks.filter(task => task.status === filter));
 
-  const [view, setView] = useState<'list' | 'request'>('list');
+  const [view, setView] = useState<'list' | 'request' | 'inputStatus'>('list');
 
   return (
     <>
@@ -258,12 +259,17 @@ export default function MyTaskPage() {
         tabs={[
           { label: '내 업무 목록', active: view === 'list', onClick: () => setView('list') },
           { label: '자료 요청', active: view === 'request', onClick: () => setView('request') },
+          { label: '협력사 입력 현황', active: view === 'inputStatus', onClick: () => setView('inputStatus') },
         ]}
       />
 
       {view === 'request' ? (
         <div className="p-8 pt-4">
           <RequestArea />
+        </div>
+      ) : view === 'inputStatus' ? (
+        <div className="p-8 pt-4">
+          <SupplierInputStatusBoard embedded />
         </div>
       ) : (
       <div className="p-8 pt-4">

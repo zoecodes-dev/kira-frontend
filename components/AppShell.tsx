@@ -53,27 +53,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* 협력사 관리 */}
           <div className="border-t border-white/10 py-2.5">
             <div className="space-y-0.5">
+              {/* 입력 현황은 My Task 탭으로 이관 — 드롭다운 없이 단일 링크(목록 진입). */}
               <NavLink
                 href="/suppliers"
                 iconName="building2"
                 label="협력사 관리"
-                subtitle="목록·세부 정보·입력 현황"
-                subItems={[
-                  {
-                    href: '/suppliers',
-                    label: '협력사 목록',
-                    exact: true,
-                    children: [
-                      {
-                        href: '/suppliers/detail-context',
-                        label: '협력사 세부 정보',
-                        matchPattern: '^/suppliers/(?!invitations(?:/|$)|check-info(?:/|$))[^/]+',
-                        disabled: true,
-                      },
-                    ],
-                  },
-                  { href: '/suppliers/check-info', label: '협력사 입력 현황' },
-                ]}
+                subtitle="목록·세부 정보"
               />
             </div>
           </div>
