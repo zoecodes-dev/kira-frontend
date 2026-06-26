@@ -7,6 +7,7 @@ import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeProductBom, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
 import { getProductBom, getProducts, type SupplierBrief } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
+import PageHeader from '@/components/PageHeader';
 import HubStepBar from '@/components/supply-chain/HubStepBar';
 import PoolModal from '@/components/supply-chain/PoolModal';
 import SupplierInfoModal from '@/components/supply-chain/SupplierInfoModal';
@@ -80,15 +81,20 @@ export default function SupplyChainHub() {
 
   return (
     <div className="min-h-screen bg-white text-ink-100">
-      <HubStepBar
-        poolCount={pool.length}
-        hasSelection={Boolean(selectedNode)}
-        onOpenPool={() => setActiveModal('pool')}
-        onOpenSupplierInfo={() => setActiveModal('supplierInfo')}
-        onOpenDataRequest={() => setActiveModal('dataRequest')}
-        onOpenInvite={() => setActiveModal('invite')}
-        onOpenMapManage={() => setActiveModal('mapManage')}
-      />
+      <PageHeader
+        title="공급망 맵 허브"
+        description="협력사 풀·맵·자료 요청·실사를 한 화면에서 단계별로 관리합니다."
+      >
+        <HubStepBar
+          poolCount={pool.length}
+          hasSelection={Boolean(selectedNode)}
+          onOpenPool={() => setActiveModal('pool')}
+          onOpenSupplierInfo={() => setActiveModal('supplierInfo')}
+          onOpenDataRequest={() => setActiveModal('dataRequest')}
+          onOpenInvite={() => setActiveModal('invite')}
+          onOpenMapManage={() => setActiveModal('mapManage')}
+        />
+      </PageHeader>
 
       <div className="flex items-center justify-end gap-2 px-6 pt-4">
         {productsLoading && (

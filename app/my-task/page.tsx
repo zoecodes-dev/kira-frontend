@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { getActions, type ActionItem } from '@/lib/api';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import TabBar from '@/components/TabBar';
 import {
   AlertTriangle, CheckCircle2, FileCheck2,
   ShieldAlert, UserCheck, ArrowRight, Bell,
@@ -270,15 +269,11 @@ export default function MyTaskPage() {
         title="My Task"
         description="담당자 개인이 오늘 처리해야 할 승인, 반려, 리마인드, 리스크 조치를 모아 보는 화면"
         badge="P1"
+        tabs={[
+          { label: '내 업무 목록', active: view === 'list', onClick: () => setView('list') },
+          { label: '자료 요청', active: view === 'request', onClick: () => setView('request') },
+        ]}
       />
-
-      <div className="px-8 pt-6">
-        <TabBar<'list' | 'request'>
-          tabs={[{ key: 'list', label: '내 업무 목록' }, { key: 'request', label: '자료 요청' }]}
-          value={view}
-          onChange={setView}
-        />
-      </div>
 
       {view === 'request' ? (
         <div className="p-8 pt-4">
