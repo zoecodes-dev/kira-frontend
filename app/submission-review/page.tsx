@@ -6,6 +6,7 @@ import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import TopStatCard from '@/components/TopStatCard';
 import DueDiligenceBoard from '@/components/DueDiligenceBoard';
+import TabBar from '@/components/TabBar';
 import {
   getSupplierName, getContacts, purchaseOrders, parts, remindLogs,
 } from '@/lib/supplier-detail-data';
@@ -176,22 +177,12 @@ export default function SubmissionReviewPage() {
         </div>
       )}
 
-      <nav className="sticky top-[57px] z-10 border-b border-ink-700 bg-white px-8">
-        <div className="flex">
-          {([['review', '자료 검토'], ['dd', '공급망 실사']] as const).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={clsx(
-                'border-b-2 px-4 py-3 text-xs font-bold transition-colors',
-                tab === key ? 'border-accent-600 text-accent-700' : 'border-transparent text-ink-400 hover:text-ink-100',
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <nav className="sticky top-[57px] z-10 bg-white px-8 pt-3">
+        <TabBar<'review' | 'dd'>
+          tabs={[{ key: 'review', label: '자료 검토' }, { key: 'dd', label: '공급망 실사' }]}
+          value={tab}
+          onChange={setTab}
+        />
       </nav>
 
       {tab === 'dd' ? (
