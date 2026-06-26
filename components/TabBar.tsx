@@ -1,6 +1,6 @@
 'use client';
 
-// 페이지 상단 구획 탭 — 칸을 세로 구분선으로 나누고 활성 칸은 브랜드 채움.
+// 페이지 상단 구획 탭 — 밑줄형. 활성 탭만 브랜드 색 + 하단 바, 컨테이너 하단선에 겹침.
 import clsx from 'clsx';
 
 export default function TabBar<T extends string>({
@@ -15,16 +15,17 @@ export default function TabBar<T extends string>({
   className?: string;
 }) {
   return (
-    <div className={clsx('inline-flex flex-wrap overflow-hidden rounded-xs border border-ink-700 bg-white shadow-control', className)}>
-      {tabs.map((t, i) => (
+    <div className={clsx('flex gap-6 border-b border-[#E2E8F0]', className)}>
+      {tabs.map((t) => (
         <button
           key={t.key}
           type="button"
           onClick={() => onChange(t.key)}
           className={clsx(
-            'px-4 py-2 text-xs font-bold transition-colors',
-            i > 0 && 'border-l border-ink-700',
-            value === t.key ? 'bg-brand text-white' : 'text-ink-500 hover:bg-slate-50 hover:text-ink-200',
+            '-mb-px border-b-2 pb-2.5 text-[15px] transition-colors',
+            value === t.key
+              ? 'border-[#11352A] font-semibold text-[#11352A]'
+              : 'border-transparent font-medium text-[#64748B] hover:text-[#11352A]',
           )}
         >
           {t.label}

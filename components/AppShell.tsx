@@ -45,9 +45,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 iconName="network"
                 label="공급망 워크스페이스"
                 subtitle="맵·요청·실사"
-                subItems={[
-                  { href: '/supply-chain/map', label: '공급망 맵 허브' },
-                ]}
               />
             </div>
           </div>
