@@ -666,7 +666,10 @@ export function normalizeProductBom(resp: BomTreeResponse, overrideBomVersionId?
   return { bomVersions, parts, bomItems };
 }
 
-/** 대표 제품 목록. 없으면 빈 배열(또는 404). */
+/**
+ * 제품 목록. ⚠ 인증 필수 + 테넌트 격리(§0.2) — 토큰 없으면 401, 내 테넌트 제품만 반환.
+ * (BOM 트리·bom-versions 는 무인증 공개. 목록/단건/§10.2a 맵만 인증 필요.)
+ */
 export const getProducts = () => api.get<ApiProduct[]>("/products");
 
 /**
@@ -682,13 +685,15 @@ export const getProductBom = async (
   return normalizeProductBom(resp, bomVersionId);
 };
 
-/** 제품 단건. 내 테넌트 소유만(아니면 404). */
+/**
+ * 제품 단건. ⚠ 인증 필수 + 테넌트 격리(§0.2) — 토큰 없으면 401, 남의 테넌트면 404(은닉).
+ * 응답은 ProductBrief 직렬화(specs/created_at/updated_at 제외).
+ */
 export interface ApiProductDetail extends ApiProduct {
   manufacturerId: string | null;
   customerId: string | null;
   modelName: string | null;
   amperageAh: number | null;
-  specs: Record<string, unknown> | null;
   sourceSystem: string | null;
   syncedAt: string | null;
 }
