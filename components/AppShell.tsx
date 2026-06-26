@@ -47,7 +47,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 subtitle="맵·요청·실사"
                 subItems={[
                   { href: '/supply-chain/map', label: '공급망 맵 허브' },
-                  { href: '/due-diligence', label: '공급망 실사 관리' },
                 ]}
               />
             </div>
