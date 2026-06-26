@@ -4,8 +4,8 @@
 import { useEffect, useState } from 'react';
 import { Database, Loader2 } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
-import { apiProductsToDataset, emptyDataset, mergeProductBom, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
-import { getProductBom, getProducts, type SupplierBrief } from '@/lib/api';
+import { apiProductsToDataset, emptyDataset, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
+import { getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, type SupplierBrief } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
 import PageHeader from '@/components/PageHeader';
 import HubStepBar from '@/components/supply-chain/HubStepBar';
@@ -48,14 +48,37 @@ export default function SupplyChainHub() {
     };
   }, []);
 
-  // 제품 선택 시 해당 제품 BOM 조회 → 데이터셋 병합 (데모 모드면 mock BOM 유지)
+  // 제품 선택 시: BOM(버전·트리) + §10.2a 공급망 맵을 조회해 데이터셋에 병합.
+  // 각 호출은 graceful — 미구현/미배포 백엔드면 해당 부분만 건너뛴다(데모 모드면 mock 유지).
   async function handleProductChange(productId: string) {
     if (isDemo) return;
+
+    // 1) BOM 버전 목록(실 bomVersionId) — 없으면 트리 합성 버전으로 폴백
+    let versions: Awaited<ReturnType<typeof getProductBomVersions>> = [];
     try {
-      const bom = await getProductBom(productId);
-      setDataset(ds => mergeProductBom(ds, productId, bom));
+      versions = await getProductBomVersions(productId);
+    } catch {
+      // 구버전 백엔드 — 합성 버전 사용
+    }
+    const activeVersionId =
+      versions.find(v => v.isCurrent)?.bomVersionId ?? versions[0]?.bomVersionId;
+
+    // 2) BOM 트리 → 평면. 실 bomVersionId가 있으면 그 키로 정합.
+    try {
+      const bom = await getProductBom(productId, activeVersionId);
+      setDataset(ds => mergeProductBom(ds, productId, bom, versions));
     } catch {
       // BOM 없음 — 빈 상태 유지
+    }
+
+    // 3) §10.2a 공급망 맵(협력사·공장·비율). 미구현/빈 데이터면 건너뜀.
+    if (activeVersionId) {
+      try {
+        const map = await getProductSupplyChainMap(productId, { bomVersionId: activeVersionId });
+        setDataset(ds => mergeSupplyChainMap(ds, productId, activeVersionId, map));
+      } catch {
+        // 공급망 맵 없음 — 협력사 빈 상태 유지
+      }
     }
   }
 

@@ -1,7 +1,7 @@
 // 공급망 맵 허브와 협력사 포털이 공유하는 제품/BOM/공급망 mock 데이터·타입·순수 헬퍼 모듈
 // (제품/BOM/맵엣지/비율은 백엔드 엔드포인트가 없어 로컬 mock 으로 유지한다. 협력사 상세는 lib/api 사용.)
 import { AlertTriangle, CheckCircle2, Clock, ShieldAlert } from 'lucide-react';
-import type { ApiProduct, ApiProductBom } from '@/lib/api';
+import type { ApiProduct, ApiProductBom, ApiBomVersionListItem, ApiProductSupplyChainMap } from '@/lib/api';
 
 export type RiskStatus = 'verified' | 'watch' | 'high' | 'feoc_review' | 'audit_required';
 export type PartKind = 'component' | 'material' | 'mineral';
@@ -686,17 +686,36 @@ export function apiProductsToDataset(apiProducts: ApiProduct[]): Product[] {
   }));
 }
 
-/** 제품의 BOM(API)을 dataset에 병합한다. 공급망 연결(엣지/비율/협력사)은 형성으로 채워진다. */
-export function mergeProductBom(ds: SupplyChainDataset, productId: string, bom: ApiProductBom): SupplyChainDataset {
-  const bom_versions: BomVersion[] = bom.bomVersions.map(v => ({
-    bom_version_id: v.bomVersionId,
-    product_id: v.productId,
-    version_number: v.versionNumber,
-    effective_from: '',
-    effective_to: null,
-    status: (v.status as BomVersion['status']) ?? 'active',
-    source_system: 'API',
-  }));
+/**
+ * 제품의 BOM(API)을 dataset에 병합한다. 공급망 연결(엣지/비율/협력사)은 §10.2a로 채워진다.
+ * versions(getProductBomVersions, 실 bomVersionId)를 주면 그 전체 목록으로 bom_versions를 채운다.
+ * 없으면 BOM 트리에서 합성된 단일 버전(bom.bomVersions)을 쓴다.
+ */
+export function mergeProductBom(
+  ds: SupplyChainDataset,
+  productId: string,
+  bom: ApiProductBom,
+  versions?: ApiBomVersionListItem[],
+): SupplyChainDataset {
+  const bom_versions: BomVersion[] = (versions && versions.length > 0)
+    ? versions.map(v => ({
+        bom_version_id: v.bomVersionId,
+        product_id: v.productId,
+        version_number: v.versionNumber,
+        effective_from: v.productionFrom ?? '',
+        effective_to: v.productionTo,
+        status: (v.status as BomVersion['status']) ?? 'active',
+        source_system: v.sourceSystem ?? 'API',
+      }))
+    : bom.bomVersions.map(v => ({
+        bom_version_id: v.bomVersionId,
+        product_id: v.productId,
+        version_number: v.versionNumber,
+        effective_from: '',
+        effective_to: null,
+        status: (v.status as BomVersion['status']) ?? 'active',
+        source_system: 'API',
+      }));
   const parts: Part[] = bom.parts.map(p => ({
     part_id: p.partId,
     part_code: p.partCode,
@@ -724,5 +743,106 @@ export function mergeProductBom(ds: SupplyChainDataset, productId: string, bom: 
     bom_versions: [...ds.bom_versions.filter(v => v.product_id !== productId), ...bom_versions],
     parts: [...ds.parts.filter(p => !parts.some(np => np.part_id === p.part_id)), ...parts],
     bom_items: [...ds.bom_items.filter(i => !otherVersionIds.has(i.bom_version_id)), ...bom_items],
+  };
+}
+
+const FACTORY_ROLE_FALLBACK: MockSupplierFactory['factory_role'] = 'production';
+const VALID_FACTORY_ROLES = new Set<MockSupplierFactory['factory_role']>([
+  'headquarters', 'production', 'outsourcing', 'processing', 'mining',
+]);
+
+/**
+ * §10.2a 공급망 맵(getProductSupplyChainMap) 응답을 dataset에 병합한다.
+ * 백엔드가 supply_chain_map/ratios/suppliers/supplier_factories를 실제로 주므로 합성하지 않는다.
+ * bomVersionId(현재 선택 버전)로 맵 행을 스탬프해 buildTraceRows의 버전 필터와 일치시킨다.
+ * - 백엔드 맵 행엔 기간/PO가 없어 기간 필터를 항상 통과하도록 넓은 범위로 채운다(서버가 이미 필터링).
+ * - 앵커 외 부품은 bom_items가 없어 행이 누락되므로, 맵이 참조하는 부품에 최소 bom_item을 backfill.
+ */
+export function mergeSupplyChainMap(
+  ds: SupplyChainDataset,
+  productId: string,
+  bomVersionId: string,
+  resp: ApiProductSupplyChainMap,
+): SupplyChainDataset {
+  const supply_chain_map: SupplyChainMapRow[] = resp.supplyChainMap.map(n => ({
+    map_id: n.mapId,
+    bom_version_id: bomVersionId,
+    parent_supplier_id: n.supplierId, // 백엔드 맵 노드는 child만 제공(트리 구조는 ratios의 누적 경로로)
+    child_supplier_id: n.supplierId,
+    part_id: n.partId,
+    po_number: '',
+    invoice_number: '',
+    supply_period_from: '0000-01-01', // 기간 필터(겹침) 항상 통과 — 실 필터는 서버(§10.2a)에서
+    supply_period_to: '9999-12-31',
+    link_status: n.linkStatus,
+    source_system: 'ERP',
+    verification_status: n.linkStatus === 'supplychain_confirmed' ? 'verified' : 'unverified',
+  }));
+
+  const supply_chain_ratios: SupplyChainRatio[] = resp.supplyChainRatios.map(r => ({
+    ratio_id: `${r.mapId}:${r.factoryId ?? 'na'}`,
+    map_id: r.mapId,
+    factory_id: r.factoryId ?? '',
+    ratio_percentage: r.ratioPercent ?? r.cumulativeContribution ?? 0,
+    volume: 0,
+  }));
+
+  const suppliers: MockSupplier[] = resp.suppliers.map(s => ({
+    supplier_id: s.supplierId,
+    company_name: s.companyName,
+    company_name_en: '',
+    provider_type: s.providerType,
+    tier: 0,
+    parent_supplier_id: null,
+    status: s.status ?? '',
+    risk_level: (s.riskLevel as MockSupplier['risk_level']) ?? 'low',
+    feoc_status: (s.feocStatus as MockSupplier['feoc_status']) ?? 'unknown',
+    latest_audit_result: '',
+  }));
+
+  const supplier_factories: MockSupplierFactory[] = resp.supplierFactories.map(f => ({
+    factory_id: f.factoryId,
+    supplier_id: f.supplierId,
+    factory_name: f.factoryName,
+    factory_name_en: '',
+    country: f.country ?? '',
+    region: f.region ?? '',
+    factory_role: VALID_FACTORY_ROLES.has(f.factoryRole as MockSupplierFactory['factory_role'])
+      ? (f.factoryRole as MockSupplierFactory['factory_role'])
+      : FACTORY_ROLE_FALLBACK,
+    destination: 'EU',
+  }));
+
+  // bom_items backfill — 맵이 참조하지만 BOM 앵커가 아닌 부품(필수: buildTraceRows가 bomItem 없으면 행 누락)
+  const itemKeys = new Set(ds.bom_items.filter(i => i.bom_version_id === bomVersionId).map(i => i.part_id));
+  const referencedParts = new Set(supply_chain_map.map(m => m.part_id));
+  const backfillItems: BomItem[] = [];
+  for (const pid of referencedParts) {
+    if (!itemKeys.has(pid)) {
+      backfillItems.push({
+        bom_item_id: `${bomVersionId}:${pid}:auto`,
+        bom_version_id: bomVersionId,
+        part_id: pid,
+        required_quantity: 0,
+        required_quantity_unit: '',
+        percentage: 0,
+        origin_country: '',
+      });
+    }
+  }
+
+  const newSupplierIds = new Set(suppliers.map(s => s.supplier_id));
+  const newFactoryIds = new Set(supplier_factories.map(f => f.factory_id));
+  const oldVersionMapIds = new Set(
+    ds.supply_chain_map.filter(m => m.bom_version_id === bomVersionId).map(m => m.map_id),
+  );
+
+  return {
+    ...ds,
+    suppliers: [...ds.suppliers.filter(s => !newSupplierIds.has(s.supplier_id)), ...suppliers],
+    supplier_factories: [...ds.supplier_factories.filter(f => !newFactoryIds.has(f.factory_id)), ...supplier_factories],
+    supply_chain_map: [...ds.supply_chain_map.filter(m => m.bom_version_id !== bomVersionId), ...supply_chain_map],
+    supply_chain_ratios: [...ds.supply_chain_ratios.filter(r => !oldVersionMapIds.has(r.map_id)), ...supply_chain_ratios],
+    bom_items: [...ds.bom_items, ...backfillItems],
   };
 }
