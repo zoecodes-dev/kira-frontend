@@ -52,7 +52,7 @@ export default function SignupForm({
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-sm border border-slate-200 bg-white p-6 shadow-sm">
       <div className="text-base font-bold text-ink-100">회원가입 · 기본 정보</div>
       <p className="mt-1 text-sm text-slate-500">회사 기본 정보와 필요 문서를 등록하세요. 표시된 항목은 필수입니다.</p>
 

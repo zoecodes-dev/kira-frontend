@@ -77,7 +77,7 @@ export default function StepMaterials({
   return (
     <div className="space-y-4">
       {/* 소재 구성 */}
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
         <SectionTitle>소재 구성 (핵심 광물 함량)</SectionTitle>
         <div className="space-y-2">
           {data.minerals.map((m, i) => (
@@ -106,7 +106,7 @@ export default function StepMaterials({
       </div>
 
       {/* 재활용 */}
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
         <SectionTitle>재활용 함량 · 소재별 회수율</SectionTitle>
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold text-slate-600">재활용 함량</span>
@@ -141,7 +141,7 @@ export default function StepMaterials({
       </div>
 
       {/* 공장별 공급비율 · 원산지 */}
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-2 flex items-center gap-2">
           <SectionTitle>공장별 공급비율 · 원산지</SectionTitle>
           {loadingFactories && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
@@ -172,7 +172,7 @@ export default function StepMaterials({
       </div>
 
       {/* 하위 협력사 공급 자재명 */}
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
         <SectionTitle>하위 협력사로부터 공급받는 자재명</SectionTitle>
         <div className="space-y-2">
           {data.childMaterials.map((c, i) => (
@@ -206,7 +206,7 @@ export default function StepMaterials({
         </button>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm">
+      <div className="rounded-sm border border-slate-200 bg-white px-5 py-4 shadow-sm">
         <StepFooter onBack={onBack} onNext={onNext} />
       </div>
     </div>

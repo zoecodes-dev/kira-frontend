@@ -32,15 +32,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* 공급망 워크스페이스 — 메인 엔트리 포인트(최상단). 기본 진입은 공급망 목록. */}
           <div className="py-2.5">
             <div className="space-y-0.5">
+              {/* 목록·맵 구분은 사이드바 드롭다운 대신 각 페이지 상단 헤더 탭으로만 한다. */}
               <NavLink
                 href="/supply-chain"
                 iconName="network"
                 label="공급망 워크스페이스"
                 subtitle="목록·맵·요청·실사"
-                subItems={[
-                  { href: '/supply-chain', label: '공급망 목록', exact: true },
-                  { href: '/supply-chain/map', label: '공급망 맵' },
-                ]}
               />
             </div>
           </div>

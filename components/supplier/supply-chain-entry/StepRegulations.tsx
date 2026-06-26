@@ -13,7 +13,7 @@ const textInput = 'h-9 w-full rounded-md border border-slate-200 px-3 text-sm ou
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3 text-sm font-bold text-ink-100">{title}</div>
       {children}
     </div>
@@ -164,7 +164,7 @@ export default function StepRegulations({
         <Docs list={data.originDocs} onChange={l => onChange({ ...data, originDocs: l })} />
       </Section>
 
-      <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm">
+      <div className="rounded-sm border border-slate-200 bg-white px-5 py-4 shadow-sm">
         <StepFooter onBack={onBack} onNext={onNext} />
       </div>
     </div>

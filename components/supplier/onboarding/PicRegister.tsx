@@ -43,7 +43,7 @@ export default function PicRegister({
   const allValid = pics.length > 0 && pics.every(p => isPicValid(p, isFirstTier));
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-sm border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-center gap-2 text-base font-bold text-ink-100">
         <UserPlus className="h-5 w-5 text-brand" />
         {isFirstTier ? '하위 협력사 담당자(PIC) 등록' : '담당자(PIC) 등록'}

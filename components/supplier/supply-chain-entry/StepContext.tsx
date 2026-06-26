@@ -67,7 +67,7 @@ export default function StepContext({
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-sm border border-slate-200 bg-white p-6 shadow-sm">
       {/* 직상위 정보 */}
       <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
