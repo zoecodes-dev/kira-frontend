@@ -5,6 +5,7 @@ import { getActions, type ActionItem } from '@/lib/api';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
+import { getStoredRequests, type DataRequestRecord } from '@/lib/data-request-store';
 import {
   CheckCircle2, FileCheck2,
   ShieldAlert, UserCheck, ArrowRight, Bell,
@@ -183,8 +184,15 @@ const dataRequests: DataRequest[] = [
 ];
 
 function RequestArea() {
+  // 발송된 요청(localStorage) + mock — 같은 협력사는 저장본 우선. 입력현황 발송이 여기 반영된다.
+  const [stored, setStored] = useState<DataRequestRecord[]>([]);
+  useEffect(() => { setStored(getStoredRequests()); }, []);
+  const requests: (DataRequest | DataRequestRecord)[] = [
+    ...stored,
+    ...dataRequests.filter(d => !stored.some(s => s.supplierId === d.supplierId)),
+  ];
   const order: RequestStatus[] = ['overdue', 'submitted', 'dueSoon', 'progress'];
-  const counts = order.map(s => ({ s, n: dataRequests.filter(r => r.status === s).length }));
+  const counts = order.map(s => ({ s, n: requests.filter(r => r.status === s).length }));
   return (
     <section className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-700 bg-ink-800/60 px-5 py-4">
@@ -201,7 +209,7 @@ function RequestArea() {
         </div>
       </div>
       <div className="divide-y divide-ink-700/30">
-        {dataRequests.map(req => {
+        {requests.map(req => {
           const meta = requestStatusMeta[req.status];
           const reviewMode = req.status === 'submitted';
           const href = reviewMode

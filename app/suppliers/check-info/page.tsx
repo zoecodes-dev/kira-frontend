@@ -7,7 +7,8 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { suppliers } from '@/lib/data';
-import { getSupplierName, supplierCompleteness } from '@/lib/supplier-detail-data';
+import { getContacts, getSupplierName, supplierCompleteness } from '@/lib/supplier-detail-data';
+import { addStoredRequest } from '@/lib/data-request-store';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
 import {
   ArrowLeft,
@@ -399,6 +400,12 @@ function SupplierGeneralReviewContent() {
   const displayCompleted = selectedCompleteness?.filledFieldCount ?? supplierSummary.completed;
   const displayTotal = selectedCompleteness?.requiredFieldCount ?? supplierSummary.total;
   const displayLastUpdated = selectedCompleteness?.lastUpdatedAt ?? supplierSummary.lastSubmittedAt;
+  // 협력사별 대표(primary) 연락처 — 없으면 mock 요약값 폴백.
+  const contacts = getContacts(supplierId);
+  const primaryContact = contacts.find(c => c.isPrimary) ?? contacts[0];
+  const displayManager = primaryContact?.name ?? supplierSummary.manager;
+  const displayEmail = primaryContact?.email ?? supplierSummary.email;
+  const displayPhone = primaryContact?.mobile ?? primaryContact?.phone ?? supplierSummary.phone;
   const [openSections, setOpenSections] = useState<SectionKey[]>(['company']);
   // 입력 현황에서 '자료 요청'으로 넘어오면(request=1) 요청 모달을 바로 연다 — 자연스러운 흐름 연결.
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(searchParams.get('request') === '1');
@@ -428,6 +435,19 @@ function SupplierGeneralReviewContent() {
 
   function sendRequest() {
     setRequestSent(true);
+    // 발송 기록을 저장 → My Task 자료 요청 탭에 반영(루프 닫기).
+    if (supplierId) {
+      const due = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+      addStoredRequest({
+        supplier: displayName,
+        supplierId,
+        title: `추가 자료 요청 · ${checkedItems.size}개 항목`,
+        status: 'progress',
+        due,
+        missing: checkedItems.size,
+        createdAt: new Date().toISOString(),
+      });
+    }
     setTimeout(() => {
       setIsRequestModalOpen(false);
       setRequestSent(false);
@@ -496,11 +516,11 @@ function SupplierGeneralReviewContent() {
               <div className="mt-2 text-sm font-medium text-ink-500">{displayRole} <span className="mx-2 text-ink-700">|</span> {displayCountry}</div>
               <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink-500">
                 <span className="font-semibold text-ink-100">담당자</span>
-                <span>{supplierSummary.manager}</span>
+                <span>{displayManager}</span>
                 <span className="h-3 w-px bg-ink-700" />
-                <span>{supplierSummary.email}</span>
+                <span>{displayEmail}</span>
                 <span className="h-3 w-px bg-ink-700" />
-                <span>{supplierSummary.phone}</span>
+                <span>{displayPhone}</span>
               </div>
             </div>
           </div>
@@ -584,7 +604,7 @@ function SupplierGeneralReviewContent() {
             <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
               <div>
                 <div className="text-base font-bold text-ink-100">추가 자료 요청</div>
-                <div className="mt-1 text-xs text-ink-500">{displayName} · {supplierSummary.email}</div>
+                <div className="mt-1 text-xs text-ink-500">{displayName} · {displayEmail}</div>
               </div>
               <button
                 type="button"
