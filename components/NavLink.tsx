@@ -70,25 +70,24 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
   const isActive = subItems ? hasActiveSubItem || isLinkActive : isLinkActive;
   const Icon = icons[iconName] ?? Activity;
   const mainClassName = clsx(
-    'flex items-center gap-3 px-3 py-2.5 rounded-sm transition-colors group flex-1 min-w-0 text-left',
+    'flex items-center gap-3 px-3 py-2.5 rounded-none transition-colors group flex-1 min-w-0 text-left',
     isLinkActive
-      ? 'bg-white/12 text-white border border-white/15'
-      : 'text-white/70 border border-transparent hover:bg-white/10 hover:text-white'
+      ? 'bg-white text-[#11352A] font-semibold'
+      : 'bg-transparent text-white/90 font-medium hover:bg-white/8'
   );
 
   const mainContent = (
     <>
       <div className={clsx(
-        'w-8 h-8 rounded-sm flex items-center justify-center shrink-0 border',
-        isLinkActive ? 'bg-white border-white text-brand' : 'bg-white/10 border-white/15 text-white/70 group-hover:text-white'
+        'w-8 h-8 flex items-center justify-center shrink-0',
+        isLinkActive ? 'text-[#11352A]' : 'text-white/75'
       )}>
         <Icon className="w-4 h-4" strokeWidth={isLinkActive ? 2.5 : 2} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-semibold">{label}</div>
-        <div className="text-[10px] text-white/40 truncate">{subtitle}</div>
+        <div className="text-[13px]">{label}</div>
+        <div className={clsx('text-[10px] truncate', isLinkActive ? 'text-[#11352A]/60' : 'text-white/50')}>{subtitle}</div>
       </div>
-      {isLinkActive && !subItems && <div className="w-1 h-1 rounded-full bg-white shrink-0" />}
     </>
   );
 
@@ -121,7 +120,7 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
         {subItems && (
           <button
             onClick={() => setOpen(o => !o)}
-            className="p-2 text-white/50 hover:text-white transition-colors shrink-0"
+            className="p-2 text-white/50 hover:text-white/88 transition-colors shrink-0"
           >
             {open
               ? <ChevronDown className="w-3.5 h-3.5" />
@@ -141,10 +140,10 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
                 <Link
                   href={sub.href}
                   className={clsx(
-                    'block px-2 py-1.5 rounded-xs text-[12px] transition-colors',
+                    'block px-2 py-1.5 rounded-none text-[12px] transition-colors',
                     subActive
-                      ? 'text-white bg-white/12 font-semibold'
-                      : 'text-white/55 hover:text-white hover:bg-white/10'
+                      ? 'bg-white text-[#11352A] font-semibold'
+                      : 'text-white/62 hover:text-white/88 hover:bg-white/8'
                   )}
                 >
                   {sub.label}
@@ -154,11 +153,11 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
                     {sub.children.map(child => {
                       const childActive = isSubActive(child);
                       const childClassName = clsx(
-                        'block rounded-xs px-2 py-1.5 text-[12px] transition-colors',
+                        'block rounded-none px-2 py-1.5 text-[12px] transition-colors',
                         childActive
-                          ? 'bg-white/12 text-white font-semibold'
-                          : 'text-white/50 hover:bg-white/10 hover:text-white',
-                        child.disabled && 'cursor-default hover:bg-transparent hover:text-white/50'
+                          ? 'bg-white text-[#11352A] font-semibold'
+                          : 'text-white/62 hover:bg-white/8 hover:text-white/88',
+                        child.disabled && 'cursor-default hover:bg-transparent hover:text-white/62'
                       );
                       if (child.disabled) {
                         return (

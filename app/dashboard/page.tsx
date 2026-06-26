@@ -28,6 +28,7 @@ import {
   ArrowRight, Activity, AlertCircle, Bot, FileText, Bell, CalendarDays, ChevronDown,
 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
+import TabBar from '@/components/TabBar';
 import Link from 'next/link';
 import clsx from 'clsx';
 
@@ -685,24 +686,8 @@ export default function DashboardPage() {
           </>
         }
       />
-      <nav className="sticky top-[57px] z-10 border-b border-ink-700 bg-white px-8">
-        <div className="flex">
-          {TABS.map(tab => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => handleTabChange(tab.key)}
-              className={clsx(
-                'border-b-2 px-4 py-3 text-xs font-bold transition-colors',
-                activeTab === tab.key
-                  ? 'border-accent-600 text-accent-700'
-                  : 'border-transparent text-ink-400 hover:text-ink-100',
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      <nav className="sticky top-[57px] z-10 bg-white px-8 pt-3">
+        <TabBar tabs={TABS} value={activeTab} onChange={handleTabChange} />
       </nav>
 
       {/* ══════════════════════════════════════════════════════════
