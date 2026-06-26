@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  AlertCircle,
   ArrowRight,
   Building2,
   CheckCircle2,
@@ -15,6 +16,10 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { login, setToken, ApiError } from '@/lib/api';
+
+// API 모드 여부 — true면 실제 POST /auth/login, 아니면 데모 권한분기 흐름 유지
+const USE_API = process.env.NEXT_PUBLIC_USE_API === 'true';
 
 type LoginRole = 'oem' | 'supplier';
 
@@ -48,10 +53,33 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const role = useMemo(() => inferRole(email), [email]);
   const account = demoAccounts[role];
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    router.push(account.target);
+    setError(null);
+
+    // 데모 모드(API 미연결): 기존 권한 분기 흐름만 확인
+    if (!USE_API) {
+      router.push(account.target);
+      return;
+    }
+
+    // 실제 인증: POST /auth/login → 토큰 저장 → 응답 role로 분기
+    setSubmitting(true);
+    try {
+      const res = await login(email, password);
+      setToken(res.token);
+      router.push(res.role === 'supplier' ? '/supplier' : '/dashboard');
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 401
+          ? '이메일 또는 비밀번호가 올바르지 않습니다.'
+          : '로그인에 실패했습니다. 잠시 후 다시 시도해주세요.'
+      );
+      setSubmitting(false);
+    }
   };
 
   const useDemo = (nextRole: LoginRole) => {
@@ -195,17 +223,27 @@ export default function LoginPage() {
                 </div>
               </div>
 
+              {error && (
+                <div className="mt-5 flex items-start gap-2 rounded-xs border border-alert-border bg-alert-bg px-3 py-2.5 text-xs font-semibold text-alert-text">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
               <button
                 type="submit"
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xs bg-accent-700 px-4 py-3 text-sm font-bold text-white shadow-control transition-colors hover:bg-accent-900 focus:outline-none focus:ring-2 focus:ring-accent-500/30"
+                disabled={submitting}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xs bg-accent-700 px-4 py-3 text-sm font-bold text-white shadow-control transition-colors hover:bg-accent-900 focus:outline-none focus:ring-2 focus:ring-accent-500/30 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                접속하기
+                {submitting ? '접속 중…' : '접속하기'}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </form>
 
             <div className="mt-4 text-center text-[11px] text-ink-500">
-              데모 계정은 인증 없이 권한 분기 흐름만 확인합니다.
+              {USE_API
+                ? '입력한 계정으로 실제 인증 후 권한에 맞는 화면으로 접속합니다.'
+                : '데모 모드 — 인증 없이 권한 분기 흐름만 확인합니다.'}
             </div>
           </div>
         </section>
