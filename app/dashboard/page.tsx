@@ -33,23 +33,23 @@ import clsx from 'clsx';
 
 // ── 공통 상수 ────────────────────────────────────────────────────
 const regionColor: Record<string, string> = {
-  EU: 'border-blue-700/30 bg-blue-500/8 text-blue-500',
-  US: 'border-amber-700/30 bg-amber-500/8 text-amber-500',
+  EU: 'border-info-border bg-info-bg text-info-text',
+  US: 'border-warn-border bg-warn-bg text-warn-text',
   DE: 'border-slate-700/30 bg-slate-500/8 text-slate-400',
 };
 
 const stageMeta: Record<string, { label: string; color: string }> = {
   queued:         { label: '대기',         color: 'text-ink-400' },
-  supervisor:     { label: '조율',         color: 'text-blue-400' },
-  extraction:     { label: '추출',         color: 'text-blue-400' },
-  verification:   { label: '검증',         color: 'text-amber-400' },
+  supervisor:     { label: '조율',         color: 'text-info-text' },
+  extraction:     { label: '추출',         color: 'text-info-text' },
+  verification:   { label: '검증',         color: 'text-warn-text' },
   'geo-analysis': { label: 'Geo',          color: 'text-purple-400' },
-  compliance:     { label: '컴플라이언스', color: 'text-orange-400' },
+  compliance:     { label: '컴플라이언스', color: 'text-warn-text' },
   readiness:      { label: '준비도',       color: 'text-teal-400' },
-  'hitl-wait':    { label: 'HITL 대기',    color: 'text-red-400' },
-  action:         { label: '처리',         color: 'text-emerald-400' },
-  completed:      { label: '완료',         color: 'text-emerald-500' },
-  rejected:       { label: '반려',         color: 'text-red-500' },
+  'hitl-wait':    { label: 'HITL 대기',    color: 'text-alert-text' },
+  action:         { label: '처리',         color: 'text-ok-text' },
+  completed:      { label: '완료',         color: 'text-ok-text' },
+  rejected:       { label: '반려',         color: 'text-alert-text' },
 };
 
 const destMeta: Record<string, { label: string; tone: any }> = {
@@ -62,17 +62,17 @@ const riskLevelLabel: Record<string, string> = {
   low: '저위험', medium: '중위험', high: '고위험', critical: '최고위험',
 };
 const riskLevelColor: Record<string, string> = {
-  low:      'border-emerald-700/30 bg-emerald-500/8 text-emerald-500',
-  medium:   'border-amber-700/30 bg-amber-500/8 text-amber-500',
-  high:     'border-red-700/30 bg-red-500/8 text-red-500',
-  critical: 'border-red-700/40 bg-red-500/12 text-red-600 font-semibold',
+  low:      'border-ok-border bg-ok-bg text-ok-text',
+  medium:   'border-warn-border bg-warn-bg text-warn-text',
+  high:     'border-alert-border bg-alert-bg text-alert-text',
+  critical: 'border-alert-border bg-alert-bg text-alert-text font-semibold',
 };
 
 const supplierStatusMeta = {
-  verified: { label: '검증 완료', className: 'border-emerald-100 bg-emerald-50 text-emerald-700' },
-  pending: { label: '자료 대기', className: 'border-blue-100 bg-blue-50 text-blue-700' },
-  review: { label: '추가 확인', className: 'border-amber-100 bg-amber-50 text-amber-700' },
-  violation: { label: '규제 위반', className: 'border-red-100 bg-red-50 text-red-700' },
+  verified: { label: '검증 완료', className: 'border-ok-border bg-ok-bg text-ok-text' },
+  pending: { label: '자료 대기', className: 'border-info-border bg-info-bg text-info-text' },
+  review: { label: '추가 확인', className: 'border-warn-border bg-warn-bg text-warn-text' },
+  violation: { label: '규제 위반', className: 'border-alert-border bg-alert-bg text-alert-text' },
 };
 
 // ── DB stage/status → UI stage 매핑 ─────────────────────────────
@@ -270,18 +270,18 @@ function CompactMetric({
 }) {
   const toneClass = {
     default: 'border-ink-700 bg-white text-ink-100',
-    ok: 'border-emerald-100 bg-emerald-50/70 text-emerald-800',
-    warn: 'border-amber-100 bg-amber-50/80 text-amber-800',
-    alert: 'border-red-100 bg-red-50/80 text-red-800',
-    info: 'border-blue-100 bg-blue-50/80 text-blue-800',
+    ok: 'border-ok-border bg-ok-bg text-ok-text',
+    warn: 'border-warn-border bg-warn-bg text-warn-text',
+    alert: 'border-alert-border bg-alert-bg text-alert-text',
+    info: 'border-info-border bg-info-bg text-info-text',
   }[tone];
 
   const iconClass = {
     default: 'bg-slate-100 text-slate-700',
-    ok: 'bg-emerald-100 text-emerald-700',
-    warn: 'bg-amber-100 text-amber-700',
-    alert: 'bg-red-100 text-red-700',
-    info: 'bg-blue-100 text-blue-700',
+    ok: 'bg-ok-bg text-ok-text',
+    warn: 'bg-warn-bg text-warn-text',
+    alert: 'bg-alert-bg text-alert-text',
+    info: 'bg-info-bg text-info-text',
   }[tone];
 
   const graphColor = {
@@ -320,7 +320,7 @@ function CompactMetric({
       <div className="mt-3 flex items-end justify-between gap-3">
         <div>
           {delta && (
-            <div className={clsx('text-xs font-semibold num-mono', deltaGood ? 'text-emerald-700' : 'text-red-700')}>
+            <div className={clsx('text-xs font-semibold num-mono', deltaGood ? 'text-ok-text' : 'text-alert-text')}>
               {deltaDirection === 'up' ? '▲' : '▼'} {delta}
             </div>
           )}
@@ -406,12 +406,12 @@ function DashboardSupplyChainMap() {
     { time: '06:10', title: '실사 완료', desc: 'XYZ Metals Co., Ltd.', tag: '실사', tone: 'purple', href: '/due-diligence' },
   ];
 
-  const alertDot: Record<string, string> = { critical: 'bg-red-600', high: 'bg-red-400', medium: 'bg-amber-400', low: 'bg-emerald-500' };
+  const alertDot: Record<string, string> = { critical: 'bg-alert-solid', high: 'bg-alert-solid', medium: 'bg-warn-solid', low: 'bg-ok-solid' };
   const alertBadge: Record<string, string> = {
-    critical: 'border-red-200 bg-red-50 text-red-600',
-    high: 'border-red-100 bg-red-50/60 text-red-500',
-    medium: 'border-amber-200 bg-amber-50 text-amber-600',
-    low: 'border-emerald-200 bg-emerald-50 text-emerald-600',
+    critical: 'border-alert-border bg-alert-bg text-alert-text',
+    high: 'border-alert-border bg-alert-bg text-alert-text',
+    medium: 'border-warn-border bg-warn-bg text-warn-text',
+    low: 'border-ok-border bg-ok-bg text-ok-text',
   };
   const alertLabel: Record<string, string> = { critical: '긴급', high: '고위험', medium: '주의', low: '저위험' };
 
@@ -480,10 +480,10 @@ function DashboardSupplyChainMap() {
         <DashboardPanel title="DPP 현황" action="DPP Center" actionHref="/dpp/center">
           <div className="flex flex-col gap-2">
             {[
-              { label: '발행 가능', value: '12', unit: '건', color: 'text-emerald-600', href: '/dpp/readiness' },
-              { label: '발행 보류', value: '7',  unit: '건', color: 'text-amber-600',   href: '/dpp/center' },
+              { label: '발행 가능', value: '12', unit: '건', color: 'text-ok-text', href: '/dpp/readiness' },
+              { label: '발행 보류', value: '7',  unit: '건', color: 'text-warn-text',   href: '/dpp/center' },
               { label: 'HITL 대기', value: '3',  unit: '건', color: 'text-purple-600',  href: '/hitl' },
-              { label: 'Blocker',   value: '5',  unit: '건', color: 'text-red-600',     href: '/dpp/center' },
+              { label: 'Blocker',   value: '5',  unit: '건', color: 'text-alert-text',     href: '/dpp/center' },
             ].map(item => (
               <Link key={item.label} href={item.href} className="flex items-center justify-between rounded-xs border border-ink-700/60 px-3 py-2.5 hover:bg-slate-50 transition-colors">
                 <span className="text-[15px] font-semibold text-ink-100">{item.label}</span>
@@ -539,7 +539,7 @@ function DashboardPanel({
 }
 
 function TaskRow({ task }: { task: { rank: number; title: string; desc: string; level: string; count: string; href: string } }) {
-  const countBg = task.level === '높음' ? 'bg-red-50 text-red-600' : task.level === '중간' ? 'bg-amber-50 text-amber-600' : 'bg-purple-50 text-purple-600';
+  const countBg = task.level === '높음' ? 'bg-alert-bg text-alert-text' : task.level === '중간' ? 'bg-warn-bg text-warn-text' : 'bg-purple-50 text-purple-600';
 
   return (
     <Link href={task.href} className="flex items-center gap-3 border-b border-ink-700/40 py-3 last:border-0 -mx-1 px-1 rounded-xs hover:bg-slate-50 transition-colors">
@@ -556,9 +556,9 @@ function TaskRow({ task }: { task: { rank: number; title: string; desc: string; 
 
 function ProductStatusRow({ product }: { product: { name: string; type: string; status: string; supply: string; tone: string; href: string } }) {
   const statusColor = {
-    danger: 'bg-red-50 text-red-600',
-    warning: 'bg-amber-50 text-amber-600',
-    success: 'bg-emerald-50 text-emerald-600',
+    danger: 'bg-alert-bg text-alert-text',
+    warning: 'bg-warn-bg text-warn-text',
+    success: 'bg-ok-bg text-ok-text',
     purple: 'bg-purple-50 text-purple-600',
   }[product.tone] ?? 'bg-slate-50 text-slate-600';
 
@@ -576,8 +576,8 @@ function ProductStatusRow({ product }: { product: { name: string; type: string; 
 }
 
 function DppStatusItem({ label, value, tone, href }: { label: string; value?: string; tone: 'success' | 'warning' | 'purple' | 'danger'; href: string }) {
-  const dotColor = { success: 'bg-emerald-500', warning: 'bg-amber-500', purple: 'bg-purple-500', danger: 'bg-red-500' }[tone];
-  const valueColor = { success: 'text-emerald-700', warning: 'text-amber-700', purple: 'text-purple-700', danger: 'text-red-700' }[tone];
+  const dotColor = { success: 'bg-ok-solid', warning: 'bg-warn-solid', purple: 'bg-purple-500', danger: 'bg-alert-solid' }[tone];
+  const valueColor = { success: 'text-ok-text', warning: 'text-warn-text', purple: 'text-purple-700', danger: 'text-alert-text' }[tone];
 
   return (
     <Link href={href} className="flex items-center gap-3 rounded-xs border border-transparent px-2 py-2 hover:border-ink-700/40 hover:bg-slate-50 transition-colors">
@@ -592,9 +592,9 @@ function DppStatusItem({ label, value, tone, href }: { label: string; value?: st
 
 function ChangeRow({ change }: { change: { time: string; title: string; desc: string; tag: string; tone: string; href: string } }) {
   const dot = {
-    success: 'bg-emerald-500',
-    info: 'bg-blue-500',
-    warning: 'bg-amber-500',
+    success: 'bg-ok-solid',
+    info: 'bg-info-solid',
+    warning: 'bg-warn-solid',
     purple: 'bg-purple-500',
   }[change.tone] ?? 'bg-slate-400';
 
@@ -676,7 +676,7 @@ export default function DashboardPage() {
             </div>
             <button className="relative flex h-8 w-8 items-center justify-center rounded-xs border border-ink-700 bg-white text-ink-400">
               <Bell className="h-3.5 w-3.5" />
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs font-semibold text-white">3</span>
+              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-alert-solid text-xs font-semibold text-white">3</span>
             </button>
             <button className="flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-semibold text-ink-400 hover:border-accent-600 hover:text-accent-700">
               전체 공급망
@@ -783,7 +783,7 @@ export default function DashboardPage() {
                 <p className="mt-0.5 text-xs text-ink-500">규제/문서/리스크 완료율</p>
               </div>
               <div className="p-4">
-                <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border-[14px] border-emerald-500 border-r-blue-500 bg-white">
+                <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border-[14px] border-ok-border border-r-blue-500 bg-white">
                   <div className="text-center">
                     <div className="text-xs font-semibold text-ink-500">종합</div>
                     <div className="text-2xl font-semibold text-ink-100 num-mono">82%</div>
@@ -791,10 +791,10 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-4 space-y-2">
                   {[
-                    { label: '원산지 추적', value: 92, color: 'bg-emerald-500' },
-                    { label: 'Due Diligence', value: 81, color: 'bg-blue-500' },
+                    { label: '원산지 추적', value: 92, color: 'bg-ok-solid' },
+                    { label: 'Due Diligence', value: 81, color: 'bg-info-solid' },
                     { label: '문서 검증', value: averageCompleteness, color: 'bg-purple-500' },
-                    { label: 'Risk Assessment', value: 79, color: 'bg-orange-500' },
+                    { label: 'Risk Assessment', value: 79, color: 'bg-warn-solid' },
                   ].map(item => (
                     <div key={item.label}>
                       <div className="mb-1 flex justify-between text-xs">
@@ -827,8 +827,8 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-3 space-y-2">
                   {[
-                    { label: '우선 조치', value: '원산지 증빙 재요청', tone: 'text-red-700' },
-                    { label: '검토 포인트', value: 'FEOC / UFLPA 교차 확인', tone: 'text-amber-700' },
+                    { label: '우선 조치', value: '원산지 증빙 재요청', tone: 'text-alert-text' },
+                    { label: '검토 포인트', value: 'FEOC / UFLPA 교차 확인', tone: 'text-warn-text' },
                     { label: '다음 화면', value: '입력 요청 맵 미제출 필터', tone: 'text-accent-700' },
                   ].map(item => (
                     <div key={item.label} className="flex items-center gap-2 rounded-xs border border-ink-700 bg-ink-800 px-3 py-2">
@@ -852,11 +852,11 @@ export default function DashboardPage() {
               </div>
               <div className="px-4 py-2">
                 {[
-                  { time: '09:30', title: 'FSC 인증 만료 감지', desc: 'Ganzhou Rare Metals 증빙 보완 필요', tone: 'bg-emerald-500', pill: 'Ganzhou Rare' },
-                  { time: '10:18', title: 'HITL 검토 대기', desc: 'Quzhou Precursor 원산지 증빙 검토', tone: 'bg-blue-500', pill: 'Quzhou' },
+                  { time: '09:30', title: 'FSC 인증 만료 감지', desc: 'Ganzhou Rare Metals 증빙 보완 필요', tone: 'bg-ok-solid', pill: 'Ganzhou Rare' },
+                  { time: '10:18', title: 'HITL 검토 대기', desc: 'Quzhou Precursor 원산지 증빙 검토', tone: 'bg-info-solid', pill: 'Quzhou' },
                   { time: '11:05', title: '리튬 정제 자료 추출 완료', desc: 'Pilbara Refining Works 자동 처리', tone: 'bg-purple-500', pill: 'Pilbara' },
-                  { time: '11:20', title: '고위험 지역 Alert 발생', desc: 'FEOC / UFLPA 교차 확인 필요', tone: 'bg-red-500', pill: 'Ganzhou' },
-                  { time: '14:05', title: '공급망 변경 감지', desc: '신규 하위 공급업체 추가', tone: 'bg-orange-500', pill: 'POS Cathode' },
+                  { time: '11:20', title: '고위험 지역 Alert 발생', desc: 'FEOC / UFLPA 교차 확인 필요', tone: 'bg-alert-solid', pill: 'Ganzhou' },
+                  { time: '14:05', title: '공급망 변경 감지', desc: '신규 하위 공급업체 추가', tone: 'bg-warn-solid', pill: 'POS Cathode' },
                 ].map(item => (
                   <div key={`${item.time}-${item.title}`} className="flex gap-3 border-b border-ink-700/70 py-2.5 last:border-0">
                     <span className="w-10 shrink-0 text-xs font-semibold leading-4 text-ink-500 num-mono">{item.time}</span>
@@ -891,10 +891,10 @@ export default function DashboardPage() {
                   </div>
                   <div className="divide-y divide-ink-700 text-xs">
                   {[
-                    { country: 'CN', label: '중국·신장/간저우', risk: '고위험', reason: 'FEOC / UFLPA 검토', count: 12, change: '▲ 3', color: 'text-red-600', dot: 'bg-red-500' },
-                    { country: 'CD', label: '콩고·카탕가', risk: '고위험', reason: '분쟁광물 실사 필요', count: 8, change: '▲ 1', color: 'text-red-600', dot: 'bg-red-500' },
-                    { country: 'ID', label: '인도네시아·술라웨시', risk: '중위험', reason: '니켈 원산지 보완', count: 5, change: '▼ 1', color: 'text-orange-600', dot: 'bg-orange-500' },
-                    { country: 'AU', label: '호주·필바라', risk: '저위험', reason: '리튬 정제 검증 완료', count: 3, change: '0', color: 'text-emerald-600', dot: 'bg-emerald-500' },
+                    { country: 'CN', label: '중국·신장/간저우', risk: '고위험', reason: 'FEOC / UFLPA 검토', count: 12, change: '▲ 3', color: 'text-alert-text', dot: 'bg-alert-solid' },
+                    { country: 'CD', label: '콩고·카탕가', risk: '고위험', reason: '분쟁광물 실사 필요', count: 8, change: '▲ 1', color: 'text-alert-text', dot: 'bg-alert-solid' },
+                    { country: 'ID', label: '인도네시아·술라웨시', risk: '중위험', reason: '니켈 원산지 보완', count: 5, change: '▼ 1', color: 'text-warn-text', dot: 'bg-warn-solid' },
+                    { country: 'AU', label: '호주·필바라', risk: '저위험', reason: '리튬 정제 검증 완료', count: 3, change: '0', color: 'text-ok-text', dot: 'bg-ok-solid' },
                   ].map(item => (
                     <div key={item.country} className="grid grid-cols-[0.7fr_1fr_0.9fr_0.9fr] items-center px-3 py-2">
                       <div>
@@ -936,8 +936,8 @@ export default function DashboardPage() {
                 </div>
                 <div className="space-y-2">
                   {[
-                    { label: '인증서', value: 642, pct: '51%', color: 'text-emerald-600' },
-                    { label: '원산지 증빙', value: 342, pct: '27%', color: 'text-blue-600' },
+                    { label: '인증서', value: 642, pct: '51%', color: 'text-ok-text' },
+                    { label: '원산지 증빙', value: 342, pct: '27%', color: 'text-info-text' },
                     { label: 'DDS / 보고서', value: 156, pct: '12%', color: 'text-purple-600' },
                     { label: '기타 문서', value: 108, pct: '9%', color: 'text-slate-500' },
                   ].map(item => (
@@ -949,7 +949,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   ))}
-                  <button onClick={() => handleTabChange('pending')} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xs border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                  <button onClick={() => handleTabChange('pending')} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xs border border-alert-border bg-alert-bg px-3 py-2 text-xs font-semibold text-alert-text">
                     <AlertCircle className="h-3.5 w-3.5" />
                     문서 누락: {missingFieldCount}건
                   </button>
@@ -1031,7 +1031,7 @@ export default function DashboardPage() {
               <tbody className="divide-y divide-ink-700/50">
                 {violationCases.map(item => (
                   <tr key={item.id} className="hover:bg-slate-50">
-                    <td className={`${tableCellClass} font-semibold num-mono text-red-600`}>{item.id}</td>
+                    <td className={`${tableCellClass} font-semibold num-mono text-alert-text`}>{item.id}</td>
                     <td className={`${tableCellClass} font-semibold text-ink-100`}>{item.supplier}</td>
                     <td className={tableCellClass}>{item.regulation}</td>
                     <td className={tableCellClass}>
@@ -1041,9 +1041,9 @@ export default function DashboardPage() {
                     <td className={tableCellClass}>
                       <span className={clsx(
                         'inline-flex rounded-xs border px-2 py-1 text-[13px] font-semibold',
-                        item.severity === 'critical' ? 'border-red-200 bg-red-50 text-red-700' :
-                        item.severity === 'high' ? 'border-orange-200 bg-orange-50 text-orange-700' :
-                        'border-amber-200 bg-amber-50 text-amber-700'
+                        item.severity === 'critical' ? 'border-alert-border bg-alert-bg text-alert-text' :
+                        item.severity === 'high' ? 'border-warn-border bg-warn-bg text-warn-text' :
+                        'border-warn-border bg-warn-bg text-warn-text'
                       )}>
                         {severityDisplayLabel[item.severity]}
                       </span>
@@ -1099,9 +1099,9 @@ export default function DashboardPage() {
                         <td className={tableCellClass}>
                           <span className={clsx(
                             'inline-flex rounded-xs border px-2 py-1 text-[13px] font-semibold',
-                            r.feocStatus === 'eligible'    ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
-                            r.feocStatus === 'ineligible'  ? 'border-red-200 bg-red-50 text-red-700' :
-                            r.feocStatus === 'under_review'? 'border-amber-200 bg-amber-50 text-amber-700' :
+                            r.feocStatus === 'eligible'    ? 'border-ok-border bg-ok-bg text-ok-text' :
+                            r.feocStatus === 'ineligible'  ? 'border-alert-border bg-alert-bg text-alert-text' :
+                            r.feocStatus === 'under_review'? 'border-warn-border bg-warn-bg text-warn-text' :
                                                               'border-ink-700 bg-slate-50 text-ink-500'
                           )}>
                             {feocDisplayLabel[r.feocStatus] ?? 'FEOC 미확인'}
@@ -1143,7 +1143,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="rounded-xs border border-ink-700 bg-white px-3 py-2">
                   <div className="text-[11px] font-semibold text-ink-500">누락</div>
-                  <div className="text-[15px] font-bold text-amber-700 num-mono">
+                  <div className="text-[15px] font-bold text-warn-text num-mono">
                     {pendingList.reduce((sum, item) => sum + item.missingFields.length, 0)}
                   </div>
                 </div>
@@ -1170,16 +1170,16 @@ export default function DashboardPage() {
                   const visibleFields = c.missingFields.slice(0, 4);
                   const hiddenCount = Math.max(c.missingFields.length - visibleFields.length, 0);
                   const progressTone =
-                    c.completionRate >= 75 ? 'bg-amber-500' :
-                    c.completionRate >= 60 ? 'bg-orange-500' :
-                    'bg-red-500';
+                    c.completionRate >= 75 ? 'bg-warn-solid' :
+                    c.completionRate >= 60 ? 'bg-warn-solid' :
+                    'bg-alert-solid';
 
                   return (
                     <article
                       key={c.supplierId}
                       className={clsx(
                         'rounded-sm border bg-white p-4 transition-colors hover:bg-slate-50',
-                        isSlaOver ? 'border-orange-200 shadow-[inset_3px_0_0_#f97316]' : 'border-ink-700'
+                        isSlaOver ? 'border-warn-border shadow-[inset_3px_0_0_#f97316]' : 'border-ink-700'
                       )}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1190,7 +1190,7 @@ export default function DashboardPage() {
                             </h4>
                             {name?.nameKo && <span className="text-[13px] text-ink-500">{name.nameKo}</span>}
                             {isSlaOver && (
-                              <span className="inline-flex items-center gap-1 rounded-xs border border-orange-200 bg-orange-50 px-2 py-1 text-[13px] font-semibold text-orange-700">
+                              <span className="inline-flex items-center gap-1 rounded-xs border border-warn-border bg-warn-bg px-2 py-1 text-[13px] font-semibold text-warn-text">
                                 <Clock className="h-3.5 w-3.5" />
                                 SLA 초과
                               </span>
@@ -1215,7 +1215,7 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="mt-4 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-xs bg-amber-50 px-2 py-1 text-[13px] font-semibold text-amber-700">
+                        <span className="inline-flex items-center gap-1 rounded-xs bg-warn-bg px-2 py-1 text-[13px] font-semibold text-warn-text">
                           <AlertCircle className="h-3.5 w-3.5" />
                           누락 {c.missingFields.length}항목
                         </span>
@@ -1271,7 +1271,7 @@ export default function DashboardPage() {
                 <tbody className="divide-y divide-ink-700/50">
                   {dppReadyList.map(d => (
                     <tr key={d.id} className="hover:bg-slate-50">
-                      <td className={`${tableCellClass} font-semibold num-mono text-emerald-700`}>{d.id}</td>
+                      <td className={`${tableCellClass} font-semibold num-mono text-ok-text`}>{d.id}</td>
                       <td className={`${tableCellClass} max-w-[240px] whitespace-normal break-words font-semibold text-ink-100`}>{d.modelName}</td>
                       <td className={`${tableMutedCellClass} num-mono`}>{d.serialNumber}</td>
                       <td className={`${tableMutedCellClass} max-w-[240px] whitespace-normal break-words`}>{d.manufacturer}</td>
@@ -1317,7 +1317,7 @@ export default function DashboardPage() {
                 <tbody className="divide-y divide-ink-700/50">
                   {hitlList.map(b => (
                     <tr key={b.id} className="hover:bg-slate-50">
-                      <td className={`${tableCellClass} font-semibold num-mono text-red-600`}>{b.batchId}</td>
+                      <td className={`${tableCellClass} font-semibold num-mono text-alert-text`}>{b.batchId}</td>
                       <td className={`${tableCellClass} max-w-[260px] whitespace-normal break-words font-semibold text-ink-100`}>{b.supplier}</td>
                       <td className={`${tableMutedCellClass} num-mono`}>{b.receivedAt}</td>
                       <td className={`${tableMutedCellClass} num-mono`}>

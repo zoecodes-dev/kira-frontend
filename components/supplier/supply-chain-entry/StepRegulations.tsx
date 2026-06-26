@@ -136,7 +136,7 @@ export default function StepRegulations({
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500">인증 {i + 1}</span>
                 {data.certifications.length > 1 && (
-                  <button type="button" onClick={() => onChange({ ...data, certifications: data.certifications.filter((_, idx) => idx !== i) })} className="text-slate-400 hover:text-red-600" aria-label="삭제">
+                  <button type="button" onClick={() => onChange({ ...data, certifications: data.certifications.filter((_, idx) => idx !== i) })} className="text-slate-400 hover:text-alert-text" aria-label="삭제">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 )}

@@ -68,46 +68,46 @@ const statusMeta: Record<BoardStatus, {
   overdue: {
     label: '기한 초과',
     queueLabel: '초과',
-    dot: 'bg-red-500',
-    chip: 'border-red-200 bg-red-50 text-red-700',
-    border: 'border-red-300',
-    active: 'border-red-400 bg-red-50 ring-2 ring-red-100',
+    dot: 'bg-alert-solid',
+    chip: 'border-alert-border bg-alert-bg text-alert-text',
+    border: 'border-alert-border',
+    active: 'border-alert-border bg-alert-bg ring-2 ring-alert-border',
     statTone: 'alert',
-    progress: 'bg-red-500',
-    text: 'text-red-700',
+    progress: 'bg-alert-solid',
+    text: 'text-alert-text',
   },
   submitted: {
     label: '검토 대기',
     queueLabel: '대기',
-    dot: 'bg-emerald-500',
-    chip: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    border: 'border-emerald-300',
-    active: 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100',
+    dot: 'bg-ok-solid',
+    chip: 'border-ok-border bg-ok-bg text-ok-text',
+    border: 'border-ok-border',
+    active: 'border-ok-border bg-ok-bg ring-2 ring-ok-border',
     statTone: 'ok',
-    progress: 'bg-emerald-500',
-    text: 'text-emerald-700',
+    progress: 'bg-ok-solid',
+    text: 'text-ok-text',
   },
   dueSoon: {
     label: '만료 임박',
     queueLabel: '임박',
-    dot: 'bg-orange-500',
-    chip: 'border-orange-200 bg-orange-50 text-orange-700',
-    border: 'border-orange-300',
-    active: 'border-orange-400 bg-orange-50 ring-2 ring-orange-100',
+    dot: 'bg-warn-solid',
+    chip: 'border-warn-border bg-warn-bg text-warn-text',
+    border: 'border-warn-border',
+    active: 'border-warn-border bg-warn-bg ring-2 ring-warn-border',
     statTone: 'warn',
-    progress: 'bg-orange-500',
-    text: 'text-orange-700',
+    progress: 'bg-warn-solid',
+    text: 'text-warn-text',
   },
   progress: {
     label: '입력 중',
     queueLabel: '입력중',
-    dot: 'bg-blue-500',
-    chip: 'border-blue-200 bg-blue-50 text-blue-700',
-    border: 'border-blue-300',
-    active: 'border-blue-400 bg-blue-50 ring-2 ring-blue-100',
+    dot: 'bg-info-solid',
+    chip: 'border-info-border bg-info-bg text-info-text',
+    border: 'border-info-border',
+    active: 'border-info-border bg-info-bg ring-2 ring-info-border',
     statTone: 'info',
-    progress: 'bg-blue-500',
-    text: 'text-blue-700',
+    progress: 'bg-info-solid',
+    text: 'text-info-text',
   },
   reviewed: {
     label: '검토 완료',
@@ -524,7 +524,7 @@ export default function RequestMapPage() {
       />
 
       {notice && (
-        <div className="fixed right-6 top-6 z-50 flex items-center gap-2 rounded-xs border border-emerald-200 bg-white px-4 py-3 text-sm font-bold text-emerald-700 shadow-lg">
+        <div className="fixed right-6 top-6 z-50 flex items-center gap-2 rounded-xs border border-ok-border bg-white px-4 py-3 text-sm font-bold text-ok-text shadow-lg">
           <CheckCircle2 className="h-4 w-4" />
           {notice}
         </div>
@@ -560,7 +560,7 @@ export default function RequestMapPage() {
               <button
                 type="button"
                 onClick={() => markReviewed(reviewTarget.id)}
-                className="rounded-xs bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-700"
+                className="rounded-xs bg-ok-solid py-3 text-sm font-bold text-white hover:bg-ok-solid"
               >
                 검토 완료
               </button>
@@ -745,7 +745,7 @@ export default function RequestMapPage() {
                         <div className="text-[10px] font-bold opacity-70">{statusMeta[node.status].label}</div>
                         <div className="mt-1 text-xs font-bold leading-4">{node.name}</div>
                         {node.supplierId === selected.supplierId && (
-                          <div className="mt-2 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                          <div className="mt-2 rounded-full bg-ok-solid px-2 py-0.5 text-[10px] font-bold text-white">
                             선택됨
                           </div>
                         )}
@@ -760,7 +760,7 @@ export default function RequestMapPage() {
                 <div className="text-xs font-bold text-ink-500">영향 제품</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {selected.products.map(product => (
-                    <span key={product} className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                    <span key={product} className="rounded-full border border-ok-border bg-ok-bg px-3 py-1.5 text-xs font-bold text-ok-text">
                       {product}
                     </span>
                   ))}
@@ -792,19 +792,19 @@ export default function RequestMapPage() {
             <h2 className="text-sm font-bold text-ink-100">다음 조치</h2>
             <p className="mt-1 text-xs leading-5 text-ink-500">검토 대기는 승인 처리로, 지연 요청은 재요청과 리스크 공유로 바로 이어집니다.</p>
 
-            <div className="mt-5 rounded-sm border border-emerald-100 bg-emerald-50 p-4">
-              <div className="flex items-center gap-2 text-xs font-bold text-emerald-800">
+            <div className="mt-5 rounded-sm border border-ok-border bg-ok-bg p-4">
+              <div className="flex items-center gap-2 text-xs font-bold text-ok-text">
                 <UserRound className="h-4 w-4" />
                 담당자
               </div>
               <div className="mt-3 text-base font-bold text-ink-100">{contact?.nameEn ?? contact?.name ?? '담당자 미지정'}</div>
-              <div className="mt-1 text-xs text-emerald-700">{contact?.role ?? '역할 정보 없음'}{contact?.department ? ` · ${contact.department}` : ''}</div>
+              <div className="mt-1 text-xs text-ok-text">{contact?.role ?? '역할 정보 없음'}{contact?.department ? ` · ${contact.department}` : ''}</div>
               <div className="mt-3 space-y-2">
-                <div className="flex items-center gap-2 rounded-xs border border-emerald-100 bg-white/80 p-3 text-xs font-semibold text-emerald-800">
+                <div className="flex items-center gap-2 rounded-xs border border-ok-border bg-white/80 p-3 text-xs font-semibold text-ok-text">
                   <Mail className="h-3.5 w-3.5" />
                   {contact?.email ?? 'email@example.com'}
                 </div>
-                <div className="flex items-center gap-2 rounded-xs border border-emerald-100 bg-white/80 p-3 text-xs font-semibold text-emerald-800">
+                <div className="flex items-center gap-2 rounded-xs border border-ok-border bg-white/80 p-3 text-xs font-semibold text-ok-text">
                   <Phone className="h-3.5 w-3.5" />
                   {contact?.phone ?? '+82-00-0000-0000'}
                 </div>
@@ -828,7 +828,7 @@ export default function RequestMapPage() {
                   <button
                     type="button"
                     onClick={() => openReviewModal(selected.id)}
-                    className="flex w-full items-center justify-center gap-2 rounded-xs bg-emerald-600 py-3 text-sm font-bold text-white shadow-sm hover:bg-emerald-700"
+                    className="flex w-full items-center justify-center gap-2 rounded-xs bg-ok-solid py-3 text-sm font-bold text-white shadow-sm hover:bg-ok-solid"
                   >
                     <FileCheck2 className="h-4 w-4" />
                     검토 처리
@@ -844,7 +844,7 @@ export default function RequestMapPage() {
               {selected.status === 'overdue' && (
                 <Link
                   href={`/suppliers/check-info?supplierId=${selected.supplierId}&supplier=${encodeURIComponent(supplierLabel(selected.supplierId))}`}
-                  className="flex w-full items-center justify-center gap-2 rounded-xs bg-red-600 py-3 text-sm font-bold text-white shadow-sm hover:bg-red-700"
+                  className="flex w-full items-center justify-center gap-2 rounded-xs bg-alert-solid py-3 text-sm font-bold text-white shadow-sm hover:bg-alert-solid"
                 >
                   <Send className="h-4 w-4" />
                   재요청 / 리마인드 발송
@@ -855,7 +855,7 @@ export default function RequestMapPage() {
                   <button
                     type="button"
                     onClick={() => handleAction('마감 전 리마인드를 발송했습니다.')}
-                    className="flex w-full items-center justify-center gap-2 rounded-xs bg-orange-500 py-3 text-sm font-bold text-white shadow-sm hover:bg-orange-600"
+                    className="flex w-full items-center justify-center gap-2 rounded-xs bg-warn-solid py-3 text-sm font-bold text-white shadow-sm hover:bg-warn-solid"
                   >
                     <Clock3 className="h-4 w-4" />
                     마감 전 리마인드 발송
@@ -874,7 +874,7 @@ export default function RequestMapPage() {
                   <button
                     type="button"
                     onClick={() => handleAction('입력 현황 확인 요청을 보냈습니다.')}
-                    className="w-full rounded-xs bg-blue-600 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
+                    className="w-full rounded-xs bg-info-solid py-3 text-sm font-bold text-white shadow-sm hover:bg-info-solid"
                   >
                     입력 현황 확인
                   </button>
@@ -901,14 +901,14 @@ export default function RequestMapPage() {
 
             <div className="mt-5 rounded-sm border border-ink-700 bg-slate-50 p-4">
               <div className="flex items-center gap-2 text-xs font-bold text-ink-100">
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
+                <AlertTriangle className="h-4 w-4 text-warn-text" />
                 상태 정의
               </div>
               <div className="mt-3 space-y-2 text-xs leading-5 text-ink-500">
-                <div><b className="text-red-600">기한 초과</b> = 마감일을 넘겨 즉시 재요청이 필요합니다.</div>
-                <div><b className="text-emerald-600">검토 대기</b> = 제출은 완료됐고 내부 검토가 필요합니다.</div>
-                <div><b className="text-orange-600">만료 임박</b> = 7일 이내 마감되는 요청입니다.</div>
-                <div><b className="text-blue-600">입력 중</b> = 협력사가 자료를 작성 중입니다.</div>
+                <div><b className="text-alert-text">기한 초과</b> = 마감일을 넘겨 즉시 재요청이 필요합니다.</div>
+                <div><b className="text-ok-text">검토 대기</b> = 제출은 완료됐고 내부 검토가 필요합니다.</div>
+                <div><b className="text-warn-text">만료 임박</b> = 7일 이내 마감되는 요청입니다.</div>
+                <div><b className="text-info-text">입력 중</b> = 협력사가 자료를 작성 중입니다.</div>
                 <div><b className="text-slate-600">검토 완료</b> = 최근 7일 동안 완료 버튼에서 확인할 수 있습니다.</div>
               </div>
             </div>

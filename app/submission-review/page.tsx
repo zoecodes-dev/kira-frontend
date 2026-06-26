@@ -167,7 +167,7 @@ export default function SubmissionReviewPage() {
       />
 
       {notice && (
-        <div className="fixed right-6 bottom-6 z-50 rounded-xs border border-emerald-200 bg-white px-4 py-3 text-sm font-bold text-emerald-700 shadow-lg">
+        <div className="fixed right-6 bottom-6 z-50 rounded-xs border border-ok-border bg-white px-4 py-3 text-sm font-bold text-ok-text shadow-lg">
           {notice}
         </div>
       )}
@@ -265,7 +265,7 @@ export default function SubmissionReviewPage() {
                     {selected.checks.map(check => (
                       <div key={check.label} className="flex items-center justify-between rounded-xs border border-ink-700/60 bg-ink-900/30 px-3 py-2">
                         <div className="flex items-center gap-2">
-                          {check.result === 'pass' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : check.result === 'fail' ? <XCircle className="w-3.5 h-3.5 text-red-500" /> : <AlertCircle className="w-3.5 h-3.5 text-amber-400" />}
+                          {check.result === 'pass' ? <CheckCircle2 className="w-3.5 h-3.5 text-ok-text" /> : check.result === 'fail' ? <XCircle className="w-3.5 h-3.5 text-alert-text" /> : <AlertCircle className="w-3.5 h-3.5 text-warn-text" />}
                           <span className="text-xs text-ink-200">{check.label}</span>
                         </div>
                         <Badge tone={resultMeta[check.result as keyof typeof resultMeta].tone}>{resultMeta[check.result as keyof typeof resultMeta].label}</Badge>
@@ -343,9 +343,9 @@ function ActionButton({
   onClick?: () => void;
 }) {
   const style = {
-    ok: 'border-emerald-700/40 text-emerald-500 hover:bg-emerald-500/10',
-    warn: 'border-amber-700/40 text-amber-400 hover:bg-amber-500/10',
-    alert: 'border-red-700/40 text-red-400 hover:bg-red-500/10',
+    ok: 'border-ok-border text-ok-text hover:bg-ok-bg',
+    warn: 'border-warn-border text-warn-text hover:bg-warn-bg',
+    alert: 'border-alert-border text-alert-text hover:bg-alert-bg',
     neutral: 'border-ink-700 text-ink-300 hover:bg-ink-800',
   }[tone];
   return (

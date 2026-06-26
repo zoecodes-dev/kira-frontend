@@ -136,9 +136,9 @@ export default function PoolModal({
           <div className="text-sm font-semibold">협력사 목록을 불러오는 중…</div>
         </div>
       ) : error ? (
-        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-red-200 bg-red-50 p-6 text-center">
-          <ShieldAlert className="h-5 w-5 text-red-600" />
-          <div className="text-sm font-semibold text-red-800">{error}</div>
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-alert-border bg-alert-bg p-6 text-center">
+          <ShieldAlert className="h-5 w-5 text-alert-text" />
+          <div className="text-sm font-semibold text-alert-text">{error}</div>
         </div>
       ) : filtered.length === 0 ? (
         <div className="py-12 text-center text-sm text-slate-500">조건에 맞는 협력사가 없습니다.</div>
@@ -151,14 +151,14 @@ export default function PoolModal({
                 key={s.supplierId}
                 className={clsx(
                   'flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 transition',
-                  checked ? 'border-brand bg-emerald-50/60' : 'border-slate-200 bg-white hover:bg-slate-50',
+                  checked ? 'border-brand bg-ok-bg' : 'border-slate-200 bg-white hover:bg-slate-50',
                 )}
               >
                 <input
                   type="checkbox"
                   checked={checked}
                   onChange={() => toggle(s.supplierId)}
-                  className="h-4 w-4 accent-emerald-600"
+                  className="h-4 w-4 accent-brand"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-bold text-ink-100">{s.companyName}</div>

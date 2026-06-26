@@ -165,10 +165,10 @@ export default function SupplierInfoModal({
       }
     >
       {!supplierId ? (
-        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-amber-200 bg-amber-50 p-6 text-center">
-          <AlertTriangle className="h-5 w-5 text-amber-600" />
-          <div className="text-sm font-semibold text-amber-800">선택한 노드에 연결된 협력사 상세 정보가 없습니다.</div>
-          <div className="text-xs text-amber-700">먼저 트리에서 협력사가 매핑된 자재 노드를 선택하세요.</div>
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-warn-border bg-warn-bg p-6 text-center">
+          <AlertTriangle className="h-5 w-5 text-warn-text" />
+          <div className="text-sm font-semibold text-warn-text">선택한 노드에 연결된 협력사 상세 정보가 없습니다.</div>
+          <div className="text-xs text-warn-text">먼저 트리에서 협력사가 매핑된 자재 노드를 선택하세요.</div>
         </div>
       ) : loading ? (
         <div className="flex flex-col items-center gap-2 py-12 text-slate-500">
@@ -176,16 +176,16 @@ export default function SupplierInfoModal({
           <div className="text-sm font-semibold">협력사 정보를 불러오는 중…</div>
         </div>
       ) : error ? (
-        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-red-200 bg-red-50 p-6 text-center">
-          <ShieldAlert className="h-5 w-5 text-red-600" />
-          <div className="text-sm font-semibold text-red-800">{error}</div>
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-alert-border bg-alert-bg p-6 text-center">
+          <ShieldAlert className="h-5 w-5 text-alert-text" />
+          <div className="text-sm font-semibold text-alert-text">{error}</div>
         </div>
       ) : data ? (
         <div className="space-y-5">
           {/* 일반 정보 */}
           <section>
             <div className="mb-2 flex items-center gap-2 text-sm font-bold text-ink-100">
-              <ClipboardCheck className="h-4 w-4 text-emerald-600" />
+              <ClipboardCheck className="h-4 w-4 text-ok-text" />
               일반 정보
             </div>
             <div className="rounded-md border border-slate-200 px-3">
@@ -204,7 +204,7 @@ export default function SupplierInfoModal({
               {completeness !== null && (
                 <div className="mb-2 flex items-center gap-3">
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(completeness, 100)}%` }} />
+                    <div className="h-full rounded-full bg-ok-solid" style={{ width: `${Math.min(completeness, 100)}%` }} />
                   </div>
                   <span className="num-mono w-12 text-right text-sm font-bold text-ink-100">{completeness}%</span>
                 </div>
@@ -224,7 +224,7 @@ export default function SupplierInfoModal({
             <div className="mb-2 flex items-center gap-2 text-sm font-bold text-ink-100">
               인증서 / 원산지 만료
               {expiringCerts.length > 0 && (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                <span className="rounded-full border border-warn-border bg-warn-bg px-2 py-0.5 text-[11px] font-bold text-warn-text">
                   {expiringCerts.length}건 확인 필요
                 </span>
               )}
@@ -247,10 +247,10 @@ export default function SupplierInfoModal({
                         className={clsx(
                           'shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold',
                           exp === 'expired'
-                            ? 'border-red-200 bg-red-50 text-red-700'
+                            ? 'border-alert-border bg-alert-bg text-alert-text'
                             : exp === 'soon'
-                              ? 'border-amber-200 bg-amber-50 text-amber-700'
-                              : 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                              ? 'border-warn-border bg-warn-bg text-warn-text'
+                              : 'border-ok-border bg-ok-bg text-ok-text',
                         )}
                       >
                         {exp === 'expired' ? '만료' : exp === 'soon' ? '만료 임박' : '유효'}

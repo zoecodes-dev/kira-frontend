@@ -11,7 +11,7 @@ function Labeled({ label, required, children }: { label: string; required?: bool
     <label className="block">
       <span className="text-xs font-semibold text-slate-600">
         {label}
-        {required && <span className="ml-0.5 text-red-500">*</span>}
+        {required && <span className="ml-0.5 text-alert-text">*</span>}
       </span>
       <div className="mt-1">{children}</div>
     </label>
@@ -105,14 +105,14 @@ export default function SignupForm({
             업로드
           </button>
         </div>
-        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-semibold text-amber-800">
-          <input type="checkbox" checked={data.unverified} onChange={e => set({ unverified: e.target.checked })} className="h-4 w-4 accent-amber-600" />
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-semibold text-warn-text">
+          <input type="checkbox" checked={data.unverified} onChange={e => set({ unverified: e.target.checked })} className="h-4 w-4 accent-brand" />
           서류 미보유 — 미확인 상태로 등록 (원청/상위가 검증)
         </label>
       </div>
 
       {touched && !valid && (
-        <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+        <div className="mt-4 rounded-md border border-alert-border bg-alert-bg px-3 py-2 text-xs font-semibold text-alert-text">
           필수 항목과 필요 문서(또는 미확인 등록)를 확인해 주세요.
         </div>
       )}

@@ -122,7 +122,7 @@ function StageNode({
   const nodeStyle = {
     done:     'border-signal-ok    bg-signal-ok    text-white',
     active:   'border-accent-600   bg-white        text-accent-600   ring-4 ring-accent-100 animate-pulse',
-    rejected: 'border-red-500      bg-red-500      text-white        ring-4 ring-red-100',
+    rejected: 'border-alert-border      bg-alert-solid      text-white        ring-4 ring-alert-border',
     pending:  'border-ink-600      bg-white        text-ink-500',
   }[stage.status];
 
@@ -130,7 +130,7 @@ function StageNode({
   const lineStyle = {
     done:     'bg-signal-ok',
     active:   'bg-gradient-to-r from-signal-ok to-ink-600',
-    rejected: 'bg-red-400',
+    rejected: 'bg-alert-solid',
     pending:  'bg-ink-700',
   }[stage.status];
 
@@ -138,14 +138,14 @@ function StageNode({
   const labelStyle = {
     done:     'text-signal-ok     font-semibold',
     active:   'text-accent-700    font-bold',
-    rejected: 'text-red-600       font-bold',
+    rejected: 'text-alert-text       font-bold',
     pending:  'text-ink-500       font-medium',
   }[stage.status];
 
   const dateStyle = {
     done:     'text-ink-500',
     active:   'text-accent-600',
-    rejected: 'text-red-500',
+    rejected: 'text-alert-text',
     pending:  'text-ink-700',
   }[stage.status];
 
@@ -217,7 +217,7 @@ function SubmissionStepperCard({
   const headerBadge = isDone
     ? { label: '최종 승인',   cls: 'bg-signal-ok/10 text-signal-ok   border-signal-ok/30' }
     : isRejected
-    ? { label: '보완 요청',   cls: 'bg-red-50       text-red-600     border-red-200' }
+    ? { label: '보완 요청',   cls: 'bg-alert-bg       text-alert-text     border-alert-border' }
     : activeStage
     ? { label: '검토 진행 중', cls: 'bg-accent-50    text-accent-700  border-accent-200' }
     : { label: '대기 중',      cls: 'bg-ink-800      text-ink-400     border-ink-700' };
@@ -226,7 +226,7 @@ function SubmissionStepperCard({
     <div
       className={`
         rounded-sm border shadow-control overflow-hidden
-        ${isRejected ? 'border-red-300' : 'border-ink-700'}
+        ${isRejected ? 'border-alert-border' : 'border-ink-700'}
         bg-white
       `}
     >
@@ -242,7 +242,7 @@ function SubmissionStepperCard({
             className={`
               flex h-9 w-9 shrink-0 items-center justify-center rounded-xs border
               ${isRejected
-                ? 'border-red-200 bg-red-50 text-red-500'
+                ? 'border-alert-border bg-alert-bg text-alert-text'
                 : 'border-accent-100 bg-accent-50 text-accent-700'
               }
             `}
@@ -273,7 +273,7 @@ function SubmissionStepperCard({
                 </span>
               )}
               {rejectedStage && (
-                <span className="ml-2 text-red-500 font-semibold">
+                <span className="ml-2 text-alert-text font-semibold">
                   · {rejectedStage.no}단계에서 반려됨
                 </span>
               )}
@@ -295,7 +295,7 @@ function SubmissionStepperCard({
         <div className="px-5 pb-3">
           <div className="h-1.5 w-full rounded-full bg-ink-700 overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all ${isRejected ? 'bg-red-500' : 'bg-signal-ok'}`}
+              className={`h-full rounded-full transition-all ${isRejected ? 'bg-alert-solid' : 'bg-signal-ok'}`}
               style={{
                 width: `${(submission.stages.filter(s => s.status === 'done' || s.status === 'rejected').length / 8) * 100}%`,
               }}
@@ -310,7 +310,7 @@ function SubmissionStepperCard({
 
       {/* ── 펼쳐진 스테퍼 본문 ───────────────────────────── */}
       {expanded && (
-        <div className={`border-t px-5 pt-5 pb-4 ${isRejected ? 'border-red-200 bg-red-50/30' : 'border-ink-700 bg-ink-800/20'}`}>
+        <div className={`border-t px-5 pt-5 pb-4 ${isRejected ? 'border-alert-border bg-alert-bg' : 'border-ink-700 bg-ink-800/20'}`}>
 
           {/* 가로 Stepper */}
           <div className="flex items-start w-full overflow-x-auto pb-1">
@@ -325,18 +325,18 @@ function SubmissionStepperCard({
 
           {/* ── 반려 패널 ──────────────────────────────────── */}
           {isRejected && rejectedStage && (
-            <div className="mt-5 rounded-xs border border-red-300 bg-red-50 p-4">
+            <div className="mt-5 rounded-xs border border-alert-border bg-alert-bg p-4">
               {/* 반려 헤더 */}
               <div className="flex items-start gap-2.5">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-red-400 bg-red-100">
-                  <AlertTriangle className="h-3.5 w-3.5 text-red-600" strokeWidth={2.5} />
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-alert-border bg-alert-bg">
+                  <AlertTriangle className="h-3.5 w-3.5 text-alert-text" strokeWidth={2.5} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold text-red-800">
+                  <div className="text-xs font-bold text-alert-text">
                     {rejectedStage.no}단계 &ldquo;{rejectedStage.label}&rdquo; 에서 보완 요청되었습니다
                   </div>
                   {rejectedStage.completedAt && (
-                    <div className="mt-0.5 text-[10px] text-red-500 num-mono">
+                    <div className="mt-0.5 text-[10px] text-alert-text num-mono">
                       {rejectedStage.completedAt}
                     </div>
                   )}
@@ -345,9 +345,9 @@ function SubmissionStepperCard({
 
               {/* 반려 사유 */}
               {submission.rejectionReason && (
-                <div className="mt-3 rounded-xs border border-red-200 bg-white px-3 py-2.5">
-                  <div className="text-[10px] font-bold text-red-500 mb-1">사유</div>
-                  <p className="text-xs text-red-800 leading-5">
+                <div className="mt-3 rounded-xs border border-alert-border bg-white px-3 py-2.5">
+                  <div className="text-[10px] font-bold text-alert-text mb-1">사유</div>
+                  <p className="text-xs text-alert-text leading-5">
                     {submission.rejectionReason}
                   </p>
                 </div>
@@ -366,10 +366,10 @@ function SubmissionStepperCard({
                   }}
                   className="
                     inline-flex items-center gap-2
-                    rounded-xs border border-red-400 bg-white
-                    px-4 py-2 text-xs font-bold text-red-600
+                    rounded-xs border border-alert-border bg-white
+                    px-4 py-2 text-xs font-bold text-alert-text
                     shadow-control
-                    hover:bg-red-600 hover:text-white hover:border-red-600
+                    hover:bg-alert-solid hover:text-white hover:border-alert-border
                     transition-colors duration-150
                   "
                 >
@@ -466,7 +466,7 @@ export default function EightStageStepper({
           </span>
         )}
         {rejectedCount > 0 && (
-          <span className="inline-flex items-center gap-1 rounded-xs border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+          <span className="inline-flex items-center gap-1 rounded-xs border border-alert-border bg-alert-bg px-2 py-0.5 text-[10px] font-semibold text-alert-text">
             <AlertTriangle className="h-3 w-3" /> 보완 요청 {rejectedCount}건
           </span>
         )}

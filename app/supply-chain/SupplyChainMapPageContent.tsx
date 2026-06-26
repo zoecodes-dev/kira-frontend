@@ -266,7 +266,7 @@ export function SupplyChainMapPageContent({
       <section className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <FilterSelect label="제품">
-            <select value={selectedProductId} onChange={event => handleProductChange(event.target.value)} className="h-11 min-w-[210px] rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-ink-100 shadow-sm outline-none focus:border-emerald-400">
+            <select value={selectedProductId} onChange={event => handleProductChange(event.target.value)} className="h-11 min-w-[210px] rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-ink-100 shadow-sm outline-none focus:border-ok-border">
               {dataset.products.map(product => (
                 <option key={product.product_id} value={product.product_id}>
                   {product.product_name}
@@ -275,7 +275,7 @@ export function SupplyChainMapPageContent({
             </select>
           </FilterSelect>
           <FilterSelect label="BOM 정보">
-            <select value={selectedBomVersionId} onChange={event => setSelectedBomVersionId(event.target.value)} className="h-11 min-w-[170px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-emerald-400">
+            <select value={selectedBomVersionId} onChange={event => setSelectedBomVersionId(event.target.value)} className="h-11 min-w-[170px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border">
               {availableBomVersions.map(version => (
                 <option key={version.bom_version_id} value={version.bom_version_id}>
                   BOM {version.version_number} · {version.status}
@@ -284,7 +284,7 @@ export function SupplyChainMapPageContent({
             </select>
           </FilterSelect>
           <FilterSelect label="단위기간">
-            <div className="flex h-11 min-w-[300px] items-center gap-2 rounded-md border border-slate-200 bg-white px-3 shadow-sm focus-within:border-emerald-400">
+            <div className="flex h-11 min-w-[300px] items-center gap-2 rounded-md border border-slate-200 bg-white px-3 shadow-sm focus-within:border-ok-border">
               <input
                 type="date"
                 value={periodFrom}
@@ -303,7 +303,7 @@ export function SupplyChainMapPageContent({
             </div>
           </FilterSelect>
           <FilterSelect label="PO 상태">
-            <select value={selectedPoNumber} onChange={event => setSelectedPoNumber(event.target.value)} className="h-11 min-w-[150px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-emerald-400">
+            <select value={selectedPoNumber} onChange={event => setSelectedPoNumber(event.target.value)} className="h-11 min-w-[150px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border">
               <option value="ALL">전체 상태</option>
               {poOptions.map(poNumber => (
                 <option key={poNumber} value={poNumber}>{poNumber}</option>
@@ -311,7 +311,7 @@ export function SupplyChainMapPageContent({
             </select>
           </FilterSelect>
           <FilterSelect label="사업장/리스크">
-            <select value={selectedFactoryId} onChange={event => setSelectedFactoryId(event.target.value)} className="h-11 min-w-[190px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-emerald-400">
+            <select value={selectedFactoryId} onChange={event => setSelectedFactoryId(event.target.value)} className="h-11 min-w-[190px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border">
               <option value="ALL">전체 리스크</option>
               {factoryOptions.map(factory => (
                 <option key={factory.factory_id} value={factory.factory_id}>
@@ -334,7 +334,7 @@ export function SupplyChainMapPageContent({
             <button
               type="button"
               onClick={handleGenerate}
-              className="inline-flex h-11 items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700 shadow-sm hover:bg-emerald-100"
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-ok-border bg-ok-bg px-4 text-sm font-bold text-ok-text shadow-sm hover:bg-ok-bg"
             >
               <Plus className="h-4 w-4" />
               맵 형성하기
@@ -356,9 +356,9 @@ export function SupplyChainMapPageContent({
       </section>
 
       {generatedAt && (
-        <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+        <div className="mb-4 rounded-md border border-ok-border bg-ok-bg px-3 py-2 text-xs font-semibold text-ok-text">
           {selectedProduct?.product_name} / {selectedBomVersion?.version_number} 기준으로 갱신되었습니다.
-          <span className="ml-2 font-medium text-emerald-700">{generatedAt}</span>
+          <span className="ml-2 font-medium text-ok-text">{generatedAt}</span>
         </div>
       )}
 
@@ -474,7 +474,7 @@ export function SupplyChainMapPageContent({
                 Excel 다운로드
               </button>
               {!formationMode && (
-                <button type="button" onClick={downloadCustomerExcel} className="inline-flex items-center gap-1.5 rounded-xs border border-emerald-600 bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover">
+                <button type="button" onClick={downloadCustomerExcel} className="inline-flex items-center gap-1.5 rounded-xs border border-ok-border bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover">
                   <FileSpreadsheet className="h-3.5 w-3.5" />
                   고객사 데이터 다운로드
                 </button>
@@ -598,11 +598,11 @@ function SupplyMapRow({
       {node.depth > 0 && (
         <>
           <div
-            className="pointer-events-none absolute top-0 h-full w-px bg-emerald-300"
+            className="pointer-events-none absolute top-0 h-full w-px bg-ok-solid"
             style={{ left: `${28 + (node.depth - 1) * 24}px` }}
           />
           <div
-            className="pointer-events-none absolute top-[34px] h-px w-5 bg-emerald-300"
+            className="pointer-events-none absolute top-[34px] h-px w-5 bg-ok-solid"
             style={{ left: `${28 + (node.depth - 1) * 24}px` }}
           />
         </>
@@ -613,19 +613,19 @@ function SupplyMapRow({
         onClick={() => onSelect(node.key)}
         className={`grid min-h-[72px] w-full grid-cols-[minmax(270px,1.35fr)_80px_120px_minmax(170px,.85fr)_90px_90px_132px_54px] items-center border-b border-slate-100 px-4 text-left transition ${
           selected || isProduct
-            ? 'bg-emerald-50/70'
+            ? 'bg-ok-bg'
             : rowTone === 'danger'
-              ? 'bg-white hover:bg-red-50/40'
+              ? 'bg-white hover:bg-alert-bg'
               : 'bg-white hover:bg-slate-50'
         }`}
       >
         <div className="flex min-w-0 items-center gap-3" style={{ paddingLeft: `${node.depth * 24}px` }}>
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isProduct ? 'bg-emerald-400' : rowTone === 'danger' ? 'bg-red-400' : 'bg-emerald-300'}`} />
-          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${rowTone === 'danger' ? 'text-red-500' : 'text-ink-400'}`}>
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isProduct ? 'bg-ok-solid' : rowTone === 'danger' ? 'bg-alert-solid' : 'bg-ok-solid'}`} />
+          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${rowTone === 'danger' ? 'text-alert-text' : 'text-ink-400'}`}>
             <NodeIcon className="h-5 w-5" />
           </span>
           <span className="min-w-0">
-            <span className={`block truncate ${isProduct ? 'text-[15px] font-bold text-ink-100' : `text-sm font-medium ${rowTone === 'danger' ? 'text-red-900' : 'text-ink-100'}`}`}>{node.label}</span>
+            <span className={`block truncate ${isProduct ? 'text-[15px] font-bold text-ink-100' : `text-sm font-medium ${rowTone === 'danger' ? 'text-alert-text' : 'text-ink-100'}`}`}>{node.label}</span>
             <span className="mt-1 block truncate text-xs font-medium text-slate-500">{node.meta}</span>
           </span>
         </div>
@@ -714,7 +714,7 @@ function MapDetailPanel({ selectedNode, formationMode = false }: { selectedNode:
               <span className="text-right font-semibold text-ink-100">-</span>
             </div>
           </div>
-          <div className="mt-5 rounded-lg bg-amber-50 p-4 text-sm text-ink-400">
+          <div className="mt-5 rounded-lg bg-warn-bg p-4 text-sm text-ink-400">
             <div className="mb-2 font-bold text-ink-100">리스크 요약</div>
             <ul className="space-y-1 text-xs font-medium leading-5">
               <li>· -</li>
@@ -767,7 +767,7 @@ function MapDetailPanel({ selectedNode, formationMode = false }: { selectedNode:
           <Info className="h-4 w-4 text-slate-400" />
         </div>
         <div className="flex items-start gap-3">
-          <Gem className={`mt-1 h-5 w-5 shrink-0 ${getRiskTone(badge) === 'danger' ? 'text-red-500' : 'text-ink-400'}`} />
+          <Gem className={`mt-1 h-5 w-5 shrink-0 ${getRiskTone(badge) === 'danger' ? 'text-alert-text' : 'text-ink-400'}`} />
           <div>
             <h3 className="text-base font-bold text-ink-100">{row.part_name}</h3>
             <p className="mt-1 text-xs font-medium text-slate-500">{row.material_or_mineral}</p>
@@ -789,7 +789,7 @@ function MapDetailPanel({ selectedNode, formationMode = false }: { selectedNode:
             <span className="text-right font-semibold text-ink-100">{hideFormationValues ? '-' : '2025.05.14 09:30'}</span>
           </div>
         </div>
-        <div className="mt-5 rounded-lg bg-amber-50 p-4 text-sm text-ink-400">
+        <div className="mt-5 rounded-lg bg-warn-bg p-4 text-sm text-ink-400">
           <div className="mb-2 font-bold text-ink-100">리스크 요약</div>
           <ul className="space-y-1 text-xs font-medium leading-5">
             {hideFormationValues ? (
@@ -862,10 +862,10 @@ function SupplyMapStats({ rows }: { rows: TraceRow[] }) {
 }
 
 function StatCell({ label, value, suffix, tone = 'default' }: { label: string; value: string; suffix: string; tone?: 'default' | 'danger' | 'warning' | 'success' }) {
-  const color = tone === 'danger' ? 'text-red-600' : tone === 'warning' ? 'text-orange-500' : tone === 'success' ? 'text-emerald-600' : 'text-ink-100';
+  const color = tone === 'danger' ? 'text-alert-text' : tone === 'warning' ? 'text-warn-text' : tone === 'success' ? 'text-ok-text' : 'text-ink-100';
   return (
     <div className="px-5 text-center first:pl-0 last:pr-0">
-      <div className={`text-xs font-bold ${tone === 'danger' ? 'text-red-600' : tone === 'warning' ? 'text-orange-500' : 'text-ink-400'}`}>{label}</div>
+      <div className={`text-xs font-bold ${tone === 'danger' ? 'text-alert-text' : tone === 'warning' ? 'text-warn-text' : 'text-ink-400'}`}>{label}</div>
       <div className={`mt-2 text-3xl font-black ${color}`}>
         {value}
         <span className="ml-1 text-sm font-bold text-ink-400">{suffix}</span>

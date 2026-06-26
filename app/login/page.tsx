@@ -92,7 +92,7 @@ export default function LoginPage() {
                 <div className="mt-1 text-xs leading-5 text-ink-500">전체 협력사, 리스크, DPP 발행, 감사 추적을 유지합니다.</div>
               </div>
               <div className="rounded-sm border border-ink-700 bg-ink-800 p-4">
-                <Factory className="h-5 w-5 text-blue-700" strokeWidth={1.8} />
+                <Factory className="h-5 w-5 text-info-text" strokeWidth={1.8} />
                 <div className="mt-3 text-sm font-bold">협력사</div>
                 <div className="mt-1 text-xs leading-5 text-ink-500">본인 기준 parent/child와 제출 상태만 보여줍니다.</div>
               </div>
@@ -189,7 +189,7 @@ export default function LoginPage() {
                   <div className="flex h-8 w-8 items-center justify-center rounded-xs border border-ink-700 bg-white">
                     {role === 'oem'
                       ? <Network className="h-4 w-4 text-accent-700" />
-                      : <Factory className="h-4 w-4 text-blue-700" />
+                      : <Factory className="h-4 w-4 text-info-text" />
                     }
                   </div>
                 </div>

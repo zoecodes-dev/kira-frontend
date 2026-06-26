@@ -164,7 +164,7 @@ export default function StepMaterials({
                 </div>
               ))}
             </div>
-            <div className={`mt-2 text-right text-xs font-semibold ${Math.round(ratioSum) === 100 ? 'text-emerald-700' : 'text-amber-700'}`}>
+            <div className={`mt-2 text-right text-xs font-semibold ${Math.round(ratioSum) === 100 ? 'text-ok-text' : 'text-warn-text'}`}>
               합계 {ratioSum.toFixed(0)}% {Math.round(ratioSum) === 100 ? '' : '(100% 권장)'}
             </div>
           </>
@@ -187,7 +187,7 @@ export default function StepMaterials({
                 <button
                   type="button"
                   onClick={() => onChange({ ...data, childMaterials: data.childMaterials.filter((_, idx) => idx !== i) })}
-                  className="text-slate-400 hover:text-red-600"
+                  className="text-slate-400 hover:text-alert-text"
                   aria-label="삭제"
                 >
                   <Trash2 className="h-4 w-4" />

@@ -42,9 +42,9 @@ const candidateSuppliers = [
 ];
 
 function getStatusClass(status: InvitationStatus) {
-  if (status === 'sent') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-  if (status === 'draft') return 'border-amber-200 bg-amber-50 text-amber-700';
-  return 'border-blue-200 bg-blue-50 text-blue-700';
+  if (status === 'sent') return 'border-ok-border bg-ok-bg text-ok-text';
+  if (status === 'draft') return 'border-warn-border bg-warn-bg text-warn-text';
+  return 'border-info-border bg-info-bg text-info-text';
 }
 
 function SupplierInvitationsContent() {
@@ -190,7 +190,7 @@ function SupplierInvitationsContent() {
                     data-testid={`invitation-card-${item.id}`}
                     className={clsx(
                       'w-full rounded-md border p-3 text-left transition-colors',
-                      selected ? 'border-brand bg-emerald-50/60' : 'border-slate-200 bg-white hover:bg-slate-50',
+                      selected ? 'border-brand bg-ok-bg' : 'border-slate-200 bg-white hover:bg-slate-50',
                     )}
                   >
                     <div className="mb-3 flex items-start justify-between gap-3">
@@ -331,7 +331,7 @@ function SupplierInvitationsContent() {
                     key={`${candidate.supplierName}-${candidate.email}`}
                     type="button"
                     onClick={() => addCandidate(candidate)}
-                    className="w-full rounded-md border border-slate-200 bg-white p-3 text-left hover:border-brand hover:bg-emerald-50/50"
+                    className="w-full rounded-md border border-slate-200 bg-white p-3 text-left hover:border-brand hover:bg-ok-bg"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>

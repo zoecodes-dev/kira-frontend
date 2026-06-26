@@ -63,7 +63,7 @@ export default function PicRegister({
                 <button
                   type="button"
                   onClick={() => remove(i)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-red-600"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-alert-text"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   삭제

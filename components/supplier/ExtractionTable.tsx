@@ -28,16 +28,16 @@ function getConfidenceStyle(confidence: number): {
     return {
       tone: 'warn',
       rowBg: 'bg-[#FFFBEB]',
-      inputBg: 'bg-amber-50',
-      inputBorder: 'border-amber-300 focus:border-amber-500',
+      inputBg: 'bg-warn-bg',
+      inputBorder: 'border-warn-border focus:border-warn-border',
       warningLevel: 'review',
     };
   }
   return {
     tone: 'alert',
     rowBg: 'bg-[#FEF2F2]',
-    inputBg: 'bg-red-50',
-    inputBorder: 'border-red-300 focus:border-red-500',
+    inputBg: 'bg-alert-bg',
+    inputBorder: 'border-alert-border focus:border-alert-border',
     warningLevel: 'required',
   };
 }
@@ -83,7 +83,7 @@ function Toast({
     <div
       className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-sm border px-4 py-3 text-xs font-semibold shadow-lg transition-all ${
         tone === 'ok'
-          ? 'border-green-200 bg-green-50 text-green-800'
+          ? 'border-ok-border bg-ok-bg text-ok-text'
           : 'border-accent-100 bg-accent-50 text-accent-800'
       }`}
     >
@@ -111,26 +111,26 @@ function DraftBanner({
   onDiscard: () => void;
 }) {
   return (
-    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-5 py-2.5">
-      <div className="flex items-center gap-2 text-[11px] text-amber-800">
+    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-warn-border bg-warn-bg px-5 py-2.5">
+      <div className="flex items-center gap-2 text-[11px] text-warn-text">
         <Save className="h-3.5 w-3.5 shrink-0" />
         <span>
           이전에 저장된 초안이 있습니다.
-          <span className="ml-1 text-[10px] text-amber-600">({savedAt} 저장)</span>
+          <span className="ml-1 text-[10px] text-warn-text">({savedAt} 저장)</span>
         </span>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={onDiscard}
-          className="text-[11px] font-semibold text-amber-600 hover:text-amber-900"
+          className="text-[11px] font-semibold text-warn-text hover:text-warn-text"
         >
           무시
         </button>
         <button
           type="button"
           onClick={onRestore}
-          className="rounded-xs border border-amber-400 bg-white px-3 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100"
+          className="rounded-xs border border-warn-border bg-white px-3 py-1 text-[11px] font-bold text-warn-text hover:bg-warn-bg"
         >
           불러오기
         </button>
@@ -246,9 +246,9 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
                   key={field.key}
                   className={`rounded-xs border px-3 py-3 transition-colors ${
                     style.warningLevel === 'required'
-                      ? 'border-red-200'
+                      ? 'border-alert-border'
                       : style.warningLevel === 'review'
-                      ? 'border-amber-200'
+                      ? 'border-warn-border'
                       : 'border-transparent'
                   } ${style.rowBg}`}
                 >
@@ -256,13 +256,13 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
                     <label className="text-[11px] font-bold text-ink-400">{field.label}</label>
                     <div className="flex items-center gap-1.5">
                       {style.warningLevel === 'review' && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700">
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-warn-text">
                           <Info className="h-3 w-3" />
                           검토 권장
                         </span>
                       )}
                       {style.warningLevel === 'required' && (
-                        <span className="flex items-center gap-1 rounded-xs bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
+                        <span className="flex items-center gap-1 rounded-xs bg-alert-bg px-1.5 py-0.5 text-[10px] font-bold text-alert-text">
                           <AlertTriangle className="h-3 w-3" />
                           수정 필요
                         </span>
@@ -282,7 +282,7 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
                     )}
                   </div>
                   {field.warning && (
-                    <p className="mt-1.5 flex items-center gap-1 text-[10px] text-red-600 font-semibold">
+                    <p className="mt-1.5 flex items-center gap-1 text-[10px] text-alert-text font-semibold">
                       <AlertTriangle className="h-3 w-3" /> {field.warning}
                     </p>
                   )}
@@ -329,7 +329,7 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
             onClick={handleSubmit}
             disabled={confirming}
             className={`inline-flex items-center gap-1.5 rounded-xs px-5 py-2 text-xs font-bold text-white shadow-control transition-colors disabled:opacity-70 ${
-              isLastDoc ? 'bg-signal-ok hover:bg-emerald-600' : 'bg-accent-700 hover:bg-accent-900'
+              isLastDoc ? 'bg-signal-ok hover:bg-ok-solid' : 'bg-accent-700 hover:bg-accent-900'
             }`}
           >
             {confirming ? '처리 중...' : isLastDoc ? (

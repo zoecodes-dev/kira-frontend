@@ -246,7 +246,7 @@ function Step1({
       </div>
 
       {selected.size === 0 && (
-        <p className="flex items-center gap-1.5 text-xs text-amber-700 pt-1">
+        <p className="flex items-center gap-1.5 text-xs text-warn-text pt-1">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           항목을 1개 이상 선택해야 다음 단계로 이동할 수 있습니다.
         </p>
@@ -392,7 +392,7 @@ function SupplyMapStep({
       {fileErrors.length > 0 && (
         <div className="space-y-1.5">
           {fileErrors.map((err, i) => (
-            <div key={i} className="flex items-start gap-2 rounded-xs border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div key={i} className="flex items-start gap-2 rounded-xs border border-alert-border bg-alert-bg px-3 py-2 text-xs text-alert-text">
               <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
               {err}
             </div>
@@ -420,7 +420,7 @@ function SupplyMapStep({
                       <div
                         className={`h-full rounded-full transition-all duration-300 ${
                           uf.state === 'done'  ? 'bg-signal-ok' :
-                          uf.state === 'error' ? 'bg-red-500' :
+                          uf.state === 'error' ? 'bg-alert-solid' :
                           isValidating         ? 'bg-accent-400 animate-pulse' :
                                                  'bg-accent-600'
                         }`}
@@ -445,7 +445,7 @@ function SupplyMapStep({
                         </span>
                       )}
                       {uf.state === 'error' && (
-                        <span className="flex items-center gap-1 text-[10px] text-red-500">
+                        <span className="flex items-center gap-1 text-[10px] text-alert-text">
                           <AlertCircle className="h-3 w-3" /> 검증 실패 — 파일을 다시 확인해 주세요
                         </span>
                       )}
@@ -454,7 +454,7 @@ function SupplyMapStep({
                   <button
                     type="button"
                     onClick={() => onRemoveFile(uf.id)}
-                    className="shrink-0 rounded-xs p-1 text-ink-500 hover:bg-red-50 hover:text-red-500"
+                    className="shrink-0 rounded-xs p-1 text-ink-500 hover:bg-alert-bg hover:text-alert-text"
                     aria-label={`${uf.file.name} 삭제`}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -467,7 +467,7 @@ function SupplyMapStep({
       )}
 
       {files.length === 0 && (
-        <p className="flex items-center gap-1.5 text-xs text-amber-700">
+        <p className="flex items-center gap-1.5 text-xs text-warn-text">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           작성 완료된 표준 양식 파일을 업로드해야 다음 단계로 이동할 수 있습니다.
         </p>
@@ -521,11 +521,11 @@ function Step2({
     <div className="space-y-4">
       {/* 재제출 배너 */}
       {reworkLabel && (
-        <div className="flex items-start gap-2 rounded-xs border border-amber-300 bg-amber-50 px-4 py-3">
-          <RotateCcw className="h-4 w-4 shrink-0 text-amber-700 mt-0.5" />
+        <div className="flex items-start gap-2 rounded-xs border border-warn-border bg-warn-bg px-4 py-3">
+          <RotateCcw className="h-4 w-4 shrink-0 text-warn-text mt-0.5" />
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-bold text-amber-800">보완 요청 재제출</div>
-            <div className="mt-0.5 text-[10px] text-amber-700">
+            <div className="text-xs font-bold text-warn-text">보완 요청 재제출</div>
+            <div className="mt-0.5 text-[10px] text-warn-text">
               원청사 요청 항목: <span className="font-semibold">{reworkLabel}</span>
             </div>
           </div>
@@ -534,13 +534,13 @@ function Step2({
 
       {/* 반려 사유 박스 — EightStageStepper에서 전달된 원청사 반려 사유 */}
       {reworkReason && (
-        <div className="rounded-xs border border-red-200 bg-red-50 px-4 py-3">
+        <div className="rounded-xs border border-alert-border bg-alert-bg px-4 py-3">
           <div className="flex items-center gap-1.5 mb-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-            <div className="text-[10px] font-bold text-red-600">원청사 반려 사유</div>
+            <AlertTriangle className="h-3.5 w-3.5 text-alert-text" />
+            <div className="text-[10px] font-bold text-alert-text">원청사 반려 사유</div>
           </div>
-          <p className="text-xs text-red-800 leading-5">{reworkReason}</p>
-          <div className="mt-2 text-[10px] text-red-500">
+          <p className="text-xs text-alert-text leading-5">{reworkReason}</p>
+          <div className="mt-2 text-[10px] text-alert-text">
             위 사유를 참고하여 수정된 파일을 첨부해 주세요.
           </div>
         </div>
@@ -589,7 +589,7 @@ function Step2({
       {fileErrors.length > 0 && (
         <div className="space-y-1.5">
           {fileErrors.map((err, i) => (
-            <div key={i} className="flex items-start gap-2 rounded-xs border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div key={i} className="flex items-start gap-2 rounded-xs border border-alert-border bg-alert-bg px-3 py-2 text-xs text-alert-text">
               <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
               {err}
             </div>
@@ -615,7 +615,7 @@ function Step2({
                     <div
                       className={`h-full rounded-full transition-all duration-300 ${
                         uf.state === 'done'  ? 'bg-signal-ok' :
-                        uf.state === 'error' ? 'bg-red-500' :
+                        uf.state === 'error' ? 'bg-alert-solid' :
                         'bg-accent-600'
                       }`}
                       style={{ width: `${uf.progress}%` }}
@@ -633,7 +633,7 @@ function Step2({
                       </span>
                     )}
                     {uf.state === 'error' && (
-                      <span className="flex items-center gap-1 text-[10px] text-red-500">
+                      <span className="flex items-center gap-1 text-[10px] text-alert-text">
                         <AlertCircle className="h-3 w-3" /> 업로드 실패
                       </span>
                     )}
@@ -642,7 +642,7 @@ function Step2({
                 <button
                   type="button"
                   onClick={() => onRemoveFile(uf.id)}
-                  className="shrink-0 rounded-xs p-1 text-ink-500 hover:bg-red-50 hover:text-red-500"
+                  className="shrink-0 rounded-xs p-1 text-ink-500 hover:bg-alert-bg hover:text-alert-text"
                   aria-label={`${uf.file.name} 삭제`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -654,7 +654,7 @@ function Step2({
       )}
 
       {files.length === 0 && (
-        <p className="flex items-center gap-1.5 text-xs text-amber-700">
+        <p className="flex items-center gap-1.5 text-xs text-warn-text">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           파일을 1개 이상 첨부해야 다음 단계로 이동할 수 있습니다.
         </p>
@@ -750,15 +750,15 @@ function Step3({
       </div>
 
       {/* 제출 전 체크리스트 */}
-      <div className="rounded-xs border border-amber-200 bg-amber-50 px-4 py-3 space-y-1.5">
-        <div className="text-xs font-bold text-amber-800 mb-2">제출 전 확인사항</div>
+      <div className="rounded-xs border border-warn-border bg-warn-bg px-4 py-3 space-y-1.5">
+        <div className="text-xs font-bold text-warn-text mb-2">제출 전 확인사항</div>
         {[
           '제출 항목과 첨부 파일이 일치하는지 확인했습니다.',
           '파일 내 서명 및 직인이 포함되어 있습니다.',
           '기간, 좌표, 산정 근거 등 필수 기재 항목을 모두 작성했습니다.',
         ].map(text => (
-          <div key={text} className="flex items-start gap-2 text-xs text-amber-800">
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-amber-600 mt-0.5" />
+          <div key={text} className="flex items-start gap-2 text-xs text-warn-text">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-warn-text mt-0.5" />
             {text}
           </div>
         ))}
@@ -968,7 +968,7 @@ export default function SubmitWizardModal({
                 <div className="text-[10px] text-accent-600 font-semibold">공급망 표준 양식 제출 모드</div>
               )}
               {!isSupplyMapMode && reworkMode && (
-                <div className="text-[10px] text-amber-600 font-semibold">보완 재제출 모드</div>
+                <div className="text-[10px] text-warn-text font-semibold">보완 재제출 모드</div>
               )}
               {!isSupplyMapMode && certRenewalMode && !reworkMode && (
                 <div className="text-[10px] text-accent-600 font-semibold">인증서 갱신 업로드 모드</div>
@@ -1188,7 +1188,7 @@ export default function SubmitWizardModal({
                       setShowExitConfirm(false);
                       onClose();
                     }}
-                    className="rounded-xs bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700"
+                    className="rounded-xs bg-alert-solid px-3 py-1.5 text-xs font-bold text-white hover:bg-alert-solid"
                   >
                     그냥 닫기
                   </button>

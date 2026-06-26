@@ -83,10 +83,10 @@ export default function InviteMailModal({
       }
     >
       {pool.length === 0 ? (
-        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-amber-200 bg-amber-50 p-6 text-center">
-          <Users className="h-5 w-5 text-amber-600" />
-          <div className="text-sm font-semibold text-amber-800">먼저 협력사 Pool을 구성하세요.</div>
-          <div className="text-xs text-amber-700">STEP 2 "협력사 Pool 구성"에서 1차 협력사를 선택하면 발송 대상이 됩니다.</div>
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-warn-border bg-warn-bg p-6 text-center">
+          <Users className="h-5 w-5 text-warn-text" />
+          <div className="text-sm font-semibold text-warn-text">먼저 협력사 Pool을 구성하세요.</div>
+          <div className="text-xs text-warn-text">STEP 2 "협력사 Pool 구성"에서 1차 협력사를 선택하면 발송 대상이 됩니다.</div>
         </div>
       ) : (
         <div className="grid grid-cols-[220px_minmax(0,1fr)] gap-4">
@@ -99,12 +99,12 @@ export default function InviteMailModal({
                 onClick={() => setSelectedId(s.supplierId)}
                 className={clsx(
                   'w-full rounded-md border p-3 text-left transition',
-                  selectedId === s.supplierId ? 'border-brand bg-emerald-50/60' : 'border-slate-200 bg-white hover:bg-slate-50',
+                  selectedId === s.supplierId ? 'border-brand bg-ok-bg' : 'border-slate-200 bg-white hover:bg-slate-50',
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-bold text-ink-100">{s.companyName}</span>
-                  {drafts[s.supplierId]?.sent && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />}
+                  {drafts[s.supplierId]?.sent && <CheckCircle2 className="h-4 w-4 shrink-0 text-ok-text" />}
                 </div>
                 <div className="mt-0.5 truncate text-[11px] text-slate-500">{s.supplierId}</div>
               </button>
@@ -115,8 +115,8 @@ export default function InviteMailModal({
           {selected && draft && (
             <div className="space-y-3">
               {/* 본인인증 담당자(PIC) 재확인 */}
-              <div className="rounded-md border border-emerald-100 bg-emerald-50/50 p-3">
-                <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+              <div className="rounded-md border border-ok-border bg-ok-bg p-3">
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ok-text">
                   <ShieldCheck className="h-4 w-4" />
                   본인인증 담당자(PIC) 재확인
                 </div>
@@ -125,8 +125,8 @@ export default function InviteMailModal({
                   <input value={draft.picEmail} onChange={e => patch(selected.supplierId, { picEmail: e.target.value })} placeholder="이메일" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand" />
                   <input value={draft.picPhone} onChange={e => patch(selected.supplierId, { picPhone: e.target.value })} placeholder="전화번호" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand" />
                 </div>
-                <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs font-semibold text-emerald-800">
-                  <input type="checkbox" checked={draft.picConfirmed} onChange={e => patch(selected.supplierId, { picConfirmed: e.target.checked })} className="h-3.5 w-3.5 accent-emerald-600" />
+                <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs font-semibold text-ok-text">
+                  <input type="checkbox" checked={draft.picConfirmed} onChange={e => patch(selected.supplierId, { picConfirmed: e.target.checked })} className="h-3.5 w-3.5 accent-brand" />
                   담당자 정보가 정확함을 확인했습니다.
                 </label>
               </div>
@@ -165,10 +165,10 @@ export default function InviteMailModal({
               {/* 첨부 — 제3자 동의서 고정 + 추가 첨부 */}
               <div>
                 <span className="text-xs font-semibold text-slate-600">첨부파일</span>
-                <div className="mt-1 flex items-center gap-2 rounded-md border border-emerald-100 bg-emerald-50/50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                <div className="mt-1 flex items-center gap-2 rounded-md border border-ok-border bg-ok-bg px-3 py-2 text-xs font-semibold text-ok-text">
                   <Paperclip className="h-3.5 w-3.5" />
                   {CONSENT_ATTACHMENT}
-                  <span className="rounded-full border border-emerald-200 bg-white px-1.5 py-0.5 text-[10px]">필수 동의서</span>
+                  <span className="rounded-full border border-ok-border bg-white px-1.5 py-0.5 text-[10px]">필수 동의서</span>
                 </div>
                 <input
                   value={draft.attachment}

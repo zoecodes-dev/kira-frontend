@@ -283,8 +283,8 @@ export default function MyTaskPage() {
                 {filtered.map(task => {
                   const meta = typeMeta[task.type];
                   const TypeIcon = meta.icon;
-                  const dot = { critical: 'bg-red-600', high: 'bg-red-400', medium: 'bg-amber-400', low: 'bg-emerald-500' }[task.priority];
-                  const statusCls = { today: 'text-amber-600', overdue: 'text-red-600', waiting: 'text-slate-400', done: 'text-emerald-600' }[task.status];
+                  const dot = { critical: 'bg-alert-solid', high: 'bg-alert-solid', medium: 'bg-warn-solid', low: 'bg-ok-solid' }[task.priority];
+                  const statusCls = { today: 'text-warn-text', overdue: 'text-alert-text', waiting: 'text-slate-400', done: 'text-ok-text' }[task.status];
                   return (
                     <tr
                       key={task.id}
@@ -331,12 +331,12 @@ export default function MyTaskPage() {
               <div className="space-y-3">
                 {priorityTasks.map(task => (
                   <div key={task.id} className="flex items-start gap-3 rounded-xs border border-ink-700/60 bg-ink-900/30 p-3">
-                    <Clock3 className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                    <Clock3 className="w-3.5 h-3.5 text-warn-text shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="text-xs font-semibold text-ink-100">{task.title}</div>
                         {isOverdue(task, todayKey) && (
-                          <span className="rounded-xs border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
+                          <span className="rounded-xs border border-alert-border bg-alert-bg px-1.5 py-0.5 text-[10px] font-bold text-alert-text">
                             기한 초과
                           </span>
                         )}
@@ -386,15 +386,15 @@ function Metric({
 }) {
   const color = {
     neutral: 'text-slate-700',
-    info: 'text-blue-700',
-    warn: 'text-orange-700',
-    alert: 'text-red-700',
+    info: 'text-info-text',
+    warn: 'text-warn-text',
+    alert: 'text-alert-text',
   }[tone];
   const cardTone = {
     neutral: 'border-slate-300 bg-slate-50/80 hover:border-slate-400',
-    info: 'border-blue-300 bg-blue-50/80 hover:border-blue-400',
-    warn: 'border-orange-300 bg-orange-50/80 hover:border-orange-400',
-    alert: 'border-red-300 bg-red-50/80 hover:border-red-400',
+    info: 'border-info-border bg-info-bg hover:border-info-border',
+    warn: 'border-warn-border bg-warn-bg hover:border-warn-border',
+    alert: 'border-alert-border bg-alert-bg hover:border-alert-border',
   }[tone];
   return (
     <button

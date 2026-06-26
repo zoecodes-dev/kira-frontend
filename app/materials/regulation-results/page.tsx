@@ -106,7 +106,7 @@ export default function MaterialRegulationResultsPage() {
           </div>
         </section>
 
-        <section className="rounded-sm border border-amber-200 bg-amber-50/60 px-5 py-4">
+        <section className="rounded-sm border border-warn-border bg-warn-bg px-5 py-4">
           <div className="flex items-start justify-between gap-5">
             <div className="shrink-0">
               <h2 className="text-sm font-semibold text-ink-100">HITL 전환 기준</h2>
@@ -115,7 +115,7 @@ export default function MaterialRegulationResultsPage() {
             <div className="grid grid-cols-3 gap-4 flex-1">
             {['confidence 0.85 미만', '증빙 값과 입력값 불일치', 'FEOC/원산지 회색지대'].map(item => (
               <div key={item} className="flex items-center gap-2 text-xs text-ink-300">
-                <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <ShieldAlert className="w-3.5 h-3.5 text-warn-text shrink-0" />
                 {item}
               </div>
             ))}
@@ -128,7 +128,7 @@ export default function MaterialRegulationResultsPage() {
 }
 
 function Metric({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'ok' | 'warn' | 'alert' }) {
-  const color = { neutral: 'text-ink-200', ok: 'text-emerald-700', warn: 'text-amber-700', alert: 'text-red-700' }[tone];
+  const color = { neutral: 'text-ink-200', ok: 'text-ok-text', warn: 'text-warn-text', alert: 'text-alert-text' }[tone];
   return (
     <div>
       <div className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold">{label}</div>

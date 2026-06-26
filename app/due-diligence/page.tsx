@@ -165,26 +165,26 @@ const statusMeta: Record<AuditStatus, {
   blocked: {
     label: '차단 후보',
     tone: 'alert',
-    text: 'text-red-700',
-    row: 'border-l-2 border-red-500 bg-red-50/60',
+    text: 'text-alert-text',
+    row: 'border-l-2 border-alert-border bg-alert-bg',
   },
   capa: {
     label: '조치 진행',
     tone: 'warn',
-    text: 'text-orange-700',
-    row: 'border-l-2 border-orange-500 bg-orange-50/50',
+    text: 'text-warn-text',
+    row: 'border-l-2 border-warn-border bg-warn-bg',
   },
   scheduled: {
     label: '예정',
     tone: 'info',
-    text: 'text-blue-700',
-    row: 'border-l-2 border-blue-500 bg-blue-50/40',
+    text: 'text-info-text',
+    row: 'border-l-2 border-info-border bg-info-bg',
   },
   closed: {
     label: '종결',
     tone: 'ok',
-    text: 'text-emerald-700',
-    row: 'border-l-2 border-emerald-500 bg-emerald-50/40',
+    text: 'text-ok-text',
+    row: 'border-l-2 border-ok-border bg-ok-bg',
   },
 };
 
@@ -356,7 +356,7 @@ export default function DueDiligencePage() {
                         <td className="px-3 py-3">
                           {audit.report ? (
                             <span className="inline-flex items-center gap-1.5 text-ink-400">
-                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                              <CheckCircle2 className="h-3.5 w-3.5 text-ok-text" />
                               등록
                             </span>
                           ) : (
@@ -387,10 +387,10 @@ export default function DueDiligencePage() {
               <div className="mb-4 grid grid-cols-2 gap-2">
                 <div className={clsx(
                   'rounded-xs border p-3',
-                  selected.status === 'blocked' ? 'border-red-200 bg-red-50' :
-                  selected.status === 'capa' ? 'border-orange-200 bg-orange-50' :
-                  selected.status === 'closed' ? 'border-emerald-200 bg-emerald-50' :
-                  'border-blue-200 bg-blue-50',
+                  selected.status === 'blocked' ? 'border-alert-border bg-alert-bg' :
+                  selected.status === 'capa' ? 'border-warn-border bg-warn-bg' :
+                  selected.status === 'closed' ? 'border-ok-border bg-ok-bg' :
+                  'border-info-border bg-info-bg',
                 )}>
                   <div className="text-[10px] font-bold uppercase tracking-wider text-ink-500">실사 점수</div>
                   <div className={clsx('mt-1 text-2xl font-bold num-mono', statusMeta[selected.status].text)}>
@@ -400,19 +400,19 @@ export default function DueDiligencePage() {
                 <div className={clsx(
                   'rounded-xs border p-3',
                   risk?.riskLevel === 'critical' || risk?.riskLevel === 'high'
-                    ? 'border-red-200 bg-red-50'
+                    ? 'border-alert-border bg-alert-bg'
                     : risk?.riskLevel === 'medium'
-                      ? 'border-orange-200 bg-orange-50'
-                      : 'border-emerald-200 bg-emerald-50',
+                      ? 'border-warn-border bg-warn-bg'
+                      : 'border-ok-border bg-ok-bg',
                 )}>
                   <div className="text-[10px] font-bold uppercase tracking-wider text-ink-500">위험도 점수</div>
                   <div className={clsx(
                     'mt-1 text-2xl font-bold num-mono',
                     risk?.riskLevel === 'critical' || risk?.riskLevel === 'high'
-                      ? 'text-red-700'
+                      ? 'text-alert-text'
                       : risk?.riskLevel === 'medium'
-                        ? 'text-orange-700'
-                        : 'text-emerald-700',
+                        ? 'text-warn-text'
+                        : 'text-ok-text',
                   )}>
                     {risk?.overallRiskScore ?? '-'}
                   </div>
@@ -424,7 +424,7 @@ export default function DueDiligencePage() {
                 <Mini label="실사기관" value={selected.auditor} />
                 <Mini label="완료일자" value={selected.completedAt ?? selected.plannedAt} />
                 <Mini label="평가범위" value={selected.scope.join(' · ')} />
-                <Mini label="시스템 위험도" value={risk?.riskLevel ?? '-'} valueClassName={selected.status === 'blocked' ? 'text-red-700' : undefined} />
+                <Mini label="시스템 위험도" value={risk?.riskLevel ?? '-'} valueClassName={selected.status === 'blocked' ? 'text-alert-text' : undefined} />
               </div>
             </section>
 
@@ -437,14 +437,14 @@ export default function DueDiligencePage() {
                     className={clsx(
                       'flex items-start gap-2 rounded-xs border p-3 text-xs',
                       finding.severity === 'critical'
-                        ? 'border-red-200 bg-red-50 text-red-800'
-                        : 'border-orange-200 bg-orange-50 text-orange-800',
+                        ? 'border-alert-border bg-alert-bg text-alert-text'
+                        : 'border-warn-border bg-warn-bg text-warn-text',
                     )}
                   >
                     {finding.severity === 'critical' ? (
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-600" />
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-alert-text" />
                     ) : (
-                      <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-600" />
+                      <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn-text" />
                     )}
                     <span className="leading-5">{finding.text}</span>
                   </div>
@@ -460,7 +460,7 @@ export default function DueDiligencePage() {
                   onClick={() => window.open(`/api/files/${selected.report}`, '_blank')}
                 >
                   <div className="flex min-w-0 items-center gap-2">
-                    <FileText className="h-4 w-4 shrink-0 text-red-600" />
+                    <FileText className="h-4 w-4 shrink-0 text-alert-text" />
                     <span className="truncate font-semibold text-ink-100 num-mono">{selected.report}</span>
                   </div>
                   <span className="shrink-0 text-[11px] text-ink-500">{selected.reportSize}</span>
@@ -508,7 +508,7 @@ export default function DueDiligencePage() {
                     <Badge tone={getCapaTone(item.status)}>{item.status}</Badge>
                   </div>
                 )) : (
-                  <div className="flex items-center gap-2 rounded-xs border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">
+                  <div className="flex items-center gap-2 rounded-xs border border-ok-border bg-ok-bg p-3 text-xs font-semibold text-ok-text">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     등록된 개선조치가 없습니다.
                   </div>

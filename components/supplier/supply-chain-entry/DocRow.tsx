@@ -19,7 +19,7 @@ export default function DocRow({
       <div className="flex w-44 shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-600">
         <Paperclip className="h-3.5 w-3.5 text-slate-400" />
         <span className="truncate" title={label}>{label}</span>
-        {required && <span className="text-red-500">*</span>}
+        {required && <span className="text-alert-text">*</span>}
       </div>
       <input
         value={value}

@@ -218,10 +218,10 @@ export default function ReportInboxPage() {
                   {selected.previousReviewers.map(r => (
                     <div key={r.name} className="flex items-center gap-2 text-sm">
                       {r.approved
-                        ? <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        : <XCircle className="h-4 w-4 text-red-600" />}
+                        ? <CheckCircle2 className="h-4 w-4 text-ok-text" />
+                        : <XCircle className="h-4 w-4 text-alert-text" />}
                       <span className="text-ink-200">{r.name}</span>
-                      <span className={r.approved ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
+                      <span className={r.approved ? 'text-ok-text font-semibold' : 'text-alert-text font-semibold'}>
                         {r.approved ? '승인' : '반려'}
                       </span>
                     </div>
@@ -247,7 +247,7 @@ export default function ReportInboxPage() {
                   <button
                     type="button"
                     onClick={() => decide(selected.id, 'approved')}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xs bg-emerald-700 px-3 py-2.5 text-sm font-bold text-white hover:bg-emerald-600"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xs bg-ok-solid px-3 py-2.5 text-sm font-bold text-white hover:bg-ok-solid"
                   >
                     <CheckCircle2 className="h-4 w-4" />
                     승인
@@ -255,7 +255,7 @@ export default function ReportInboxPage() {
                   <button
                     type="button"
                     onClick={() => decide(selected.id, 'rejected')}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xs bg-red-700 px-3 py-2.5 text-sm font-bold text-white hover:bg-red-600"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xs bg-alert-solid px-3 py-2.5 text-sm font-bold text-white hover:bg-alert-solid"
                   >
                     <XCircle className="h-4 w-4" />
                     반려
@@ -268,7 +268,7 @@ export default function ReportInboxPage() {
               <section className="rounded-xs border border-ink-700 bg-slate-50 p-3">
                 <div className={clsx(
                   'flex items-center gap-2 text-sm font-bold',
-                  effectiveStatus === 'approved' ? 'text-emerald-700' : 'text-red-700',
+                  effectiveStatus === 'approved' ? 'text-ok-text' : 'text-alert-text',
                 )}>
                   {effectiveStatus === 'approved'
                     ? <CheckCircle2 className="h-4 w-4" />
