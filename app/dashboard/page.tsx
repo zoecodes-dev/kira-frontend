@@ -417,11 +417,11 @@ function DashboardSupplyChainMap() {
   const alertLabel: Record<string, string> = { critical: '긴급', high: '고위험', medium: '주의', low: '저위험' };
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-2">
       {/* Row 1: 오늘의 할 일 | 공급망 위험 알림 (표) */}
-      <div className="grid grid-cols-[1fr_1.4fr] gap-4">
+      <div className="grid grid-cols-2 items-stretch gap-2">
         <DashboardPanel title="오늘의 할 일" action="전체 보기" actionHref="/my-task">
-          {todayTasks.map(task => (
+          {todayTasks.slice(0, 4).map(task => (
             <TaskRow key={task.rank} task={task} />
           ))}
         </DashboardPanel>
@@ -429,38 +429,38 @@ function DashboardSupplyChainMap() {
         <DashboardPanel title="공급망 위험 알림" action="공급망 맵 바로가기" actionHref="/supply-chain/map">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-ink-700/40">
-                <th className="pb-2 text-left text-sm font-semibold text-ink-500">공급사</th>
-                <th className="pb-2 text-left text-sm font-semibold text-ink-500">위험도</th>
-                <th className="pb-2 text-left text-sm font-semibold text-ink-500">조치 필요 사항</th>
-                <th className="pb-2 text-left text-sm font-semibold text-ink-500">규정</th>
-                <th className="pb-2" />
+              <tr className="border-b border-[#F1F5F9]">
+                <th className="px-[13px] py-2 text-left text-xs font-semibold text-ink-500">공급사</th>
+                <th className="py-2 text-left text-xs font-semibold text-ink-500">위험도</th>
+                <th className="py-2 text-left text-xs font-semibold text-ink-500">조치 필요 사항</th>
+                <th className="py-2 text-left text-xs font-semibold text-ink-500">규정</th>
+                <th className="px-[13px] py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-ink-700/30">
+            <tbody className="divide-y divide-[#F1F5F9]">
               {supplyAlerts.map(alert => (
                 <tr
                   key={alert.key}
                   className="cursor-pointer hover:bg-slate-50 transition-colors"
                   onClick={() => window.location.href = '/supply-chain/map'}
                 >
-                  <td className="py-3 pr-4">
+                  <td className="py-[9px] pl-[13px] pr-4">
                     <div className="flex items-center gap-2">
                       <div className={clsx('h-2 w-2 shrink-0 rounded-full', alertDot[alert.risk])} />
                       <div>
-                        <div className="text-[15px] font-semibold text-ink-100">{alert.name}</div>
-                        <div className="text-sm text-ink-500">T{alert.tier} · {alert.country}</div>
+                        <div className="text-sm font-semibold text-ink-100">{alert.name}</div>
+                        <div className="text-xs text-ink-500">T{alert.tier} · {alert.country}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="py-3 pr-4">
+                  <td className="py-[9px] pr-4">
                     <span className={clsx('rounded-xs border px-1.5 py-0.5 text-xs font-semibold', alertBadge[alert.risk])}>
                       {alertLabel[alert.risk]}
                     </span>
                   </td>
-                  <td className="py-3 pr-4 text-sm text-ink-400">{alert.issue}</td>
-                  <td className="py-3 pr-4 text-sm text-ink-500">{alert.type}</td>
-                  <td className="py-3">
+                  <td className="py-[9px] pr-4 text-xs text-ink-400">{alert.issue}</td>
+                  <td className="py-[9px] pr-4 text-xs text-ink-500">{alert.type}</td>
+                  <td className="py-[9px] pr-[13px]">
                     <ChevronDown className="h-4 w-4 -rotate-90 text-ink-500" />
                   </td>
                 </tr>
@@ -471,31 +471,29 @@ function DashboardSupplyChainMap() {
       </div>
 
       {/* Row 2: 제품 현황 | DPP 현황 | 최근 변경사항 */}
-      <div className="grid grid-cols-[1.4fr_1fr_1fr] gap-4">
+      <div className="grid grid-cols-3 items-stretch gap-2">
         <DashboardPanel title="제품 현황" action="전체 보기" actionHref="/dpp/center">
-          {products.map(product => (
+          {products.slice(0, 4).map(product => (
             <ProductStatusRow key={product.name} product={product} />
           ))}
         </DashboardPanel>
 
         <DashboardPanel title="DPP 현황" action="DPP Center" actionHref="/dpp/center">
-          <div className="flex flex-col gap-2">
-            {[
-              { label: '발행 가능', value: '12', unit: '건', color: 'text-ok-text', href: '/dpp/readiness' },
-              { label: '발행 보류', value: '7',  unit: '건', color: 'text-warn-text',   href: '/dpp/center' },
-              { label: 'HITL 대기', value: '3',  unit: '건', color: 'text-purple-600',  href: '/hitl' },
-              { label: 'Blocker',   value: '5',  unit: '건', color: 'text-alert-text',     href: '/dpp/center' },
-            ].map(item => (
-              <Link key={item.label} href={item.href} className="flex items-center justify-between rounded-xs border border-ink-700/60 px-3 py-2.5 hover:bg-slate-50 transition-colors">
-                <span className="text-[15px] font-semibold text-ink-100">{item.label}</span>
-                <span className={clsx('text-[15px] font-bold num-mono', item.color)}>{item.value}{item.unit}</span>
-              </Link>
-            ))}
-          </div>
+          {[
+            { label: '발행 가능', value: '12', unit: '건', color: 'text-ok-text', href: '/dpp/readiness' },
+            { label: '발행 보류', value: '7',  unit: '건', color: 'text-warn-text',   href: '/dpp/center' },
+            { label: 'HITL 대기', value: '3',  unit: '건', color: 'text-purple-600',  href: '/hitl' },
+            { label: 'Blocker',   value: '5',  unit: '건', color: 'text-alert-text',     href: '/dpp/center' },
+          ].map(item => (
+            <Link key={item.label} href={item.href} className="flex items-center justify-between border-b border-[#F1F5F9] last:border-0 rounded-none px-[13px] py-[9px] hover:bg-slate-50 transition-colors">
+              <span className="text-sm font-semibold text-ink-100">{item.label}</span>
+              <span className={clsx('text-sm font-bold num-mono', item.color)}>{item.value}{item.unit}</span>
+            </Link>
+          ))}
         </DashboardPanel>
 
         <DashboardPanel title="최근 변경사항" action="전체 보기" actionHref="/supply-chain/map">
-          {changes.map(change => (
+          {changes.slice(0, 4).map(change => (
             <ChangeRow key={`${change.time}-${change.title}`} change={change} />
           ))}
         </DashboardPanel>
@@ -519,22 +517,22 @@ function DashboardPanel({
   className?: string;
 }) {
   return (
-    <section className={clsx('rounded-sm border border-ink-700 bg-white p-4', className)}>
+    <section className={clsx('flex h-full flex-col rounded-none border border-[#E2E8F0] bg-white', className)}>
       {(title || action) && (
-        <div className="mb-3 flex items-center justify-between gap-3">
-          {title ? <h2 className="text-base font-bold text-ink-100">{title}</h2> : <span />}
+        <div className="flex items-center justify-between gap-3 border-b border-[#E2E8F0] px-[13px] py-[10px]">
+          {title ? <h2 className="text-[12px] font-semibold text-ink-100">{title}</h2> : <span />}
           {action && actionHref ? (
-            <Link href={actionHref} className="inline-flex items-center gap-1 text-sm font-semibold text-accent-700 hover:text-accent-600">
-              {action} <ArrowRight className="h-3.5 w-3.5" />
+            <Link href={actionHref} className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent-700 hover:text-accent-600">
+              {action} <ArrowRight className="h-3 w-3" />
             </Link>
           ) : action ? (
-            <span className="inline-flex items-center gap-1 text-sm font-semibold text-accent-700">
-              {action} <ArrowRight className="h-3.5 w-3.5" />
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent-700">
+              {action} <ArrowRight className="h-3 w-3" />
             </span>
           ) : null}
         </div>
       )}
-      {children}
+      <div className="flex-1">{children}</div>
     </section>
   );
 }
@@ -543,13 +541,13 @@ function TaskRow({ task }: { task: { rank: number; title: string; desc: string; 
   const countBg = task.level === '높음' ? 'bg-alert-bg text-alert-text' : task.level === '중간' ? 'bg-warn-bg text-warn-text' : 'bg-purple-50 text-purple-600';
 
   return (
-    <Link href={task.href} className="flex items-center gap-3 border-b border-ink-700/40 py-3 last:border-0 -mx-1 px-1 rounded-xs hover:bg-slate-50 transition-colors">
+    <Link href={task.href} className="flex items-center gap-3 border-b border-[#F1F5F9] last:border-0 rounded-none px-[13px] py-[9px] hover:bg-slate-50 transition-colors">
       <span className="w-5 shrink-0 text-center text-sm font-bold text-ink-500">{task.rank}</span>
       <div className="flex-1 min-w-0">
-        <div className="text-[15px] font-semibold text-ink-100">{task.title}</div>
-        <div className="mt-0.5 truncate text-sm text-ink-500">{task.desc}</div>
+        <div className="text-sm font-semibold text-ink-100">{task.title}</div>
+        <div className="mt-0.5 truncate text-xs text-ink-500">{task.desc}</div>
       </div>
-      <span className={clsx('shrink-0 rounded-xs px-2 py-0.5 text-sm font-semibold num-mono', countBg)}>{task.count}</span>
+      <span className={clsx('shrink-0 rounded-xs px-2 py-0.5 text-xs font-semibold num-mono', countBg)}>{task.count}</span>
       <ChevronDown className="h-4 w-4 shrink-0 -rotate-90 text-ink-500" />
     </Link>
   );
@@ -564,13 +562,13 @@ function ProductStatusRow({ product }: { product: { name: string; type: string; 
   }[product.tone] ?? 'bg-slate-50 text-slate-600';
 
   return (
-    <Link href={product.href} className="flex items-center gap-3 border-b border-ink-700/40 last:border-0 py-3 -mx-1 px-1 rounded-xs hover:bg-slate-50 transition-colors">
+    <Link href={product.href} className="flex items-center gap-3 border-b border-[#F1F5F9] last:border-0 rounded-none px-[13px] py-[9px] hover:bg-slate-50 transition-colors">
       <div className="flex-1 min-w-0">
-        <div className="truncate text-[15px] font-semibold text-ink-100">{product.name}</div>
-        <div className="mt-0.5 text-sm text-ink-500">{product.type}</div>
+        <div className="truncate text-sm font-semibold text-ink-100">{product.name}</div>
+        <div className="mt-0.5 text-xs text-ink-500">{product.type}</div>
       </div>
-      <span className={clsx('shrink-0 rounded-xs px-2 py-0.5 text-sm font-semibold', statusColor)}>{product.status}</span>
-      <span className="shrink-0 text-sm text-ink-400 num-mono">{product.supply}</span>
+      <span className={clsx('shrink-0 rounded-xs px-2 py-0.5 text-xs font-semibold', statusColor)}>{product.status}</span>
+      <span className="shrink-0 text-xs text-ink-400 num-mono">{product.supply}</span>
       <ChevronDown className="h-4 w-4 shrink-0 -rotate-90 text-ink-500" />
     </Link>
   );
@@ -600,12 +598,12 @@ function ChangeRow({ change }: { change: { time: string; title: string; desc: st
   }[change.tone] ?? 'bg-slate-400';
 
   return (
-    <Link href={change.href} className="flex items-start gap-2 border-b border-ink-700/40 last:border-0 py-3 -mx-1 px-1 rounded-xs hover:bg-slate-50 transition-colors">
-      <span className={clsx('mt-2 h-1.5 w-1.5 shrink-0 rounded-full', dot)} />
-      <span className="shrink-0 text-sm text-ink-500 num-mono w-10">{change.time}</span>
+    <Link href={change.href} className="flex items-start gap-2 border-b border-[#F1F5F9] last:border-0 rounded-none px-[13px] py-[9px] hover:bg-slate-50 transition-colors">
+      <span className={clsx('mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full', dot)} />
+      <span className="shrink-0 text-xs text-ink-500 num-mono w-10">{change.time}</span>
       <div className="flex-1 min-w-0">
-        <div className="truncate text-[15px] font-semibold text-ink-100">{change.title}</div>
-        <div className="mt-0.5 truncate text-sm text-ink-500">{change.desc}</div>
+        <div className="truncate text-sm font-semibold text-ink-100">{change.title}</div>
+        <div className="mt-0.5 truncate text-xs text-ink-500">{change.desc}</div>
       </div>
     </Link>
   );
@@ -694,8 +692,8 @@ export default function DashboardPage() {
           탭 1 — Overview (기존 대시보드 내용 그대로)
       ══════════════════════════════════════════════════════════ */}
       {activeTab === 'overview' && (
-        <div className="space-y-4 bg-slate-50 p-6">
-          <section className="grid grid-cols-5 gap-4">
+        <div className="space-y-2 bg-slate-50 p-6">
+          <section className="grid grid-cols-5 gap-2">
             <CompactMetric label="Traceability Coverage" value={92} unit="%" icon={Activity} tone="ok" hint="원산지 추적 가능 비율" delta="7%" deltaGood onClick={() => handleTabChange('dpp-ready')} />
             <CompactMetric label="High Risk Region" value={highRiskSuppliers + 16} icon={ShieldAlert} tone="alert" hint="고위험 지역 연결 업체" delta="3" deltaGood={false} deltaDirection="up" onClick={() => handleTabChange('high-risk')} />
             <CompactMetric label="Missing Documents" value={missingFieldCount} icon={FileText} tone="warn" hint="원산지/인증 문서 누락 업체" delta="5" deltaGood deltaDirection="down" onClick={() => handleTabChange('pending')} />
