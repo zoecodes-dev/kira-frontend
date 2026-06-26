@@ -388,14 +388,14 @@
 | # | 메서드 | 경로 | 상태 |
 |---|--------|------|------|
 | 10.1a | GET | `/products` | ✅ 기존 (단, §0.2 무인증 → P1 인증 배선 대상) |
-| 10.1b | GET | `/products/{productId}/bom?as_of=YYYY-MM-DD` | 🟡 재합의 |
+| 10.1b | GET | `/products/{productId}/bom?as_of=YYYY-MM-DD` | ✅ 프론트 어댑터로 흡수 (percentage만 백엔드 협의) |
 
 - 10.1a: `ApiProduct[]` `{ productId, productCode, productName, type }` (테이블 `products`)
-- 10.1b 🔴 **2026-06-26 백엔드 회신 반영 — 재합의 필요**:
-  - 백엔드 실제 시그니처는 `GET /products/{product_id}/bom?as_of=YYYY-MM-DD`이고 응답은 **BOM 트리 객체**다.
-  - 프론트 `lib/api.ts`(L555~556)의 `getProductBom`은 `?bom_version_id=` 쿼리 + 평면 `{ bomVersions[], parts[], bomItems[] }`(`ApiProductBom`)를 기대하며, 주석에도 "신규 — 백엔드 추가 예정"으로 적혀 있다(✅ 아님).
-  - **확정 필요 2건**: ① 버전 선택 방식 — `as_of`(날짜) vs `bom_version_id`(버전키). ② 응답 형태 — 트리 객체 vs 평면 3배열.
-  - 프론트 트리/테이블 렌더링은 평면 3배열을 가정하므로, 트리 응답으로 합의되면 `lib/api.ts` 타입·소비부 수정이 동반된다.
+- 10.1b ✅ **2026-06-26 해결 — 프론트 어댑터(anti-corruption layer)로 흡수**:
+  - 백엔드 실제: `GET /products/{product_id}/bom`. `as_of` 없으면 **중첩 BOM 트리**(`{ product_*, bom_version(번호), bom_status, only_confirmed, tree:{…children} }`), `as_of` 있으면 **버전 메타데이터만**(트리 아님). `bom_version_id` 쿼리는 없고 버전 선택은 별도 `GET /{id}/bom-versions` 목록 사용.
+  - 프론트 결정: `lib/api.ts`의 `getProductBom`이 트리(`BomTreeResponse`)를 받아 `normalizeProductBom()`으로 **평면 3배열(`ApiProductBom`)로 평탄화**해 반환. 소비부(`mergeProductBom`·`buildTraceRows` 등)는 **무수정**.
+  - 어댑터 파생 규칙: `kind`= tier_level/leaf 여부로 파생, `purchaseUnit`= `required_quantity_unit`, `functionPurpose`= 빈값, `bomVersionId`= `productId:versionNumber` 합성키, `bomItems`= `required_quantity` 있는 노드만(백엔드 CTE가 앵커에만 채움).
+  - ⚠ **잔여 협의 1건 — `percentage`**: 백엔드 트리 노드에 BOM 비중 필드가 없음. 어댑터는 `node.percentage ?? 0`으로 graceful 처리(백엔드가 추가하면 자동 반영). 정확한 질량비중이 필요하면 백엔드가 노드에 `percentage` 추가 요청.
 
 ### 10.2 공급망 맵 데이터 🆕
 현재 트리/테이블은 `lib/supply-chain-mock.ts`로 구동된다. 백엔드 연동 시:
