@@ -527,7 +527,9 @@ export const getSupplierReliability = (id: string) =>
 export const getSupplierFactories = (id: string) =>
   api.get<SupplierFactoriesResponse>(`/suppliers/${id}/factories`);
 
-// ── 제품 / BOM (신규 — 백엔드 엔드포인트 추가 예정. 없으면 ApiError) ──
+// ── 제품 / BOM (백엔드 구현됨: backend/domains/product/router.py) ──
+// GET /products, GET /products/{id}, GET /products/{id}/bom(트리),
+// GET /products/{id}/bom-versions(버전목록). 응답은 request()에서 camelCase 변환됨.
 export interface ApiProduct {
   productId: string;
   productCode: string;
@@ -675,3 +677,62 @@ export const getProductBom = async (productId: string): Promise<ApiProductBom> =
   const resp = await api.get<BomTreeResponse>(`/products/${productId}/bom`);
   return normalizeProductBom(resp);
 };
+
+/** 제품 단건. 내 테넌트 소유만(아니면 404). */
+export interface ApiProductDetail extends ApiProduct {
+  manufacturerId: string | null;
+  customerId: string | null;
+  modelName: string | null;
+  amperageAh: number | null;
+  specs: Record<string, unknown> | null;
+  sourceSystem: string | null;
+  syncedAt: string | null;
+}
+export const getProduct = (productId: string) =>
+  api.get<ApiProductDetail>(`/products/${productId}`);
+
+/**
+ * 제품의 BOM 버전 목록(active + deprecated). 제품 없으면 404, 버전 0개면 200+[].
+ * 실 bomVersionId 를 주므로 버전 드롭다운·선택에 사용(BOM 트리는 active 고정이라 트리만으론 부족).
+ */
+export interface ApiBomVersionListItem {
+  bomVersionId: string;
+  productId: string;
+  versionNumber: string;
+  status: string; // draft | active | deprecated
+  isCurrent: boolean;
+  productionFrom: string | null;
+  productionTo: string | null;
+  sourceSystem: string | null;
+}
+export const getProductBomVersions = (productId: string) =>
+  api.get<ApiBomVersionListItem[]>(`/products/${productId}/bom-versions`);
+
+// ═══════════════════════════════════════════════════════════
+// 공급망(Supply Chain) 도메인 — backend/domains/supplychain/router.py (/supply-chain)
+//   ⚠ 명세서 §10.2a `/products/{id}/supply-chain-map` 는 미구현.
+//   실제 구현된 협력사 트리는 GET /supply-chain/tree?product_id= 다.
+//   응답은 엣지 평면 리스트(부모/자식 협력사 + 부품 + 회사명/업종/국가/좌표).
+// ═══════════════════════════════════════════════════════════
+export interface ApiSupplyChainNode {
+  mapId: string;
+  parentSupplierId: string | null; // null = 루트(원청 Pack)
+  childSupplierId: string;
+  partId: string;
+  companyName: string;
+  providerType: SupplierType;
+  depth: number;        // 0 = 원청. 프론트 트리 표시 주축
+  hopLevel: number;     // 경로 순번(보조 메타)
+  isRootAnchor: boolean;
+  country: string | null;
+  locationGeojson: string | null; // ST_AsGeoJSON 문자열
+  isCycle: boolean;
+}
+
+/**
+ * N차 공급망 트리(재귀 CTE) — 협력사 노드/엣지 평면 리스트.
+ * supply_chain_map 에 데이터가 있어야 채워진다(없으면 빈 배열).
+ * 프론트 dataset.supply_chain_map / suppliers 매핑 소스.
+ */
+export const getSupplyChainTree = (productId: string) =>
+  api.get<ApiSupplyChainNode[]>(`/supply-chain/tree?product_id=${productId}`);
