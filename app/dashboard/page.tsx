@@ -348,7 +348,7 @@ function DashboardSupplyChainMap() {
     { rank: 1, title: '검토 대기', desc: '제출된 자료를 검토해주세요.', level: '높음', count: '8건', href: '/suppliers/check-info' },
     { rank: 2, title: '보완 요청', desc: '공급사로부터 추가 자료가 필요합니다.', level: '높음', count: '3건', href: '/my-task' },
     { rank: 3, title: '인증서 만료 임박', desc: '30일 이내 만료되는 인증서가 있습니다.', level: '중간', count: '5건', href: '/suppliers/check-info' },
-    { rank: 4, title: '실사 필요', desc: '고위험 공급사 중 실사가 필요합니다.', level: '중간', count: '4건', href: '/due-diligence' },
+    { rank: 4, title: '실사 필요', desc: '고위험 공급사 중 실사가 필요합니다.', level: '중간', count: '4건', href: '/submission-review?tab=dd' },
     { rank: 5, title: 'HITL 검토 대기', desc: 'AI 검토가 완료되어 최종 확인이 필요합니다.', level: '낮음', count: '2건', href: '/hitl' },
   ];
 
@@ -403,7 +403,7 @@ function DashboardSupplyChainMap() {
     { time: '08:30', title: '신규 공급사 등록', desc: 'Eco Materials Co., Ltd.', tag: '공급사', tone: 'info', href: '/suppliers/check-info' },
     { time: '07:12', title: '인증서 갱신', desc: 'ISO 14001 한양 제조(주)', tag: '인증서', tone: 'success', href: '/suppliers/check-info' },
     { time: '06:45', title: 'BOM 변경', desc: 'Battery Cell Module v2.1', tag: '제품', tone: 'warning', href: '/materials/regulation-results' },
-    { time: '06:10', title: '실사 완료', desc: 'XYZ Metals Co., Ltd.', tag: '실사', tone: 'purple', href: '/due-diligence' },
+    { time: '06:10', title: '실사 완료', desc: 'XYZ Metals Co., Ltd.', tag: '실사', tone: 'purple', href: '/submission-review?tab=dd' },
   ];
 
   const alertDot: Record<string, string> = { critical: 'bg-alert-solid', high: 'bg-alert-solid', medium: 'bg-warn-solid', low: 'bg-ok-solid' };

@@ -12,7 +12,6 @@ import {
   Upload,
 } from 'lucide-react';
 import Badge from '@/components/Badge';
-import PageHeader from '@/components/PageHeader';
 import TopStatCard from '@/components/TopStatCard';
 import { getSupplierName, supplierRiskProfiles } from '@/lib/supplier-detail-data';
 
@@ -207,7 +206,7 @@ function getCapaTone(status: CapaTask['status']) {
   return 'warn';
 }
 
-export default function DueDiligencePage() {
+export default function DueDiligenceBoard() {
   const [selectedId, setSelectedId] = useState(audits[0].id);
   const [filter, setFilter] = useState<AuditFilter>('all');
   const [search, setSearch] = useState('');
@@ -243,27 +242,21 @@ export default function DueDiligencePage() {
   }, [filter, search]);
 
   return (
-    <>
-      <PageHeader
-        title="공급망 실사 관리"
-        description="실사 계획, 보고서 검증, 부적합 지적사항과 개선조치(CAPA)를 한 화면에서 추적합니다."
-        badge="P0"
-        actions={
-          <button
-            type="button"
-            onClick={() => {
-              const name = window.prompt('실사 계획 ID를 입력하세요 (예: DD-2026-005)');
-              if (name) window.alert(`실사 계획 "${name}" 생성 요청이 접수되었습니다.`);
-            }}
-            className="inline-flex items-center gap-2 rounded-xs border border-accent-700/40 bg-accent-50 px-3 py-2 text-xs font-bold text-accent-700 hover:border-accent-600 hover:bg-accent-100"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            실사 계획 생성
-          </button>
-        }
-      />
-
-      <main className="space-y-5 p-6">
+    <div className="space-y-5 p-6">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-ink-500">실사 계획, 보고서 검증, 부적합 지적사항과 개선조치(CAPA)를 추적합니다.</p>
+        <button
+          type="button"
+          onClick={() => {
+            const name = window.prompt('실사 계획 ID를 입력하세요 (예: DD-2026-005)');
+            if (name) window.alert(`실사 계획 "${name}" 생성 요청이 접수되었습니다.`);
+          }}
+          className="inline-flex items-center gap-2 rounded-xs border border-accent-700/40 bg-accent-50 px-3 py-2 text-xs font-bold text-accent-700 hover:border-accent-600 hover:bg-accent-100"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          실사 계획 생성
+        </button>
+      </div>
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           <TopStatCard label="전체 실사" value={stats.total} unit="건" tone="neutral" />
           <TopStatCard label="차단 후보" value={stats.blocked} unit="건" tone="alert" />
@@ -530,8 +523,7 @@ export default function DueDiligencePage() {
             ))}
           </div>
         </details>
-      </main>
-    </>
+    </div>
   );
 }
 
