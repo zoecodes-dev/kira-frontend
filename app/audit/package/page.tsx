@@ -45,7 +45,7 @@ export default function AuditPackagePage() {
           <Metric label="감사 로그" value={auditTrail.length} tone="info" />
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.4fr] gap-6">
+        <div className="space-y-[14px]">
           <Card title="감사 패키지 목록" subtitle="제품, 배치, 협력사 기준 증거 묶음">
             <div className="space-y-2">
               {packages.map(pkg => (

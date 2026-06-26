@@ -137,7 +137,7 @@ export default function ReportInboxPage() {
           <TopStatCard label="반려" value={rejected} unit="건" tone="alert" />
         </section>
 
-        <section className="grid grid-cols-1 gap-5 xl:grid-cols-[560px_minmax(0,1fr)]">
+        <section className="space-y-[14px]">
           <div className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
             <div className="border-b border-ink-700 bg-ink-800/60 px-5 py-4">
               <h2 className="text-base font-bold text-ink-100">결재 대기 목록</h2>

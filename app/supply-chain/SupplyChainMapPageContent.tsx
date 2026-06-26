@@ -380,8 +380,8 @@ export function SupplyChainMapPageContent({
                 정보 부족
               </span>
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_360px]">
-              <div className="border-r border-slate-200 p-4">
+            <div className="flex flex-col">
+              <div className="border-b border-slate-200 p-4">
                 <SupplyMapTree
                   root={explorerTree}
                   selectedNodeKey={selectedNodeKey}

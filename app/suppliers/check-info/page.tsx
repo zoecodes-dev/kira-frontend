@@ -342,7 +342,7 @@ function SectionContent({ section }: { section: CollectionSection }) {
   }[section.key];
 
   return (
-    <div className="grid gap-4 border-t border-ink-700 bg-white p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="space-y-[14px] border-t border-ink-700 bg-white p-4">
       {content}
       <ReviewComment section={section} />
     </div>
