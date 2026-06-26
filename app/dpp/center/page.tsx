@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import TabBar from '@/components/TabBar';
 import clsx from 'clsx';
 import {
   ChevronRight, FileBadge, FileSearch,
@@ -89,20 +88,13 @@ export default function DppCenterPage() {
         title="DPP Center"
         description="DPP 발행 현황을 한눈에 확인하고 문제 제품의 상세 분석 화면으로 이동합니다."
         badge="Control Center"
+        tabs={[
+          { label: '발행 현황', active: tab === 'status', onClick: () => setTab('status') },
+          { label: '규제 지표', active: tab === 'reg', onClick: () => setTab('reg') },
+          { label: 'HITL', active: tab === 'hitl', onClick: () => setTab('hitl') },
+          { label: '발행 이력', active: tab === 'history', onClick: () => setTab('history') },
+        ]}
       />
-
-      <nav className="sticky top-0 z-10 bg-white px-8 pt-4">
-        <TabBar<DppTab>
-          tabs={[
-            { key: 'status', label: '발행 현황' },
-            { key: 'reg', label: '규제 지표' },
-            { key: 'hitl', label: 'HITL' },
-            { key: 'history', label: '발행 이력' },
-          ]}
-          value={tab}
-          onChange={setTab}
-        />
-      </nav>
 
       <div className="p-8 space-y-6">
         {/* 발행 현황 — 발행 보류 제품 · 발행 지연 원인 (세로 스택) */}
