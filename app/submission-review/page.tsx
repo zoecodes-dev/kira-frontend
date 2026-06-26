@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import TopStatCard from '@/components/TopStatCard';
+import DueDiligenceBoard from '@/components/DueDiligenceBoard';
 import {
   getSupplierName, getContacts, purchaseOrders, parts, remindLogs,
 } from '@/lib/supplier-detail-data';
@@ -98,6 +99,12 @@ export default function SubmissionReviewPage() {
   const [submissionItems, setSubmissionItems] = useState(submissions);
   const [selectedId, setSelectedId] = useState(submissions[0].id);
   const [notice, setNotice] = useState<string | null>(null);
+  const [tab, setTab] = useState<'review' | 'dd'>('review');
+
+  // 딥링크(?tab=dd)로 공급망 실사 탭 진입
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('tab') === 'dd') setTab('dd');
+  }, []);
   const selected = submissionItems.find(item => item.id === selectedId) ?? submissionItems[0];
   const supplier = getSupplierName(selected.supplierId);
   const primary = getContacts(selected.supplierId).find(c => c.isPrimary) ?? getContacts(selected.supplierId)[0];
@@ -169,6 +176,27 @@ export default function SubmissionReviewPage() {
         </div>
       )}
 
+      <nav className="sticky top-[57px] z-10 border-b border-ink-700 bg-white px-8">
+        <div className="flex">
+          {([['review', '자료 검토'], ['dd', '공급망 실사']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              className={clsx(
+                'border-b-2 px-4 py-3 text-xs font-bold transition-colors',
+                tab === key ? 'border-accent-600 text-accent-700' : 'border-transparent text-ink-400 hover:text-ink-100',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {tab === 'dd' ? (
+        <DueDiligenceBoard />
+      ) : (
       <div className="p-8 space-y-6">
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           <Metric label="검토 중" value={stats.review} unit="건" tone="info" />
@@ -177,7 +205,7 @@ export default function SubmissionReviewPage() {
           <Metric label="실패 체크" value={stats.failedChecks} unit="건" tone="alert" />
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.5fr] gap-6">
+        <div className="space-y-6">
           <Card title="제출 건 목록" subtitle="요청 ID, 협력사, 유형, 마감일 기준 검토">
             <div className="space-y-2">
               {submissionItems.map(item => {
@@ -240,7 +268,7 @@ export default function SubmissionReviewPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold mb-2">업로드 파일</div>
                   <div className="space-y-2">
@@ -273,7 +301,7 @@ export default function SubmissionReviewPage() {
               </div>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
               <Card title="관련 PO" subtitle="승인 결과가 영향을 주는 납품 항목">
                 <div className="space-y-2">
                   {relatedPOs.length > 0 ? relatedPOs.map(po => {
@@ -311,6 +339,7 @@ export default function SubmissionReviewPage() {
           </div>
         </div>
       </div>
+      )}
     </>
   );
 }

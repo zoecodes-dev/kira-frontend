@@ -7,8 +7,8 @@ import clsx from 'clsx';
 const results = [
   { id: 'REG-001', material: 'NCM811 양극재', supplier: 'POS Cathode Materials', regulation: 'EU_BATTERY', verdict: 'passed', confidence: 0.94, clause: 'Annex XIII', evidence: 'Recycled_content_report.pdf', target: '/submission-review' },
   { id: 'REG-002', material: 'NCM 전구체', supplier: 'Quzhou Precursor', regulation: 'IRA', verdict: 'gray_zone', confidence: 0.72, clause: 'FEOC ownership', evidence: 'ownership_disclosure.xlsx', target: '/submission-review' },
-  { id: 'REG-003', material: '코발트 원광', supplier: 'Katanga Cobalt Mining', regulation: 'CONFLICT_MINERALS', verdict: 'warning', confidence: 0.81, clause: 'Due diligence evidence', evidence: 'Cobalt_origin_certificate_scan.pdf', target: '/due-diligence' },
-  { id: 'REG-004', material: '코발트 원광', supplier: 'Ganzhou Rare Metals', regulation: 'IRA', verdict: 'violation', confidence: 0.91, clause: 'FEOC direct ownership 25%', evidence: 'ownership_structure_scan.pdf', target: '/due-diligence' },
+  { id: 'REG-003', material: '코발트 원광', supplier: 'Katanga Cobalt Mining', regulation: 'CONFLICT_MINERALS', verdict: 'warning', confidence: 0.81, clause: 'Due diligence evidence', evidence: 'Cobalt_origin_certificate_scan.pdf', target: '/submission-review?tab=dd' },
+  { id: 'REG-004', material: '코발트 원광', supplier: 'Ganzhou Rare Metals', regulation: 'IRA', verdict: 'violation', confidence: 0.91, clause: 'FEOC direct ownership 25%', evidence: 'ownership_structure_scan.pdf', target: '/submission-review?tab=dd' },
   { id: 'REG-005', material: '니켈 원광', supplier: 'Sulawesi Nickel Mine', regulation: 'EUDR', verdict: 'gray_zone', confidence: 0.68, clause: 'Mine boundary coordinates', evidence: 'Mine_boundary_coordinates.geojson', target: '/submission-status' },
 ];
 

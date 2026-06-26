@@ -53,7 +53,7 @@ const _MOCK_TASKS: Task[] = [
     owner: '구매실사 최하린',
     due: '2026-06-10',
     source: '공급망 실사 관리',
-    targetHref: '/due-diligence',
+    targetHref: '/submission-review?tab=dd',
     targetLabel: '실사 관리로 이동',
     description: 'Katanga Cobalt Mining의 공급망 인권 실사 CAPA가 요청 발송 상태입니다.',
   },
@@ -105,7 +105,7 @@ const _MOCK_TASKS: Task[] = [
     owner: 'ESG팀 박지훈',
     due: '2026-05-15',
     source: '공급망 실사 관리',
-    targetHref: '/due-diligence',
+    targetHref: '/submission-review?tab=dd',
     targetLabel: '실사 관리로 이동',
     description: '공정도 4단계 문서 최신화가 완료되어 CAPA 종료 승인이 필요합니다.',
   },
@@ -173,9 +173,9 @@ const _TYPE_FROM_API: Record<string, TaskType> = {
   SUB: 'submission_review', DD: 'due_diligence', HITL: 'hitl',
 };
 const _HREF_FROM_TYPE: Record<TaskType, string> = {
-  submission_review: '/submission-review', risk_action: '/due-diligence',
+  submission_review: '/submission-review', risk_action: '/submission-review?tab=dd',
   hitl: '/hitl', reminder: '/submission-status', dpp_blocker: '/dpp/readiness',
-  due_diligence: '/due-diligence',
+  due_diligence: '/submission-review?tab=dd',
 };
 
 function adaptAction(item: ActionItem): Task {
