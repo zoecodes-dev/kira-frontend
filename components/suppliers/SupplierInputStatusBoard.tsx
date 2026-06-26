@@ -160,12 +160,23 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
                     </td>
                     <td className="px-4 py-3 align-middle text-sm text-ink-500 num-mono">{row.lastUpdatedAt}</td>
                     <td className="px-4 py-3 align-middle">
-                      <Link
-                        href={`/suppliers/check-info?supplierId=${row.supplierId}&supplier=${encodeURIComponent(supplierLabel)}`}
-                        className="inline-flex items-center gap-1 rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-sm font-semibold text-accent-700 hover:border-accent-600"
-                      >
-                        검토 <ChevronRight className="h-4 w-4" />
-                      </Link>
+                      {row.missingFields.length > 0 ? (
+                        // 누락 있음 → 자연스러운 다음 단계: 상세+요청 모달 자동 오픈(request=1)
+                        <Link
+                          href={`/suppliers/check-info?supplierId=${row.supplierId}&supplier=${encodeURIComponent(supplierLabel)}&request=1`}
+                          className="inline-flex items-center gap-1.5 rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-sm font-semibold text-accent-700 hover:border-accent-600"
+                        >
+                          <Send className="h-3.5 w-3.5" /> 자료 요청
+                        </Link>
+                      ) : (
+                        // 누락 없음 → 검토만
+                        <Link
+                          href={`/suppliers/check-info?supplierId=${row.supplierId}&supplier=${encodeURIComponent(supplierLabel)}`}
+                          className="inline-flex items-center gap-1 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-sm font-semibold text-ink-500 hover:border-accent-600 hover:text-accent-700"
+                        >
+                          검토 <ChevronRight className="h-4 w-4" />
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 );

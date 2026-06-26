@@ -400,7 +400,8 @@ function SupplierGeneralReviewContent() {
   const displayTotal = selectedCompleteness?.requiredFieldCount ?? supplierSummary.total;
   const displayLastUpdated = selectedCompleteness?.lastUpdatedAt ?? supplierSummary.lastSubmittedAt;
   const [openSections, setOpenSections] = useState<SectionKey[]>(['company']);
-  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  // 입력 현황에서 '자료 요청'으로 넘어오면(request=1) 요청 모달을 바로 연다 — 자연스러운 흐름 연결.
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(searchParams.get('request') === '1');
   const [requestSent, setRequestSent] = useState(false);
   const [requestNote, setRequestNote] = useState('');
   const [checkedItems, setCheckedItems] = useState<Set<string>>(() => {
@@ -583,7 +584,7 @@ function SupplierGeneralReviewContent() {
             <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
               <div>
                 <div className="text-base font-bold text-ink-100">추가 자료 요청</div>
-                <div className="mt-1 text-xs text-ink-500">{supplierSummary.name} · {supplierSummary.email}</div>
+                <div className="mt-1 text-xs text-ink-500">{displayName} · {supplierSummary.email}</div>
               </div>
               <button
                 type="button"

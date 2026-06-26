@@ -206,7 +206,7 @@ function RequestArea() {
           const reviewMode = req.status === 'submitted';
           const href = reviewMode
             ? '/submission-review'
-            : `/suppliers/check-info?supplierId=${req.supplierId}&supplier=${encodeURIComponent(req.supplier)}`;
+            : `/suppliers/check-info?supplierId=${req.supplierId}&supplier=${encodeURIComponent(req.supplier)}&request=1`;
           return (
             <div key={req.supplierId} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50">
               <span className={clsx('h-2 w-2 shrink-0 rounded-full', meta.dot)} />
