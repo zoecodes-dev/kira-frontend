@@ -56,13 +56,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 href="/dpp/center"
                 iconName="layers"
                 label="DPP 센터"
-                subtitle="대시보드·준비도·이력"
-                subItems={[
-                  { href: '/dpp/center', label: 'DPP 대시보드' },
-                  { href: '/dpp/readiness', label: 'Readiness' },
-                  { href: '/hitl', label: 'HITL' },
-                  { href: '/dpp', label: 'History', exact: true },
-                ]}
+                subtitle="준비도·규제·HITL·이력"
               />
             </div>
           </div>

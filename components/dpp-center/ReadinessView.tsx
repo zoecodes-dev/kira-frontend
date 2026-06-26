@@ -3,7 +3,6 @@
 // DPP 발행 준비도 목록과 선택 제품 상세 분석을 제공하는 화면
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import PageHeader from '@/components/PageHeader';
 import Badge from '@/components/Badge';
 import TopStatCard from '@/components/TopStatCard';
 import { productInstances, dppRecords } from '@/lib/data';
@@ -108,7 +107,7 @@ const severityTone: Record<Severity, 'warn' | 'alert'> = {
 const readinessTone = (value: number) =>
   value >= 90 ? 'bg-ok-solid' : value >= 75 ? 'bg-warn-solid' : 'bg-alert-solid';
 
-export default function DppReadinessPage() {
+export default function ReadinessView() {
   const [selectedSerial, setSelectedSerial] = useState(readinessRows[0].serialNumber);
   const selected = readinessRows.find(row => row.serialNumber === selectedSerial) ?? readinessRows[0];
   const selectedInstance = productInstances.find(item => item.serialNumber === selected.serialNumber);
@@ -121,13 +120,6 @@ export default function DppReadinessPage() {
   }), []);
 
   return (
-    <>
-      <PageHeader
-        title="DPP Readiness"
-        description="선택 제품의 DPP 발행 준비도와 blocker를 확인하고 발행 전 조치를 연결하는 화면"
-        badge="P1"
-      />
-
       <div className="space-y-4 p-6">
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           <Metric label="발행 완료" value={stats.issued} unit="건" tone="ok" />
@@ -278,14 +270,13 @@ export default function DppReadinessPage() {
 
               <div className="flex flex-wrap justify-end gap-2 border-t border-ink-700 pt-4">
                 <Action icon={Send} label="보완 요청" tone="warn" href="/my-task" />
-                <Action icon={UserCheck} label="HITL 요청" tone="neutral" href="/hitl" />
+                <Action icon={UserCheck} label="HITL 요청" tone="neutral" href="/dpp/center?tab=hitl" />
                 <Action icon={FileBadge} label="DPP 발행" tone={selected.blockers.length > 0 ? 'disabled' : 'ok'} />
               </div>
             </div>
           </section>
         </div>
       </div>
-    </>
   );
 }
 

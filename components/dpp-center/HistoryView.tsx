@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import PageHeader from '@/components/PageHeader';
 import Badge from '@/components/Badge';
 import TopStatCard from '@/components/TopStatCard';
 import { dppRecords, type DPP } from '@/lib/data';
@@ -34,7 +33,7 @@ const historyRecords: HistoryRecord[] = dppRecords.map((record, index) => ({
   dppVersion: `v${index === 0 ? '1.0' : index === 1 ? '1.1' : index === 2 ? '2.0' : '1.0'}`,
 }));
 
-export default function DppPage() {
+export default function HistoryView() {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('7d');
   const [destinationFilter, setDestinationFilter] = useState<DestinationFilter>('all');
   const [approverFilter, setApproverFilter] = useState<ApproverFilter>('all');
@@ -75,12 +74,6 @@ export default function DppPage() {
   }[periodFilter];
 
   return (
-    <>
-      <PageHeader
-        title="DPP 발행 이력"
-        description="발행된 DPP의 이력, 상태, 승인자, 추적 버전을 조회합니다."
-      />
-
       <div className="p-8 space-y-6">
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <TopStatCard label="이번 달 발행" value={kpis.monthlyIssued} unit="건" tone="neutral" />
@@ -206,7 +199,6 @@ export default function DppPage() {
           )}
         </section>
       </div>
-    </>
   );
 }
 
