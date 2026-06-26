@@ -88,7 +88,7 @@ export default function MapManageModal({
             type="button"
             onClick={onClose}
             disabled={!finalConfirmed}
-            className="inline-flex items-center gap-2 rounded-md bg-[#046949] px-4 py-2 text-sm font-semibold text-white hover:bg-[#03563c] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <CheckCircle2 className="h-4 w-4" />
             확인 완료
@@ -141,7 +141,7 @@ export default function MapManageModal({
                   <button
                     type="button"
                     onClick={() => onRequestUpdate(r.supplier)}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#046949] bg-white px-3 py-1.5 text-xs font-semibold text-[#046949] hover:bg-emerald-50"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-brand bg-white px-3 py-1.5 text-xs font-semibold text-brand hover:bg-emerald-50"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                     자료 업데이트 요청

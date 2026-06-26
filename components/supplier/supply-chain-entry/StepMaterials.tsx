@@ -8,7 +8,7 @@ import type { DocItem, FactoryRatioRow, MaterialsData } from './SupplyChainEntry
 import DocRow from './DocRow';
 import StepFooter from '@/components/supplier/onboarding/StepFooter';
 
-const pctInput = 'h-9 w-24 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-[#046949]';
+const pctInput = 'h-9 w-24 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand';
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <div className="mb-2 text-sm font-bold text-ink-100">{children}</div>;
@@ -100,7 +100,7 @@ export default function StepMaterials({
             onChange={e => onChange({ ...data, harmfulSubstances: e.target.value })}
             rows={2}
             placeholder="유해물질 정보를 입력하세요 (예: SVHC 해당 없음)"
-            className="mt-1 w-full rounded-md border border-slate-200 p-2.5 text-sm outline-none focus:border-[#046949]"
+            className="mt-1 w-full rounded-md border border-slate-200 p-2.5 text-sm outline-none focus:border-brand"
           />
         </div>
       </div>
@@ -181,7 +181,7 @@ export default function StepMaterials({
                 value={c}
                 onChange={e => setChild(i, e.target.value)}
                 placeholder="자재명"
-                className="h-9 flex-1 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949]"
+                className="h-9 flex-1 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand"
               />
               {data.childMaterials.length > 1 && (
                 <button
@@ -199,7 +199,7 @@ export default function StepMaterials({
         <button
           type="button"
           onClick={() => onChange({ ...data, childMaterials: [...data.childMaterials, ''] })}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-500 hover:border-[#046949] hover:text-[#046949]"
+          className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-500 hover:border-brand hover:text-brand"
         >
           <Plus className="h-4 w-4" />
           자재 추가

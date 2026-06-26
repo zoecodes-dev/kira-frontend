@@ -628,8 +628,7 @@ function SupplierGeneralReviewContent() {
             <button
               type="button"
               onClick={() => setIsRequestModalOpen(true)}
-              className="inline-flex h-9 items-center gap-2 rounded-sm px-3 text-sm font-semibold text-white shadow-control transition-opacity hover:opacity-90 active:opacity-75"
-              style={{ backgroundColor: '#046949' }}
+              className="inline-flex h-9 items-center gap-2 rounded-sm bg-brand px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-brand-hover active:opacity-75"
             >
               <MessageSquare className="h-4 w-4" />
               추가 자료 요청하기
