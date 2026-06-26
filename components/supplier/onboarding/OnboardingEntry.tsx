@@ -64,7 +64,7 @@ export default function OnboardingEntry({
   const companyName = detail?.companyName ?? invitedCompany;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-sm border border-slate-200 bg-white p-6 shadow-sm">
       {/* 초대 안내 */}
       <div className="flex items-start gap-3 rounded-md border border-ok-border bg-ok-bg p-4">
         <Mail className="mt-0.5 h-5 w-5 shrink-0 text-ok-text" />

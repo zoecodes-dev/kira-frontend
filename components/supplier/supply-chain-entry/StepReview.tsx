@@ -44,7 +44,7 @@ export default function StepReview({
 }) {
   if (submitted) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-sm border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col items-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-ok-bg">
             <CheckCircle2 className="h-7 w-7 text-ok-text" />
@@ -71,7 +71,7 @@ export default function StepReview({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-2 text-sm font-bold text-ink-100">제출 요약</div>
         <Row label="Provider Type" value={providerLabel[context.providerType] ?? context.providerType} />
         <Row label="대상 PO" value={context.selectedPos.join(', ')} />
@@ -87,7 +87,7 @@ export default function StepReview({
         <Row label="첨부 증빙" value={`${totalDocs}건`} />
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm">
+      <div className="rounded-sm border border-slate-200 bg-white px-5 py-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"

@@ -342,7 +342,7 @@ export function SupplyChainMapPageContent({
       )}
 
       {!hasSelection && (
-        <section className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
+        <section className="rounded-sm border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
           <div className="text-base font-bold text-ink-100">
             {hasProducts ? '대표 제품의 BOM이 비어 있습니다.' : '등록된 제품이 없습니다.'}
           </div>
@@ -356,7 +356,7 @@ export function SupplyChainMapPageContent({
 
       {formationGenerated && hasSelection && explorerTree && selectedNode && (
         <>
-          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.06)]">
+          <section className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.06)]">
             <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 bg-white px-4 py-3">
               <LegendBadge status="verified" />
               <LegendBadge status="watch" />
@@ -396,7 +396,7 @@ export function SupplyChainMapPageContent({
 
       {showConnectConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4">
-          <div className="w-full max-w-[360px] rounded-lg border border-slate-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+          <div className="w-full max-w-[360px] rounded-sm border border-slate-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <div className="text-base font-bold text-ink-100">하위 공급망 연결</div>
@@ -705,7 +705,7 @@ function MapDetailPanel({ selectedNode, formationMode = false }: { selectedNode:
               <span className="text-right font-semibold text-ink-100">-</span>
             </div>
           </div>
-          <div className="mt-5 rounded-lg bg-warn-bg p-4 text-sm text-ink-400">
+          <div className="mt-5 rounded-sm bg-warn-bg p-4 text-sm text-ink-400">
             <div className="mb-2 font-bold text-ink-100">리스크 요약</div>
             <ul className="space-y-1 text-xs font-medium leading-5">
               <li>· -</li>
@@ -780,7 +780,7 @@ function MapDetailPanel({ selectedNode, formationMode = false }: { selectedNode:
             <span className="text-right font-semibold text-ink-100">{hideFormationValues ? '-' : '2025.05.14 09:30'}</span>
           </div>
         </div>
-        <div className="mt-5 rounded-lg bg-warn-bg p-4 text-sm text-ink-400">
+        <div className="mt-5 rounded-sm bg-warn-bg p-4 text-sm text-ink-400">
           <div className="mb-2 font-bold text-ink-100">리스크 요약</div>
           <ul className="space-y-1 text-xs font-medium leading-5">
             {hideFormationValues ? (

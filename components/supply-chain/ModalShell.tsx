@@ -21,7 +21,7 @@ export default function ModalShell({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
-      <div className={`flex max-h-[90vh] w-full ${maxWidth} flex-col rounded-lg border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.18)]`}>
+      <div className={`flex max-h-[90vh] w-full ${maxWidth} flex-col rounded-sm border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.18)]`}>
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">
             <div className="text-base font-bold text-ink-100">{title}</div>

@@ -231,15 +231,11 @@ function ChainListBody({
   totalCount: number;
   onOpen: (chain: SupplyChainSummary) => void;
 }) {
-  const summary = useMemo(() => {
-    const high = chains.filter(c => c.risk_level === 'high').length;
-    const medium = chains.filter(c => c.risk_level === 'medium').length;
-    return { total: chains.length, high, medium };
-  }, [chains]);
+  const summary = useMemo(() => ({ total: chains.length }), [chains]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-20 text-sm font-semibold text-slate-400">
+      <div className="flex items-center justify-center gap-2 rounded-sm border border-dashed border-slate-300 bg-slate-50 px-6 py-20 text-sm font-semibold text-slate-400">
         <Loader2 className="h-4 w-4 animate-spin" />
         공급망 목록 불러오는 중…
       </div>
@@ -250,7 +246,7 @@ function ChainListBody({
     // 전체는 있는데 현재 기간 필터에 안 걸린 경우 vs 애초에 생성된 공급망이 없는 경우 구분.
     const filtered = totalCount > 0;
     return (
-      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
+      <div className="rounded-sm border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
         <div className="text-base font-bold text-ink-100">
           {filtered ? '이 기간에 해당하는 공급망이 없습니다' : '생성된 공급망이 없습니다'}
         </div>
@@ -265,13 +261,11 @@ function ChainListBody({
 
   return (
     <>
-      <section className="mb-4 grid grid-cols-3 gap-4">
+      <section className="mb-4 flex gap-4">
         <SummaryCard label="전체 공급망" value={summary.total} hint="건" />
-        <SummaryCard label="고위험" value={summary.high} hint="건" tone="high" />
-        <SummaryCard label="중위험" value={summary.medium} hint="건" tone="medium" />
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -335,7 +329,7 @@ function SummaryCard({
 }) {
   const color = tone === 'high' ? 'text-red-600' : tone === 'medium' ? 'text-amber-600' : 'text-ink-100';
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm">
+    <div className="rounded-sm border border-slate-200 bg-white px-5 py-4 shadow-sm">
       <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
         <Network className="h-3.5 w-3.5" />
         {label}
