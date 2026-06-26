@@ -27,19 +27,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <nav className="p-3 space-y-5 flex-1 overflow-y-auto">
-          <div>
-            <div className="space-y-0.5 mt-1">
+        {/* 그룹 구분은 가로 구분선(border-t)만 사용 — 그룹 헤더 라벨은 렌더링하지 않음.
+            구분선은 그룹 컨테이너(좌우 패딩 없음)에, 좌우 패딩은 NavLink 항목 내부(px-3)에만. */}
+        <nav className="flex-1 overflow-y-auto py-1">
+          {/* 대시보드 · My Task */}
+          <div className="py-2.5">
+            <div className="space-y-0.5">
               <NavLink href="/dashboard" iconName="activity" label="대시보드" subtitle="전체 결과 요약" />
               <NavLink href="/my-task" iconName="clipboard-check" label="My Task" subtitle="담당자 업무" />
             </div>
           </div>
 
-          <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
-              공급망 워크스페이스
-            </div>
-            <div className="space-y-0.5 mt-1">
+          {/* 공급망 워크스페이스 */}
+          <div className="border-t border-white/10 py-2.5">
+            <div className="space-y-0.5">
               <NavLink
                 href="/supply-chain/map"
                 iconName="network"
@@ -49,11 +50,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
-              DPP 센터
-            </div>
-            <div className="space-y-0.5 mt-1">
+          {/* DPP 센터 */}
+          <div className="border-t border-white/10 py-2.5">
+            <div className="space-y-0.5">
               <NavLink
                 href="/dpp/center"
                 iconName="layers"
@@ -69,11 +68,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
-              협력사 관리
-            </div>
-            <div className="space-y-0.5 mt-1">
+          {/* 협력사 관리 */}
+          <div className="border-t border-white/10 py-2.5">
+            <div className="space-y-0.5">
               <NavLink
                 href="/suppliers"
                 iconName="building2"
@@ -99,20 +96,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
-              물질·자재 관리
-            </div>
-            <div className="space-y-0.5 mt-1">
+          {/* 물질·자재 관리 */}
+          <div className="border-t border-white/10 py-2.5">
+            <div className="space-y-0.5">
               <NavLink href="/materials/regulation-results" iconName="flask" label="규제 검증 결과" subtitle="자재 규제 판정" />
             </div>
           </div>
 
-          <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
-              보고·결재
-            </div>
-            <div className="space-y-0.5 mt-1">
+          {/* 보고·결재 */}
+          <div className="border-t border-white/10 py-2.5">
+            <div className="space-y-0.5">
               <NavLink
                 href="/report"
                 iconName="file-text"
@@ -126,11 +119,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
-              감사·추적
-            </div>
-            <div className="space-y-0.5 mt-1">
+          {/* 감사·추적 */}
+          <div className="border-t border-white/10 py-2.5">
+            <div className="space-y-0.5">
               <NavLink
                 href="/audit"
                 iconName="shield-check"

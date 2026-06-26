@@ -22,7 +22,7 @@ export default function TabBar<T extends string>({
           type="button"
           onClick={() => onChange(t.key)}
           className={clsx(
-            '-mb-px border-b-2 pb-2.5 text-[15px] transition-colors',
+            '-mb-px border-b-2 pb-3 text-[17px] transition-colors',
             value === t.key
               ? 'border-[#11352A] font-semibold text-[#11352A]'
               : 'border-transparent font-medium text-[#64748B] hover:text-[#11352A]',
