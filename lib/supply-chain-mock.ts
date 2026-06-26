@@ -930,6 +930,32 @@ export function mergeProductBom(
   };
 }
 
+/**
+ * BOM 버전 목록만 dataset에 병합(드롭다운용). BOM 트리(getProductBom) 조회 성공 여부와 무관하게
+ * getProductBomVersions 결과를 항상 반영한다 — 트리가 404/빈값이어도 버전 선택은 가능해야 하므로.
+ * 다른 제품 버전은 유지하고 현재 제품 것만 교체(mergeProductBom과 동일 규칙).
+ */
+export function mergeBomVersions(
+  ds: SupplyChainDataset,
+  productId: string,
+  versions: ApiBomVersionListItem[],
+): SupplyChainDataset {
+  if (versions.length === 0) return ds;
+  const bom_versions: BomVersion[] = versions.map(v => ({
+    bom_version_id: v.bomVersionId,
+    product_id: v.productId,
+    version_number: v.versionNumber,
+    effective_from: v.productionFrom ?? '',
+    effective_to: v.productionTo,
+    status: (v.status as BomVersion['status']) ?? 'active',
+    source_system: v.sourceSystem ?? 'API',
+  }));
+  return {
+    ...ds,
+    bom_versions: [...ds.bom_versions.filter(v => v.product_id !== productId), ...bom_versions],
+  };
+}
+
 const FACTORY_ROLE_FALLBACK: MockSupplierFactory['factory_role'] = 'production';
 const VALID_FACTORY_ROLES = new Set<MockSupplierFactory['factory_role']>([
   'headquarters', 'production', 'outsourcing', 'processing', 'mining',
