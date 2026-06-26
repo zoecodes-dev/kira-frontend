@@ -424,11 +424,11 @@ function SupplierCheckInfoIndex() {
           <p className="mt-2 text-sm text-ink-500">작성중이거나 검토가 필요한 협력사를 선택해 상세 수집 현황을 확인합니다.</p>
         </div>
         <Link
-          href="/suppliers/invitations"
+          href="/supply-chain/map"
           className="inline-flex h-9 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-sm font-semibold text-ink-500 shadow-control hover:border-accent-200 hover:text-accent-700"
         >
           <Send className="h-4 w-4" />
-          정보 요청 작성
+          공급망 맵에서 요청
         </Link>
       </div>
 
