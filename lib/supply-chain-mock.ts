@@ -1,6 +1,7 @@
 // 공급망 맵 허브와 협력사 포털이 공유하는 제품/BOM/공급망 mock 데이터·타입·순수 헬퍼 모듈
 // (제품/BOM/맵엣지/비율은 백엔드 엔드포인트가 없어 로컬 mock 으로 유지한다. 협력사 상세는 lib/api 사용.)
 import { AlertTriangle, CheckCircle2, Clock, ShieldAlert } from 'lucide-react';
+import type { ApiProduct, ApiProductBom } from '@/lib/api';
 
 export type RiskStatus = 'verified' | 'watch' | 'high' | 'feoc_review' | 'audit_required';
 export type PartKind = 'component' | 'material' | 'mineral';
@@ -160,6 +161,19 @@ export interface ExplorerNode {
   supplyRatio: string;
   verificationProgress: string;
   children: ExplorerNode[];
+}
+
+// 트리 엔진(buildTraceRows/buildExplorerTree)이 주입받는 데이터 묶음.
+// 빈 상태(emptyDataset) / API 조회 / 데모(mockDataset) 어느 쪽이든 같은 형태로 주입된다.
+export interface SupplyChainDataset {
+  products: Product[];
+  bom_versions: BomVersion[];
+  parts: Part[];
+  bom_items: BomItem[];
+  suppliers: MockSupplier[];
+  supplier_factories: MockSupplierFactory[];
+  supply_chain_map: SupplyChainMapRow[];
+  supply_chain_ratios: SupplyChainRatio[];
 }
 
 export const products: Product[] = [
@@ -459,14 +473,14 @@ export function getVerificationProgress(status: RiskStatus) {
   return '35%';
 }
 
-export function selectedProductIdFromBom(bomVersionId: string) {
-  return bom_versions.find(version => version.bom_version_id === bomVersionId)?.product_id;
+export function selectedProductIdFromBom(ds: SupplyChainDataset, bomVersionId: string) {
+  return ds.bom_versions.find(version => version.bom_version_id === bomVersionId)?.product_id;
 }
 
-export function buildTraceRows(bomVersionId: string, period: string, factoryId: string, poNumber: string): TraceRow[] {
+export function buildTraceRows(ds: SupplyChainDataset, bomVersionId: string, period: string, factoryId: string, poNumber: string): TraceRow[] {
   const [periodFrom, periodTo] = period.split(' ~ ');
 
-  return supply_chain_map
+  return ds.supply_chain_map
     .filter(mapRow => mapRow.bom_version_id === bomVersionId)
     .filter(mapRow => !poNumber || poNumber === 'ALL' || mapRow.po_number === poNumber)
     .filter(mapRow => {
@@ -474,21 +488,21 @@ export function buildTraceRows(bomVersionId: string, period: string, factoryId: 
       return mapRow.supply_period_from <= periodTo && mapRow.supply_period_to >= periodFrom;
     })
     .flatMap(mapRow => {
-      const part = parts.find(item => item.part_id === mapRow.part_id);
-      const bomItem = bom_items.find(item => item.bom_version_id === bomVersionId && item.part_id === mapRow.part_id);
-      const supplier = suppliers.find(item => item.supplier_id === mapRow.child_supplier_id);
-      const ratios = supply_chain_ratios.filter(item => item.map_id === mapRow.map_id);
+      const part = ds.parts.find(item => item.part_id === mapRow.part_id);
+      const bomItem = ds.bom_items.find(item => item.bom_version_id === bomVersionId && item.part_id === mapRow.part_id);
+      const supplier = ds.suppliers.find(item => item.supplier_id === mapRow.child_supplier_id);
+      const ratios = ds.supply_chain_ratios.filter(item => item.map_id === mapRow.map_id);
 
       if (!part || !supplier || !bomItem) return [];
 
       return ratios
         .filter(ratio => !factoryId || factoryId === 'ALL' || ratio.factory_id === factoryId)
         .flatMap(ratio => {
-          const factory = supplier_factories.find(item => item.factory_id === ratio.factory_id);
+          const factory = ds.supplier_factories.find(item => item.factory_id === ratio.factory_id);
           if (!factory) return [];
           const riskStatus = getRiskStatus(supplier, mapRow);
           const country = factory.country || bomItem.origin_country;
-          const bomVersion = bom_versions.find(version => version.bom_version_id === bomVersionId);
+          const bomVersion = ds.bom_versions.find(version => version.bom_version_id === bomVersionId);
 
           return [{
             node_key: `${getNodeType(part)}:${mapRow.map_id}:${ratio.factory_id}`,
@@ -521,8 +535,8 @@ export function buildTraceRows(bomVersionId: string, period: string, factoryId: 
             missing_documents: getMissingDocuments(riskStatus),
             certificate_status: getCertificateStatus(riskStatus),
             verification_progress: getVerificationProgress(riskStatus),
-            connected_products: products
-              .filter(product => product.product_id === selectedProductIdFromBom(bomVersionId))
+            connected_products: ds.products
+              .filter(product => product.product_id === selectedProductIdFromBom(ds, bomVersionId))
               .map(product => product.product_name)
               .join(', '),
             bom_version: bomVersion?.version_number ?? bomVersionId,
@@ -568,15 +582,15 @@ export function getInvitationContext(node: SelectedNode) {
   };
 }
 
-export function buildExplorerTree(product: Product, bomVersion: BomVersion, rows: TraceRow[]): ExplorerNode {
+export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomVersion: BomVersion, rows: TraceRow[]): ExplorerNode {
   const rowsByPartId = new Map<string, TraceRow>();
   rows.forEach(row => {
     if (!rowsByPartId.has(row.part_id)) rowsByPartId.set(row.part_id, row);
   });
 
   function buildPartNode(row: TraceRow, depth: number): ExplorerNode {
-    const part = parts.find(item => item.part_id === row.part_id);
-    const childPartNodes = parts
+    const part = ds.parts.find(item => item.part_id === row.part_id);
+    const childPartNodes = ds.parts
       .filter(item => item.parent_part_id === row.part_id)
       .map(item => rowsByPartId.get(item.part_id))
       .filter((item): item is TraceRow => Boolean(item))
@@ -602,7 +616,7 @@ export function buildExplorerTree(product: Product, bomVersion: BomVersion, rows
     };
   }
 
-  const children = parts
+  const children = ds.parts
     .filter(part => !part.parent_part_id)
     .map(part => rowsByPartId.get(part.part_id))
     .filter((item): item is TraceRow => Boolean(item))
@@ -624,5 +638,91 @@ export function buildExplorerTree(product: Product, bomVersion: BomVersion, rows
     supplyRatio: '100%',
     verificationProgress: `${Math.round((rows.filter(row => row.risk_status === 'verified').length / Math.max(rows.length, 1)) * 100)}%`,
     children,
+  };
+}
+
+// 데모(시연)용 전체 mock 맵 묶음
+export const mockDataset: SupplyChainDataset = {
+  products,
+  bom_versions,
+  parts,
+  bom_items,
+  suppliers,
+  supplier_factories,
+  supply_chain_map,
+  supply_chain_ratios,
+};
+
+// 기본 시작 상태 — 전부 빈 상태 (제품/BOM은 API로 채우고, 공급망은 형성으로 채운다)
+export const emptyDataset: SupplyChainDataset = {
+  products: [],
+  bom_versions: [],
+  parts: [],
+  bom_items: [],
+  suppliers: [],
+  supplier_factories: [],
+  supply_chain_map: [],
+  supply_chain_ratios: [],
+};
+
+// ── API(camelCase) → dataset(snake) 어댑터 (트리 엔진 무변경) ──
+export function apiProductsToDataset(apiProducts: ApiProduct[]): Product[] {
+  return apiProducts.map(p => ({
+    product_id: p.productId,
+    product_code: p.productCode,
+    product_name: p.productName,
+    manufacturer_id: '',
+    type: p.type,
+    specs: {
+      capacity: '-',
+      shipment_info: '-',
+      mineral_composition: '-',
+      hazardous_substances: '-',
+      regulation_status: 'verified',
+    },
+    source_system: 'API',
+    external_id: '',
+    synced_at: '',
+  }));
+}
+
+/** 제품의 BOM(API)을 dataset에 병합한다. 공급망 연결(엣지/비율/협력사)은 형성으로 채워진다. */
+export function mergeProductBom(ds: SupplyChainDataset, productId: string, bom: ApiProductBom): SupplyChainDataset {
+  const bom_versions: BomVersion[] = bom.bomVersions.map(v => ({
+    bom_version_id: v.bomVersionId,
+    product_id: v.productId,
+    version_number: v.versionNumber,
+    effective_from: '',
+    effective_to: null,
+    status: (v.status as BomVersion['status']) ?? 'active',
+    source_system: 'API',
+  }));
+  const parts: Part[] = bom.parts.map(p => ({
+    part_id: p.partId,
+    part_code: p.partCode,
+    part_name: p.partName,
+    tier_level: p.tierLevel,
+    parent_part_id: p.parentPartId,
+    material_type: p.materialType,
+    function_purpose: p.functionPurpose,
+    purchase_unit: p.purchaseUnit,
+    kind: (p.kind as PartKind) ?? 'material',
+  }));
+  const bom_items: BomItem[] = bom.bomItems.map(i => ({
+    bom_item_id: i.bomItemId,
+    bom_version_id: i.bomVersionId,
+    part_id: i.partId,
+    required_quantity: i.requiredQuantity,
+    required_quantity_unit: i.requiredQuantityUnit,
+    percentage: i.percentage,
+    origin_country: i.originCountry,
+  }));
+  // 다른 제품의 BOM은 유지하고 현재 제품 것만 교체
+  const otherVersionIds = new Set(ds.bom_versions.filter(v => v.product_id === productId).map(v => v.bom_version_id));
+  return {
+    ...ds,
+    bom_versions: [...ds.bom_versions.filter(v => v.product_id !== productId), ...bom_versions],
+    parts: [...ds.parts.filter(p => !parts.some(np => np.part_id === p.part_id)), ...parts],
+    bom_items: [...ds.bom_items.filter(i => !otherVersionIds.has(i.bom_version_id)), ...bom_items],
   };
 }
