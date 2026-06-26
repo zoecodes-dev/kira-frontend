@@ -156,14 +156,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
+      {/* 모든 페이지 풀폭 통일 — 대시보드 기준(최대폭 제한 없음) */}
       <main className="flex-1 min-w-0 overflow-x-auto">
-        {pathname === '/dashboard' ? (
-          children
-        ) : (
-          <div className="max-w-[1600px] mx-auto w-full">
-            {children}
-          </div>
-        )}
+        {children}
       </main>
     </div>
   );

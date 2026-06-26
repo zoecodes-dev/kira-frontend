@@ -301,7 +301,7 @@ function DppDetail({ record }: { record: HistoryRecord }) {
         </div>
       </div>
 
-      <div className="grid items-stretch gap-6 p-5 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="space-y-[14px] p-5">
         <div className="flex h-full flex-col gap-5">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <DetailField label="제품 코드" value={record.productId} mono />
@@ -393,8 +393,8 @@ function SharePanel({ record }: { record: HistoryRecord }) {
         외부 공유
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-        <div className="grid gap-3 xl:grid-cols-[1.15fr_1fr]">
+      <div className="mt-4 space-y-[14px]">
+        <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <ShareButton icon={Download} label="PDF 다운로드" onClick={() => window.print()} />
             <ShareButton icon={Eye} label="DPP 상세 보기" onClick={() => window.open(`/dpp/center`, '_blank')} />

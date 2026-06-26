@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import TopStatCard from '@/components/TopStatCard';
 import TabBar from '@/components/TabBar';
 import clsx from 'clsx';
 import {
@@ -69,14 +68,6 @@ const cfTrend = {
   ],
 };
 
-const kpis = [
-  { key: 'ready',    label: '발행 가능',       count: 12, tone: 'ok'     as const },
-  { key: 'hold',     label: '발행 보류',       count: 23, tone: 'warn'   as const },
-  { key: 'hitl',     label: 'HITL 검토 필요',  count: 7,  tone: 'purple' as const },
-  { key: 'blockers', label: '남은 Blocker',    count: 11, tone: 'alert'  as const },
-  { key: 'issued',   label: '최근 발행 (7일)', count: 8,  tone: 'info'   as const },
-];
-
 // ── Page ─────────────────────────────────────────────────────────────
 export default function DppCenterPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -100,15 +91,6 @@ export default function DppCenterPage() {
         badge="Control Center"
       />
 
-      {/* KPI cards — 탭과 무관하게 항상 표시되는 발행 요약 */}
-      <div className="px-8 pt-6">
-        <section className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
-          {kpis.map(k => (
-            <TopStatCard key={k.key} label={k.label} value={k.count} unit="건" tone={k.tone} onClick={() => setModalOpen(true)} />
-          ))}
-        </section>
-      </div>
-
       <nav className="sticky top-0 z-10 bg-white px-8 pt-4">
         <TabBar<DppTab>
           tabs={[
@@ -123,9 +105,9 @@ export default function DppCenterPage() {
       </nav>
 
       <div className="p-8 space-y-6">
-        {/* 발행 현황 — 발행 보류 제품 · 발행 지연 원인 */}
+        {/* 발행 현황 — 발행 보류 제품 · 발행 지연 원인 (세로 스택) */}
         {tab === 'status' && (
-        <section className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[1.35fr_1fr]">
+        <section className="space-y-[14px]">
           {/* 발행 보류 제품 */}
           <div className="min-w-0 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
             <PanelHeader title="발행 보류 제품" count="23건" sub="Readiness가 낮거나 핵심 증빙이 누락된 제품입니다.">
@@ -208,9 +190,9 @@ export default function DppCenterPage() {
         </section>
         )}
 
-        {/* 규제 지표 — 탄소발자국 · 재활용 함량 */}
+        {/* 규제 지표 — 탄소발자국 · 재활용 함량 (세로 스택) */}
         {tab === 'reg' && (
-        <section className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
+        <section className="space-y-[14px]">
           {/* 탄소발자국 */}
           <div className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
             <div className="flex items-center justify-between gap-4 border-b border-ink-700 px-5 py-4">
