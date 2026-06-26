@@ -38,6 +38,7 @@ export function SupplyChainMapPageContent({
   dataset = mockDataset,
   embedded = false,
   initialProductId,
+  highlightSupplierIds,
   onNodeSelect,
   onConnectClick,
   onProductChange,
@@ -47,6 +48,8 @@ export function SupplyChainMapPageContent({
   embedded?: boolean;
   // 공급망 목록에서 넘어온 초기 선택 제품(선택). 제품 목록 로드 후 이 제품을 우선 선택한다.
   initialProductId?: string;
+  // STEP 2에서 확정된 Pool의 supplierId 집합(선택). 해당 협력사 행을 맵에서 하이라이트한다.
+  highlightSupplierIds?: Set<string>;
   // 데이터 주입(선택): 미전달 시 데모 mockDataset. 허브는 빈/API/데모 dataset을 넘긴다.
   dataset?: SupplyChainDataset;
   // 허브 연동용(선택): 노드 선택 변화 통지 / "하위 공급망 연결" 클릭을 허브 모달로 위임
@@ -123,10 +126,12 @@ export function SupplyChainMapPageContent({
     onProductChange?.(productId);
   }
 
-  // 제품 목록이 로드되면(또는 데이터셋 교체 시) 유효한 제품을 자동 선택
+  // 제품 목록이 로드되면(또는 데이터셋 교체 시) 유효한 제품을 자동 선택.
+  // 목록에서 넘어온 initialProductId 가 현재 목록에 있으면 그 제품을 우선 선택한다.
   useEffect(() => {
     if (dataset.products.length > 0 && !dataset.products.some(p => p.product_id === selectedProductId)) {
-      handleProductChange(dataset.products[0].product_id);
+      const preferred = initialProductId && dataset.products.find(p => p.product_id === initialProductId);
+      handleProductChange((preferred || dataset.products[0]).product_id);
     }
     // dataset.products 변화에만 반응
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -366,6 +371,7 @@ export function SupplyChainMapPageContent({
                   onSelect={setSelectedNodeKey}
                   onToggle={toggleNode}
                   formationMode={formationMode}
+                  highlightSupplierIds={highlightSupplierIds}
                 />
                 <button
                   type="button"
@@ -503,6 +509,7 @@ function SupplyMapTree({
   onSelect,
   onToggle,
   formationMode = false,
+  highlightSupplierIds,
 }: {
   root: ExplorerNode;
   selectedNodeKey: string;
@@ -510,6 +517,7 @@ function SupplyMapTree({
   onSelect: (key: string) => void;
   onToggle: (key: string) => void;
   formationMode?: boolean;
+  highlightSupplierIds?: Set<string>;
 }) {
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
@@ -531,6 +539,7 @@ function SupplyMapTree({
           onSelect={onSelect}
           onToggle={onToggle}
           formationMode={formationMode}
+          highlightSupplierIds={highlightSupplierIds}
         />
       </div>
     </div>
@@ -544,6 +553,7 @@ function SupplyMapRow({
   onSelect,
   onToggle,
   formationMode = false,
+  highlightSupplierIds,
 }: {
   node: ExplorerNode;
   selectedNodeKey: string;
@@ -551,6 +561,7 @@ function SupplyMapRow({
   onSelect: (key: string) => void;
   onToggle: (key: string) => void;
   formationMode?: boolean;
+  highlightSupplierIds?: Set<string>;
 }) {
   const hasChildren = node.children.length > 0;
   const isExpanded = !collapsedNodeKeys.has(node.key);
@@ -559,6 +570,8 @@ function SupplyMapRow({
   const rowTone = getRiskTone(node.status);
   const isProduct = node.type === 'product';
   const hideFormationValues = formationMode;
+  // 확정 Pool에 포함된 협력사 노드 — 맵에서 강조 (형성 모드에선 협력사 값 숨김이라 제외).
+  const isPooled = !formationMode && !!node.row && !!highlightSupplierIds?.has(node.row.supplier_id);
 
   return (
     <div className="relative min-w-[980px]">
@@ -584,7 +597,7 @@ function SupplyMapRow({
             : rowTone === 'danger'
               ? 'bg-white hover:bg-alert-bg'
               : 'bg-white hover:bg-slate-50'
-        }`}
+        } ${isPooled ? 'ring-2 ring-inset ring-ok-solid' : ''}`}
       >
         <div className="flex min-w-0 items-center gap-3" style={{ paddingLeft: `${node.depth * 24}px` }}>
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isProduct ? 'bg-ok-solid' : rowTone === 'danger' ? 'bg-alert-solid' : 'bg-ok-solid'}`} />
@@ -598,7 +611,12 @@ function SupplyMapRow({
         </div>
         <span className={`text-sm text-ink-400 ${isProduct ? 'font-semibold' : 'font-medium'}`}>{hideFormationValues ? '-' : node.tier}</span>
         <span className="text-sm font-medium text-ink-400">{hideFormationValues || isProduct ? '-' : node.providerType}</span>
-        <span className={`truncate text-sm font-medium ${isProduct || hideFormationValues ? 'text-ink-400' : 'text-ink-100'}`}>{hideFormationValues || isProduct ? '-' : node.supplierName}</span>
+        <span className={`flex min-w-0 items-center gap-1.5 truncate text-sm font-medium ${isProduct || hideFormationValues ? 'text-ink-400' : 'text-ink-100'}`}>
+          <span className="truncate">{hideFormationValues || isProduct ? '-' : node.supplierName}</span>
+          {isPooled && (
+            <span className="shrink-0 rounded-full border border-ok-border bg-ok-bg px-1.5 py-0.5 text-[10px] font-bold text-ok-text">Pool</span>
+          )}
+        </span>
         <span className="text-sm font-medium text-ink-100">{hideFormationValues ? '-' : node.supplyRatio}</span>
         <span className="text-sm font-medium text-ink-100">{hideFormationValues ? '-' : node.verificationProgress}</span>
         {hideFormationValues ? <span className="text-sm font-medium text-ink-400">-</span> : <StatusBadge status={node.status} />}
@@ -633,6 +651,7 @@ function SupplyMapRow({
               onSelect={onSelect}
               onToggle={onToggle}
               formationMode={formationMode}
+              highlightSupplierIds={highlightSupplierIds}
             />
           ))}
         </div>

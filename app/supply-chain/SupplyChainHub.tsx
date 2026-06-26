@@ -232,6 +232,7 @@ export default function SupplyChainHub() {
         dataset={dataset}
         embedded
         initialProductId={initialProductId}
+        highlightSupplierIds={new Set(pool.map(s => s.supplierId))}
         onNodeSelect={setSelectedNode}
         onConnectClick={() => setActiveModal('invite')}
         onProductChange={handleProductChange}
