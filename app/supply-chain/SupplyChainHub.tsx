@@ -2,6 +2,7 @@
 
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, Database, Loader2 } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
@@ -18,7 +19,12 @@ import MapManageModal from '@/components/supply-chain/MapManageModal';
 export type HubModal = null | 'pool' | 'supplierInfo' | 'dataRequest' | 'invite' | 'mapManage';
 
 export default function SupplyChainHub() {
+  // 공급망 목록에서 특정 공급망을 누르고 들어오면 productId 로 해당 제품을 선택해 연다.
+  const searchParams = useSearchParams();
+  const initialProductId = searchParams.get('productId') ?? undefined;
   const [pool, setPool] = useState<SupplierBrief[]>([]);
+  // STEP 2 Pool 후보 — 선택된 제품의 §10.2a 맵 tier-1 협력사만. 제품 미선택이면 빈 배열.
+  const [tier1Pool, setTier1Pool] = useState<SupplierBrief[]>([]);
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [activeModal, setActiveModal] = useState<HubModal>(null);
   // 맵 관리에서 시작한 자료요청은 협력사명을 직접 지정 (없으면 선택 노드 기준)
@@ -66,6 +72,10 @@ export default function SupplyChainHub() {
   async function handleProductChange(productId: string) {
     if (isDemo) return;
 
+    // 제품이 바뀌면 이전 제품 기준 Pool 후보·확정 선택은 더 이상 유효하지 않으므로 초기화.
+    setTier1Pool([]);
+    setPool([]);
+
     // 1) BOM 버전 목록(실 bomVersionId) — 없으면 트리 합성 버전으로 폴백
     let versions: Awaited<ReturnType<typeof getProductBomVersions>> = [];
     try {
@@ -89,6 +99,20 @@ export default function SupplyChainHub() {
       try {
         const map = await getProductSupplyChainMap(productId, { bomVersionId: activeVersionId });
         setDataset(ds => mergeSupplyChainMap(ds, productId, activeVersionId, map));
+        // STEP 2 Pool 후보 = 이 제품 맵의 tier-1 노드에 연결된 협력사만 (전역 목록 금지).
+        // tierLevel은 merge 과정에서 유실되므로 원본 응답에서 직접 추출한다.
+        const tier1Ids = new Set(map.supplyChainMap.filter(n => n.tierLevel === 1).map(n => n.supplierId));
+        setTier1Pool(
+          map.suppliers
+            .filter(s => tier1Ids.has(s.supplierId))
+            .map(s => ({
+              supplierId: s.supplierId,
+              companyName: s.companyName,
+              providerType: s.providerType,
+              status: s.status as SupplierBrief['status'],
+              riskLevel: s.riskLevel ?? 'low',
+            })),
+        );
       } catch {
         // 공급망 맵 없음 — 협력사 빈 상태 유지
       }
@@ -98,6 +122,18 @@ export default function SupplyChainHub() {
   function loadDemo() {
     setIsDemo(true);
     setDataset(mockDataset);
+    // 데모도 동일 규칙 — tier-1 협력사만 Pool 후보로.
+    setTier1Pool(
+      mockDataset.suppliers
+        .filter(s => s.tier === 1)
+        .map(s => ({
+          supplierId: s.supplier_id,
+          companyName: s.company_name,
+          providerType: s.provider_type,
+          status: s.status as SupplierBrief['status'],
+          riskLevel: s.risk_level,
+        })),
+    );
   }
 
   // 선택 노드의 mock supplier_id → 실 supplierId 브리지 (매핑 없으면 undefined)
@@ -121,6 +157,10 @@ export default function SupplyChainHub() {
         title="공급망 맵 허브"
         description="대표 제품을 고르고 MBOM 기준으로 1차 협력사를 자동 맵핑한 뒤, 협력사 정보 확인·자료 요청·초대·만료 관리까지 관리합니다.
       </p>"
+        tabs={[
+          { label: '공급망 목록', href: '/supply-chain' },
+          { label: '공급망 맵', href: '/supply-chain/map', active: true },
+        ]}
       >
         <HubStepBar
           poolCount={pool.length}
@@ -186,6 +226,7 @@ export default function SupplyChainHub() {
       <SupplyChainMapPageContent
         dataset={dataset}
         embedded
+        initialProductId={initialProductId}
         onNodeSelect={setSelectedNode}
         onConnectClick={() => setActiveModal('invite')}
         onProductChange={handleProductChange}
@@ -193,6 +234,7 @@ export default function SupplyChainHub() {
 
       {activeModal === 'pool' && (
         <PoolModal
+          candidates={tier1Pool}
           initialPool={pool}
           onClose={close}
           onConfirm={selected => {

@@ -12,6 +12,9 @@ export interface Product {
   product_code: string;
   product_name: string;
   manufacturer_id: string;
+  // 고객사 — 제품이 속한 고객사(제품→고객사 관계). 공급망 묶음 키·표시에 사용. 미연동 시 빈 값.
+  customer_id: string;
+  customer_name: string;
   type: string;
   specs: {
     capacity: string;
@@ -182,6 +185,8 @@ export const products: Product[] = [
     product_code: 'BAT-NCM811-100Ah',
     product_name: '배터리 셀 A',
     manufacturer_id: 'sup-hanyang-cell',
+    customer_id: 'cust-eu-a',
+    customer_name: '고객사 A (EU)',
     type: 'battery_cell',
     specs: {
       capacity: '100Ah / 3.7V',
@@ -199,6 +204,8 @@ export const products: Product[] = [
     product_code: 'BAT-LFP-120Ah',
     product_name: 'LFP Power 120Ah',
     manufacturer_id: 'sup-hanyang-cell',
+    customer_id: 'cust-us-b',
+    customer_name: '고객사 B (US)',
     type: 'battery_cell',
     specs: {
       capacity: '120Ah / 3.2V',
@@ -641,6 +648,114 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
   };
 }
 
+// ── 공급망 목록(랜딩) ──
+// "지금까지 생성된 모든 공급망" = supply_chain_map 행을 (제품 × 고객사 × 단위기간)으로 묶은 단위.
+// map_id 는 부품-협력사 엣지 1개라 한 제품에 여러 개 존재 → 같은 묶음으로 집계해 목록 1행을 만든다.
+export type ChainRiskLevel = 'low' | 'medium' | 'high';
+
+export interface SupplyChainSummary {
+  chain_id: string;            // productId__customerId__periodFrom__periodTo 합성 키
+  product_id: string;
+  product_name: string;
+  product_code: string;
+  customer_id: string;
+  customer_name: string;
+  bom_version_id: string;
+  period_from: string;
+  period_to: string;
+  supplier_count: number;      // child_supplier_id 중복 제거 카운트
+  risk_level: ChainRiskLevel;  // 묶음 내 최악 협력사 위험도 (critical/high → high)
+  last_updated: string;        // 묶음 대표 갱신 시각 (현재: 제품 synced_at — 맵 created_at 미노출)
+  map_ids: string[];
+}
+
+const CHAIN_RISK_RANK: Record<ChainRiskLevel, number> = { low: 0, medium: 1, high: 2 };
+
+// 협력사 4단계 위험도(low/medium/high/critical) → 목록 3단계. critical 은 high 로 흡수.
+export function toChainRiskLevel(level: MockSupplier['risk_level']): ChainRiskLevel {
+  if (level === 'critical' || level === 'high') return 'high';
+  if (level === 'medium') return 'medium';
+  return 'low';
+}
+
+export const chainRiskMeta: Record<ChainRiskLevel, { label: string; className: string }> = {
+  high: { label: '고위험', className: 'border-red-200 bg-red-50 text-red-700' },
+  medium: { label: '중위험', className: 'border-amber-200 bg-amber-50 text-amber-700' },
+  low: { label: '저위험', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+};
+
+// 백엔드 §10.2a 병합 시 기간이 없는 맵 노드는 sentinel 범위로 채워진다(mergeSupplyChainMap).
+// 그 경우 목록의 단위기간은 의미가 없으므로 표시에서 '전체'로 보정한다.
+export const SENTINEL_PERIOD_FROM = '0000-01-01';
+export const SENTINEL_PERIOD_TO = '9999-12-31';
+export function isSentinelPeriod(from: string, to: string) {
+  return from === SENTINEL_PERIOD_FROM || to === SENTINEL_PERIOD_TO;
+}
+
+/**
+ * 데이터셋의 공급망 맵을 (제품 × 고객사 × 단위기간)으로 묶어 목록 행을 만든다.
+ * - 제품: bom_version_id → product_id 로 역추적, 고객사는 제품에 매달림.
+ * - 협력사 수: child_supplier_id 중복 제거.
+ * - 리스크: 묶음 내 협력사 위험도 최악값(critical/high→고위험).
+ * - 갱신일: 제품 synced_at (맵 노드에 created_at 이 노출되면 그 최신값으로 교체).
+ */
+export function buildSupplyChainList(ds: SupplyChainDataset): SupplyChainSummary[] {
+  const productByBomVersion = new Map(ds.bom_versions.map(v => [v.bom_version_id, v.product_id]));
+  const productById = new Map(ds.products.map(p => [p.product_id, p]));
+  const supplierById = new Map(ds.suppliers.map(s => [s.supplier_id, s]));
+
+  type Acc = SupplyChainSummary & { _supplierIds: Set<string>; _worst: number };
+  const groups = new Map<string, Acc>();
+
+  for (const row of ds.supply_chain_map) {
+    const productId = productByBomVersion.get(row.bom_version_id);
+    if (!productId) continue;
+    const product = productById.get(productId);
+    if (!product) continue;
+
+    const key = `${productId}__${product.customer_id}__${row.supply_period_from}__${row.supply_period_to}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        chain_id: key,
+        product_id: productId,
+        product_name: product.product_name,
+        product_code: product.product_code,
+        customer_id: product.customer_id,
+        customer_name: product.customer_name,
+        bom_version_id: row.bom_version_id,
+        period_from: row.supply_period_from,
+        period_to: row.supply_period_to,
+        supplier_count: 0,
+        risk_level: 'low',
+        last_updated: product.synced_at || '',
+        map_ids: [],
+        _supplierIds: new Set<string>(),
+        _worst: 0,
+      };
+      groups.set(key, g);
+    }
+    g.map_ids.push(row.map_id);
+    if (row.child_supplier_id) g._supplierIds.add(row.child_supplier_id);
+    const supplier = supplierById.get(row.child_supplier_id);
+    if (supplier) {
+      const lvl = toChainRiskLevel(supplier.risk_level);
+      if (CHAIN_RISK_RANK[lvl] > g._worst) {
+        g._worst = CHAIN_RISK_RANK[lvl];
+        g.risk_level = lvl;
+      }
+    }
+  }
+
+  return Array.from(groups.values())
+    .map(({ _supplierIds, _worst, ...rest }) => ({ ...rest, supplier_count: _supplierIds.size }))
+    .sort(
+      (a, b) =>
+        CHAIN_RISK_RANK[b.risk_level] - CHAIN_RISK_RANK[a.risk_level] ||
+        a.product_name.localeCompare(b.product_name),
+    );
+}
+
 // 데모(시연)용 전체 mock 맵 묶음
 export const mockDataset: SupplyChainDataset = {
   products,
@@ -672,6 +787,8 @@ export function apiProductsToDataset(apiProducts: ApiProduct[]): Product[] {
     product_code: p.productCode,
     product_name: p.productName,
     manufacturer_id: '',
+    customer_id: p.customerId ?? '',
+    customer_name: p.customerName ?? '',
     type: p.type,
     specs: {
       capacity: '-',

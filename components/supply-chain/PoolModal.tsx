@@ -1,18 +1,15 @@
 'use client';
 
-// 단계2 — 1차 협력사 Pool 구성 팝업 (getSuppliers 실 API). 1차 협력사는 항상 등록되어 있다는 전제.
-import { useEffect, useMemo, useState } from 'react';
+// 단계2 — 1차 협력사 Pool 구성 팝업.
+// 후보는 "선택된 제품의 §10.2a 공급망 맵 tier-1 협력사"만 부모(SupplyChainHub)가 주입한다.
+// 전역 /suppliers 목록을 직접 뿌리지 않는다(제품 무관 전체 노출 방지). 제품 미선택이면 빈 상태 안내.
+import { useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { CheckCircle2, Loader2, Plus, Search, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, PackageSearch, Plus, Search } from 'lucide-react';
 import ModalShell from './ModalShell';
-import {
-  ApiError,
-  getSuppliers,
-  type SupplierBrief,
-  type SupplierType,
-} from '@/lib/api';
+import { type SupplierBrief, type SupplierType } from '@/lib/api';
 
-// §4.2 — 요청 노드(KIRA, OEM/tier0)는 Pool 후보에서 제외
+// §4.2 — 요청 노드(KIRA, OEM/tier0)는 Pool 후보에서 제외 (tier 필터로 대부분 걸러지나 안전망)
 const REQUEST_NODE_ID = 'a0000000-0000-4000-8000-000000000000';
 
 const providerTypeLabel: Record<SupplierType, string> = {
@@ -23,47 +20,29 @@ const providerTypeLabel: Record<SupplierType, string> = {
 };
 
 export default function PoolModal({
+  candidates,
   initialPool,
   onClose,
   onConfirm,
 }: {
+  // 선택된 제품의 1차(tier-1) 협력사 후보. 제품 미선택/맵 데이터 없음이면 빈 배열.
+  candidates: SupplierBrief[];
   initialPool: SupplierBrief[];
   onClose: () => void;
   onConfirm: (selected: SupplierBrief[]) => void;
 }) {
-  const [candidates, setCandidates] = useState<SupplierBrief[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(initialPool.map(s => s.supplierId)));
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const briefs = await getSuppliers();
-        const visible = briefs.filter(s => s.supplierId !== REQUEST_NODE_ID);
-        if (!cancelled) setCandidates(visible);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof ApiError ? err.message : '협력사 목록을 불러오지 못했습니다.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const visible = useMemo(() => candidates.filter(s => s.supplierId !== REQUEST_NODE_ID), [candidates]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return candidates;
-    return candidates.filter(s =>
+    if (!q) return visible;
+    return visible.filter(s =>
       [s.companyName, s.supplierId, s.providerType].filter(Boolean).join(' ').toLowerCase().includes(q),
     );
-  }, [candidates, search]);
+  }, [visible, search]);
 
   function toggle(id: string) {
     setSelectedIds(prev => {
@@ -82,7 +61,7 @@ export default function PoolModal({
   return (
     <ModalShell
       title="협력사 Pool 구성"
-      subtitle="이번 공급망 맵 작업 대상이 될 1차 협력사를 선택하세요. (1차 협력사는 이미 등록되어 있습니다)"
+      subtitle="선택한 대표 제품의 1차 협력사 중 이번 공급망 맵 작업 대상을 고르세요. (1차 협력사는 이미 등록되어 있습니다)"
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3">
@@ -130,15 +109,13 @@ export default function PoolModal({
         </button>
       </div>
 
-      {loading ? (
-        <div className="flex flex-col items-center gap-2 py-12 text-slate-500">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <div className="text-sm font-semibold">협력사 목록을 불러오는 중…</div>
-        </div>
-      ) : error ? (
-        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-alert-border bg-alert-bg p-6 text-center">
-          <ShieldAlert className="h-5 w-5 text-alert-text" />
-          <div className="text-sm font-semibold text-alert-text">{error}</div>
+      {visible.length === 0 ? (
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
+          <PackageSearch className="h-5 w-5 text-slate-400" />
+          <div className="text-sm font-semibold text-ink-100">표시할 1차 협력사가 없습니다</div>
+          <p className="text-xs text-slate-500">
+            STEP 1에서 대표 제품을 먼저 선택하세요. 선택한 제품의 공급망 맵(MBOM 기준) 1차 협력사만 여기에 표시됩니다.
+          </p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="py-12 text-center text-sm text-slate-500">조건에 맞는 협력사가 없습니다.</div>

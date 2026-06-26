@@ -534,6 +534,10 @@ export interface ApiProduct {
   productCode: string;
   productName: string;
   type: string;
+  // GET /products 는 Customer 테이블을 조인해 고객사 식별자·이름을 함께 내려준다(router §list).
+  // 공급망 목록(제품×고객사×기간) 그룹핑·표시에 사용. 미조인 응답이면 undefined.
+  customerId?: string | null;
+  customerName?: string | null;
 }
 export interface ApiBomVersion {
   bomVersionId: string;
