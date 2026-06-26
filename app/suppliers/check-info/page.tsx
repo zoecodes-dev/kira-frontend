@@ -176,30 +176,30 @@ const originRows = [
 
 function statusClasses(status: ReviewStatus) {
   return {
-    완료: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-    '입력 중': 'border-blue-100 bg-blue-50 text-blue-700',
-    '확인 필요': 'border-amber-100 bg-amber-50 text-amber-700',
-    미입력: 'border-red-100 bg-red-50 text-red-700',
+    완료: 'border-ok-border bg-ok-bg text-ok-text',
+    '입력 중': 'border-info-border bg-info-bg text-info-text',
+    '확인 필요': 'border-warn-border bg-warn-bg text-warn-text',
+    미입력: 'border-alert-border bg-alert-bg text-alert-text',
     '해당 없음': 'border-slate-200 bg-slate-100 text-slate-500',
   }[status];
 }
 
 function progressTone(status: ReviewStatus) {
   return {
-    완료: 'bg-emerald-500',
-    '입력 중': 'bg-blue-500',
-    '확인 필요': 'bg-amber-500',
-    미입력: 'bg-red-400',
+    완료: 'bg-ok-solid',
+    '입력 중': 'bg-info-solid',
+    '확인 필요': 'bg-warn-solid',
+    미입력: 'bg-alert-solid',
     '해당 없음': 'bg-slate-300',
   }[status];
 }
 
 function iconTone(status: ReviewStatus) {
   return {
-    완료: 'text-emerald-600',
-    '입력 중': 'text-blue-600',
-    '확인 필요': 'text-amber-600',
-    미입력: 'text-red-500',
+    완료: 'text-ok-text',
+    '입력 중': 'text-info-text',
+    '확인 필요': 'text-warn-text',
+    미입력: 'text-alert-text',
     '해당 없음': 'text-slate-400',
   }[status];
 }
@@ -267,10 +267,10 @@ function SummaryCard({ section }: { section: CollectionSection }) {
 }
 
 function FieldStatus({ status }: { status: ReviewStatus }) {
-  if (status === '완료') return <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
-  if (status === '입력 중') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600"><HelpCircle className="h-3.5 w-3.5" />입력 중</span>;
-  if (status === '미입력') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600"><XCircle className="h-3.5 w-3.5" />미입력</span>;
-  if (status === '확인 필요') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600"><HelpCircle className="h-3.5 w-3.5" />확인 필요</span>;
+  if (status === '완료') return <CheckCircle2 className="h-4 w-4 text-ok-text" />;
+  if (status === '입력 중') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-info-text"><HelpCircle className="h-3.5 w-3.5" />입력 중</span>;
+  if (status === '미입력') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-alert-text"><XCircle className="h-3.5 w-3.5" />미입력</span>;
+  if (status === '확인 필요') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-warn-text"><HelpCircle className="h-3.5 w-3.5" />확인 필요</span>;
   return <span className="text-xs font-semibold text-slate-500">해당 없음</span>;
 }
 
@@ -385,15 +385,15 @@ function AccordionSection({
 
 function inputStatusMeta(rate: number, missingCount: number, reminderCount: number) {
   if (missingCount === 0) {
-    return { label: '완료', className: 'border-emerald-100 bg-emerald-50 text-emerald-700' };
+    return { label: '완료', className: 'border-ok-border bg-ok-bg text-ok-text' };
   }
   if (reminderCount >= 2) {
-    return { label: '보완 지연', className: 'border-red-100 bg-red-50 text-red-700' };
+    return { label: '보완 지연', className: 'border-alert-border bg-alert-bg text-alert-text' };
   }
   if (rate >= 80) {
-    return { label: '검토 대기', className: 'border-amber-100 bg-amber-50 text-amber-700' };
+    return { label: '검토 대기', className: 'border-warn-border bg-warn-bg text-warn-text' };
   }
-  return { label: '작성중', className: 'border-blue-100 bg-blue-50 text-blue-700' };
+  return { label: '작성중', className: 'border-info-border bg-info-bg text-info-text' };
 }
 
 function SupplierCheckInfoIndex() {
@@ -424,20 +424,20 @@ function SupplierCheckInfoIndex() {
           <p className="mt-2 text-sm text-ink-500">작성중이거나 검토가 필요한 협력사를 선택해 상세 수집 현황을 확인합니다.</p>
         </div>
         <Link
-          href="/suppliers/invitations"
+          href="/supply-chain/map"
           className="inline-flex h-9 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-sm font-semibold text-ink-500 shadow-control hover:border-accent-200 hover:text-accent-700"
         >
           <Send className="h-4 w-4" />
-          정보 요청 작성
+          공급망 맵에서 요청
         </Link>
       </div>
 
       <section className="mb-4 grid gap-3 md:grid-cols-4">
         {[
           { label: '전체 협력사', value: rows.length, tone: 'text-ink-100' },
-          { label: '작성중/누락', value: pendingCount, tone: 'text-blue-700' },
-          { label: '검토 대기', value: reviewCount, tone: 'text-amber-700' },
-          { label: '보완 지연', value: delayedCount, tone: 'text-red-700' },
+          { label: '작성중/누락', value: pendingCount, tone: 'text-info-text' },
+          { label: '검토 대기', value: reviewCount, tone: 'text-warn-text' },
+          { label: '보완 지연', value: delayedCount, tone: 'text-alert-text' },
         ].map(item => (
           <div key={item.label} className="rounded-sm border border-ink-700 bg-white px-4 py-3 shadow-control">
             <div className="text-xs font-semibold text-ink-500">{item.label}</div>
@@ -475,10 +475,10 @@ function SupplierCheckInfoIndex() {
                 const visibleMissing = row.missingFields.slice(0, 2);
                 const hiddenCount = Math.max(row.missingFields.length - visibleMissing.length, 0);
                 const progressTone =
-                  row.completionRate >= 90 ? 'bg-emerald-500' :
-                  row.completionRate >= 75 ? 'bg-amber-500' :
-                  row.completionRate >= 60 ? 'bg-orange-500' :
-                  'bg-red-500';
+                  row.completionRate >= 90 ? 'bg-ok-solid' :
+                  row.completionRate >= 75 ? 'bg-warn-solid' :
+                  row.completionRate >= 60 ? 'bg-warn-solid' :
+                  'bg-alert-solid';
 
                 return (
                   <tr key={row.supplierId} className="hover:bg-slate-50">
@@ -628,14 +628,13 @@ function SupplierGeneralReviewContent() {
             <button
               type="button"
               onClick={() => setIsRequestModalOpen(true)}
-              className="inline-flex h-9 items-center gap-2 rounded-sm px-3 text-sm font-semibold text-white shadow-control transition-opacity hover:opacity-90 active:opacity-75"
-              style={{ backgroundColor: '#046949' }}
+              className="inline-flex h-9 items-center gap-2 rounded-sm bg-brand px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-brand-hover active:opacity-75"
             >
               <MessageSquare className="h-4 w-4" />
               추가 자료 요청하기
             </button>
             {urgentCount > 0 && (
-              <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white">
+              <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-alert-solid px-1 text-[11px] font-bold text-white">
                 {urgentCount}
               </span>
             )}
@@ -650,12 +649,12 @@ function SupplierGeneralReviewContent() {
         <div className="grid items-center gap-6 px-5 py-5 xl:grid-cols-[minmax(0,1.4fr)_280px_240px_210px]">
           <div className="flex min-w-0 items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-xl font-bold text-white">H</div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ok-solid text-xl font-bold text-white">H</div>
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="truncate text-2xl font-semibold tracking-tight text-ink-100">{displayName}</h1>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-xs font-semibold text-ok-text">
                   {displayTier}
                 </span>
               </div>
@@ -674,7 +673,7 @@ function SupplierGeneralReviewContent() {
           <div className="border-l border-ink-700 pl-6">
             <div className="text-sm font-medium text-ink-500">전체 수집률</div>
             <div className="mt-2 flex items-center gap-5">
-              <span className="text-3xl font-semibold text-emerald-600">{displayRate}%</span>
+              <span className="text-3xl font-semibold text-ok-text">{displayRate}%</span>
               <div className="min-w-28 flex-1">
                 <ProgressBar value={displayRate} status="완료" />
               </div>
@@ -695,7 +694,7 @@ function SupplierGeneralReviewContent() {
             <div className="mt-3">
               <StatusBadge status={supplierSummary.reviewStatus} />
             </div>
-            <button type="button" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700">
+            <button type="button" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-info-text hover:text-info-text">
               상태 이력
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -785,7 +784,7 @@ function SupplierGeneralReviewContent() {
                               type="checkbox"
                               checked={checkedItems.has(key)}
                               onChange={() => toggleItem(key)}
-                              className="h-3.5 w-3.5 accent-emerald-600"
+                              className="h-3.5 w-3.5 accent-brand"
                             />
                             <span className="text-sm text-ink-300">{item}</span>
                           </label>
@@ -823,7 +822,7 @@ function SupplierGeneralReviewContent() {
                   type="button"
                   onClick={sendRequest}
                   disabled={checkedItems.size === 0 || requestSent}
-                  className="inline-flex items-center gap-2 rounded-xs bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xs bg-ok-solid px-4 py-2 text-sm font-semibold text-white hover:bg-ok-solid disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {requestSent ? (
                     <>

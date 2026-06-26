@@ -39,10 +39,10 @@ const subTabs = [
 ];
 
 const riskColors: Record<string, string> = {
-  low: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  medium: 'border-amber-200 bg-amber-50 text-amber-700',
-  high: 'border-red-200 bg-red-50 text-red-700',
-  critical: 'border-red-300 bg-red-50 text-red-800 font-bold',
+  low: 'border-ok-border bg-ok-bg text-ok-text',
+  medium: 'border-warn-border bg-warn-bg text-warn-text',
+  high: 'border-alert-border bg-alert-bg text-alert-text',
+  critical: 'border-alert-border bg-alert-bg text-alert-text font-bold',
 };
 
 const riskLabels: Record<string, string> = {
@@ -151,7 +151,7 @@ export default function SupplierDetailLayout({ children }: { children: React.Rea
               </span>
             )}
             {isHighRiskFlag && (
-              <span className="flex items-center gap-1 rounded-xs border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-700">
+              <span className="flex items-center gap-1 rounded-xs border border-alert-border bg-alert-bg px-2 py-1 text-[10px] text-alert-text">
                 <AlertTriangle className="h-3 w-3" />
                 고위험 플래그
               </span>

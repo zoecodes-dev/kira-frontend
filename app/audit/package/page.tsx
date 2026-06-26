@@ -70,7 +70,7 @@ export default function AuditPackagePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {checklist.map(item => (
                   <div key={item.label} className="flex items-center justify-between rounded-xs border border-ink-700/60 bg-ink-900/30 px-3 py-2">
-                    <div className="flex items-center gap-2 text-xs text-ink-200">{item.done ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <FileText className="w-3.5 h-3.5 text-amber-400" />}{item.label}</div>
+                    <div className="flex items-center gap-2 text-xs text-ink-200">{item.done ? <CheckCircle2 className="w-3.5 h-3.5 text-ok-text" /> : <FileText className="w-3.5 h-3.5 text-warn-text" />}{item.label}</div>
                     <Badge tone={item.done ? 'ok' : 'warn'}>{item.done ? '포함' : '누락'}</Badge>
                   </div>
                 ))}
@@ -96,7 +96,7 @@ export default function AuditPackagePage() {
                   <div key={entry.step} className="flex items-center gap-3 rounded-xs border border-ink-700/60 bg-ink-900/30 px-3 py-2">
                     <div className="w-7 h-7 rounded-full border border-ink-700 flex items-center justify-center text-[11px] text-accent-500 num-mono">{entry.step}</div>
                     <div className="min-w-0 flex-1"><div className="text-xs font-semibold text-ink-100">{entry.nodeName}</div><div className="text-[10px] text-ink-500 truncate">{entry.inputHash} → {entry.outputHash}</div></div>
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                    <ShieldCheck className="w-3.5 h-3.5 text-ok-text" />
                   </div>
                 ))}
               </div>

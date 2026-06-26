@@ -75,9 +75,9 @@ const riskConfig: Record<string, {
   icon: typeof ShieldCheck;
 }> = {
   low:      { label: '저위험',   tone: 'ok',    dot: 'bg-signal-ok', icon: ShieldCheck },
-  medium:   { label: '중위험',   tone: 'warn',  dot: 'bg-amber-500', icon: ShieldAlert },
-  high:     { label: '고위험',   tone: 'alert', dot: 'bg-red-500',   icon: ShieldAlert },
-  critical: { label: '최고위험', tone: 'alert', dot: 'bg-red-600',   icon: ShieldAlert },
+  medium:   { label: '중위험',   tone: 'warn',  dot: 'bg-warn-solid', icon: ShieldAlert },
+  high:     { label: '고위험',   tone: 'alert', dot: 'bg-alert-solid',   icon: ShieldAlert },
+  critical: { label: '최고위험', tone: 'alert', dot: 'bg-alert-solid',   icon: ShieldAlert },
 };
 
 // ─── status 기반 노드 카드 배경색 (기획서 F-2) ────────────────────────────────
@@ -256,7 +256,7 @@ function MyCompanyCard({ supplierId }: { supplierId: string }) {
         <div className="mt-3 flex items-center gap-1.5 rounded-xs border border-ink-700 bg-ink-800 px-3 py-2">
           <RiskIcon className={clsx('h-3.5 w-3.5 shrink-0',
             risk?.riskLevel === 'low' ? 'text-signal-ok' :
-            risk?.riskLevel === 'medium' ? 'text-amber-500' : 'text-red-500'
+            risk?.riskLevel === 'medium' ? 'text-warn-text' : 'text-alert-text'
           )} strokeWidth={2.2} />
           <span className="text-[10px] font-semibold text-ink-300">{rc.label}</span>
         </div>
@@ -500,7 +500,7 @@ export default function SupplyChainMap({
           <h2 className="text-base font-bold text-ink-100">공급망 연결</h2>
           <p className="mt-1 text-xs text-ink-500">직접 연결된 1-Tier 파트너사만 표시합니다</p>
         </div>
-        <div className="flex items-center gap-2 rounded-xs border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-800">
+        <div className="flex items-center gap-2 rounded-xs border border-warn-border bg-warn-bg px-3 py-2 text-[10px] text-warn-text">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           <span>보안 정책: 직상위·직하위 1단계만 표시 · 전체 공급망 구조 비공개</span>
         </div>

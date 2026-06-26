@@ -13,11 +13,11 @@ interface TopStatCardProps {
 
 const toneStyles: Record<TopStatTone, { card: string; value: string }> = {
   neutral: { card: 'border-slate-300 bg-slate-50/80 hover:border-slate-400', value: 'text-slate-700' },
-  info: { card: 'border-blue-300 bg-blue-50/80 hover:border-blue-400', value: 'text-blue-700' },
-  ok: { card: 'border-emerald-300 bg-emerald-50/80 hover:border-emerald-400', value: 'text-emerald-700' },
-  warn: { card: 'border-orange-300 bg-orange-50/80 hover:border-orange-400', value: 'text-orange-700' },
-  alert: { card: 'border-red-300 bg-red-50/80 hover:border-red-400', value: 'text-red-700' },
-  critical: { card: 'border-red-400 bg-red-50 hover:border-red-500', value: 'text-red-800' },
+  info: { card: 'border-info-border bg-info-bg hover:border-info-border', value: 'text-info-text' },
+  ok: { card: 'border-ok-border bg-ok-bg hover:border-ok-border', value: 'text-ok-text' },
+  warn: { card: 'border-warn-border bg-warn-bg hover:border-warn-border', value: 'text-warn-text' },
+  alert: { card: 'border-alert-border bg-alert-bg hover:border-alert-border', value: 'text-alert-text' },
+  critical: { card: 'border-alert-border bg-alert-bg hover:border-alert-border', value: 'text-alert-text' },
   purple: { card: 'border-violet-300 bg-violet-50/80 hover:border-violet-400', value: 'text-violet-700' },
 };
 

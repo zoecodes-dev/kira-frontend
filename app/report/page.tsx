@@ -123,9 +123,9 @@ const statusMeta: Record<ReportStatus, { label: string; tone: 'ok' | 'warn' | 'a
 };
 
 const reviewerStatusStyle: Record<ReviewerStatus, string> = {
-  pending: 'text-amber-600',
-  approved: 'text-emerald-600',
-  rejected: 'text-red-600',
+  pending: 'text-warn-text',
+  approved: 'text-ok-text',
+  rejected: 'text-alert-text',
   waiting: 'text-ink-400',
 };
 
@@ -223,12 +223,12 @@ export default function ReportPage() {
             </section>
 
             {selected.rejectReason && (
-              <section className="rounded-xs border border-red-200 bg-red-50 p-3">
+              <section className="rounded-xs border border-alert-border bg-alert-bg p-3">
                 <div className="flex items-start gap-2">
-                  <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                  <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-alert-text" />
                   <div>
-                    <div className="text-xs font-bold text-red-800">반려 사유</div>
-                    <div className="mt-1 text-sm text-red-700">{selected.rejectReason}</div>
+                    <div className="text-xs font-bold text-alert-text">반려 사유</div>
+                    <div className="mt-1 text-sm text-alert-text">{selected.rejectReason}</div>
                   </div>
                 </div>
               </section>

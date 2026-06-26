@@ -102,7 +102,7 @@ export default function AuditPage() {
 
           {/* 최종 결과 */}
           <div className="mt-6 pt-5 border-t border-ink-700">
-            <div className="rounded-xs border border-red-700/40 bg-red-500/5 p-4">
+            <div className="rounded-xs border border-alert-border bg-alert-bg p-4">
               <div className="flex items-start gap-3">
                 <Badge tone="alert" dot>최종 판정: 반려</Badge>
               </div>
@@ -135,8 +135,8 @@ function SummaryStat({ label, value, unit }: any) {
 function AuditEntryRow({ entry, expanded, onToggle }: { entry: AuditEntry; expanded: boolean; onToggle: () => void }) {
   const typeStyles = {
     agent: { icon: Bot,    bg: 'bg-accent-700/20', text: 'text-accent-300', border: 'border-accent-700/40' },
-    tool:  { icon: Wrench, bg: 'bg-blue-700/20',   text: 'text-blue-300',   border: 'border-blue-700/40' },
-    human: { icon: User,   bg: 'bg-amber-700/20',  text: 'text-amber-300',  border: 'border-amber-700/40' },
+    tool:  { icon: Wrench, bg: 'bg-info-bg',   text: 'text-info-text',   border: 'border-info-border' },
+    human: { icon: User,   bg: 'bg-warn-bg',  text: 'text-warn-text',  border: 'border-warn-border' },
   };
   const style = typeStyles[entry.nodeType];
   const Icon = style.icon;

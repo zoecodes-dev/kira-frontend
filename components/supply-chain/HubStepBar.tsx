@@ -33,9 +33,9 @@ function StepButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="group flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2.5 text-left shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-white"
+      className="group flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2.5 text-left shadow-sm transition hover:border-ok-border hover:bg-ok-bg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-white"
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-ink-400 group-enabled:group-hover:bg-emerald-100 group-enabled:group-hover:text-emerald-700">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-ink-400 group-enabled:group-hover:bg-ok-bg group-enabled:group-hover:text-ok-text">
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0">
@@ -59,7 +59,7 @@ export default function HubStepBar({
   return (
     <section className="border-b border-slate-200 bg-white px-6 pt-6">
       <div className="mb-1 flex items-center gap-2">
-        <Layers className="h-5 w-5 text-emerald-600" />
+        <Layers className="h-5 w-5 text-ok-text" />
         <h1 className="text-2xl font-black tracking-tight text-ink-100">공급망 맵 허브</h1>
       </div>
       <p className="text-sm font-medium text-ink-500">
@@ -67,14 +67,14 @@ export default function HubStepBar({
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2 pb-4">
-        <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50/60 px-3 py-2.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
+        <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-ok-border bg-ok-bg px-3 py-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ok-bg text-ok-text">
             <PackageSearch className="h-4 w-4" />
           </span>
           <span className="min-w-0">
-            <span className="block text-[11px] font-bold text-emerald-600">STEP 1</span>
+            <span className="block text-[11px] font-bold text-ok-text">STEP 1</span>
             <span className="block truncate text-sm font-bold text-ink-100">맵 생성 · 대표 제품 선택</span>
-            <span className="block truncate text-[11px] font-medium text-emerald-700">아래에서 제품을 선택하세요</span>
+            <span className="block truncate text-[11px] font-medium text-ok-text">아래에서 제품을 선택하세요</span>
           </span>
         </div>
         <StepButton index={2} label="협력사 Pool 구성" hint={poolCount > 0 ? `${poolCount}개사 선택됨` : '1차 협력사 선택'} Icon={Users} onClick={onOpenPool} />

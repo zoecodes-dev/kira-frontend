@@ -146,19 +146,19 @@ function certDDayStyle(days: number): {
 } {
   if (days <= 7) {
     return {
-      wrapperCls: 'border-red-300 bg-red-50',
-      badgeCls:   'bg-red-600 text-white',
+      wrapperCls: 'border-alert-border bg-alert-bg',
+      badgeCls:   'bg-alert-solid text-white',
     };
   }
   if (days <= 30) {
     return {
-      wrapperCls: 'border-red-200 bg-red-50',
-      badgeCls:   'bg-red-500 text-white',
+      wrapperCls: 'border-alert-border bg-alert-bg',
+      badgeCls:   'bg-alert-solid text-white',
     };
   }
   return {
-    wrapperCls: 'border-amber-300 bg-amber-50',
-    badgeCls:   'bg-amber-500 text-white',
+    wrapperCls: 'border-warn-border bg-warn-bg',
+    badgeCls:   'bg-warn-solid text-white',
   };
 }
 
@@ -202,7 +202,7 @@ function RelationRow({
   const name = getSupplierName(supplier.id);
   const relationLabel = relation === 'parent' ? '직속 상위' : '직속 하위';
   const relationBadgeCls = relation === 'parent'
-    ? 'bg-blue-50 text-blue-700 border-blue-200'
+    ? 'bg-info-bg text-info-text border-info-border'
     : 'bg-teal-50 text-teal-700 border-teal-200';
 
   return (
@@ -338,7 +338,7 @@ function SupplierInfoPreview({
   // 관계 라벨 — Tier 숫자 대신 가시성 기반 표시
   const relationLabel = relation === 'parent' ? '직속 상위 (Parent)' : relation === 'child' ? '직속 하위 (Child)' : null;
   const relationBadgeCls = relation === 'parent'
-    ? 'bg-blue-50 text-blue-700 border-blue-200'
+    ? 'bg-info-bg text-info-text border-info-border'
     : 'bg-teal-50 text-teal-700 border-teal-200';
 
   if (!supplier) {
@@ -516,12 +516,12 @@ function SupplierInfoPreview({
                 <div
                   key={cert.certId}
                   className={`flex items-start justify-between gap-3 rounded-xs border px-3 py-2.5 ${
-                    isInactive ? 'border-red-200 bg-red-50' : 'border-ink-700 bg-ink-800'
+                    isInactive ? 'border-alert-border bg-alert-bg' : 'border-ink-700 bg-ink-800'
                   }`}
                 >
                   {/* 인증서명 + 발급기관 */}
                   <div className="min-w-0">
-                    <div className={`truncate text-xs font-semibold ${isInactive ? 'text-red-900' : 'text-ink-100'}`}>
+                    <div className={`truncate text-xs font-semibold ${isInactive ? 'text-alert-text' : 'text-ink-100'}`}>
                       {cert.certName}
                     </div>
                     <div className="truncate text-[10px] text-ink-500">{cert.issuingBody}</div>
@@ -533,7 +533,7 @@ function SupplierInfoPreview({
                         <span className={`rounded-xs px-2 py-0.5 text-[11px] font-bold tabular-nums ${badgeCls}`}>
                           {ddayLabel}
                         </span>
-                        <span className="text-[10px] text-red-600 font-medium">
+                        <span className="text-[10px] text-alert-text font-medium">
                           {certStatusLabel[cert.status]}
                         </span>
                         {/* ⑤ 갱신 증빙 업로드 버튼 — self 모드 + 콜백 있을 때만 */}
@@ -992,7 +992,7 @@ export default function SupplierPage() {
                   {/* 1-1. 기업 기본정보 수정 요청 버튼 — 5-1. edit-info로 라우팅 통일 */}
                   {/* 5-3. isProfilePending 시 배지 덮어씌우기 */}
                   {isProfilePending && (
-                    <span className="inline-flex items-center gap-1 rounded-xs border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700">
+                    <span className="inline-flex items-center gap-1 rounded-xs border border-warn-border bg-warn-bg px-2 py-1 text-[10px] font-bold text-warn-text">
                       <Clock className="h-3 w-3" />
                       정보 변경 검토 중
                     </span>
@@ -1035,7 +1035,7 @@ export default function SupplierPage() {
               <div className="flex items-center gap-2">
                 {/* 5-3. 정보 변경 검토 중 배지 */}
                 {isProfilePending && (
-                  <span className="inline-flex items-center gap-1 rounded-xs border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700">
+                  <span className="inline-flex items-center gap-1 rounded-xs border border-warn-border bg-warn-bg px-2 py-1 text-[10px] font-bold text-warn-text">
                     <Clock className="h-3 w-3" />
                     정보 변경 검토 중
                   </span>
@@ -1095,7 +1095,7 @@ export default function SupplierPage() {
               </div>
               <div className="flex items-center gap-2">
                 {isProfilePending && (
-                  <span className="inline-flex items-center gap-1 rounded-xs border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700">
+                  <span className="inline-flex items-center gap-1 rounded-xs border border-warn-border bg-warn-bg px-2 py-1 text-[10px] font-bold text-warn-text">
                     <Clock className="h-3 w-3" />
                     정보 변경 검토 중
                   </span>
@@ -1201,7 +1201,7 @@ export default function SupplierPage() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className={`text-xs font-bold ${isExpiring ? 'text-red-900' : 'text-ink-100'}`}>
+                        <div className={`text-xs font-bold ${isExpiring ? 'text-alert-text' : 'text-ink-100'}`}>
                           {cert.certName}
                         </div>
                         <div className="mt-0.5 text-[10px] text-ink-500">{cert.issuingBody ?? '발급 기관 미등록'}</div>
@@ -1255,7 +1255,7 @@ export default function SupplierPage() {
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
                   (completeness?.completionRate ?? 0) >= 90 ? 'bg-signal-ok' :
-                  (completeness?.completionRate ?? 0) >= 70 ? 'bg-accent-700' : 'bg-red-500'
+                  (completeness?.completionRate ?? 0) >= 70 ? 'bg-accent-700' : 'bg-alert-solid'
                 }`}
                 style={{ width: `${completeness?.completionRate ?? 0}%` }}
               />
@@ -1271,17 +1271,17 @@ export default function SupplierPage() {
           >
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="text-[11px] font-bold text-ink-500">보완 요청</span>
-              <AlertCircle className={`h-4 w-4 ${pendingRequests > 0 ? 'text-amber-500' : 'text-signal-ok'}`} />
+              <AlertCircle className={`h-4 w-4 ${pendingRequests > 0 ? 'text-warn-text' : 'text-signal-ok'}`} />
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className={`num-mono text-3xl font-bold ${pendingRequests > 0 ? 'text-amber-600' : 'text-ink-100'}`}>
+              <span className={`num-mono text-3xl font-bold ${pendingRequests > 0 ? 'text-warn-text' : 'text-ink-100'}`}>
                 {pendingRequests}
               </span>
               <span className="text-sm font-bold text-ink-400">건</span>
             </div>
             <div className="mt-3 text-[10px] text-ink-500">누락 항목 + 인증서</div>
             {pendingRequests > 0 && (
-              <div className="mt-1.5 text-[10px] font-bold text-amber-600">즉시 확인 필요</div>
+              <div className="mt-1.5 text-[10px] font-bold text-warn-text">즉시 확인 필요</div>
             )}
           </div>
 
@@ -1290,12 +1290,12 @@ export default function SupplierPage() {
               <span className="text-[11px] font-bold text-ink-500">현재 리스크</span>
               <ShieldCheck className={`h-4 w-4 ${
                 risk?.riskLevel === 'low' ? 'text-signal-ok' :
-                risk?.riskLevel === 'medium' ? 'text-amber-500' : 'text-red-500'
+                risk?.riskLevel === 'medium' ? 'text-warn-text' : 'text-alert-text'
               }`} />
             </div>
             <div className={`text-2xl font-bold ${
               risk?.riskLevel === 'low' ? 'text-signal-ok' :
-              risk?.riskLevel === 'medium' ? 'text-amber-600' : 'text-red-600'
+              risk?.riskLevel === 'medium' ? 'text-warn-text' : 'text-alert-text'
             }`}>
               {risk ? riskLabel[risk.riskLevel] : '미확인'}
             </div>
@@ -1360,20 +1360,20 @@ export default function SupplierPage() {
                       }
                     }}
                     className={`flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-ink-800/30 ${
-                      isUrgent ? 'bg-red-50/30' : 'bg-white'
+                      isUrgent ? 'bg-alert-bg' : 'bg-white'
                     }`}
                   >
                     {/* 순서 번호 */}
                     <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                      isUrgent ? 'bg-red-100 text-red-600' :
-                      isWarn   ? 'bg-amber-100 text-amber-700' :
+                      isUrgent ? 'bg-alert-bg text-alert-text' :
+                      isWarn   ? 'bg-warn-bg text-warn-text' :
                                  'bg-ink-800 text-ink-400'
                     }`}>
                       {idx + 1}
                     </div>
                     {/* 항목명 + 기한 */}
                     <div className="min-w-0 flex-1">
-                      <div className={`text-xs font-bold ${isUrgent ? 'text-red-700' : 'text-ink-100'}`}>
+                      <div className={`text-xs font-bold ${isUrgent ? 'text-alert-text' : 'text-ink-100'}`}>
                         {item.label}
                       </div>
                       <div className="mt-0.5 text-[10px] text-ink-500">
@@ -1383,9 +1383,9 @@ export default function SupplierPage() {
                     {/* D-day + 상태 */}
                     <div className="flex shrink-0 items-center gap-2">
                       <span className={`num-mono rounded-xs border px-2 py-0.5 text-[10px] font-bold ${
-                        isUrgent ? 'border-red-200 bg-red-50 text-red-600' :
-                        isWarn   ? 'border-amber-200 bg-amber-50 text-amber-700' :
-                                   'border-green-200 bg-green-50 text-green-700'
+                        isUrgent ? 'border-alert-border bg-alert-bg text-alert-text' :
+                        isWarn   ? 'border-warn-border bg-warn-bg text-warn-text' :
+                                   'border-ok-border bg-ok-bg text-ok-text'
                       }`}>
                         {ddayLabel}
                       </span>
@@ -1440,8 +1440,8 @@ export default function SupplierPage() {
                   <div key={item.label} className="flex items-center gap-3 px-5 py-3">
                     <div className={`h-2 w-2 shrink-0 rounded-full ${
                       item.tone === 'ok' ? 'bg-signal-ok' :
-                      item.tone === 'warn' ? 'bg-amber-400' :
-                      item.tone === 'alert' ? 'bg-red-500' : 'bg-accent-500'
+                      item.tone === 'warn' ? 'bg-warn-solid' :
+                      item.tone === 'alert' ? 'bg-alert-solid' : 'bg-accent-500'
                     }`} />
                     <div className="min-w-0 flex-1">
                       <div className="text-[11px] font-bold text-ink-100">{item.label}</div>
@@ -1468,8 +1468,8 @@ export default function SupplierPage() {
             </div>
             <div className="p-4 space-y-2">
               {missing.slice(0, 3).map(item => (
-                <div key={item} className="flex items-center gap-2 rounded-xs border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                <div key={item} className="flex items-center gap-2 rounded-xs border border-warn-border bg-warn-bg px-3 py-2.5 text-xs text-warn-text">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-warn-text" />
                   <span className="font-semibold">{item}</span>
                 </div>
               ))}
@@ -1482,11 +1482,11 @@ export default function SupplierPage() {
                     className={`flex items-center justify-between gap-3 rounded-xs border px-3 py-2.5 text-xs ${wrapperCls}`}
                   >
                     <div className="flex min-w-0 items-center gap-2">
-                      <FileCheck className="h-3.5 w-3.5 shrink-0 text-red-500" />
-                      <span className="truncate font-semibold text-red-900">{cert.certName}</span>
+                      <FileCheck className="h-3.5 w-3.5 shrink-0 text-alert-text" />
+                      <span className="truncate font-semibold text-alert-text">{cert.certName}</span>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
-                      <span className="text-[10px] text-red-700">{certStatusLabel[cert.status]}</span>
+                      <span className="text-[10px] text-alert-text">{certStatusLabel[cert.status]}</span>
                       <span className={`rounded-xs px-2 py-0.5 text-[11px] font-bold tabular-nums ${badgeCls}`}>
                         {ddayLabel}
                       </span>
@@ -1508,14 +1508,14 @@ export default function SupplierPage() {
             <div className="p-4 space-y-2">
               {reviewResults.filter(r => r.tone === 'alert' || r.tone === 'warn').map(item => (
                 <div key={item.label} className={`flex items-start gap-2 rounded-xs border px-3 py-2.5 text-xs ${
-                  item.tone === 'alert' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'
+                  item.tone === 'alert' ? 'border-alert-border bg-alert-bg' : 'border-warn-border bg-warn-bg'
                 }`}>
-                  <ShieldAlert className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${item.tone === 'alert' ? 'text-red-500' : 'text-amber-500'}`} />
+                  <ShieldAlert className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${item.tone === 'alert' ? 'text-alert-text' : 'text-warn-text'}`} />
                   <div>
-                    <div className={`font-bold ${item.tone === 'alert' ? 'text-red-900' : 'text-amber-900'}`}>
+                    <div className={`font-bold ${item.tone === 'alert' ? 'text-alert-text' : 'text-warn-text'}`}>
                       {item.label}
                     </div>
-                    <div className={`mt-0.5 ${item.tone === 'alert' ? 'text-red-700' : 'text-amber-700'}`}>
+                    <div className={`mt-0.5 ${item.tone === 'alert' ? 'text-alert-text' : 'text-warn-text'}`}>
                       {item.reason}
                     </div>
                   </div>
@@ -1527,7 +1527,7 @@ export default function SupplierPage() {
                   setViolationId('VIO-2026-0042');
                   setViolationModalOpen(true);
                 }}
-                className="mt-1 flex w-full items-center justify-center gap-2 rounded-xs border border-red-300 bg-red-50 px-3 py-2.5 text-xs font-bold text-red-700 transition-colors hover:bg-red-600 hover:text-white hover:border-red-600 shadow-control"
+                className="mt-1 flex w-full items-center justify-center gap-2 rounded-xs border border-alert-border bg-alert-bg px-3 py-2.5 text-xs font-bold text-alert-text transition-colors hover:bg-alert-solid hover:text-white hover:border-alert-border shadow-control"
               >
                 <ShieldAlert className="h-3.5 w-3.5" />
                 시정 조치 계획 제출하기
@@ -1696,8 +1696,8 @@ export default function SupplierPage() {
               <div key={s.label} className="rounded-sm border border-ink-700 bg-white px-4 py-3 shadow-control">
                 <div className="text-[10px] font-bold text-ink-500">{s.label}</div>
                 <div className={`num-mono mt-1 text-2xl font-bold ${
-                  s.tone === 'alert' ? 'text-red-600' :
-                  s.tone === 'warn'  ? 'text-amber-600' :
+                  s.tone === 'alert' ? 'text-alert-text' :
+                  s.tone === 'warn'  ? 'text-warn-text' :
                   s.tone === 'info'  ? 'text-accent-700' : 'text-signal-ok'
                 }`}>{s.count}</div>
               </div>
@@ -1777,18 +1777,18 @@ export default function SupplierPage() {
                   <div
                     key={row.label}
                     className={`grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center border-b border-ink-700 px-5 py-3.5 last:border-b-0 transition-colors hover:bg-ink-800/20 ${
-                      isRework ? 'bg-amber-50/30' : isApproved ? 'bg-green-50/20' : ''
+                      isRework ? 'bg-warn-bg' : isApproved ? 'bg-ok-bg' : ''
                     }`}
                   >
                     {/* 문서명 */}
                     <div className="flex items-center gap-2.5 min-w-0">
                       <FileText className={`h-4 w-4 shrink-0 ${
-                        isRework ? 'text-amber-500' : isApproved ? 'text-signal-ok' : 'text-ink-500'
+                        isRework ? 'text-warn-text' : isApproved ? 'text-signal-ok' : 'text-ink-500'
                       }`} />
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-ink-100 truncate">{row.label}</div>
                         {isRework && row.reworkReason && (
-                          <div className="mt-0.5 text-[10px] text-amber-700 truncate">
+                          <div className="mt-0.5 text-[10px] text-warn-text truncate">
                             사유: {row.reworkReason}
                           </div>
                         )}
@@ -1807,9 +1807,9 @@ export default function SupplierPage() {
                     <div>
                       <span className={`num-mono rounded-xs border px-2 py-0.5 text-[10px] font-bold ${
                         days < 0  ? 'border-ink-600 bg-ink-800 text-ink-400' :
-                        days <= 3  ? 'border-red-200 bg-red-50 text-red-600' :
-                        days <= 7  ? 'border-amber-200 bg-amber-50 text-amber-700' :
-                                     'border-green-200 bg-green-50 text-green-700'
+                        days <= 3  ? 'border-alert-border bg-alert-bg text-alert-text' :
+                        days <= 7  ? 'border-warn-border bg-warn-bg text-warn-text' :
+                                     'border-ok-border bg-ok-bg text-ok-text'
                       }`}>
                         {ddayLabel}
                       </span>
@@ -1821,7 +1821,7 @@ export default function SupplierPage() {
                         <button
                           type="button"
                           onClick={() => openWizardRework(row.label, row.reworkReason ?? '')}
-                          className="rounded-xs border border-amber-400 bg-amber-50 px-2.5 py-1.5 text-[10px] font-bold text-amber-800 hover:bg-amber-400 hover:text-white transition-colors"
+                          className="rounded-xs border border-warn-border bg-warn-bg px-2.5 py-1.5 text-[10px] font-bold text-warn-text hover:bg-warn-solid hover:text-white transition-colors"
                         >
                           재제출
                         </button>
@@ -1838,7 +1838,7 @@ export default function SupplierPage() {
                           }}
                           className={`rounded-xs border px-2.5 py-1.5 text-[10px] font-bold transition-colors ${
                             row.isSupplyMapRequest
-                              ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-500 hover:text-white'
+                              ? 'border-warn-border bg-warn-bg text-warn-text hover:bg-warn-solid hover:text-white'
                               : 'border-accent-100 bg-white text-accent-700 hover:border-accent-600'
                           }`}
                         >
@@ -1892,8 +1892,8 @@ export default function SupplierPage() {
                   <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-ink-500">자주 반려되는 항목</div>
                   <div className="space-y-2">
                     {['좌표계 누락', '서명본 미첨부', '기간 불일치', '배출 산정 근거 부족'].map(item => (
-                      <div key={item} className="flex items-center gap-2 rounded-xs border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-900">
-                        <AlertCircle className="h-3 w-3 shrink-0 text-amber-600" />
+                      <div key={item} className="flex items-center gap-2 rounded-xs border border-warn-border bg-warn-bg px-3 py-2 text-[11px] font-semibold text-warn-text">
+                        <AlertCircle className="h-3 w-3 shrink-0 text-warn-text" />
                         {item}
                       </div>
                     ))}
@@ -2125,7 +2125,7 @@ export default function SupplierPage() {
                     <div className="text-[10px] font-bold text-ink-500">{kpi.label}</div>
                     <div className={`num-mono mt-1 text-2xl font-bold ${
                       kpi.tone === 'ok' ? 'text-signal-ok' :
-                      kpi.tone === 'warn' ? 'text-amber-600' : 'text-ink-100'
+                      kpi.tone === 'warn' ? 'text-warn-text' : 'text-ink-100'
                     }`}>{kpi.count}</div>
                   </div>
                 ))}
@@ -2150,7 +2150,7 @@ export default function SupplierPage() {
                     <div
                       key={row.id}
                       className={`grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center border-b border-ink-700 px-5 py-4 last:border-b-0 transition-colors hover:bg-ink-800/20 ${
-                        isSubmitted ? 'bg-green-50/20' : ''
+                        isSubmitted ? 'bg-ok-bg' : ''
                       }`}
                     >
                       {/* 발송 대상 */}
@@ -2184,7 +2184,7 @@ export default function SupplierPage() {
                           <button
                             type="button"
                             onClick={() => alert(`${row.company}에 독촉 알림톡이 재발송되었습니다.`)}
-                            className="rounded-xs border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[10px] font-bold text-amber-800 hover:bg-amber-500 hover:text-white transition-colors"
+                            className="rounded-xs border border-warn-border bg-warn-bg px-2.5 py-1.5 text-[10px] font-bold text-warn-text hover:bg-warn-solid hover:text-white transition-colors"
                           >
                             독촉 알림 재발송
                           </button>
@@ -2206,8 +2206,8 @@ export default function SupplierPage() {
 
         {activeView === 'notifications' && (() => {
           const NOTIF_TYPE_CONFIG = {
-            sla_warning:     { barCls: 'bg-amber-400',  iconCls: 'text-amber-600',  bgUnread: 'bg-amber-50/40',  label: '기한 임박' },
-            violation:       { barCls: 'bg-red-500',    iconCls: 'text-red-600',    bgUnread: 'bg-red-50/40',    label: '위반 지적' },
+            sla_warning:     { barCls: 'bg-warn-solid',  iconCls: 'text-warn-text',  bgUnread: 'bg-warn-bg',  label: '기한 임박' },
+            violation:       { barCls: 'bg-alert-solid',    iconCls: 'text-alert-text',    bgUnread: 'bg-alert-bg',    label: '위반 지적' },
             approval_needed: { barCls: 'bg-accent-500', iconCls: 'text-accent-600', bgUnread: 'bg-accent-50/30', label: '확인 요청' },
             info:            { barCls: 'bg-ink-500',    iconCls: 'text-ink-500',    bgUnread: 'bg-ink-800/20',   label: '안내' },
           } as const;
@@ -2247,7 +2247,7 @@ export default function SupplierPage() {
                     <Bell className="h-4 w-4 text-ink-500" />
                     <span className="text-xs font-bold text-ink-100">원청사 알림</span>
                     {unreadCount > 0 && (
-                      <span className="rounded-xs border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-bold text-red-600">
+                      <span className="rounded-xs border border-alert-border bg-alert-bg px-1.5 py-0.5 text-[9px] font-bold text-alert-text">
                         미확인 {unreadCount}
                       </span>
                     )}
@@ -2280,7 +2280,7 @@ export default function SupplierPage() {
                             <span className={`text-[11px] font-bold leading-snug ${isUnread ? 'text-ink-100' : 'text-ink-500'}`}>
                               {notif.subject}
                             </span>
-                            {isUnread && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />}
+                            {isUnread && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-alert-solid" />}
                           </div>
                           <p className="line-clamp-2 text-[10px] text-ink-500 leading-relaxed mb-1.5">{notif.body}</p>
                           <div className="flex items-center justify-between">
@@ -2301,8 +2301,8 @@ export default function SupplierPage() {
                 <div className="rounded-sm border border-ink-700 bg-white shadow-control overflow-hidden flex flex-col">
                   {/* 상세 헤더 */}
                   <div className={`border-b px-6 py-5 ${
-                    selectedNotif.notification_type === 'violation'     ? 'border-red-200 bg-red-600' :
-                    selectedNotif.notification_type === 'sla_warning'   ? 'border-amber-200 bg-amber-600' :
+                    selectedNotif.notification_type === 'violation'     ? 'border-alert-border bg-alert-solid' :
+                    selectedNotif.notification_type === 'sla_warning'   ? 'border-warn-border bg-warn-solid' :
                                                                           'border-accent-200 bg-accent-700'
                   }`}>
                     <div className="flex items-center justify-between gap-3">

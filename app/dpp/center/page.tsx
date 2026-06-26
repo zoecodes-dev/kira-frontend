@@ -28,10 +28,10 @@ interface IssuedRecord { id: string; name: string; stage: string; issuedAt: stri
 const blockerMeta: Record<BlockerKey, {
   label: string; sub: string; color: string; barColor: string; icon: typeof FileSearch;
 }> = {
-  feoc:   { label: 'FEOC 조사 누락',    sub: 'EU 배터리 규정 2031 기준 미충족',     color: 'text-red-700',    barColor: 'bg-red-500',    icon: FileSearch },
-  origin: { label: '원산지 정보 미완료', sub: '공급 원산지 및 레퍼런스 정보 누락',   color: 'text-orange-700', barColor: 'bg-orange-500', icon: ShieldAlert },
-  hitl:   { label: 'HITL 검토 대기',    sub: 'AI 신뢰도 부족으로 사람 검토 필요',   color: 'text-indigo-700', barColor: 'bg-indigo-500', icon: UserCheck },
-  audit:  { label: '실사 평가 미제출',   sub: '공급망 실사 평가 미제출 또는 미통과',  color: 'text-amber-700',  barColor: 'bg-amber-500',  icon: FileBadge },
+  feoc:   { label: 'FEOC 조사 누락',    sub: 'EU 배터리 규정 2031 기준 미충족',     color: 'text-alert-text',    barColor: 'bg-alert-solid',    icon: FileSearch },
+  origin: { label: '원산지 정보 미완료', sub: '공급 원산지 및 레퍼런스 정보 누락',   color: 'text-warn-text', barColor: 'bg-warn-solid', icon: ShieldAlert },
+  hitl:   { label: 'HITL 검토 대기',    sub: 'AI 신뢰도 부족으로 사람 검토 필요',   color: 'text-info-text', barColor: 'bg-info-solid', icon: UserCheck },
+  audit:  { label: '실사 평가 미제출',   sub: '공급망 실사 평가 미제출 또는 미통과',  color: 'text-warn-text',  barColor: 'bg-warn-solid',  icon: FileBadge },
 };
 
 const blockerCounts: Record<BlockerKey, number> = { feoc: 13, origin: 9, hitl: 7, audit: 6 };
@@ -235,7 +235,7 @@ export default function DppCenterPage() {
               <RecycledBar metal="Ni" label="니켈"   avg={niAvg} threshold={6}  maxScale={14} />
               <RecycledBar metal="Li" label="리튬"   avg={liAvg} threshold={6}  maxScale={14} />
               {borderlineCo.length > 0 && (
-                <div className="rounded-xs border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+                <div className="rounded-xs border border-warn-border bg-warn-bg px-3 py-2 text-[13px] text-warn-text">
                   ⚠ {borderlineCo.map(r => r.modelName).join(', ')} – Co 함량이 EU 2031 기준(16%)에 근접
                 </div>
               )}
@@ -309,7 +309,7 @@ export default function DppCenterPage() {
                       <td className="px-5 py-3.5 text-[13px] text-ink-400">{r.stage}</td>
                       <td className="px-5 py-3.5 text-[13px] num-mono text-ink-500">{r.issuedAt}</td>
                       <td className="px-5 py-3.5">
-                        <span className="text-[13px] font-semibold text-emerald-700">발행 완료</span>
+                        <span className="text-[13px] font-semibold text-ok-text">발행 완료</span>
                       </td>
                     </tr>
                   ))}
@@ -370,8 +370,8 @@ function ActionBtn({ children, onClick }: { children: React.ReactNode; onClick: 
 
 function ReadinessBar({ value, warn = false }: { value: number; warn?: boolean }) {
   const color = warn
-    ? value < 70 ? 'bg-red-500' : 'bg-orange-400'
-    : value < 75 ? 'bg-orange-500' : value < 90 ? 'bg-amber-500' : 'bg-emerald-500';
+    ? value < 70 ? 'bg-alert-solid' : 'bg-warn-solid'
+    : value < 75 ? 'bg-warn-solid' : value < 90 ? 'bg-warn-solid' : 'bg-ok-solid';
   return (
     <div className="flex min-w-[120px] items-center gap-2">
       <span className="num-mono w-10 shrink-0 text-[13px] font-semibold text-ink-100">{value}%</span>
@@ -383,8 +383,8 @@ function ReadinessBar({ value, warn = false }: { value: number; warn?: boolean }
 }
 
 function CfStat({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'alert' | 'ok' }) {
-  const vCls = { neutral: 'text-ink-100', alert: 'text-red-700', ok: 'text-emerald-700' }[tone];
-  const bg   = { neutral: 'border-slate-200 bg-slate-50', alert: 'border-red-200 bg-red-50', ok: 'border-emerald-200 bg-emerald-50' }[tone];
+  const vCls = { neutral: 'text-ink-100', alert: 'text-alert-text', ok: 'text-ok-text' }[tone];
+  const bg   = { neutral: 'border-slate-200 bg-slate-50', alert: 'border-alert-border bg-alert-bg', ok: 'border-ok-border bg-ok-bg' }[tone];
   return (
     <div className={clsx('rounded-xs border p-3 text-center', bg)}>
       <div className="text-[11px] font-semibold text-ink-500">{label}</div>
@@ -440,15 +440,15 @@ function RecycledBar({ metal, label, avg, threshold, maxScale }: {
           <span className="text-[12px] text-ink-500">{label}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className={clsx('text-[13px] font-bold num-mono', ok ? 'text-emerald-700' : 'text-red-700')}>{avg}%</span>
-          <span className={clsx('text-[11px] font-semibold', ok ? 'text-emerald-600' : 'text-red-600')}>
+          <span className={clsx('text-[13px] font-bold num-mono', ok ? 'text-ok-text' : 'text-alert-text')}>{avg}%</span>
+          <span className={clsx('text-[11px] font-semibold', ok ? 'text-ok-text' : 'text-alert-text')}>
             {diff >= 0 ? `+${diff}p` : `${diff}p`}
           </span>
         </div>
       </div>
       <div className="relative h-2.5 rounded-full bg-ink-700/15">
-        <div className={clsx('h-full rounded-full', ok ? 'bg-emerald-500' : 'bg-red-400')} style={{ width: `${avgPct}%` }} />
-        <div className="absolute top-[-3px] h-[20px] w-[2px] rounded-full bg-orange-400" style={{ left: `${thresholdPct}%` }} />
+        <div className={clsx('h-full rounded-full', ok ? 'bg-ok-solid' : 'bg-alert-solid')} style={{ width: `${avgPct}%` }} />
+        <div className="absolute top-[-3px] h-[20px] w-[2px] rounded-full bg-warn-solid" style={{ left: `${thresholdPct}%` }} />
       </div>
       <div className="mt-1 text-[10px] text-ink-500" style={{ marginLeft: `calc(${thresholdPct}% - 10px)` }}>기준 {threshold}%</div>
     </div>

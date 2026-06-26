@@ -81,14 +81,14 @@ export default function MapManageModal({
       footer={
         <div className="flex items-center justify-between gap-3">
           <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-ink-300">
-            <input type="checkbox" checked={finalConfirmed} onChange={e => setFinalConfirmed(e.target.checked)} className="h-4 w-4 accent-emerald-600" />
+            <input type="checkbox" checked={finalConfirmed} onChange={e => setFinalConfirmed(e.target.checked)} className="h-4 w-4 accent-brand" />
             공급망 맵 최종 생성을 확인했습니다.
           </label>
           <button
             type="button"
             onClick={onClose}
             disabled={!finalConfirmed}
-            className="inline-flex items-center gap-2 rounded-md bg-[#046949] px-4 py-2 text-sm font-semibold text-white hover:bg-[#03563c] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <CheckCircle2 className="h-4 w-4" />
             확인 완료
@@ -103,11 +103,11 @@ export default function MapManageModal({
         </div>
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-center">
           <div className="text-xs font-semibold text-slate-500">만료 / 임박 협력사</div>
-          <div className="num-mono mt-1 text-2xl font-bold text-amber-700">{flagged.length}</div>
+          <div className="num-mono mt-1 text-2xl font-bold text-warn-text">{flagged.length}</div>
         </div>
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-center">
           <div className="text-xs font-semibold text-slate-500">최종 확인</div>
-          <div className={clsx('mt-1 text-2xl font-bold', finalConfirmed ? 'text-emerald-600' : 'text-slate-400')}>
+          <div className={clsx('mt-1 text-2xl font-bold', finalConfirmed ? 'text-ok-text' : 'text-slate-400')}>
             {finalConfirmed ? '완료' : '대기'}
           </div>
         </div>
@@ -115,7 +115,7 @@ export default function MapManageModal({
 
       <div className="mb-2 text-sm font-bold text-ink-100">인증서 / 원산지 만료 점검</div>
       {pool.length === 0 ? (
-        <div className="rounded-md border border-dashed border-amber-200 bg-amber-50 px-3 py-6 text-center text-sm text-amber-800">
+        <div className="rounded-md border border-dashed border-warn-border bg-warn-bg px-3 py-6 text-center text-sm text-warn-text">
           먼저 협력사 Pool을 구성하세요.
         </div>
       ) : loading ? (
@@ -132,8 +132,8 @@ export default function MapManageModal({
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold text-ink-100">{r.supplier.companyName}</div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
-                    {r.expired > 0 && <span className="rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 font-bold text-red-700">만료 {r.expired}</span>}
-                    {r.soon > 0 && <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-bold text-amber-700">임박 {r.soon}</span>}
+                    {r.expired > 0 && <span className="rounded-full border border-alert-border bg-alert-bg px-1.5 py-0.5 font-bold text-alert-text">만료 {r.expired}</span>}
+                    {r.soon > 0 && <span className="rounded-full border border-warn-border bg-warn-bg px-1.5 py-0.5 font-bold text-warn-text">임박 {r.soon}</span>}
                     {!hasIssue && <span className="text-slate-400">유효</span>}
                   </div>
                 </div>
@@ -141,7 +141,7 @@ export default function MapManageModal({
                   <button
                     type="button"
                     onClick={() => onRequestUpdate(r.supplier)}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#046949] bg-white px-3 py-1.5 text-xs font-semibold text-[#046949] hover:bg-emerald-50"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-brand bg-white px-3 py-1.5 text-xs font-semibold text-brand hover:bg-ok-bg"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                     자료 업데이트 요청

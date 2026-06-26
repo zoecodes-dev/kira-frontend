@@ -72,7 +72,7 @@ export default function DataRequestModal({
             type="button"
             onClick={send}
             disabled={checked.size === 0 || sent}
-            className="inline-flex items-center gap-2 rounded-md bg-[#046949] px-4 py-2 text-sm font-semibold text-white hover:bg-[#03563c] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {sent ? (
               <>
@@ -101,14 +101,14 @@ export default function DataRequestModal({
                     key={key}
                     className={clsx(
                       'flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 transition',
-                      checked.has(key) ? 'border-[#046949] bg-emerald-50/50' : 'border-slate-200 hover:bg-slate-50',
+                      checked.has(key) ? 'border-brand bg-ok-bg' : 'border-slate-200 hover:bg-slate-50',
                     )}
                   >
                     <input
                       type="checkbox"
                       checked={checked.has(key)}
                       onChange={() => toggle(key)}
-                      className="h-3.5 w-3.5 accent-emerald-600"
+                      className="h-3.5 w-3.5 accent-brand"
                     />
                     <span className="text-sm text-ink-300">{item}</span>
                   </label>
@@ -125,7 +125,7 @@ export default function DataRequestModal({
             onChange={e => setNote(e.target.value)}
             rows={3}
             placeholder="협력사에게 전달할 추가 안내사항을 입력하세요."
-            className="w-full rounded-md border border-slate-200 p-3 text-sm text-ink-300 outline-none placeholder:text-slate-400 focus:border-[#046949]"
+            className="w-full rounded-md border border-slate-200 p-3 text-sm text-ink-300 outline-none placeholder:text-slate-400 focus:border-brand"
           />
         </div>
       </div>

@@ -92,7 +92,7 @@ export default function StepContext({
               onClick={() => onChange({ ...data, providerType: opt.v })}
               className={clsx(
                 'rounded-md border px-3 py-2.5 text-sm font-semibold transition',
-                data.providerType === opt.v ? 'border-[#046949] bg-emerald-50 text-[#046949]' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                data.providerType === opt.v ? 'border-brand bg-ok-bg text-brand' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
               )}
             >
               {opt.label}
@@ -112,10 +112,10 @@ export default function StepContext({
                 key={po.po}
                 className={clsx(
                   'flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 transition',
-                  checked ? 'border-[#046949] bg-emerald-50/60' : 'border-slate-200 bg-white hover:bg-slate-50',
+                  checked ? 'border-brand bg-ok-bg' : 'border-slate-200 bg-white hover:bg-slate-50',
                 )}
               >
-                <input type="checkbox" checked={checked} onChange={() => togglePo(po.po)} className="h-4 w-4 accent-emerald-600" />
+                <input type="checkbox" checked={checked} onChange={() => togglePo(po.po)} className="h-4 w-4 accent-brand" />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold text-ink-100">{po.po}</div>
                   <div className="mt-0.5 text-[11px] text-slate-500">{po.item} · {po.period}</div>

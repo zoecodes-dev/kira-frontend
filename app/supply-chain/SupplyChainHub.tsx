@@ -101,7 +101,7 @@ export default function SupplyChainHub() {
           type="button"
           onClick={loadDemo}
           disabled={isDemo}
-          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 hover:border-[#046949] hover:text-[#046949] disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 hover:border-brand hover:text-brand disabled:opacity-50"
         >
           <Database className="h-3.5 w-3.5" />
           {isDemo ? '데모 데이터 로드됨' : '데모 데이터 불러오기'}

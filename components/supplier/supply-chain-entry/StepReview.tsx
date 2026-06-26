@@ -46,11 +46,11 @@ export default function StepReview({
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
-            <CheckCircle2 className="h-7 w-7 text-emerald-600" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-ok-bg">
+            <CheckCircle2 className="h-7 w-7 text-ok-text" />
           </div>
           <h2 className="mt-3 text-lg font-bold text-ink-100">공급망맵 정보가 제출되었습니다</h2>
-          <p className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+          <p className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-warn-border bg-warn-bg px-3 py-1 text-xs font-bold text-warn-text">
             <Clock className="h-3.5 w-3.5" />
             원청 승인 대기 중
           </p>
@@ -59,7 +59,7 @@ export default function StepReview({
             <br />
             제출이 지연되거나 보완이 필요한 경우 등록된 담당자에게 알림이 발송됩니다.
           </p>
-          <Link href="/supplier" className="mt-5 rounded-md bg-[#046949] px-4 py-2 text-sm font-semibold text-white hover:bg-[#03563c]">
+          <Link href="/supplier" className="mt-5 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">
             협력사 홈으로
           </Link>
         </div>
@@ -104,7 +104,7 @@ export default function StepReview({
             <button
               type="button"
               onClick={onSubmit}
-              className="inline-flex items-center gap-2 rounded-md bg-[#046949] px-4 py-2 text-sm font-semibold text-white hover:bg-[#03563c]"
+              className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover"
             >
               <Send className="h-4 w-4" />
               제출하기

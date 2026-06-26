@@ -83,10 +83,10 @@ export default function InviteMailModal({
       }
     >
       {pool.length === 0 ? (
-        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-amber-200 bg-amber-50 p-6 text-center">
-          <Users className="h-5 w-5 text-amber-600" />
-          <div className="text-sm font-semibold text-amber-800">먼저 협력사 Pool을 구성하세요.</div>
-          <div className="text-xs text-amber-700">STEP 2 "협력사 Pool 구성"에서 1차 협력사를 선택하면 발송 대상이 됩니다.</div>
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-md border border-dashed border-warn-border bg-warn-bg p-6 text-center">
+          <Users className="h-5 w-5 text-warn-text" />
+          <div className="text-sm font-semibold text-warn-text">먼저 협력사 Pool을 구성하세요.</div>
+          <div className="text-xs text-warn-text">STEP 2 "협력사 Pool 구성"에서 1차 협력사를 선택하면 발송 대상이 됩니다.</div>
         </div>
       ) : (
         <div className="grid grid-cols-[220px_minmax(0,1fr)] gap-4">
@@ -99,12 +99,12 @@ export default function InviteMailModal({
                 onClick={() => setSelectedId(s.supplierId)}
                 className={clsx(
                   'w-full rounded-md border p-3 text-left transition',
-                  selectedId === s.supplierId ? 'border-[#046949] bg-emerald-50/60' : 'border-slate-200 bg-white hover:bg-slate-50',
+                  selectedId === s.supplierId ? 'border-brand bg-ok-bg' : 'border-slate-200 bg-white hover:bg-slate-50',
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-bold text-ink-100">{s.companyName}</span>
-                  {drafts[s.supplierId]?.sent && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />}
+                  {drafts[s.supplierId]?.sent && <CheckCircle2 className="h-4 w-4 shrink-0 text-ok-text" />}
                 </div>
                 <div className="mt-0.5 truncate text-[11px] text-slate-500">{s.supplierId}</div>
               </button>
@@ -115,18 +115,18 @@ export default function InviteMailModal({
           {selected && draft && (
             <div className="space-y-3">
               {/* 본인인증 담당자(PIC) 재확인 */}
-              <div className="rounded-md border border-emerald-100 bg-emerald-50/50 p-3">
-                <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+              <div className="rounded-md border border-ok-border bg-ok-bg p-3">
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ok-text">
                   <ShieldCheck className="h-4 w-4" />
                   본인인증 담당자(PIC) 재확인
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <input value={draft.picName} onChange={e => patch(selected.supplierId, { picName: e.target.value })} placeholder="담당자명" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-[#046949]" />
-                  <input value={draft.picEmail} onChange={e => patch(selected.supplierId, { picEmail: e.target.value })} placeholder="이메일" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-[#046949]" />
-                  <input value={draft.picPhone} onChange={e => patch(selected.supplierId, { picPhone: e.target.value })} placeholder="전화번호" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-[#046949]" />
+                  <input value={draft.picName} onChange={e => patch(selected.supplierId, { picName: e.target.value })} placeholder="담당자명" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand" />
+                  <input value={draft.picEmail} onChange={e => patch(selected.supplierId, { picEmail: e.target.value })} placeholder="이메일" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand" />
+                  <input value={draft.picPhone} onChange={e => patch(selected.supplierId, { picPhone: e.target.value })} placeholder="전화번호" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand" />
                 </div>
-                <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs font-semibold text-emerald-800">
-                  <input type="checkbox" checked={draft.picConfirmed} onChange={e => patch(selected.supplierId, { picConfirmed: e.target.checked })} className="h-3.5 w-3.5 accent-emerald-600" />
+                <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs font-semibold text-ok-text">
+                  <input type="checkbox" checked={draft.picConfirmed} onChange={e => patch(selected.supplierId, { picConfirmed: e.target.checked })} className="h-3.5 w-3.5 accent-brand" />
                   담당자 정보가 정확함을 확인했습니다.
                 </label>
               </div>
@@ -138,7 +138,7 @@ export default function InviteMailModal({
                   onChange={e => patch(selected.supplierId, { email: e.target.value })}
                   disabled={draft.sent}
                   placeholder="협력사 수신 이메일"
-                  className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949] disabled:bg-slate-50"
+                  className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand disabled:bg-slate-50"
                 />
               </label>
 
@@ -148,7 +148,7 @@ export default function InviteMailModal({
                   value={draft.subject}
                   onChange={e => patch(selected.supplierId, { subject: e.target.value })}
                   disabled={draft.sent}
-                  className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949] disabled:bg-slate-50"
+                  className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand disabled:bg-slate-50"
                 />
               </label>
 
@@ -158,24 +158,24 @@ export default function InviteMailModal({
                   value={draft.body}
                   onChange={e => patch(selected.supplierId, { body: e.target.value })}
                   disabled={draft.sent}
-                  className="mt-1 min-h-[200px] w-full rounded-md border border-slate-200 p-3 text-sm leading-6 outline-none focus:border-[#046949] disabled:bg-slate-50"
+                  className="mt-1 min-h-[200px] w-full rounded-md border border-slate-200 p-3 text-sm leading-6 outline-none focus:border-brand disabled:bg-slate-50"
                 />
               </label>
 
               {/* 첨부 — 제3자 동의서 고정 + 추가 첨부 */}
               <div>
                 <span className="text-xs font-semibold text-slate-600">첨부파일</span>
-                <div className="mt-1 flex items-center gap-2 rounded-md border border-emerald-100 bg-emerald-50/50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                <div className="mt-1 flex items-center gap-2 rounded-md border border-ok-border bg-ok-bg px-3 py-2 text-xs font-semibold text-ok-text">
                   <Paperclip className="h-3.5 w-3.5" />
                   {CONSENT_ATTACHMENT}
-                  <span className="rounded-full border border-emerald-200 bg-white px-1.5 py-0.5 text-[10px]">필수 동의서</span>
+                  <span className="rounded-full border border-ok-border bg-white px-1.5 py-0.5 text-[10px]">필수 동의서</span>
                 </div>
                 <input
                   value={draft.attachment}
                   onChange={e => patch(selected.supplierId, { attachment: e.target.value })}
                   disabled={draft.sent}
                   placeholder="추가 첨부 (예: BOM_Request_Template.xlsx)"
-                  className="mt-2 h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949] disabled:bg-slate-50"
+                  className="mt-2 h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand disabled:bg-slate-50"
                 />
               </div>
 
@@ -191,7 +191,7 @@ export default function InviteMailModal({
                     onClick={() => send(selected.supplierId)}
                     disabled={!draft.picConfirmed || !draft.email.trim()}
                     title={!draft.picConfirmed ? '담당자(PIC) 재확인이 필요합니다.' : undefined}
-                    className="inline-flex h-10 items-center gap-2 rounded-md bg-[#046949] px-4 text-sm font-semibold text-white hover:bg-[#03563c] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Send className="h-4 w-4" />
                     발송하기

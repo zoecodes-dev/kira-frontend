@@ -21,8 +21,8 @@ export function InfoCompletenessSection({ completeness }: { completeness: Comple
           />
         </div>
         <span className={clsx('text-xl font-semibold num-mono',
-          completeness.completionRate >= 90 ? 'text-emerald-600' :
-          completeness.completionRate >= 70 ? 'text-amber-600' : 'text-red-600',
+          completeness.completionRate >= 90 ? 'text-ok-text' :
+          completeness.completionRate >= 70 ? 'text-warn-text' : 'text-alert-text',
         )}>
           {completeness.completionRate}%
         </span>
@@ -33,7 +33,7 @@ export function InfoCompletenessSection({ completeness }: { completeness: Comple
       {completeness.missingFields.length > 0 && (
         <div className="space-y-1">
           {completeness.missingFields.map((f, i) => (
-            <div key={i} className="flex items-center gap-1.5 text-[11px] text-amber-600">
+            <div key={i} className="flex items-center gap-1.5 text-[11px] text-warn-text">
               <AlertCircle className="w-3 h-3 shrink-0" />
               {f}
             </div>

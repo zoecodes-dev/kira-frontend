@@ -106,7 +106,7 @@ const severityTone: Record<Severity, 'warn' | 'alert'> = {
 };
 
 const readinessTone = (value: number) =>
-  value >= 90 ? 'bg-emerald-500' : value >= 75 ? 'bg-amber-500' : 'bg-red-500';
+  value >= 90 ? 'bg-ok-solid' : value >= 75 ? 'bg-warn-solid' : 'bg-alert-solid';
 
 export default function DppReadinessPage() {
   const [selectedSerial, setSelectedSerial] = useState(readinessRows[0].serialNumber);
@@ -254,7 +254,7 @@ export default function DppReadinessPage() {
                           <tr key={blocker.key}>
                             <td className="px-3 py-2.5 text-sm font-semibold text-ink-100">
                               <span className="inline-flex items-center gap-2">
-                                <LockKeyhole className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                                <LockKeyhole className="h-3.5 w-3.5 shrink-0 text-alert-text" />
                                 {blocker.label}
                               </span>
                             </td>
@@ -269,15 +269,15 @@ export default function DppReadinessPage() {
                     </table>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 rounded-xs border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <div className="flex items-center gap-2 rounded-xs border border-ok-border bg-ok-bg px-3 py-2.5 text-sm text-ok-text">
+                    <CheckCircle2 className="h-4 w-4 text-ok-text" />
                     발행을 막는 blocker가 없습니다.
                   </div>
                 )}
               </section>
 
               <div className="flex flex-wrap justify-end gap-2 border-t border-ink-700 pt-4">
-                <Action icon={Send} label="보완 요청" tone="warn" href="/supply-chain/request-map" />
+                <Action icon={Send} label="보완 요청" tone="warn" href="/my-task" />
                 <Action icon={UserCheck} label="HITL 요청" tone="neutral" href="/hitl" />
                 <Action icon={FileBadge} label="DPP 발행" tone={selected.blockers.length > 0 ? 'disabled' : 'ok'} />
               </div>
@@ -319,9 +319,9 @@ function Mini({ label, value }: { label: string; value: string }) {
 
 function Action({ icon: Icon, label, tone, href }: { icon: any; label: string; tone: 'ok' | 'warn' | 'alert' | 'neutral' | 'disabled'; href?: string }) {
   const style = {
-    ok: 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700',
-    warn: 'border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-400',
-    alert: 'border-red-200 bg-red-50 text-red-800 hover:border-red-400',
+    ok: 'border-ok-border bg-ok-solid text-white hover:bg-ok-solid',
+    warn: 'border-warn-border bg-warn-bg text-warn-text hover:border-warn-border',
+    alert: 'border-alert-border bg-alert-bg text-alert-text hover:border-alert-border',
     neutral: 'border-ink-700 bg-white text-ink-400 hover:border-accent-600 hover:text-accent-700',
     disabled: 'border-ink-700 bg-slate-100 text-ink-500 cursor-not-allowed opacity-60',
   }[tone];

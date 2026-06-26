@@ -96,10 +96,10 @@ const AUDIT_STATUS_META: Record<AuditStatus, {
   rowCls: string;
   text: string;
 }> = {
-  blocked:   { label: '차단 후보', tone: 'alert',   rowCls: 'border-l-2 border-red-500 bg-red-50/60',       text: 'text-red-700' },
-  capa:      { label: '조치 진행', tone: 'warn',    rowCls: 'border-l-2 border-orange-500 bg-orange-50/50', text: 'text-orange-700' },
-  scheduled: { label: '예정',      tone: 'info',    rowCls: 'border-l-2 border-blue-500 bg-blue-50/40',     text: 'text-blue-700' },
-  closed:    { label: '종결',      tone: 'ok',      rowCls: 'border-l-2 border-emerald-500 bg-emerald-50/40', text: 'text-emerald-700' },
+  blocked:   { label: '차단 후보', tone: 'alert',   rowCls: 'border-l-2 border-alert-border bg-alert-bg',       text: 'text-alert-text' },
+  capa:      { label: '조치 진행', tone: 'warn',    rowCls: 'border-l-2 border-warn-border bg-warn-bg', text: 'text-warn-text' },
+  scheduled: { label: '예정',      tone: 'info',    rowCls: 'border-l-2 border-info-border bg-info-bg',     text: 'text-info-text' },
+  closed:    { label: '종결',      tone: 'ok',      rowCls: 'border-l-2 border-ok-border bg-ok-bg', text: 'text-ok-text' },
 };
 
 // CAPA task 상태 배지
@@ -222,11 +222,11 @@ function ApprovalTimeline({ steps }: { steps: ApprovalStep[] }) {
             <div className={clsx(
               'mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2',
               step.status === 'done'    ? 'border-signal-ok bg-signal-ok/10' :
-              step.status === 'pending' ? 'border-amber-400 bg-amber-50' :
+              step.status === 'pending' ? 'border-warn-border bg-warn-bg' :
                                           'border-ink-600 bg-white'
             )}>
               {step.status === 'done'    ? <CheckCircle2 className="h-3 w-3 text-signal-ok" strokeWidth={2.5} /> :
-               step.status === 'pending' ? <Clock className="h-3 w-3 text-amber-500" strokeWidth={2.5} /> :
+               step.status === 'pending' ? <Clock className="h-3 w-3 text-warn-text" strokeWidth={2.5} /> :
                                            <div className="h-2 w-2 rounded-full bg-ink-600" />}
             </div>
             {idx < steps.length - 1 && (
@@ -241,7 +241,7 @@ function ApprovalTimeline({ steps }: { steps: ApprovalStep[] }) {
             </div>
             {step.comment && <div className="mt-0.5 text-[11px] text-ink-400">{step.comment}</div>}
             {step.status === 'pending' && (
-              <span className="mt-1 inline-block rounded-xs border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">승인 대기 중</span>
+              <span className="mt-1 inline-block rounded-xs border border-warn-border bg-warn-bg px-1.5 py-0.5 text-[9px] font-bold text-warn-text">승인 대기 중</span>
             )}
             {step.status === 'waiting' && (
               <span className="mt-1 inline-block rounded-xs border border-ink-700 bg-ink-800 px-1.5 py-0.5 text-[9px] font-bold text-ink-500">이전 단계 승인 후 진행</span>
@@ -311,7 +311,7 @@ function CapaUploadModal({
                 <div className="mt-1 text-[10px] text-ink-500">기한: {task.due} · 담당: {task.owner}</div>
               </div>
               <div>
-                <div className="text-xs font-bold text-ink-400 mb-2">증빙 파일 첨부 <span className="text-red-500">*</span></div>
+                <div className="text-xs font-bold text-ink-400 mb-2">증빙 파일 첨부 <span className="text-alert-text">*</span></div>
                 <div
                   className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xs border-2 border-dashed border-ink-700 bg-ink-800 py-6 hover:border-accent-500 hover:bg-accent-50/30 transition-colors"
                   onClick={() => fileRef.current?.click()}
@@ -336,7 +336,7 @@ function CapaUploadModal({
         </div>
         <div className="flex justify-end gap-2 border-t border-ink-700 px-5 py-4">
           {done ? (
-            <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-xs bg-signal-ok px-5 py-2 text-xs font-bold text-white hover:bg-emerald-600">
+            <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-xs bg-signal-ok px-5 py-2 text-xs font-bold text-white hover:bg-ok-solid">
               <CheckCircle2 className="h-3.5 w-3.5" /> 확인 후 닫기
             </button>
           ) : (
@@ -380,10 +380,10 @@ function AuditDetailPanel({
       {/* 패널 헤더 — status 기반 색상 */}
       <div className={clsx(
         'shrink-0 border-b px-5 py-4',
-        record.status === 'blocked'   ? 'border-red-200 bg-red-600' :
-        record.status === 'capa'      ? 'border-orange-200 bg-orange-600' :
-        record.status === 'scheduled' ? 'border-blue-200 bg-blue-600' :
-                                        'border-emerald-200 bg-accent-700'
+        record.status === 'blocked'   ? 'border-alert-border bg-alert-solid' :
+        record.status === 'capa'      ? 'border-warn-border bg-warn-solid' :
+        record.status === 'scheduled' ? 'border-info-border bg-info-solid' :
+                                        'border-ok-border bg-accent-700'
       )}>
         <div className="flex items-center justify-between gap-2">
           <div className="text-xs font-bold text-white">{record.targetCompany}</div>
@@ -424,7 +424,7 @@ function AuditDetailPanel({
         {record.findings.length > 0 && (
           <div className="border-b border-ink-700 px-5 py-4">
             <div className="mb-2 flex items-center gap-1.5">
-              <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+              <AlertTriangle className="h-3.5 w-3.5 text-alert-text" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-ink-500">위반 사항</span>
             </div>
             <div className="space-y-2">
@@ -434,13 +434,13 @@ function AuditDetailPanel({
                   className={clsx(
                     'flex items-start gap-2 rounded-xs border px-3 py-2.5 text-[11px]',
                     f.severity === 'critical'
-                      ? 'border-red-200 bg-red-50 text-red-900'
-                      : 'border-amber-200 bg-amber-50 text-amber-900'
+                      ? 'border-alert-border bg-alert-bg text-alert-text'
+                      : 'border-warn-border bg-warn-bg text-warn-text'
                   )}
                 >
                   {f.severity === 'critical'
-                    ? <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
-                    : <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    ? <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-alert-text" />
+                    : <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn-text" />
                   }
                   <span className="leading-5">{f.text}</span>
                 </div>
@@ -485,10 +485,10 @@ function AuditDetailPanel({
 
         {/* CAPA 시정 조치 과제 — due-diligence capa 스키마 동기화 */}
         {record.capa.length > 0 && (
-          <div className="border-t border-amber-200 bg-amber-50/30 px-5 py-4">
+          <div className="border-t border-warn-border bg-warn-bg px-5 py-4">
             <div className="mb-3 flex items-center gap-1.5">
-              <ClipboardCheck className="h-3.5 w-3.5 text-amber-600" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+              <ClipboardCheck className="h-3.5 w-3.5 text-warn-text" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-warn-text">
                 시정 조치 과제 (CAPA) — 원청사 부여
               </span>
             </div>
@@ -501,7 +501,7 @@ function AuditDetailPanel({
                     key={task.id}
                     className={clsx(
                       'rounded-xs border p-3',
-                      needsAction ? 'border-amber-200 bg-white' : 'border-ink-700 bg-ink-800'
+                      needsAction ? 'border-warn-border bg-white' : 'border-ink-700 bg-ink-800'
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -744,7 +744,7 @@ export default function AuditView({ supplierId }: { supplierId: string }) {
                     <div className="flex items-center gap-1.5">
                       {/* CAPA 미처리 건수 표시 */}
                       {record.capa.filter(t => t.status !== '완료').length > 0 && (
-                        <span className="rounded-xs border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+                        <span className="rounded-xs border border-warn-border bg-warn-bg px-1.5 py-0.5 text-[9px] font-bold text-warn-text">
                           CAPA {record.capa.filter(t => t.status !== '완료').length}건
                         </span>
                       )}

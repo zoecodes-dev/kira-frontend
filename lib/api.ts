@@ -161,6 +161,24 @@ export const api = {
 };
 
 // ───────────────────────────────────────────────────────────
+// 인증(Auth) — 명세서 §1
+//   POST /auth/login → JWT 발급. 응답 token을 setToken()으로 저장하면
+//   이후 모든 요청에 Bearer 자동 첨부된다.
+//   응답은 snake_case → camelCase 변환됨(token 키는 단어라 그대로).
+// ───────────────────────────────────────────────────────────
+export interface LoginResponse {
+  token: string;
+  role: "oem" | "supplier";
+  userId: string;
+  tenantId: string;
+  supplierId: string | null; // 백엔드 매핑 도입 전까지 null (회신 §2)
+  displayName: string;
+}
+
+export const login = (email: string, password: string) =>
+  api.post<LoginResponse>("/auth/login", { email, password });
+
+// ───────────────────────────────────────────────────────────
 // 도메인 호출 예시 (검증용 — listSuppliers)
 //   각 도메인 담당자는 이 패턴으로 자기 화면 호출을 추가한다.
 // ───────────────────────────────────────────────────────────
