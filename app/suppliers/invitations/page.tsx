@@ -190,7 +190,7 @@ function SupplierInvitationsContent() {
                     data-testid={`invitation-card-${item.id}`}
                     className={clsx(
                       'w-full rounded-md border p-3 text-left transition-colors',
-                      selected ? 'border-[#046949] bg-emerald-50/60' : 'border-slate-200 bg-white hover:bg-slate-50',
+                      selected ? 'border-brand bg-emerald-50/60' : 'border-slate-200 bg-white hover:bg-slate-50',
                     )}
                   >
                     <div className="mb-3 flex items-start justify-between gap-3">
@@ -213,7 +213,7 @@ function SupplierInvitationsContent() {
               type="button"
               onClick={() => setIsSearchOpen(true)}
               data-testid="open-supplier-invite-search"
-              className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-md bg-[#046949] px-3 text-sm font-semibold text-white hover:bg-[#03563c]"
+              className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-md bg-brand px-3 text-sm font-semibold text-white hover:bg-brand-hover"
             >
               <Plus className="h-4 w-4" />
               협력사 초대하기
@@ -256,7 +256,7 @@ function SupplierInvitationsContent() {
                     value={selectedItem.subject}
                     onChange={event => updateItem(selectedItem.id, { subject: event.target.value })}
                     disabled={selectedItem.status === 'sent'}
-                    className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-ink-100 outline-none focus:border-[#046949] disabled:bg-slate-50 disabled:text-slate-500"
+                    className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-ink-100 outline-none focus:border-brand disabled:bg-slate-50 disabled:text-slate-500"
                   />
                 </label>
                 <label className="block">
@@ -265,7 +265,7 @@ function SupplierInvitationsContent() {
                     value={selectedItem.body}
                     onChange={event => updateItem(selectedItem.id, { body: event.target.value })}
                     disabled={selectedItem.status === 'sent'}
-                    className="mt-2 min-h-[240px] w-full rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-ink-100 outline-none focus:border-[#046949] disabled:bg-slate-50 disabled:text-slate-500"
+                    className="mt-2 min-h-[240px] w-full rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-ink-100 outline-none focus:border-brand disabled:bg-slate-50 disabled:text-slate-500"
                     placeholder="하위 공급망 정보 입력 요청 메일 내용을 작성하세요."
                   />
                 </label>
@@ -275,7 +275,7 @@ function SupplierInvitationsContent() {
                     value={selectedItem.attachment}
                     onChange={event => updateItem(selectedItem.id, { attachment: event.target.value })}
                     disabled={selectedItem.status === 'sent'}
-                    className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-ink-100 outline-none focus:border-[#046949] disabled:bg-slate-50 disabled:text-slate-500"
+                    className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-ink-100 outline-none focus:border-brand disabled:bg-slate-50 disabled:text-slate-500"
                     placeholder="예: BOM_Request_Template.xlsx"
                   />
                 </label>
@@ -290,7 +290,7 @@ function SupplierInvitationsContent() {
                 ) : (
                   <>
                     <button type="button" onClick={() => markDraft(selectedItem)} className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50">임시 저장</button>
-                    <button type="button" onClick={() => markSent(selectedItem)} data-testid="send-selected-invitation" className="inline-flex h-10 items-center gap-2 rounded-md bg-[#046949] px-4 text-sm font-semibold text-white hover:bg-[#03563c]">
+                    <button type="button" onClick={() => markSent(selectedItem)} data-testid="send-selected-invitation" className="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover">
                       <Send className="h-4 w-4" />
                       발송하기
                     </button>
@@ -321,7 +321,7 @@ function SupplierInvitationsContent() {
                 <input
                   value={query}
                   onChange={event => setQuery(event.target.value)}
-                  className="h-11 w-full rounded-md border border-slate-200 pl-9 pr-3 text-sm outline-none focus:border-[#046949]"
+                  className="h-11 w-full rounded-md border border-slate-200 pl-9 pr-3 text-sm outline-none focus:border-brand"
                   placeholder="협력사 이름으로 검색"
                 />
               </div>
@@ -331,7 +331,7 @@ function SupplierInvitationsContent() {
                     key={`${candidate.supplierName}-${candidate.email}`}
                     type="button"
                     onClick={() => addCandidate(candidate)}
-                    className="w-full rounded-md border border-slate-200 bg-white p-3 text-left hover:border-[#046949] hover:bg-emerald-50/50"
+                    className="w-full rounded-md border border-slate-200 bg-white p-3 text-left hover:border-brand hover:bg-emerald-50/50"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>

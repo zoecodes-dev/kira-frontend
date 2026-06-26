@@ -118,7 +118,7 @@ export default function OnboardingEntry({
       {/* 제3자 정보 확인 동의서 */}
       <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
         <div className="flex items-center gap-1.5 text-sm font-bold text-ink-100">
-          <FileCheck2 className="h-4 w-4 text-[#046949]" />
+          <FileCheck2 className="h-4 w-4 text-brand" />
           제3자 정보 확인 동의서
         </div>
         <p className="mt-2 text-xs leading-5 text-slate-500">

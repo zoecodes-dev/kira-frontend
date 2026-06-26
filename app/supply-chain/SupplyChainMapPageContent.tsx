@@ -441,7 +441,7 @@ export function SupplyChainMapPageContent({
               <button
                 type="button"
                 onClick={handleConfirmInvitation}
-                className="h-10 rounded-md bg-[#046949] text-sm font-semibold text-white hover:bg-[#03563c]"
+                className="h-10 rounded-md bg-brand text-sm font-semibold text-white hover:bg-brand-hover"
               >
                 예
               </button>
@@ -474,7 +474,7 @@ export function SupplyChainMapPageContent({
                 Excel 다운로드
               </button>
               {!formationMode && (
-                <button type="button" onClick={downloadCustomerExcel} className="inline-flex items-center gap-1.5 rounded-xs border border-emerald-600 bg-[#046949] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#03563c]">
+                <button type="button" onClick={downloadCustomerExcel} className="inline-flex items-center gap-1.5 rounded-xs border border-emerald-600 bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover">
                   <FileSpreadsheet className="h-3.5 w-3.5" />
                   고객사 데이터 다운로드
                 </button>

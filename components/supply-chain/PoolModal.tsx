@@ -99,7 +99,7 @@ export default function PoolModal({
               type="button"
               onClick={handleConfirm}
               disabled={selectedIds.size === 0}
-              className="inline-flex items-center gap-2 rounded-md bg-[#046949] px-4 py-2 text-sm font-semibold text-white hover:bg-[#03563c] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CheckCircle2 className="h-4 w-4" />
               Pool 확정
@@ -115,7 +115,7 @@ export default function PoolModal({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="협력사명, ID, 유형 검색"
-            className="h-10 w-full rounded-md border border-slate-200 pl-9 pr-3 text-sm outline-none focus:border-[#046949]"
+            className="h-10 w-full rounded-md border border-slate-200 pl-9 pr-3 text-sm outline-none focus:border-brand"
           />
         </div>
         {/* 신규 협력사 등록(n차 회원가입)은 추후 별도 구현 — 훅 지점 stub */}
@@ -151,7 +151,7 @@ export default function PoolModal({
                 key={s.supplierId}
                 className={clsx(
                   'flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 transition',
-                  checked ? 'border-[#046949] bg-emerald-50/60' : 'border-slate-200 bg-white hover:bg-slate-50',
+                  checked ? 'border-brand bg-emerald-50/60' : 'border-slate-200 bg-white hover:bg-slate-50',
                 )}
               >
                 <input

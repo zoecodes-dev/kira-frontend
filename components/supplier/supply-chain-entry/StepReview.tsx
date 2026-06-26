@@ -59,7 +59,7 @@ export default function StepReview({
             <br />
             제출이 지연되거나 보완이 필요한 경우 등록된 담당자에게 알림이 발송됩니다.
           </p>
-          <Link href="/supplier" className="mt-5 rounded-md bg-[#046949] px-4 py-2 text-sm font-semibold text-white hover:bg-[#03563c]">
+          <Link href="/supplier" className="mt-5 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">
             협력사 홈으로
           </Link>
         </div>
@@ -104,7 +104,7 @@ export default function StepReview({
             <button
               type="button"
               onClick={onSubmit}
-              className="inline-flex items-center gap-2 rounded-md bg-[#046949] px-4 py-2 text-sm font-semibold text-white hover:bg-[#03563c]"
+              className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover"
             >
               <Send className="h-4 w-4" />
               제출하기

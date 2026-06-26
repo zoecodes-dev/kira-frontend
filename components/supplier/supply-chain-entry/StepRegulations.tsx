@@ -8,8 +8,8 @@ import type { CertRow, DocItem, RegulationsData } from './SupplyChainEntry';
 import DocRow from './DocRow';
 import StepFooter from '@/components/supplier/onboarding/StepFooter';
 
-const numInput = 'h-9 w-28 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-[#046949]';
-const textInput = 'h-9 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949]';
+const numInput = 'h-9 w-28 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand';
+const textInput = 'h-9 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -153,7 +153,7 @@ export default function StepRegulations({
         <button
           type="button"
           onClick={() => onChange({ ...data, certifications: [...data.certifications, { type: '', issuingBody: '', certNo: '', expiresAt: '' }] })}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-500 hover:border-[#046949] hover:text-[#046949]"
+          className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-500 hover:border-brand hover:text-brand"
         >
           <Plus className="h-4 w-4" />
           인증 추가

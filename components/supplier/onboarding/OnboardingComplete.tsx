@@ -91,7 +91,7 @@ export default function OnboardingComplete({
         </button>
         <Link
           href="/login"
-          className="rounded-md bg-[#046949] px-4 py-2 text-sm font-semibold text-white hover:bg-[#03563c]"
+          className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover"
         >
           로그인 화면으로
         </Link>

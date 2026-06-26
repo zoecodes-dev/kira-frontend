@@ -25,7 +25,7 @@ export default function DocRow({
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder="첨부 파일명"
-        className="h-9 min-w-0 flex-1 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#046949]"
+        className="h-9 min-w-0 flex-1 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand"
       />
       <button
         type="button"
