@@ -6,6 +6,7 @@ import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
 import { getStoredRequests, type DataRequestRecord } from '@/lib/data-request-store';
+import { getSupplierName } from '@/lib/supplier-detail-data';
 import {
   CheckCircle2, FileCheck2,
   ShieldAlert, UserCheck, ArrowRight, Bell,
@@ -212,15 +213,17 @@ function RequestArea() {
         {requests.map(req => {
           const meta = requestStatusMeta[req.status];
           const reviewMode = req.status === 'submitted';
+          // 협력사명은 정식 명칭(master)에서 끌어와 mock/저장본 드리프트 방지.
+          const supplierLabel = getSupplierName(req.supplierId)?.nameKo ?? req.supplier;
           const href = reviewMode
             ? '/submission-review'
-            : `/suppliers/check-info?supplierId=${req.supplierId}&supplier=${encodeURIComponent(req.supplier)}&request=1`;
+            : `/suppliers/check-info?supplierId=${req.supplierId}&supplier=${encodeURIComponent(supplierLabel)}&request=1`;
           return (
             <div key={req.supplierId} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50">
               <span className={clsx('h-2 w-2 shrink-0 rounded-full', meta.dot)} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="truncate text-sm font-bold text-ink-100">{req.supplier}</span>
+                  <span className="truncate text-sm font-bold text-ink-100">{supplierLabel}</span>
                   <span className={clsx('rounded-full border px-2 py-0.5 text-[10px] font-bold', meta.chip)}>{meta.label}</span>
                 </div>
                 <div className="mt-0.5 truncate text-xs text-ink-500">{req.title}</div>
