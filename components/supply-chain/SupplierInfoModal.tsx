@@ -190,7 +190,7 @@ export default function SupplierInfoModal({
             </div>
             <div className="rounded-md border border-slate-200 px-3">
               <Field label="협력사명" value={data.detail.companyName} />
-              <Field label="유형" value={typeLabel[data.detail.supplierType] ?? data.detail.supplierType} />
+              <Field label="유형" value={typeLabel[data.detail.providerType] ?? data.detail.providerType} />
               <Field label="상태" value={statusLabel[data.detail.status] ?? data.detail.status} />
               <Field label="위험도" value={riskLabel[data.detail.riskLevel] ?? data.detail.riskLevel} />
               <Field label="FEOC" value={feocLabel[data.detail.feocStatus] ?? data.detail.feocStatus} />

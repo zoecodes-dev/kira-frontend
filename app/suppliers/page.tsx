@@ -58,7 +58,7 @@ const statusMeta: Record<SupplierStatusCode, { label: string; tone: 'ok' | 'warn
   supplier_suspended: { label: '거래 중지', tone: 'alert', dot: 'bg-signal-alert' },
 };
 
-const supplierTypeLabel: Record<SupplierType, string> = {
+const providerTypeLabel: Record<SupplierType, string> = {
   manufacturer: '제조사',
   recycler: '재활용',
   trader: '트레이더',
@@ -122,14 +122,14 @@ function SupplierRow({ row }: { row: SupplierRowData }) {
             <div className="mt-1 flex items-center gap-2 text-[11px] text-ink-500">
               <span className="num-mono">{brief.supplierId}</span>
               <span className="text-ink-600">·</span>
-              <span>{supplierTypeLabel[brief.supplierType] ?? brief.supplierType}</span>
+              <span>{providerTypeLabel[brief.providerType] ?? brief.providerType}</span>
             </div>
           </div>
         </div>
       </td>
 
       <td className="px-5 py-4 align-top">
-        <div className="text-xs font-semibold text-ink-200">{supplierTypeLabel[brief.supplierType] ?? brief.supplierType}</div>
+        <div className="text-xs font-semibold text-ink-200">{providerTypeLabel[brief.providerType] ?? brief.providerType}</div>
         <div className="mt-1 text-[11px] text-ink-500">—</div>
       </td>
 
@@ -365,7 +365,7 @@ export default function SuppliersPage() {
       const haystack = [
         brief.supplierId,
         brief.companyName,
-        brief.supplierType,
+        brief.providerType,
       ].filter(Boolean).join(' ').toLowerCase();
 
       return haystack.includes(q);

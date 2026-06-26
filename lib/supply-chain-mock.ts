@@ -61,7 +61,7 @@ export interface MockSupplier {
   supplier_id: string;
   company_name: string;
   company_name_en: string;
-  supplier_type: 'manufacturer' | 'recycler' | 'trader' | 'miner';
+  provider_type: 'manufacturer' | 'recycler' | 'trader' | 'miner';
   tier: number;
   parent_supplier_id: string | null;
   status: string;
@@ -129,7 +129,7 @@ export interface TraceRow {
   feoc_status: MockSupplier['feoc_status'];
   risk_level: MockSupplier['risk_level'];
   latest_audit_result: string;
-  provider_type: MockSupplier['supplier_type'];
+  provider_type: MockSupplier['provider_type'];
   factory_region: string;
   applicable_rules: string;
   missing_documents: string;
@@ -331,12 +331,12 @@ export const supplierDetailIdMap: Record<string, string> = {
 };
 
 export const suppliers: MockSupplier[] = [
-  { supplier_id: 'sup-hanyang-cell', company_name: 'EcoBattery Co., Ltd.', company_name_en: 'EcoBattery Co., Ltd.', supplier_type: 'manufacturer', tier: 1, parent_supplier_id: null, status: 'supplier_verified', risk_level: 'low', feoc_status: 'eligible', latest_audit_result: '2026-05 문서 검토 완료' },
-  { supplier_id: 'sup-pos-cathode', company_name: 'Eco Materials Co., Ltd.', company_name_en: 'Eco Materials Co., Ltd.', supplier_type: 'manufacturer', tier: 2, parent_supplier_id: 'sup-hanyang-cell', status: 'supplier_verified', risk_level: 'low', feoc_status: 'eligible', latest_audit_result: '2026-05 현장 실사 적합' },
-  { supplier_id: 'sup-pohang-refining', company_name: 'Livent Corporation', company_name_en: 'Livent Corporation', supplier_type: 'manufacturer', tier: 3, parent_supplier_id: 'sup-pos-cathode', status: 'supplier_verified', risk_level: 'low', feoc_status: 'eligible', latest_audit_result: '2026-04 RMI 증빙 확인' },
-  { supplier_id: 'sup-ganzhou-rare', company_name: 'Zhejiang Cobalt Co., Ltd.', company_name_en: 'Zhejiang Cobalt Co., Ltd.', supplier_type: 'manufacturer', tier: 3, parent_supplier_id: 'sup-pos-cathode', status: 'supplier_requested', risk_level: 'high', feoc_status: 'under_review', latest_audit_result: 'FEOC 소유구조 보완 요청' },
-  { supplier_id: 'sup-katanga-cobalt', company_name: 'DRC Mining Co.', company_name_en: 'DRC Mining Co.', supplier_type: 'miner', tier: 4, parent_supplier_id: 'sup-ganzhou-rare', status: 'supplier_review', risk_level: 'critical', feoc_status: 'unknown', latest_audit_result: '인권 실사 보고서 갱신 필요' },
-  { supplier_id: 'sup-sulawesi-nickel', company_name: 'PT Vale Indonesia', company_name_en: 'PT Vale Indonesia', supplier_type: 'miner', tier: 4, parent_supplier_id: 'sup-ganzhou-rare', status: 'supplier_review', risk_level: 'medium', feoc_status: 'eligible', latest_audit_result: '환경 인증 유효기간 확인 필요' },
+  { supplier_id: 'sup-hanyang-cell', company_name: 'EcoBattery Co., Ltd.', company_name_en: 'EcoBattery Co., Ltd.', provider_type: 'manufacturer', tier: 1, parent_supplier_id: null, status: 'supplier_verified', risk_level: 'low', feoc_status: 'eligible', latest_audit_result: '2026-05 문서 검토 완료' },
+  { supplier_id: 'sup-pos-cathode', company_name: 'Eco Materials Co., Ltd.', company_name_en: 'Eco Materials Co., Ltd.', provider_type: 'manufacturer', tier: 2, parent_supplier_id: 'sup-hanyang-cell', status: 'supplier_verified', risk_level: 'low', feoc_status: 'eligible', latest_audit_result: '2026-05 현장 실사 적합' },
+  { supplier_id: 'sup-pohang-refining', company_name: 'Livent Corporation', company_name_en: 'Livent Corporation', provider_type: 'manufacturer', tier: 3, parent_supplier_id: 'sup-pos-cathode', status: 'supplier_verified', risk_level: 'low', feoc_status: 'eligible', latest_audit_result: '2026-04 RMI 증빙 확인' },
+  { supplier_id: 'sup-ganzhou-rare', company_name: 'Zhejiang Cobalt Co., Ltd.', company_name_en: 'Zhejiang Cobalt Co., Ltd.', provider_type: 'manufacturer', tier: 3, parent_supplier_id: 'sup-pos-cathode', status: 'supplier_requested', risk_level: 'high', feoc_status: 'under_review', latest_audit_result: 'FEOC 소유구조 보완 요청' },
+  { supplier_id: 'sup-katanga-cobalt', company_name: 'DRC Mining Co.', company_name_en: 'DRC Mining Co.', provider_type: 'miner', tier: 4, parent_supplier_id: 'sup-ganzhou-rare', status: 'supplier_review', risk_level: 'critical', feoc_status: 'unknown', latest_audit_result: '인권 실사 보고서 갱신 필요' },
+  { supplier_id: 'sup-sulawesi-nickel', company_name: 'PT Vale Indonesia', company_name_en: 'PT Vale Indonesia', provider_type: 'miner', tier: 4, parent_supplier_id: 'sup-ganzhou-rare', status: 'supplier_review', risk_level: 'medium', feoc_status: 'eligible', latest_audit_result: '환경 인증 유효기간 확인 필요' },
 ];
 
 export const supplier_factories: MockSupplierFactory[] = [
@@ -529,7 +529,7 @@ export function buildTraceRows(ds: SupplyChainDataset, bomVersionId: string, per
             feoc_status: supplier.feoc_status,
             risk_level: supplier.risk_level,
             latest_audit_result: supplier.latest_audit_result,
-            provider_type: supplier.supplier_type,
+            provider_type: supplier.provider_type,
             factory_region: factory.region,
             applicable_rules: getApplicableRules(riskStatus, country),
             missing_documents: getMissingDocuments(riskStatus),
