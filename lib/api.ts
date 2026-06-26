@@ -298,7 +298,7 @@ export type SupplierFeocStatus =
 export interface SupplierBrief {
   supplierId: string;
   companyName: string;
-  supplierType: SupplierType;
+  providerType: SupplierType;
   status: SupplierStatusCode;
   riskLevel: SupplierRiskLevel;
 }

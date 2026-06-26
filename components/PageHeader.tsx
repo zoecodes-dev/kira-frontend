@@ -30,7 +30,7 @@ export default function PageHeader({ title, badge, description, actions, tabs, c
       {/* ① 제목줄 */}
       <div className="flex items-center justify-between gap-4 border-b border-[#E2E8F0] px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          <h1 className="shrink-0 text-[17px] font-semibold tracking-tight text-[#0F172A]">{title}</h1>
+          <h1 className="shrink-0 text-[20px] font-semibold tracking-tight text-[#0F172A]">{title}</h1>
           {badge && (
             <span className="shrink-0 rounded border border-[#E2E8F0] bg-[#F1F5F9] px-1.5 py-0.5 text-[10px] font-semibold text-[#475569]">
               {badge}

@@ -79,6 +79,9 @@
 |------|----------|---------|-------|
 | `SupplyChainHub`·`SupplyChainMapPageContent` | `supply-chain-mock.ts` | ✅ `getProducts` + 🟡 `getProductBom` + 🆕 `supply-chain-map` | **BOM 응답 트리 vs 평면 확정 후** 타입·렌더링 수정 |
 
+> ⚠ **데모 데이터 한계(2026-06-26 결정 A — mock 확장 안 함)**: `supply-chain-mock.ts`는 `prod-bat-ncm811`/`bomv-ncm811-v32` **단일 체인만** 연결(노드·공급사 각 6). LFP120·deprecated 버전 선택 시 트리가 빈 화면. 통계 바(노드 128/공급사 42/원자재 57, `SupplyChainMapPageContent.tsx:846~851`)는 **하드코딩 플레이스홀더**.
+> → 데모 mock은 **확장하지 않는다.** 전체 공급망·실집계는 백엔드 `/products/{id}/supply-chain-map` 연동 시 응답 본문 `counts`로 대체(§명세서 10.2). 페이지네이션은 맵에 N/A(§0.6).
+
 ### B-8. 협력사 포털·온보딩·제출
 | 화면 | 현재 출처 | 대상 API | 할 일 |
 |------|----------|---------|-------|

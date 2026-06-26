@@ -26,7 +26,7 @@ import {
   type SupplierType,
 } from '@/lib/api';
 
-const supplierTypeLabel: Record<SupplierType, string> = {
+const providerTypeLabel: Record<SupplierType, string> = {
   manufacturer: '제조사',
   recycler: '재활용',
   trader: '트레이더',
@@ -139,7 +139,7 @@ export default function SupplierDetailLayout({ children }: { children: React.Rea
               <div className="flex flex-wrap items-center gap-2 text-[11px]">
                 <span className="num-mono text-ink-500">{supplier.supplierId}</span>
                 <span className="text-ink-600">·</span>
-                <span className="text-ink-400">{supplierTypeLabel[supplier.supplierType] ?? supplier.supplierType}</span>
+                <span className="text-ink-400">{providerTypeLabel[supplier.providerType] ?? supplier.providerType}</span>
               </div>
             </div>
           </div>
