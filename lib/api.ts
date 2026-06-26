@@ -566,9 +566,112 @@ export interface ApiProductBom {
   bomItems: ApiBomItem[];
 }
 
+// ── 백엔드 실제 BOM 응답 (중첩 트리) ──
+// GET /products/{id}/bom 은 평면 3배열이 아니라 단일 루트 children 트리를 반환한다.
+// (backend/domains/product/repository.py get_bom_tree) 프론트 소비부는 평면 3배열을
+// 가정하므로 normalizeProductBom 으로 평탄화해 ApiProductBom 으로 흡수한다.
+export interface BomTreeNode {
+  partId?: string; part_id?: string;
+  partCode?: string; part_code?: string;
+  partName?: string; part_name?: string;
+  tierLevel?: number; tier_level?: number;
+  parentPartId?: string | null; parent_part_id?: string | null;
+  materialType?: string | null; material_type?: string | null;
+  requiredQuantity?: number | null; required_quantity?: number | null;
+  requiredQuantityUnit?: string | null; required_quantity_unit?: string | null;
+  originCountry?: string | null; origin_country?: string | null;
+  /** 백엔드 트리 노드엔 현재 없음(추가 협의 중). 있으면 사용, 없으면 0. */
+  percentage?: number | null;
+  children?: BomTreeNode[];
+}
+export interface BomTreeResponse {
+  productId?: string; product_id?: string;
+  bomVersion?: string; bom_version?: string; // version_number 문자열
+  bomStatus?: string; bom_status?: string;
+  tree: BomTreeNode | null;
+  warning?: string;
+}
+
+/** snake/camel 어느 키로 와도 집어내는 헬퍼 (백엔드 직렬화 규약 변동 방어). */
+function pick<T>(node: Record<string, unknown>, camel: string, snake: string): T | undefined {
+  const v = node[camel] ?? node[snake];
+  return v as T | undefined;
+}
+
+/**
+ * 백엔드 중첩 BOM 트리 → 프론트가 기대하는 평면 3배열(ApiProductBom)로 평탄화.
+ * - bomVersions: 트리 응답엔 버전 메타가 1개뿐이라(version_number 문자열) 합성 버전 1개 생성.
+ *   bomVersionId 는 별도 GET /{id}/bom-versions 와 매칭 전까지 version 문자열 기반 합성키 사용.
+ * - parts: 트리 DFS 전체 노드. kind 는 tier_level/leaf 여부로 파생(백엔드 미제공).
+ * - bomItems: required_quantity 가 있는 노드만(= 백엔드 bom_items 실 데이터). percentage 는 노드값 ?? 0.
+ */
+export function normalizeProductBom(resp: BomTreeResponse): ApiProductBom {
+  const productId = resp.productId ?? resp.product_id ?? "";
+  const versionNumber = resp.bomVersion ?? resp.bom_version ?? "";
+  const status = resp.bomStatus ?? resp.bom_status ?? "active";
+  const bomVersionId = versionNumber ? `${productId}:${versionNumber}` : productId;
+
+  const bomVersions: ApiBomVersion[] = versionNumber
+    ? [{ bomVersionId, productId, versionNumber, status }]
+    : [];
+
+  const parts: ApiBomPart[] = [];
+  const bomItems: ApiBomItem[] = [];
+
+  const walk = (node: BomTreeNode | null | undefined): void => {
+    if (!node) return;
+    const n = node as unknown as Record<string, unknown>;
+    const partId = pick<string>(n, "partId", "part_id") ?? "";
+    const tierLevel = pick<number>(n, "tierLevel", "tier_level") ?? 0;
+    const children = (node.children ?? []) as BomTreeNode[];
+    const isLeaf = children.length === 0;
+    // kind 파생: 최상위(tier 1)=component, 말단=mineral, 중간=material
+    const kind = tierLevel <= 1 ? "component" : isLeaf ? "mineral" : "material";
+    const requiredQuantityUnit = pick<string>(n, "requiredQuantityUnit", "required_quantity_unit") ?? "";
+
+    parts.push({
+      partId,
+      partCode: pick<string>(n, "partCode", "part_code") ?? "",
+      partName: pick<string>(n, "partName", "part_name") ?? "",
+      tierLevel,
+      parentPartId: (pick<string | null>(n, "parentPartId", "parent_part_id") ?? null),
+      materialType: pick<string>(n, "materialType", "material_type") ?? "",
+      functionPurpose: "", // 백엔드 미제공
+      purchaseUnit: requiredQuantityUnit,
+      kind,
+    });
+
+    const requiredQuantity = pick<number>(n, "requiredQuantity", "required_quantity");
+    // bom_items 실 데이터가 있는 노드만 항목 생성(재귀 하위 구조 노드는 제외)
+    if (requiredQuantity !== undefined && requiredQuantity !== null) {
+      bomItems.push({
+        bomItemId: `${bomVersionId}:${partId}`,
+        bomVersionId,
+        partId,
+        requiredQuantity,
+        requiredQuantityUnit,
+        percentage: (node.percentage ?? 0) as number,
+        originCountry: pick<string>(n, "originCountry", "origin_country") ?? "",
+      });
+    }
+
+    children.forEach(walk);
+  };
+
+  walk(resp.tree);
+
+  return { bomVersions, parts, bomItems };
+}
+
 /** 대표 제품 목록. 없으면 빈 배열(또는 404). */
 export const getProducts = () => api.get<ApiProduct[]>("/products");
 
-/** 제품의 MBOM 구조(버전·자재·항목). 없으면 404. */
-export const getProductBom = (productId: string) =>
-  api.get<ApiProductBom>(`/products/${productId}/bom`);
+/**
+ * 제품의 BOM 트리 조회 → 평면 3배열(ApiProductBom)로 정규화해 반환.
+ * 백엔드는 중첩 트리(BomTreeResponse)를 주지만 소비부는 평면 배열을 기대하므로
+ * 여기(API 경계)에서 한 번만 변환한다(anti-corruption layer).
+ */
+export const getProductBom = async (productId: string): Promise<ApiProductBom> => {
+  const resp = await api.get<BomTreeResponse>(`/products/${productId}/bom`);
+  return normalizeProductBom(resp);
+};
