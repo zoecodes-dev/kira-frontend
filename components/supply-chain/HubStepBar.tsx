@@ -58,14 +58,6 @@ export default function HubStepBar({
 }: HubStepBarProps) {
   return (
     <section className="border-b border-slate-200 bg-white px-6 pt-6">
-      <div className="mb-1 flex items-center gap-2">
-        <Layers className="h-5 w-5 text-ok-text" />
-        <h1 className="text-2xl font-black tracking-tight text-ink-100">공급망 맵 허브</h1>
-      </div>
-      <p className="text-sm font-medium text-ink-500">
-        대표 제품을 고르고 MBOM 기준으로 1차 협력사를 자동 맵핑한 뒤, 협력사 정보 확인·자료 요청·초대·만료 관리까지 한 화면에서 진행합니다.
-      </p>
-
       <div className="mt-4 flex flex-wrap gap-2 pb-4">
         <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-ok-border bg-ok-bg px-3 py-2.5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ok-bg text-ok-text">

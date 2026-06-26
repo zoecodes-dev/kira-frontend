@@ -83,7 +83,8 @@ export default function SupplyChainHub() {
     <div className="min-h-screen bg-white text-ink-100">
       <PageHeader
         title="공급망 맵 허브"
-        description="협력사 풀·맵·자료 요청·실사를 한 화면에서 단계별로 관리합니다."
+        description="대표 제품을 고르고 MBOM 기준으로 1차 협력사를 자동 맵핑한 뒤, 협력사 정보 확인·자료 요청·초대·만료 관리까지 관리합니다.
+      </p>"
       >
         <HubStepBar
           poolCount={pool.length}
