@@ -73,14 +73,14 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
     'flex items-center gap-3 px-3 py-2.5 rounded-none transition-colors group flex-1 min-w-0 text-left',
     isLinkActive
       ? 'bg-white text-[#11352A] font-semibold'
-      : 'bg-transparent text-white/88 font-medium hover:bg-white/8'
+      : 'bg-transparent text-white/90 font-medium hover:bg-white/8'
   );
 
   const mainContent = (
     <>
       <div className={clsx(
         'w-8 h-8 flex items-center justify-center shrink-0',
-        isLinkActive ? 'text-[#11352A]' : 'text-white/70'
+        isLinkActive ? 'text-[#11352A]' : 'text-white/75'
       )}>
         <Icon className="w-4 h-4" strokeWidth={isLinkActive ? 2.5 : 2} />
       </div>
