@@ -72,7 +72,7 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
   const mainClassName = clsx(
     'flex items-center gap-3 px-3 py-2.5 rounded-none transition-colors group flex-1 min-w-0 text-left',
     isLinkActive
-      ? 'bg-white text-brand font-semibold'
+      ? 'bg-white text-[#11352A] font-semibold'
       : 'bg-transparent text-white/88 font-medium hover:bg-white/8'
   );
 
@@ -80,13 +80,13 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
     <>
       <div className={clsx(
         'w-8 h-8 flex items-center justify-center shrink-0',
-        isLinkActive ? 'text-brand' : 'text-white/70'
+        isLinkActive ? 'text-[#11352A]' : 'text-white/70'
       )}>
         <Icon className="w-4 h-4" strokeWidth={isLinkActive ? 2.5 : 2} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[13px]">{label}</div>
-        <div className={clsx('text-[10px] truncate', isLinkActive ? 'text-brand/60' : 'text-white/50')}>{subtitle}</div>
+        <div className={clsx('text-[10px] truncate', isLinkActive ? 'text-[#11352A]/60' : 'text-white/50')}>{subtitle}</div>
       </div>
     </>
   );
@@ -142,7 +142,7 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
                   className={clsx(
                     'block px-2 py-1.5 rounded-none text-[12px] transition-colors',
                     subActive
-                      ? 'bg-white text-brand font-semibold'
+                      ? 'bg-white text-[#11352A] font-semibold'
                       : 'text-white/62 hover:text-white/88 hover:bg-white/8'
                   )}
                 >
@@ -155,7 +155,7 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
                       const childClassName = clsx(
                         'block rounded-none px-2 py-1.5 text-[12px] transition-colors',
                         childActive
-                          ? 'bg-white text-brand font-semibold'
+                          ? 'bg-white text-[#11352A] font-semibold'
                           : 'text-white/62 hover:bg-white/8 hover:text-white/88',
                         child.disabled && 'cursor-default hover:bg-transparent hover:text-white/62'
                       );
