@@ -27,7 +27,7 @@ import { InfoFactoriesSection } from './sections/info/InfoFactoriesSection';
 import { InfoCertsSection } from './sections/info/InfoCertsSection';
 import { InfoCompletenessSection } from './sections/info/InfoCompletenessSection';
 
-const supplierTypeLabel: Record<SupplierType, string> = {
+const providerTypeLabel: Record<SupplierType, string> = {
   manufacturer: '제조사',
   recycler: '재활용',
   trader: '트레이더',
@@ -175,7 +175,7 @@ export default function SupplierInfoPage() {
     name: brief.companyName,
     tier: 1 as const,
     tiers: [] as [],
-    role: supplierTypeLabel[brief.supplierType] ?? brief.supplierType,
+    role: providerTypeLabel[brief.providerType] ?? brief.providerType,
     country: '',
     region: '',
     coordinates: [0, 0] as [number, number],

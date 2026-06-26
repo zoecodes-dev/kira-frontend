@@ -98,7 +98,7 @@ export default function OnboardingEntry({
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-slate-500">유형</span>
-                <span className="font-semibold text-ink-100">{typeLabel[detail.supplierType] ?? detail.supplierType}</span>
+                <span className="font-semibold text-ink-100">{typeLabel[detail.providerType] ?? detail.providerType}</span>
               </div>
             </div>
           ) : (

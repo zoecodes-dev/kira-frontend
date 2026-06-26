@@ -58,7 +58,7 @@ export function InfoGeneralSection({ supplier, name, ext, ctiDetails }: {
 
       {/* CTI 상세는 detail 엔드포인트로 백킹 — ext(사업자정보, API 없음) 유무와 무관하게 표시 */}
       {ctiDetails && (
-        <Section title="업종별 CTI 상세" subtitle="supplier_type별 필수 상세 필드">
+        <Section title="업종별 CTI 상세" subtitle="provider_type별 필수 상세 필드">
           <ProviderTypeDetails providerType={ctiDetails.providerType} details={ctiDetails} />
         </Section>
       )}

@@ -79,7 +79,8 @@
   [ { "supplier_id": "...", ... }, ... ]   // 20건
   ```
 - 프론트는 페이지 수를 `ceil(X-Total-Count / size)`로 계산한다.
-- **확정 사유**: 모든 목록 응답을 bare array로 통일 유지(envelope 혼재 방지). `lib/api.ts`는 헤더를 읽는 목록 변형 헬퍼만 추가하면 되고 기존 bare-array 소비부는 그대로다.
+- **적용 범위**: `X-Total-Count`는 **페이지로 잘라 보는 목록**(suppliers·submissions·reports 등) 전용이다. 통째로 그리는 합성 응답(예: §10.2 공급망 맵 — 배열 4개 + 통계)에는 **해당 없음(N/A)**. 그런 화면의 요약 개수는 헤더가 아니라 **응답 본문의 집계 필드**(`counts`)로 내려준다.
+- **확정 사유**: 모든 (페이징) 목록 응답을 bare array로 통일 유지(envelope 혼재 방지). `lib/api.ts`는 헤더를 읽는 목록 변형 헬퍼만 추가하면 되고 기존 bare-array 소비부는 그대로다.
 - 프록시 주의: 헤더가 `next.config.js` rewrite를 통과해 그대로 전달돼야 한다(현재 단순 rewrite라 통과). 향후 CORS 직결 시엔 백엔드가 `Access-Control-Expose-Headers: X-Total-Count` 설정 필요.
 
 ### 0.7 공통 값 규약
@@ -403,8 +404,11 @@
 | 10.2a | GET | `/products/{productId}/supply-chain-map?bom_version_id=&period_from=&period_to=&factory_id=&po_number=` | 🆕 |
 | 10.2b | POST | `/supply-chain/maps/{mapId}/confirm` | 🆕 |
 
-- 10.2a: `{ supplyChainMap: [{ partId, supplierId, factoryId, tierLevel, linkStatus }], supplyChainRatios: [{ partId, supplierId, ratioPercent }], suppliers: [], supplierFactories: [] }`
+- 10.2a: `{ supplyChainMap: [{ partId, supplierId, factoryId, tierLevel, linkStatus }], supplyChainRatios: [{ partId, supplierId, ratioPercent }], suppliers: [], supplierFactories: [], counts: { totalNodes, suppliers, rawMaterials, feocReview, dueDiligence, verified } }`
   - `linkStatus` enum §A-4 (declared \| confirmed). 테이블 `supply_chain_map`, `supply_ratio`.
+  - ⚠ **페이지네이션 N/A (의도적 제외)**: 맵은 통째로 그리는 화면이라 페이지로 자르지 않는다 → `X-Total-Count` 헤더(§0.6)를 **붙이지 않는다**. 헤더는 페이징 목록(suppliers·submissions·reports) 전용.
+  - **`counts`(본문 집계)**: 화면 상단 통계 바([SupplyChainMapPageContent.tsx:846~851](../../app/supply-chain/SupplyChainMapPageContent.tsx#L846-L851))용. 라벨 매핑 — `totalNodes`=전체 공급망 노드, `suppliers`=공급사, `rawMaterials`=원자재/광산, `feocReview`=FEOC 검토 필요, `dueDiligence`=실사 필요, `verified`=검증완료. **배열 길이로 안 나오는 집계(feocReview/dueDiligence/verified)는 백엔드 계산 필요** → 헤더가 아니라 본문이 맞음.
+  - ⚠ **현 데모 한계(2026-06-26 결정 A — mock 확장 안 함)**: `lib/supply-chain-mock.ts`는 `prod-bat-ncm811`의 `bomv-ncm811-v32` **단일 체인만** 연결(공급사·노드 각 6). LFP120·deprecated 버전은 bom_items/supply_chain_map이 비어 트리가 빈 화면. 통계 바 숫자(노드 128/공급사 42/원자재 57)는 **하드코딩 플레이스홀더**다. 실데이터·실집계는 **백엔드 10.2a `counts`로 대체** 예정(데모 mock은 확장하지 않음).
 - 10.2b 요청: `{ confirmed: true }` → 맵 최종 확정. 응답 `{ mapId, status:"confirmed" }`.
 
 ---

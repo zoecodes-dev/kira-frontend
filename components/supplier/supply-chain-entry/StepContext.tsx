@@ -45,7 +45,7 @@ export default function StepContext({
       try {
         const detail = await getSupplierDetail(supplierId);
         if (!cancelled) {
-          onChange({ ...data, providerType: data.providerType || detail.supplierType });
+          onChange({ ...data, providerType: data.providerType || detail.providerType });
         }
       } catch {
         // 토큰/백엔드 없으면 빈 폼으로 진행 (graceful)

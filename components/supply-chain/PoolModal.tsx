@@ -15,7 +15,7 @@ import {
 // §4.2 — 요청 노드(KIRA, OEM/tier0)는 Pool 후보에서 제외
 const REQUEST_NODE_ID = 'a0000000-0000-4000-8000-000000000000';
 
-const supplierTypeLabel: Record<SupplierType, string> = {
+const providerTypeLabel: Record<SupplierType, string> = {
   manufacturer: '제조사',
   recycler: '재활용',
   trader: '트레이더',
@@ -61,7 +61,7 @@ export default function PoolModal({
     const q = search.trim().toLowerCase();
     if (!q) return candidates;
     return candidates.filter(s =>
-      [s.companyName, s.supplierId, s.supplierType].filter(Boolean).join(' ').toLowerCase().includes(q),
+      [s.companyName, s.supplierId, s.providerType].filter(Boolean).join(' ').toLowerCase().includes(q),
     );
   }, [candidates, search]);
 
@@ -165,7 +165,7 @@ export default function PoolModal({
                   <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500">
                     <span className="num-mono">{s.supplierId}</span>
                     <span className="text-slate-300">·</span>
-                    <span>{supplierTypeLabel[s.supplierType] ?? s.supplierType}</span>
+                    <span>{providerTypeLabel[s.providerType] ?? s.providerType}</span>
                   </div>
                 </div>
               </label>
