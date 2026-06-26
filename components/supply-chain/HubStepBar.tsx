@@ -6,6 +6,7 @@ import { ClipboardCheck, FileSpreadsheet, FileText, Layers, Mail, Network, Packa
 interface HubStepBarProps {
   poolCount: number;
   hasSelection: boolean;
+  hasProduct: boolean;
   onOpenPool: () => void;
   onOpenSupplierInfo: () => void;
   onOpenDataRequest: () => void;
@@ -50,12 +51,15 @@ function StepButton({
 export default function HubStepBar({
   poolCount,
   hasSelection,
+  hasProduct,
   onOpenPool,
   onOpenSupplierInfo,
   onOpenDataRequest,
   onOpenInvite,
   onOpenMapManage,
 }: HubStepBarProps) {
+  // 순차 게이팅 — 앞 단계 미완료면 다음 단계 완전 비활성.
+  const poolDone = poolCount > 0; // STEP 2 완료
   return (
     <section className="border-b border-slate-200 bg-white px-6 pt-6">
       <div className="mt-4 flex flex-wrap gap-2 pb-4">
@@ -69,7 +73,14 @@ export default function HubStepBar({
             <span className="block truncate text-[11px] font-medium text-ok-text">아래에서 제품을 선택하세요</span>
           </span>
         </div>
-        <StepButton index={2} label="협력사 Pool 구성" hint={poolCount > 0 ? `${poolCount}개사 선택됨` : '1차 협력사 선택'} Icon={Users} onClick={onOpenPool} />
+        <StepButton
+          index={2}
+          label="협력사 Pool 구성"
+          hint={!hasProduct ? '제품을 먼저 선택' : poolDone ? `${poolCount}개사 선택됨` : '1차 협력사 선택'}
+          Icon={Users}
+          onClick={onOpenPool}
+          disabled={!hasProduct}
+        />
         {/* STEP 3 — Pool 확정 시 활성화. 공급망 맵(§10.2a)은 제품 선택 시 이미 자동 구성되므로,
             여기서는 확정된 Pool 기준으로 맵핑이 적용됐음을 상태로 표면화한다. */}
         {poolCount > 0 ? (
@@ -95,10 +106,38 @@ export default function HubStepBar({
             </span>
           </div>
         )}
-        <StepButton index={4} label="협력사 정보 확인" hint={hasSelection ? '선택 노드 기준' : '노드를 먼저 선택'} Icon={ClipboardCheck} onClick={onOpenSupplierInfo} disabled={!hasSelection} />
-        <StepButton index={5} label="자료 업데이트 요청" hint="검증 후 보완 요청" Icon={RefreshCw} onClick={onOpenDataRequest} disabled={!hasSelection} />
-        <StepButton index={6} label="정보 입력 요청" hint="표준 템플릿 메일" Icon={Mail} onClick={onOpenInvite} />
-        <StepButton index={7} label="맵 관리·만료 확인" hint="인증서/원산지 만료" Icon={FileText} onClick={onOpenMapManage} />
+        <StepButton
+          index={4}
+          label="협력사 정보 확인"
+          hint={!poolDone ? 'Pool 확정 후' : hasSelection ? '선택 노드 기준' : '노드를 먼저 선택'}
+          Icon={ClipboardCheck}
+          onClick={onOpenSupplierInfo}
+          disabled={!poolDone || !hasSelection}
+        />
+        <StepButton
+          index={5}
+          label="자료 업데이트 요청"
+          hint={!poolDone ? 'Pool 확정 후' : hasSelection ? '검증 후 보완 요청' : '노드를 먼저 선택'}
+          Icon={RefreshCw}
+          onClick={onOpenDataRequest}
+          disabled={!poolDone || !hasSelection}
+        />
+        <StepButton
+          index={6}
+          label="정보 입력 요청"
+          hint={!poolDone ? 'Pool 확정 후' : '표준 템플릿 메일'}
+          Icon={Mail}
+          onClick={onOpenInvite}
+          disabled={!poolDone}
+        />
+        <StepButton
+          index={7}
+          label="맵 관리·만료 확인"
+          hint={!poolDone ? 'Pool 확정 후' : '인증서/원산지 만료'}
+          Icon={FileText}
+          onClick={onOpenMapManage}
+          disabled={!poolDone}
+        />
         <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2.5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-ink-400">
             <FileSpreadsheet className="h-4 w-4" />

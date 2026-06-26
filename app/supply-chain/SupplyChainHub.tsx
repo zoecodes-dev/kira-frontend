@@ -25,6 +25,8 @@ export default function SupplyChainHub() {
   const [pool, setPool] = useState<SupplierBrief[]>([]);
   // STEP 2 Pool 후보 — 선택된 제품의 §10.2a 맵 tier-1 협력사만. 제품 미선택이면 빈 배열.
   const [tier1Pool, setTier1Pool] = useState<SupplierBrief[]>([]);
+  // 순차 게이팅용 — STEP 1(제품 선택) 완료 여부. URL productId로 진입 시 초기값.
+  const [selectedProductId, setSelectedProductId] = useState<string | undefined>(initialProductId);
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [activeModal, setActiveModal] = useState<HubModal>(null);
   // 맵 관리에서 시작한 자료요청은 협력사명을 직접 지정 (없으면 선택 노드 기준)
@@ -72,7 +74,8 @@ export default function SupplyChainHub() {
   async function handleProductChange(productId: string) {
     if (isDemo) return;
 
-    // 제품이 바뀌면 이전 제품 기준 Pool 후보·확정 선택은 더 이상 유효하지 않으므로 초기화.
+    // STEP 1 완료 표시. 제품이 바뀌면 이전 제품 기준 Pool 후보·확정 선택은 무효이므로 초기화.
+    setSelectedProductId(productId);
     setTier1Pool([]);
     setPool([]);
 
@@ -122,6 +125,7 @@ export default function SupplyChainHub() {
   function loadDemo() {
     setIsDemo(true);
     setDataset(mockDataset);
+    setSelectedProductId(mockDataset.products[0]?.product_id);
     // 데모도 동일 규칙 — tier-1 협력사만 Pool 후보로.
     setTier1Pool(
       mockDataset.suppliers
@@ -165,6 +169,7 @@ export default function SupplyChainHub() {
         <HubStepBar
           poolCount={pool.length}
           hasSelection={Boolean(selectedNode)}
+          hasProduct={Boolean(selectedProductId)}
           onOpenPool={() => setActiveModal('pool')}
           onOpenSupplierInfo={() => setActiveModal('supplierInfo')}
           onOpenDataRequest={() => setActiveModal('dataRequest')}
