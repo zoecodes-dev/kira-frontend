@@ -7,7 +7,7 @@ import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import {
-  AlertTriangle, CheckCircle2, Clock3, FileCheck2, Send,
+  AlertTriangle, CheckCircle2, Clock3, FileCheck2,
   ShieldAlert, UserCheck, ArrowRight, Bell, X,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -347,58 +347,43 @@ export default function MyTaskPage() {
                 ))}
               </div>
             </div>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-ink-700/40 bg-slate-50">
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-500">업무</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">상태</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">담당자</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">마감일</th>
-                  <th className="w-8 px-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-700/30">
-                {filtered.map(task => {
-                  const meta = typeMeta[task.type];
-                  const TypeIcon = meta.icon;
-                  const dot = { critical: 'bg-alert-solid', high: 'bg-alert-solid', medium: 'bg-warn-solid', low: 'bg-ok-solid' }[task.priority];
-                  const statusCls = { today: 'text-warn-text', overdue: 'text-alert-text', waiting: 'text-slate-400', done: 'text-ok-text' }[task.status];
-                  return (
-                    <tr
-                      key={task.id}
-                      className={clsx(
-                        'cursor-pointer transition-colors hover:bg-slate-50',
-                        task.status === 'done' && 'opacity-50',
-                      )}
-                      onClick={() => window.location.href = task.targetHref}
-                    >
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className={clsx('h-2 w-2 shrink-0 rounded-full', dot)} />
-                          <div>
-                            <div className="text-[15px] font-semibold text-ink-100">{task.title}</div>
-                            <div className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-500">
-                              <TypeIcon className="h-3 w-3" />
-                              <span>{meta.label}</span>
-                              <span className="mx-0.5 opacity-40">·</span>
-                              <span className="text-ink-500/80">{task.description}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={clsx('text-sm font-semibold', statusCls)}>{statusMeta[task.status].label}</span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-ink-400">{task.owner}</td>
-                      <td className="px-4 py-3 text-sm text-ink-400 num-mono">{task.due}</td>
-                      <td className="px-2 py-3">
-                        <ArrowRight className="h-4 w-4 text-ink-500" />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="divide-y divide-ink-700/30">
+              {filtered.length === 0 && (
+                <div className="px-5 py-12 text-center text-sm text-ink-500">해당하는 업무가 없습니다.</div>
+              )}
+              {filtered.map(task => {
+                const meta = typeMeta[task.type];
+                const TypeIcon = meta.icon;
+                const dot = { critical: 'bg-alert-solid', high: 'bg-alert-solid', medium: 'bg-warn-solid', low: 'bg-ok-solid' }[task.priority];
+                const statusCls = { today: 'text-warn-text', overdue: 'text-alert-text', waiting: 'text-ink-400', done: 'text-ok-text' }[task.status];
+                return (
+                  <button
+                    key={task.id}
+                    onClick={() => (window.location.href = task.targetHref)}
+                    className={clsx(
+                      'flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-slate-50',
+                      task.status === 'done' && 'opacity-50',
+                    )}
+                  >
+                    <span className={clsx('h-2.5 w-2.5 shrink-0 rounded-full', dot)} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[15px] font-bold text-ink-100">{task.title}</div>
+                      <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
+                        <TypeIcon className="h-3.5 w-3.5 shrink-0" />
+                        <span className="font-semibold">{meta.label}</span>
+                        <span className="opacity-40">·</span>
+                        <span className="truncate">{task.description}</span>
+                      </div>
+                    </div>
+                    <div className="hidden shrink-0 text-right sm:block">
+                      <div className={clsx('text-sm font-bold', statusCls)}>{statusMeta[task.status].label}</div>
+                      <div className="mt-0.5 text-[11px] text-ink-500">{task.owner} · <span className="num-mono">{task.due}</span></div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-ink-500" />
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="space-y-6">
@@ -423,15 +408,6 @@ export default function MyTaskPage() {
                     </div>
                   </div>
                 ))}
-              </div>
-            </Card>
-
-            <Card title="빠른 실행" subtitle="자주 쓰는 운영 액션">
-              <div className="grid grid-cols-2 gap-2">
-                <QuickAction href="/submission-review" icon={FileCheck2} label="자료 검토" />
-                <QuickAction href="/due-diligence" icon={ShieldAlert} label="공급망 실사" />
-                <QuickAction href="/submission-status" icon={Send} label="리마인드" />
-                <QuickAction href="/hitl" icon={UserCheck} label="HITL" />
               </div>
             </Card>
           </div>
@@ -490,15 +466,6 @@ function Metric({
         </span>
       </div>
     </button>
-  );
-}
-
-function QuickAction({ href, icon: Icon, label }: { href: string; icon: any; label: string }) {
-  return (
-    <Link href={href} className="inline-flex items-center justify-center gap-2 rounded-xs border border-ink-700 px-3 py-2 text-xs font-semibold text-ink-300 hover:bg-ink-800 hover:text-ink-100 transition-colors">
-      <Icon className="w-3.5 h-3.5" />
-      {label}
-    </Link>
   );
 }
 
