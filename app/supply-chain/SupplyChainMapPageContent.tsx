@@ -403,8 +403,6 @@ export function SupplyChainMapPageContent({
               <MapDetailPanel selectedNode={selectedNode} formationMode={formationMode} />
             </div>
           </section>
-
-          {!formationMode && <SupplyMapStats rows={traceRows} />}
         </>
       )}
 
@@ -453,8 +451,8 @@ export function SupplyChainMapPageContent({
         <section className="mt-4 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
           <div className="flex items-start justify-between gap-4 border-b border-ink-700 bg-ink-800/40 px-5 py-4">
             <div>
-              <h2 className="text-base font-bold text-ink-100">감사/제출용 추적 테이블</h2>
-              <p className="mt-0.5 text-xs text-ink-500">트리와 동일한 join 결과를 표 형태로 제공합니다.</p>
+              <h2 className="text-base font-bold text-ink-100">제출 데이터 확인</h2>
+              <p className="mt-0.5 text-xs text-ink-500">공급망 맵을 표 형태로 제공합니다.</p>
             </div>
             <div className="flex shrink-0 gap-2">
               <button type="button" onClick={downloadCsv} className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-400 hover:bg-ink-800">
@@ -836,20 +834,6 @@ function MapDetailPanel({ selectedNode, formationMode = false }: { selectedNode:
         )}
       </div>
     </aside>
-  );
-}
-
-function SupplyMapStats({ rows }: { rows: TraceRow[] }) {
-  const verifiedCount = rows.filter(row => row.risk_status === 'verified').length;
-  return (
-    <section className="mt-4 grid grid-cols-6 divide-x divide-slate-200 rounded-lg border border-slate-200 bg-white px-6 py-5 shadow-[0_14px_40px_rgba(15,23,42,0.04)]">
-      <StatCell label="전체 공급망 노드" value="128" suffix="개" />
-      <StatCell label="공급사" value="42" suffix="개" />
-      <StatCell label="원자재 / 광산" value="57" suffix="개" />
-      <StatCell label="FEOC 검토 필요" value="7" suffix="개" tone="danger" />
-      <StatCell label="실사 필요" value="3" suffix="개" tone="warning" />
-      <StatCell label="검증완료" value={`${Math.max(96, verifiedCount)}`} suffix="개" tone="success" />
-    </section>
   );
 }
 
