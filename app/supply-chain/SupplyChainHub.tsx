@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, Database, Loader2 } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
-import { apiProductsToDataset, emptyDataset, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
+import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
 import { ApiError, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, type SupplierBrief } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
 import PageHeader from '@/components/PageHeader';
@@ -95,15 +95,19 @@ export default function SupplyChainHub() {
     const activeVersionId =
       preferredVersionId ?? versions.find(v => v.isCurrent)?.bomVersionId ?? versions[0]?.bomVersionId;
 
-    // 2) BOM 트리 → 평면. 실 bomVersionId가 있으면 그 키로 정합.
+    // 2) BOM 버전 목록(드롭다운)은 트리 조회 성공 여부와 무관하게 먼저 등록.
+    //    백엔드 /bom 트리가 404("active BOM 없음")여도 /bom-versions는 버전을 주므로 BOM 정보는 떠야 한다.
+    setDataset(ds => mergeBomVersions(ds, productId, versions));
+
+    // 3) BOM 트리 → 평면(부품/항목). 트리가 없으면 버전만 유지.
     try {
       const bom = await getProductBom(productId, activeVersionId);
       setDataset(ds => mergeProductBom(ds, productId, bom, versions));
     } catch {
-      // BOM 없음 — 빈 상태 유지
+      // BOM 트리 없음/404 — 버전 목록은 위에서 이미 반영됨
     }
 
-    // 3) §10.2a 공급망 맵(협력사·공장·비율). 미구현/빈 데이터면 건너뜀.
+    // 4) §10.2a 공급망 맵(협력사·공장·비율). 미구현/빈 데이터면 건너뜀.
     if (activeVersionId) {
       try {
         const map = await getProductSupplyChainMap(productId, { bomVersionId: activeVersionId });
