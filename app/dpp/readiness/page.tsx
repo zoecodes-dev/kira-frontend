@@ -277,7 +277,7 @@ export default function DppReadinessPage() {
               </section>
 
               <div className="flex flex-wrap justify-end gap-2 border-t border-ink-700 pt-4">
-                <Action icon={Send} label="보완 요청" tone="warn" href="/supply-chain/request-map" />
+                <Action icon={Send} label="보완 요청" tone="warn" href="/my-task" />
                 <Action icon={UserCheck} label="HITL 요청" tone="neutral" href="/hitl" />
                 <Action icon={FileBadge} label="DPP 발행" tone={selected.blockers.length > 0 ? 'disabled' : 'ok'} />
               </div>
