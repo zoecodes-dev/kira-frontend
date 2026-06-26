@@ -2,10 +2,10 @@
 
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
 import { useEffect, useState } from 'react';
-import { Database, Loader2 } from 'lucide-react';
+import { AlertTriangle, Database, Loader2 } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
-import { getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, type SupplierBrief } from '@/lib/api';
+import { ApiError, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, type SupplierBrief } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
 import PageHeader from '@/components/PageHeader';
 import HubStepBar from '@/components/supply-chain/HubStepBar';
@@ -28,17 +28,30 @@ export default function SupplyChainHub() {
   const [dataset, setDataset] = useState<SupplyChainDataset>(emptyDataset);
   const [productsLoading, setProductsLoading] = useState(true);
   const [isDemo, setIsDemo] = useState(false);
+  // 조회 상태 알림: 'auth'=토큰 없음/401·403, 'error'=그 외 실패, null=정상
+  const [loadStatus, setLoadStatus] = useState<'auth' | 'error' | null>(null);
 
-  // 진입 시 제품 목록 조회 (백엔드/토큰 없으면 빈 상태로 graceful)
+  // 진입 시 제품 목록 조회. 토큰 없음/401·403은 알림으로 표면화(조용한 빈 화면 방지).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setProductsLoading(true);
+      setLoadStatus(null);
+      if (!getToken()) {
+        // 토큰 자체가 없음 — 로그인 필요
+        if (!cancelled) {
+          setLoadStatus('auth');
+          setProductsLoading(false);
+        }
+        return;
+      }
       try {
         const apiProducts = await getProducts();
         if (!cancelled) setDataset({ ...emptyDataset, products: apiProductsToDataset(apiProducts) });
-      } catch {
-        // 빈 상태 유지
+      } catch (e) {
+        if (!cancelled) {
+          setLoadStatus(e instanceof ApiError && (e.status === 401 || e.status === 403) ? 'auth' : 'error');
+        }
       } finally {
         if (!cancelled) setProductsLoading(false);
       }
@@ -119,6 +132,38 @@ export default function SupplyChainHub() {
           onOpenMapManage={() => setActiveModal('mapManage')}
         />
       </PageHeader>
+
+      {loadStatus === 'auth' && (
+        <div className="mx-6 mt-4 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">로그인이 필요합니다</p>
+            <p className="text-red-700/90">
+              인증 토큰이 없거나 만료됐습니다(401/403). 다시 로그인한 뒤 새로고침하세요. 제품·BOM·협력사 데이터는 인증 후 표시됩니다.
+            </p>
+          </div>
+        </div>
+      )}
+      {loadStatus === 'error' && (
+        <div className="mx-6 mt-4 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">제품을 불러오지 못했습니다</p>
+            <p className="text-amber-700/90">백엔드 응답 오류 또는 네트워크 문제입니다. 잠시 후 다시 시도하거나 데모 데이터로 확인하세요.</p>
+          </div>
+        </div>
+      )}
+      {!productsLoading && loadStatus === null && !isDemo && dataset.products.length === 0 && (
+        <div className="mx-6 mt-4 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">표시할 제품이 없습니다</p>
+            <p className="text-amber-700/90">
+              로그인 계정의 테넌트에 연결된 제품이 없습니다(<code>products.tenant_id</code>). 백엔드 시드/테넌트 매핑을 확인하세요.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-end gap-2 px-6 pt-4">
         {productsLoading && (
