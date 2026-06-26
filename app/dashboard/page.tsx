@@ -1,11 +1,10 @@
 // [작업 4 — 대시보드 탭 구조 추가]
 // 변경 사항:
-// 1. 페이지 최상단에 탭 네비게이션 추가 (Overview / High Risk / Pending / DPP Ready / HITL Queue)
+// 1. 페이지 최상단에 탭 네비게이션 추가 (Overview / High Risk / Pending / HITL Queue)
 // 2. Overview 탭 — 기존 대시보드 내용 그대로 유지
 // 3. High Risk 탭 — supplierRiskProfiles에서 high/critical 협력사 목록
 // 4. Pending 탭 — supplierCompleteness에서 completionRate < 80 목록 + SLA 초과 여부
-// 5. DPP Ready 탭 — dppRecords에서 status === 'issued' 목록
-// 6. HITL Queue 탭 — batchesInProgress에서 currentStage === 'hitl-wait' 목록
+// 5. HITL Queue 탭 — batchesInProgress에서 currentStage === 'hitl-wait' 목록
 // 탭 스타일: border-b-2 방식 (app/suppliers/[id]/layout.tsx 참고)
 
 'use client';
@@ -14,7 +13,7 @@ import { useEffect, useState } from 'react';
 import Badge from '@/components/Badge';
 import {
   violationsByRegulation,
-  dppRecords, suppliers, productInstances,
+  suppliers, productInstances,
 } from '@/lib/data';
 import {
   getDashboardKpis, getBatches,
@@ -117,14 +116,13 @@ function flattenBatchesResponse(res: BatchesResponse): UiBatch[] {
 }
 
 // ── 탭 정의 ──────────────────────────────────────────────────────
-type TabKey = 'overview' | 'today-batches' | 'violation-cases' | 'high-risk' | 'pending' | 'dpp-ready' | 'hitl-queue';
+type TabKey = 'overview' | 'today-batches' | 'violation-cases' | 'high-risk' | 'pending' | 'hitl-queue';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview',    label: 'Overview' },
   { key: 'today-batches', label: 'Today Batches' },
   { key: 'violation-cases', label: 'Violation Cases' },
   { key: 'high-risk',   label: 'High Risk' },
   { key: 'pending',     label: 'Pending' },
-  { key: 'dpp-ready',   label: 'DPP Ready' },
   { key: 'hitl-queue',  label: 'HITL Queue' },
 ];
 
@@ -349,7 +347,7 @@ function DashboardSupplyChainMap() {
     { rank: 2, title: '보완 요청', desc: '공급사로부터 추가 자료가 필요합니다.', level: '높음', count: '3건', href: '/my-task' },
     { rank: 3, title: '인증서 만료 임박', desc: '30일 이내 만료되는 인증서가 있습니다.', level: '중간', count: '5건', href: '/suppliers/check-info' },
     { rank: 4, title: '실사 필요', desc: '고위험 공급사 중 실사가 필요합니다.', level: '중간', count: '4건', href: '/submission-review?tab=dd' },
-    { rank: 5, title: 'HITL 검토 대기', desc: 'AI 검토가 완료되어 최종 확인이 필요합니다.', level: '낮음', count: '2건', href: '/dpp/center?tab=hitl' },
+    { rank: 5, title: 'HITL 검토 대기', desc: 'AI 검토가 완료되어 최종 확인이 필요합니다.', level: '낮음', count: '2건', href: '/dashboard?tab=hitl-queue' },
   ];
 
   const regulationBySupplier: Record<string, string> = {
@@ -378,24 +376,13 @@ function DashboardSupplyChainMap() {
       };
     });
 
-  const dppStatusPriority: Record<string, number> = { not_started: 0, pending: 1, in_progress: 2, issued: 3 };
-  const productMap = new Map<string, { modelName: string; statuses: string[]; count: number }>();
+  const productMap = new Map<string, { modelName: string; count: number }>();
   productInstances.forEach(p => {
-    if (!productMap.has(p.productId)) productMap.set(p.productId, { modelName: p.modelName, statuses: [], count: 0 });
-    const entry = productMap.get(p.productId)!;
-    entry.statuses.push(p.dppStatus);
-    entry.count++;
+    if (!productMap.has(p.productId)) productMap.set(p.productId, { modelName: p.modelName, count: 0 });
+    productMap.get(p.productId)!.count++;
   });
   const products = Array.from(productMap.values()).map(data => {
-    const worst = data.statuses.reduce((w, s) => dppStatusPriority[s] < dppStatusPriority[w] ? s : w);
-    const meta: Record<string, { label: string; tone: string }> = {
-      issued:      { label: '발행 완료', tone: 'success' },
-      in_progress: { label: '처리중',   tone: 'warning' },
-      pending:     { label: '대기중',   tone: 'warning' },
-      not_started: { label: '미시작',   tone: 'danger'  },
-    };
-    const { label, tone } = meta[worst] ?? meta.not_started;
-    return { name: data.modelName, type: `총 ${data.count}건`, status: label, supply: `${data.count}건`, tone, href: '/dpp/center' };
+    return { name: data.modelName, type: `총 ${data.count}건`, supply: `${data.count}건`, href: '/materials/regulation-results' };
   });
 
   const changes = [
@@ -469,25 +456,11 @@ function DashboardSupplyChainMap() {
         </DashboardPanel>
       </div>
 
-      {/* Row 2: 제품 현황 | DPP 현황 | 최근 변경사항 */}
-      <div className="grid grid-cols-3 items-stretch gap-2">
-        <DashboardPanel title="제품 현황" action="전체 보기" actionHref="/dpp/center">
+      {/* Row 2: 제품 현황 | 최근 변경사항 */}
+      <div className="grid grid-cols-2 items-stretch gap-2">
+        <DashboardPanel title="제품 현황" action="전체 보기" actionHref="/materials/regulation-results">
           {products.slice(0, 4).map(product => (
             <ProductStatusRow key={product.name} product={product} />
-          ))}
-        </DashboardPanel>
-
-        <DashboardPanel title="DPP 현황" action="DPP Center" actionHref="/dpp/center">
-          {[
-            { label: '발행 가능', value: '12', unit: '건', color: 'text-ok-text', href: '/dpp/center?tab=status' },
-            { label: '발행 보류', value: '7',  unit: '건', color: 'text-warn-text',   href: '/dpp/center' },
-            { label: 'HITL 대기', value: '3',  unit: '건', color: 'text-purple-600',  href: '/dpp/center?tab=hitl' },
-            { label: 'Blocker',   value: '5',  unit: '건', color: 'text-alert-text',     href: '/dpp/center' },
-          ].map(item => (
-            <Link key={item.label} href={item.href} className="flex items-center justify-between border-b border-[#F1F5F9] last:border-0 rounded-none px-[13px] py-[9px] hover:bg-slate-50 transition-colors">
-              <span className="text-sm font-semibold text-ink-100">{item.label}</span>
-              <span className={clsx('text-sm font-bold num-mono', item.color)}>{item.value}{item.unit}</span>
-            </Link>
           ))}
         </DashboardPanel>
 
@@ -552,38 +525,15 @@ function TaskRow({ task }: { task: { rank: number; title: string; desc: string; 
   );
 }
 
-function ProductStatusRow({ product }: { product: { name: string; type: string; status: string; supply: string; tone: string; href: string } }) {
-  const statusColor = {
-    danger: 'bg-alert-bg text-alert-text',
-    warning: 'bg-warn-bg text-warn-text',
-    success: 'bg-ok-bg text-ok-text',
-    purple: 'bg-purple-50 text-purple-600',
-  }[product.tone] ?? 'bg-slate-50 text-slate-600';
-
+function ProductStatusRow({ product }: { product: { name: string; type: string; supply: string; href: string } }) {
   return (
     <Link href={product.href} className="flex items-center gap-3 border-b border-[#F1F5F9] last:border-0 rounded-none px-[13px] py-[9px] hover:bg-slate-50 transition-colors">
       <div className="flex-1 min-w-0">
         <div className="truncate text-sm font-semibold text-ink-100">{product.name}</div>
         <div className="mt-0.5 text-xs text-ink-500">{product.type}</div>
       </div>
-      <span className={clsx('shrink-0 rounded-xs px-2 py-0.5 text-xs font-semibold', statusColor)}>{product.status}</span>
       <span className="shrink-0 text-xs text-ink-400 num-mono">{product.supply}</span>
       <ChevronDown className="h-4 w-4 shrink-0 -rotate-90 text-ink-500" />
-    </Link>
-  );
-}
-
-function DppStatusItem({ label, value, tone, href }: { label: string; value?: string; tone: 'success' | 'warning' | 'purple' | 'danger'; href: string }) {
-  const dotColor = { success: 'bg-ok-solid', warning: 'bg-warn-solid', purple: 'bg-purple-500', danger: 'bg-alert-solid' }[tone];
-  const valueColor = { success: 'text-ok-text', warning: 'text-warn-text', purple: 'text-purple-700', danger: 'text-alert-text' }[tone];
-
-  return (
-    <Link href={href} className="flex items-center gap-3 rounded-xs border border-transparent px-2 py-2 hover:border-ink-700/40 hover:bg-slate-50 transition-colors">
-      <div className={clsx('h-2 w-2 shrink-0 rounded-full', dotColor)} />
-      <div className="flex flex-1 items-center justify-between min-w-0 gap-2">
-        <div className="truncate text-sm font-medium text-ink-200">{label}</div>
-        {value && <div className={clsx('shrink-0 text-[15px] font-bold num-mono', valueColor)}>{value}</div>}
-      </div>
     </Link>
   );
 }
@@ -652,7 +602,6 @@ export default function DashboardPage() {
     r => r.riskLevel === 'high' || r.riskLevel === 'critical'
   );
   const pendingList = supplierCompleteness.filter(c => c.completionRate < 80);
-  const dppReadyList = dppRecords.filter(d => d.status === 'issued');
   const hitlList = apiBatches.filter(b => b.currentStage === 'hitl-wait');
   const missingFieldCount = supplierCompleteness.reduce((sum, item) => sum + item.missingFields.length, 0);
   const verifiedSuppliers = suppliers.filter(s => s.status === 'verified').length;
@@ -665,7 +614,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="대시보드"
-        description="KIRA Battery DPP Traceability Platform"
+        description="KIRA Battery Traceability Platform"
         actions={
           <>
             <div className="flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-medium text-ink-400">
@@ -691,18 +640,18 @@ export default function DashboardPage() {
       {activeTab === 'overview' && (
         <div className="space-y-2 bg-slate-50 p-6">
           <section className="grid grid-cols-5 gap-2">
-            <CompactMetric label="Traceability Coverage" value={92} unit="%" icon={Activity} tone="ok" hint="원산지 추적 가능 비율" delta="7%" deltaGood onClick={() => handleTabChange('dpp-ready')} />
+            <CompactMetric label="Traceability Coverage" value={92} unit="%" icon={Activity} tone="ok" hint="원산지 추적 가능 비율" delta="7%" deltaGood onClick={() => handleTabChange('high-risk')} />
             <CompactMetric label="High Risk Region" value={highRiskSuppliers + 16} icon={ShieldAlert} tone="alert" hint="고위험 지역 연결 업체" delta="3" deltaGood={false} deltaDirection="up" onClick={() => handleTabChange('high-risk')} />
             <CompactMetric label="Missing Documents" value={missingFieldCount} icon={FileText} tone="warn" hint="원산지/인증 문서 누락 업체" delta="5" deltaGood deltaDirection="down" onClick={() => handleTabChange('pending')} />
             <CompactMetric label="Due Diligence Alerts" value={(apiKpis?.rejectedBatches ?? 0) + hitlWaiting + 3} icon={AlertTriangle} tone="alert" hint="EUDR/CSDDD 검토 필요 건수" delta="2" deltaGood deltaDirection="down" onClick={() => handleTabChange('violation-cases')} />
-            <CompactMetric label="ESG Compliance Score" value="84.2" icon={CheckCircle2} tone="ok" hint="규제 대응 종합 점수" delta="4.3" deltaGood onClick={() => handleTabChange('dpp-ready')} />
+            <CompactMetric label="ESG Compliance Score" value="84.2" icon={CheckCircle2} tone="ok" hint="규제 대응 종합 점수" delta="4.3" deltaGood onClick={() => handleTabChange('violation-cases')} />
           </section>
 
           <div className="flex items-center gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
             <Bot className="h-4 w-4 shrink-0 text-ink-400" />
             <span className="text-sm font-bold text-ink-200">AI 인사이트</span>
             <span className="text-sm text-ink-500">
-              고위험 협력사 {highRiskSuppliers}개사와 누락 문서 {missingFieldCount}건이 DPP 발행 가능성에 영향을 줍니다. Katanga Cobalt, Ganzhou Rare Metals를 우선 확인하세요.
+              고위험 협력사 {highRiskSuppliers}개사와 누락 문서 {missingFieldCount}건이 규제 대응 및 통관 적합성에 영향을 줍니다. Katanga Cobalt, Ganzhou Rare Metals를 우선 확인하세요.
             </span>
           </div>
 
@@ -801,7 +750,7 @@ export default function DashboardPage() {
               <div className="p-4">
                 <div className="rounded-sm border border-accent-100 bg-accent-50 p-3">
                   <p className="text-sm leading-6 text-ink-100">
-                    고위험 협력사 {highRiskSuppliers}개사와 누락 문서 {missingFieldCount}건이 DPP 발행 가능성에 영향을 줍니다.
+                    고위험 협력사 {highRiskSuppliers}개사와 누락 문서 {missingFieldCount}건이 규제 대응 및 통관 적합성에 영향을 줍니다.
                     Katanga Cobalt, Ganzhou Rare Metals를 우선 확인하세요.
                   </p>
                 </div>
@@ -948,7 +897,7 @@ export default function DashboardPage() {
           <TabTableShell
             title="오늘 처리 배치"
             subtitle={`${apiBatches.length}건 · 전체 배치 ${apiKpis?.totalBatches ?? 0}건`}
-            action={<Link href="/dpp/center?tab=hitl" className="flex items-center gap-1 text-[13px] font-semibold text-accent-700 hover:text-accent-600">검토 큐 열기 <ArrowRight className="h-4 w-4" /></Link>}
+            action={<Link href="/dashboard?tab=hitl-queue" className="flex items-center gap-1 text-[13px] font-semibold text-accent-700 hover:text-accent-600">검토 큐 열기 <ArrowRight className="h-4 w-4" /></Link>}
           >
             {apiBatches.length === 0 ? (
               <EmptyState label="현재 해당 항목이 없습니다" />
@@ -1226,54 +1175,6 @@ export default function DashboardPage() {
       )}
 
       {/* ══════════════════════════════════════════════════════════
-          탭 4 — DPP Ready
-      ══════════════════════════════════════════════════════════ */}
-      {activeTab === 'dpp-ready' && (
-        <div className="p-8">
-          <TabTableShell title="DPP 발행 완료" subtitle={`발행 가능한 DPP 레코드 ${dppReadyList.length}건`}>
-            {dppReadyList.length === 0 ? (
-              <EmptyState label="현재 해당 항목이 없습니다" />
-            ) : (
-              <table className="w-full min-w-[1020px]">
-                <thead className="border-b border-ink-700 bg-white">
-                  <tr>
-                    <th className={tableHeadClass}>DPP ID</th>
-                    <th className={tableHeadClass}>제품명</th>
-                    <th className={tableHeadClass}>시리얼</th>
-                    <th className={tableHeadClass}>제조사</th>
-                    <th className={tableHeadClass}>발행일</th>
-                    <th className={tableHeadClass}>목적지</th>
-                    <th className={tableHeadClass}>탄소</th>
-                    <th className={tableHeadClass}>재활용 함량</th>
-                    <th className={tableHeadClass}>승인자</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-ink-700/50">
-                  {dppReadyList.map(d => (
-                    <tr key={d.id} className="hover:bg-slate-50">
-                      <td className={`${tableCellClass} font-semibold num-mono text-ok-text`}>{d.id}</td>
-                      <td className={`${tableCellClass} max-w-[240px] whitespace-normal break-words font-semibold text-ink-100`}>{d.modelName}</td>
-                      <td className={`${tableMutedCellClass} num-mono`}>{d.serialNumber}</td>
-                      <td className={`${tableMutedCellClass} max-w-[240px] whitespace-normal break-words`}>{d.manufacturer}</td>
-                      <td className={`${tableMutedCellClass} num-mono`}>{d.issuedAt.slice(0, 10)}</td>
-                      <td className={tableCellClass}>
-                        <span className={clsx('inline-flex rounded-xs border px-2 py-1 text-[13px] font-semibold', regionColor[d.destination] || 'border-ink-600 text-ink-400')}>{d.destination}</span>
-                      </td>
-                      <td className={`${tableMutedCellClass} num-mono`}>{d.carbonFootprint} kg CO₂eq</td>
-                      <td className={`${tableMutedCellClass} whitespace-nowrap num-mono`}>
-                        Co {d.recycledContent.Co}% · Ni {d.recycledContent.Ni}% · Li {d.recycledContent.Li}%
-                      </td>
-                      <td className={`${tableMutedCellClass} max-w-[180px] whitespace-normal break-words`}>{d.approvedBy}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </TabTableShell>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════
           탭 5 — HITL Queue
       ══════════════════════════════════════════════════════════ */}
       {activeTab === 'hitl-queue' && (
@@ -1306,7 +1207,7 @@ export default function DashboardPage() {
                       <td className={tableCellClass}><Badge tone={destMeta[b.destination]?.tone} size="sm">{b.destination}</Badge></td>
                       <td className={`${tableMutedCellClass} max-w-[220px] whitespace-normal break-words`}>{b.assignedTo ?? '-'}</td>
                       <td className={tableCellClass}>
-                        <Link href="/dpp/center?tab=hitl" className="inline-flex items-center gap-1 font-semibold text-accent-700 hover:text-accent-600">
+                        <Link href="/submission-review" className="inline-flex items-center gap-1 font-semibold text-accent-700 hover:text-accent-600">
                           검토 <ArrowRight className="h-4 w-4" />
                         </Link>
                       </td>

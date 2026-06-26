@@ -68,7 +68,7 @@ const reports: ReportRecord[] = [
       { name: '박ESG', role: 'ESG 총괄', status: 'approved' },
     ],
     summary:
-      'Katanga Mining CAPA 2건 중 1건 이행 완료. 커뮤니티 합의서 갱신은 2026-06-18 예정으로 조건부 승인. 이행 완료 후 DPP 발행 진행 가능.',
+      'Katanga Mining CAPA 2건 중 1건 이행 완료. 커뮤니티 합의서 갱신은 2026-06-18 예정으로 조건부 승인. 이행 완료 후 통관 적합성 판정 진행 가능.',
   },
   {
     id: 'RPT-2026-003',
@@ -110,7 +110,7 @@ const reports: ReportRecord[] = [
       { name: '최대표', role: '최종 결재', status: 'approved' },
     ],
     summary:
-      'Q1 기준 FEOC 미적격 2건, CAPA 진행 4건, DPP 발행 완료 1건. 전반적 개선 추세로 2분기 목표치 달성 가능할 것으로 판단.',
+      'Q1 기준 FEOC 미적격 2건, CAPA 진행 4건, 규제 검증 완료 1건. 전반적 개선 추세로 2분기 목표치 달성 가능할 것으로 판단.',
   },
 ];
 

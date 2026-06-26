@@ -25,7 +25,7 @@ type LoginRole = 'oem' | 'supplier';
 
 const demoAccounts: Record<LoginRole, { email: string; password: string; label: string; target: string }> = {
   oem: {
-    email: 'oem@kira-dpp.com',
+    email: 'oem@kira.demo',
     password: 'demo1234',
     label: '원청사 계정',
     target: '/dashboard',
@@ -96,7 +96,7 @@ export default function LoginPage() {
               <ShieldCheck className="h-5 w-5" strokeWidth={2.4} />
             </div>
             <div>
-              <div className="text-sm font-bold tracking-tight">Battery DPP</div>
+              <div className="text-sm font-bold tracking-tight">KIRA Battery</div>
               <div className="text-[11px] font-semibold text-ink-500">규제 대응 관제 시스템</div>
             </div>
           </div>
@@ -117,7 +117,7 @@ export default function LoginPage() {
               <div className="rounded-sm border border-ink-700 bg-ink-800 p-4">
                 <Building2 className="h-5 w-5 text-accent-700" strokeWidth={1.8} />
                 <div className="mt-3 text-sm font-bold">원청사</div>
-                <div className="mt-1 text-xs leading-5 text-ink-500">전체 협력사, 리스크, DPP 발행, 감사 추적을 유지합니다.</div>
+                <div className="mt-1 text-xs leading-5 text-ink-500">전체 협력사, 리스크, 규제 대응, 감사 추적을 유지합니다.</div>
               </div>
               <div className="rounded-sm border border-ink-700 bg-ink-800 p-4">
                 <Factory className="h-5 w-5 text-info-text" strokeWidth={1.8} />

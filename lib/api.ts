@@ -226,7 +226,6 @@ export interface DashboardKpis {
   hitlWaitBatches: number;
   completedBatches: number;
   rejectedBatches: number;
-  dppIssuedCount: number;
   compliancePassRate: number;
   avgConfidenceScore: number;
 }

@@ -20,7 +20,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <ShieldCheck className="w-4 h-4 text-brand" strokeWidth={2.5} />
             </div>
             <div>
-              <div className="text-sm font-bold text-white tracking-tight">Battery DPP</div>
+              <div className="text-sm font-bold text-white tracking-tight">KIRA Battery</div>
               <div className="text-[11px] text-white/55">규제 대응 관제</div>
             </div>
           </div>
@@ -46,18 +46,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <div className="space-y-0.5">
               <NavLink href="/dashboard" iconName="activity" label="대시보드" subtitle="전체 결과 요약" />
               <NavLink href="/my-task" iconName="clipboard-check" label="My Task" subtitle="담당자 업무" />
-            </div>
-          </div>
-
-          {/* DPP 센터 */}
-          <div className="border-t border-white/10 py-2.5">
-            <div className="space-y-0.5">
-              <NavLink
-                href="/dpp/center"
-                iconName="layers"
-                label="DPP 센터"
-                subtitle="준비도·규제·HITL·이력"
-              />
             </div>
           </div>
 

@@ -249,7 +249,7 @@ export function SupplyChainMapPageContent({
           <h1 className="text-2xl font-black tracking-tight text-ink-100">{formationMode ? '공급망 맵 형성하기' : '공급망 맵'}</h1>
           <p className="mt-2 text-sm font-medium text-ink-500">
             {formationMode
-              ? 'E-BOM 구조를 먼저 펼쳐 보고, 공급망 연결 전 단계의 맵 형성 상태를 확인하세요.'
+              ? 'M-BOM 구조를 먼저 펼쳐 보고, 공급망 연결 전 단계의 맵 형성 상태를 확인하세요.'
               : '제품에서 원자재까지 공급망 구조와 리스크 현황을 한눈에 확인하세요.'}
           </p>
         </header>
@@ -294,24 +294,6 @@ export function SupplyChainMapPageContent({
               />
             </div>
           </FilterSelect>
-          <FilterSelect label="PO 상태">
-            <select value={selectedPoNumber} onChange={event => setSelectedPoNumber(event.target.value)} className="h-11 min-w-[150px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border">
-              <option value="ALL">전체 상태</option>
-              {poOptions.map(poNumber => (
-                <option key={poNumber} value={poNumber}>{poNumber}</option>
-              ))}
-            </select>
-          </FilterSelect>
-          <FilterSelect label="사업장/리스크">
-            <select value={selectedFactoryId} onChange={event => setSelectedFactoryId(event.target.value)} className="h-11 min-w-[190px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border">
-              <option value="ALL">전체 리스크</option>
-              {factoryOptions.map(factory => (
-                <option key={factory.factory_id} value={factory.factory_id}>
-                  {factory.factory_name}
-                </option>
-              ))}
-            </select>
-          </FilterSelect>
           <button
             type="button"
             onClick={handleGenerate}
@@ -332,14 +314,6 @@ export function SupplyChainMapPageContent({
               맵 형성하기
             </button>
           )}
-          <button
-            type="button"
-            onClick={downloadExcel}
-            className="inline-flex h-11 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-ink-400 shadow-sm hover:bg-slate-50"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Excel 저장
-          </button>
           <button className="inline-flex h-11 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-ink-400 shadow-sm hover:bg-slate-50">
             <Maximize2 className="h-4 w-4" />
             전체 화면

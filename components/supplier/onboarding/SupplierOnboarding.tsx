@@ -93,7 +93,7 @@ export default function SupplierOnboarding() {
             <ShieldCheck className="h-4 w-4 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <div className="text-sm font-bold text-ink-100">Battery DPP · 협력사 온보딩</div>
+            <div className="text-sm font-bold text-ink-100">KIRA Battery · 협력사 온보딩</div>
             <div className="text-[11px] text-slate-500">{type === 'firstTier' ? '1차 협력사 — 하위 협력사 정보 등록' : 'n차 협력사 — 회원가입'}</div>
           </div>
         </div>

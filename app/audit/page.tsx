@@ -46,7 +46,7 @@ export default function AuditPage() {
       <PageHeader 
         title="감사 추적"
         description="Provenance 미들웨어가 자동 기록한 의사결정 경로 · 규제 당국 감사 대응용"
-        badge="DPP-2026-04982"
+        badge="LOT-MIN-240514-D"
       />
 
       <div className="p-8 space-y-6">

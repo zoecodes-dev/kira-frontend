@@ -62,11 +62,11 @@ const inboxReports: InboxReport[] = [
     severity: 'medium',
     previousReviewers: [],
     summary:
-      'Q2 기준 고위험 협력사 5개사 중 3개사 CAPA 완료, 2개사 진행 중. DPP 발행 준비 완료 제품 3건.',
+      'Q2 기준 고위험 협력사 5개사 중 3개사 CAPA 완료, 2개사 진행 중. 규제 검증 완료 제품 3건.',
     keyPoints: [
       'Katanga Mining CAPA 이행률 50% → 조건부 승인 권고',
       'Ganzhou Refinery FEOC 검토 결과 별도 보고 중',
-      'BMW iX3 DPP 발행 완료 (DPP-IX3-20260610)',
+      'BMW iX3 규제 적합성 검증 완료 (RPT-IX3-20260610)',
     ],
   },
   {

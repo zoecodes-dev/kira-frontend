@@ -49,7 +49,7 @@ export default function MaterialRegulationResultsPage() {
           <div className="flex items-center justify-between gap-4 border-b border-ink-700 px-5 py-4">
             <div>
               <h2 className="text-sm font-semibold text-ink-100">자재별 규제 판정</h2>
-              <p className="text-xs text-ink-500 mt-1">판정 결과는 DPP Readiness와 리스크 조치 보드로 연결됩니다</p>
+              <p className="text-xs text-ink-500 mt-1">판정 결과는 리스크 조치 보드로 연결됩니다</p>
             </div>
             <Badge tone="info">{results.filter(r => r.confidence < 0.85).length}건 HITL 후보</Badge>
           </div>

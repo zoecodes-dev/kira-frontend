@@ -76,7 +76,7 @@ export const mockSubmissions: Submission[] = [
       { no: 5, label: '원청 접수',   sublabel: '원청사 검토 큐 진입',            status: 'done',    completedAt: '2026-05-21 10:00' },
       { no: 6, label: '원청 검토중', sublabel: '원청사 담당자 내용 검토 중',     status: 'active' },
       { no: 7, label: '보완 요청',   sublabel: '미비 사항 재제출 요청',          status: 'pending' },
-      { no: 8, label: '최종 승인',   sublabel: 'DPP 발행 승인 완료',            status: 'pending' },
+      { no: 8, label: '최종 승인',   sublabel: '규제 적합성 최종 승인 완료',     status: 'pending' },
     ],
   },
   {
@@ -93,13 +93,13 @@ export const mockSubmissions: Submission[] = [
       { no: 5, label: '원청 접수',   sublabel: '원청사 검토 큐 진입',            status: 'done',    completedAt: '2026-05-23 10:00' },
       { no: 6, label: '원청 검토중', sublabel: '원청사 담당자 내용 검토 중',     status: 'done',    completedAt: '2026-05-27 16:20' },
       { no: 7, label: '보완 요청',   sublabel: '미비 사항 재제출 요청',          status: 'rejected',completedAt: '2026-05-27 16:22' },
-      { no: 8, label: '최종 승인',   sublabel: 'DPP 발행 승인 완료',            status: 'pending' },
+      { no: 8, label: '최종 승인',   sublabel: '규제 적합성 최종 승인 완료',     status: 'pending' },
     ],
   },
 ];
 
 // batch.status 분기용 Mock — 기획서 E-3 스펙
-// · batch_completed  → DPP QR 다운로드 버튼 표시
+// · batch_completed  → 완료 증빙 다운로드 버튼 표시
 // · batch_rejected   → 시정 완료 회신 버튼 (page.tsx에서 ViolationReportModal 연결)
 // · batch_processing → 조회만 가능
 // · batch_hitl_wait  → 보완 제출 딥링크
@@ -380,7 +380,7 @@ function SubmissionStepperCard({
             </div>
           )}
 
-          {/* ── 승인 완료 패널 + DPP QR 다운로드 (기획서 E-3: batch_completed) ── */}
+          {/* ── 승인 완료 패널 + 완료 증빙 다운로드 (기획서 E-3: batch_completed) ── */}
           {isDone && (
             <div className="mt-5 rounded-xs border border-signal-ok/40 bg-signal-ok/5 p-4">
               <div className="flex items-center gap-2.5">
@@ -388,17 +388,17 @@ function SubmissionStepperCard({
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-signal-ok">최종 승인 완료</div>
                   <div className="text-[10px] text-ink-500 mt-0.5">
-                    DPP가 발행됐습니다. QR 코드를 다운로드해 고객사에 제출하세요.
+                    규제 적합성 검증이 완료됐습니다. 완료 증빙을 다운로드해 고객사에 제출하세요.
                   </div>
                 </div>
-                {/* DPP QR 다운로드 버튼 — 기획서 E-3: stage_issuance + batch_completed 시 표시 */}
+                {/* 완료 증빙 다운로드 버튼 — 기획서 E-3: stage_issuance + batch_completed 시 표시 */}
                 <button
                   type="button"
-                  onClick={() => alert('DPP QR 코드 다운로드 (API 연동 예정)')}
+                  onClick={() => alert('완료 증빙 다운로드 (API 연동 예정)')}
                   className="inline-flex shrink-0 items-center gap-2 rounded-xs border border-signal-ok bg-white px-3 py-2 text-xs font-bold text-signal-ok shadow-control hover:bg-signal-ok hover:text-white transition-colors"
                 >
                   <QrCode className="h-3.5 w-3.5" />
-                  DPP QR 다운로드
+                  증빙 다운로드
                   <Download className="h-3 w-3" />
                 </button>
               </div>

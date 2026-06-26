@@ -5,13 +5,13 @@ import { getActions, type ActionItem } from '@/lib/api';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import {
-  AlertTriangle, CheckCircle2, FileCheck2,
+  CheckCircle2, FileCheck2,
   ShieldAlert, UserCheck, ArrowRight, Bell,
 } from 'lucide-react';
 import clsx from 'clsx';
 
 type TaskStatus = 'today' | 'overdue' | 'waiting' | 'done';
-type TaskType = 'submission_review' | 'risk_action' | 'hitl' | 'reminder' | 'dpp_blocker' | 'due_diligence';
+type TaskType = 'submission_review' | 'risk_action' | 'hitl' | 'reminder' | 'due_diligence';
 
 type Task = {
   id: string;
@@ -39,7 +39,7 @@ const _MOCK_TASKS: Task[] = [
     source: '제출 자료 검토',
     targetHref: '/submission-review',
     targetLabel: '제출 자료 검토로 이동',
-    description: 'Ganzhou Rare Metals의 직접 지분 41.2% 검증 결과가 DPP 발행을 막고 있습니다.',
+    description: 'Ganzhou Rare Metals의 직접 지분 41.2% 검증 결과가 규제 적합성 판정을 막고 있습니다.',
   },
   {
     id: 'TASK-002',
@@ -63,7 +63,7 @@ const _MOCK_TASKS: Task[] = [
     owner: 'ESG팀 김민재',
     due: '2026-06-03',
     source: 'HITL 검토',
-    targetHref: '/dpp/center?tab=hitl',
+    targetHref: '/submission-review',
     targetLabel: 'HITL 검토로 이동',
     description: 'NCM811 양극재의 코발트 원산지 증빙과 OCR 추출값 검토가 필요합니다.',
   },
@@ -79,19 +79,6 @@ const _MOCK_TASKS: Task[] = [
     targetHref: '/submission-status',
     targetLabel: '입력 현황으로 이동',
     description: 'Sulawesi Nickel Mine의 EUDR 검증에 필요한 광산 경계 좌표가 누락되어 있습니다.',
-  },
-  {
-    id: 'TASK-005',
-    title: 'SN-2026-A1-082451 DPP blocker 확인',
-    type: 'dpp_blocker',
-    status: 'overdue',
-    priority: 'critical',
-    owner: 'DPP 운영 박서연',
-    due: '2026-05-31',
-    source: 'DPP Readiness',
-    targetHref: '/dpp/center?tab=status',
-    targetLabel: 'DPP Readiness로 이동',
-    description: 'FEOC, 대체 공급망, ISO 14001 갱신 blocker가 남아 발행 보류 상태입니다.',
   },
   {
     id: 'TASK-006',
@@ -113,7 +100,6 @@ const typeMeta = {
   risk_action: { label: '리스크 조치', icon: ShieldAlert, tone: 'alert' as const },
   hitl: { label: 'HITL', icon: UserCheck, tone: 'warn' as const },
   reminder: { label: '리마인드', icon: Bell, tone: 'warn' as const },
-  dpp_blocker: { label: 'DPP Blocker', icon: AlertTriangle, tone: 'alert' as const },
   due_diligence: { label: '실사', icon: CheckCircle2, tone: 'ok' as const },
 };
 
@@ -149,7 +135,7 @@ const _TYPE_FROM_API: Record<string, TaskType> = {
 };
 const _HREF_FROM_TYPE: Record<TaskType, string> = {
   submission_review: '/submission-review', risk_action: '/submission-review?tab=dd',
-  hitl: '/dpp/center?tab=hitl', reminder: '/submission-status', dpp_blocker: '/dpp/center?tab=status',
+  hitl: '/submission-review', reminder: '/submission-status',
   due_diligence: '/submission-review?tab=dd',
 };
 
