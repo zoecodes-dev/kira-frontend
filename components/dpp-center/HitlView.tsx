@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { api, type HitlQueueItem } from '@/lib/api';
-import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import { 
@@ -85,7 +84,7 @@ function adaptHitlItem(item: HitlQueueItem): ReviewCase {
   };
 }
 
-export default function HitlPage() {
+export default function HitlView() {
   const [queue, setQueue] = useState<ReviewCase[]>(reviewQueue);
   const [selectedCase, setSelectedCase] = useState<ReviewCase>(reviewQueue[0]);
   const [decision, setDecision] = useState<'approve' | 'reject' | null>(null);
@@ -102,21 +101,8 @@ export default function HitlPage() {
   }, []);
 
   return (
-    <>
-      <PageHeader 
-        title="HITL 검토"
-        description="에이전트 판단 신뢰도 미달 또는 회색지대 사례 · 인간 검토자 승인 필요"
-        badge={`${queue.length}건 대기`}
-        actions={
-          <div className="flex items-center gap-2 text-xs text-ink-500">
-            <div className="w-6 h-6 rounded-full bg-accent-50 border border-accent-100 flex items-center justify-center text-xs font-semibold text-accent-700">김</div>
-            <span>김정민 ESG팀장</span>
-          </div>
-        }
-      />
-
       <div className="bg-[#F3F6F8] p-8">
-        <div className="grid h-[calc(100vh-169px)] grid-cols-[20rem_minmax(0,1fr)] gap-6">
+        <div className="grid h-[calc(100vh-180px)] grid-cols-[20rem_minmax(0,1fr)] gap-6">
         {/* 왼쪽: 검토 대기 큐 */}
         <aside className="min-h-0 overflow-y-auto rounded-sm border border-ink-700 bg-white shadow-control">
           <div className="p-4 border-b border-ink-700 sticky top-0 bg-white/95 backdrop-blur">
@@ -384,7 +370,6 @@ export default function HitlPage() {
         </main>
         </div>
       </div>
-    </>
   );
 }
 

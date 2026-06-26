@@ -63,7 +63,7 @@ const _MOCK_TASKS: Task[] = [
     owner: 'ESG팀 김민재',
     due: '2026-06-03',
     source: 'HITL 검토',
-    targetHref: '/hitl',
+    targetHref: '/dpp/center?tab=hitl',
     targetLabel: 'HITL 검토로 이동',
     description: 'NCM811 양극재의 코발트 원산지 증빙과 OCR 추출값 검토가 필요합니다.',
   },
@@ -89,7 +89,7 @@ const _MOCK_TASKS: Task[] = [
     owner: 'DPP 운영 박서연',
     due: '2026-05-31',
     source: 'DPP Readiness',
-    targetHref: '/dpp/readiness',
+    targetHref: '/dpp/center?tab=status',
     targetLabel: 'DPP Readiness로 이동',
     description: 'FEOC, 대체 공급망, ISO 14001 갱신 blocker가 남아 발행 보류 상태입니다.',
   },
@@ -149,7 +149,7 @@ const _TYPE_FROM_API: Record<string, TaskType> = {
 };
 const _HREF_FROM_TYPE: Record<TaskType, string> = {
   submission_review: '/submission-review', risk_action: '/submission-review?tab=dd',
-  hitl: '/hitl', reminder: '/submission-status', dpp_blocker: '/dpp/readiness',
+  hitl: '/dpp/center?tab=hitl', reminder: '/submission-status', dpp_blocker: '/dpp/center?tab=status',
   due_diligence: '/submission-review?tab=dd',
 };
 

@@ -349,7 +349,7 @@ function DashboardSupplyChainMap() {
     { rank: 2, title: '보완 요청', desc: '공급사로부터 추가 자료가 필요합니다.', level: '높음', count: '3건', href: '/my-task' },
     { rank: 3, title: '인증서 만료 임박', desc: '30일 이내 만료되는 인증서가 있습니다.', level: '중간', count: '5건', href: '/suppliers/check-info' },
     { rank: 4, title: '실사 필요', desc: '고위험 공급사 중 실사가 필요합니다.', level: '중간', count: '4건', href: '/submission-review?tab=dd' },
-    { rank: 5, title: 'HITL 검토 대기', desc: 'AI 검토가 완료되어 최종 확인이 필요합니다.', level: '낮음', count: '2건', href: '/hitl' },
+    { rank: 5, title: 'HITL 검토 대기', desc: 'AI 검토가 완료되어 최종 확인이 필요합니다.', level: '낮음', count: '2건', href: '/dpp/center?tab=hitl' },
   ];
 
   const regulationBySupplier: Record<string, string> = {
@@ -479,9 +479,9 @@ function DashboardSupplyChainMap() {
 
         <DashboardPanel title="DPP 현황" action="DPP Center" actionHref="/dpp/center">
           {[
-            { label: '발행 가능', value: '12', unit: '건', color: 'text-ok-text', href: '/dpp/readiness' },
+            { label: '발행 가능', value: '12', unit: '건', color: 'text-ok-text', href: '/dpp/center?tab=status' },
             { label: '발행 보류', value: '7',  unit: '건', color: 'text-warn-text',   href: '/dpp/center' },
-            { label: 'HITL 대기', value: '3',  unit: '건', color: 'text-purple-600',  href: '/hitl' },
+            { label: 'HITL 대기', value: '3',  unit: '건', color: 'text-purple-600',  href: '/dpp/center?tab=hitl' },
             { label: 'Blocker',   value: '5',  unit: '건', color: 'text-alert-text',     href: '/dpp/center' },
           ].map(item => (
             <Link key={item.label} href={item.href} className="flex items-center justify-between border-b border-[#F1F5F9] last:border-0 rounded-none px-[13px] py-[9px] hover:bg-slate-50 transition-colors">
@@ -948,7 +948,7 @@ export default function DashboardPage() {
           <TabTableShell
             title="오늘 처리 배치"
             subtitle={`${apiBatches.length}건 · 전체 배치 ${apiKpis?.totalBatches ?? 0}건`}
-            action={<Link href="/hitl" className="flex items-center gap-1 text-[13px] font-semibold text-accent-700 hover:text-accent-600">검토 큐 열기 <ArrowRight className="h-4 w-4" /></Link>}
+            action={<Link href="/dpp/center?tab=hitl" className="flex items-center gap-1 text-[13px] font-semibold text-accent-700 hover:text-accent-600">검토 큐 열기 <ArrowRight className="h-4 w-4" /></Link>}
           >
             {apiBatches.length === 0 ? (
               <EmptyState label="현재 해당 항목이 없습니다" />
@@ -1306,7 +1306,7 @@ export default function DashboardPage() {
                       <td className={tableCellClass}><Badge tone={destMeta[b.destination]?.tone} size="sm">{b.destination}</Badge></td>
                       <td className={`${tableMutedCellClass} max-w-[220px] whitespace-normal break-words`}>{b.assignedTo ?? '-'}</td>
                       <td className={tableCellClass}>
-                        <Link href="/hitl" className="inline-flex items-center gap-1 font-semibold text-accent-700 hover:text-accent-600">
+                        <Link href="/dpp/center?tab=hitl" className="inline-flex items-center gap-1 font-semibold text-accent-700 hover:text-accent-600">
                           검토 <ArrowRight className="h-4 w-4" />
                         </Link>
                       </td>

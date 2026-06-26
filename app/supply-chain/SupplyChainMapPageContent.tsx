@@ -1,6 +1,6 @@
 'use client';
 
-// 공급망 맵과 E-BOM 형성 화면이 공유하는 원본 화면 컴포넌트입니다.
+// 공급망 맵과 M-BOM 형성 화면이 공유하는 원본 화면 컴포넌트입니다.
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
