@@ -1,8 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import Link from 'next/link';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import NavLink from '@/components/NavLink';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -143,13 +142,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <div className="text-xs text-white/80">정상 운영 중</div>
           </div>
           <div className="text-[10px] text-white/40 mt-2 num-mono">v0.6.0 · 2026.05.21</div>
-          <Link
-            href="/"
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xs border border-white/20 bg-transparent px-3 py-2 text-xs font-bold text-white/80 hover:bg-white/10 hover:text-white"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            로그아웃
-          </Link>
           <div className="mt-2.5 text-[10px] text-white/40 num-mono">
             마지막 업데이트 2026-06-17 14:57
           </div>

@@ -28,7 +28,6 @@ import {
   ArrowRight, Activity, AlertCircle, Bot, FileText, Bell, CalendarDays, ChevronDown,
 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
-import TabBar from '@/components/TabBar';
 import Link from 'next/link';
 import clsx from 'clsx';
 
@@ -683,10 +682,8 @@ export default function DashboardPage() {
             </button>
           </>
         }
+        tabs={TABS.map(t => ({ label: t.label, active: activeTab === t.key, onClick: () => handleTabChange(t.key) }))}
       />
-      <nav className="sticky top-[57px] z-10 bg-white px-8 pt-3">
-        <TabBar tabs={TABS} value={activeTab} onChange={handleTabChange} />
-      </nav>
 
       {/* ══════════════════════════════════════════════════════════
           탭 1 — Overview (기존 대시보드 내용 그대로)

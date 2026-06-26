@@ -6,7 +6,6 @@ import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import TopStatCard from '@/components/TopStatCard';
 import DueDiligenceBoard from '@/components/DueDiligenceBoard';
-import TabBar from '@/components/TabBar';
 import {
   getSupplierName, getContacts, purchaseOrders, parts, remindLogs,
 } from '@/lib/supplier-detail-data';
@@ -169,6 +168,10 @@ export default function SubmissionReviewPage() {
         title="제출 자료 검토"
         description="협력사가 업로드한 자료를 원청사가 승인, 반려, 보완 요청하는 화면"
         badge="P0"
+        tabs={[
+          { label: '자료 검토', active: tab === 'review', onClick: () => setTab('review') },
+          { label: '공급망 실사', active: tab === 'dd', onClick: () => setTab('dd') },
+        ]}
       />
 
       {notice && (
@@ -176,14 +179,6 @@ export default function SubmissionReviewPage() {
           {notice}
         </div>
       )}
-
-      <nav className="sticky top-[57px] z-10 bg-white px-8 pt-3">
-        <TabBar<'review' | 'dd'>
-          tabs={[{ key: 'review', label: '자료 검토' }, { key: 'dd', label: '공급망 실사' }]}
-          value={tab}
-          onChange={setTab}
-        />
-      </nav>
 
       {tab === 'dd' ? (
         <DueDiligenceBoard />
