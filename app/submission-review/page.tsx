@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
@@ -96,7 +95,6 @@ const resultMeta = {
 };
 
 export default function SubmissionReviewPage() {
-  const router = useRouter();
   const [submissionItems, setSubmissionItems] = useState(submissions);
   const [selectedId, setSelectedId] = useState(submissions[0].id);
   const [notice, setNotice] = useState<string | null>(null);
@@ -149,13 +147,12 @@ export default function SubmissionReviewPage() {
     )));
     setNotice(
       requestStatus === 'reviewed'
-        ? 'request-map의 검토 대기를 검토 완료로 변경했습니다.'
+        ? '검토 완료로 처리했습니다.'
         : requestStatus === 'rework'
-          ? 'request-map 상태를 보완 요청으로 변경했습니다.'
-          : 'request-map 상태를 반려로 변경했습니다.',
+          ? '보완 요청으로 처리했습니다.'
+          : '반려로 처리했습니다.',
     );
     window.setTimeout(() => setNotice(null), 2500);
-    router.push(`/supply-chain/request-map?syncSupplierId=${selected.supplierId}&syncStatus=${requestStatus}${requestStatus === 'reviewed' ? `&reviewedAt=${REVIEWED_DATE}` : ''}`);
   };
 
   return (
