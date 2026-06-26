@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import TopStatCard from '@/components/TopStatCard';
+import TabBar from '@/components/TabBar';
 import clsx from 'clsx';
 import {
   ChevronRight, FileBadge, FileSearch,
@@ -13,6 +14,7 @@ import { dppRecords, type DPP } from '@/lib/data';
 
 // ── Types ────────────────────────────────────────────────────────────
 type BlockerKey = 'feoc' | 'origin' | 'hitl' | 'audit';
+type DppTab = 'status' | 'reg' | 'hitl' | 'history';
 
 interface HeldProduct {
   id: string; name: string; customer: string; model: string;
@@ -78,6 +80,7 @@ const kpis = [
 // ── Page ─────────────────────────────────────────────────────────────
 export default function DppCenterPage() {
   const [modalOpen, setModalOpen] = useState(false);
+  const [tab, setTab] = useState<DppTab>('status');
 
   const cfValues    = dppRecords.map(r => r.carbonFootprint);
   const cfAvg       = +(cfValues.reduce((a, b) => a + b, 0) / cfValues.length).toFixed(1);
@@ -97,15 +100,31 @@ export default function DppCenterPage() {
         badge="Control Center"
       />
 
-      <div className="p-8 space-y-6">
-        {/* KPI cards */}
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      {/* KPI cards — 탭과 무관하게 항상 표시되는 발행 요약 */}
+      <div className="px-8 pt-6">
+        <section className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
           {kpis.map(k => (
             <TopStatCard key={k.key} label={k.label} value={k.count} unit="건" tone={k.tone} onClick={() => setModalOpen(true)} />
           ))}
         </section>
+      </div>
 
-        {/* Row 1 */}
+      <nav className="sticky top-0 z-10 bg-white px-8 pt-4">
+        <TabBar<DppTab>
+          tabs={[
+            { key: 'status', label: '발행 현황' },
+            { key: 'reg', label: '규제 지표' },
+            { key: 'hitl', label: 'HITL' },
+            { key: 'history', label: '발행 이력' },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+      </nav>
+
+      <div className="p-8 space-y-6">
+        {/* 발행 현황 — 발행 보류 제품 · 발행 지연 원인 */}
+        {tab === 'status' && (
         <section className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[1.35fr_1fr]">
           {/* 발행 보류 제품 */}
           <div className="min-w-0 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
@@ -187,8 +206,10 @@ export default function DppCenterPage() {
             </div>
           </div>
         </section>
+        )}
 
-        {/* Row 2 */}
+        {/* 규제 지표 — 탄소발자국 · 재활용 함량 */}
+        {tab === 'reg' && (
         <section className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
           {/* 탄소발자국 */}
           <div className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
@@ -243,10 +264,11 @@ export default function DppCenterPage() {
             </div>
           </div>
         </section>
+        )}
 
-        {/* Row 3 */}
-        <section className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[1fr_1.1fr]">
-          {/* HITL */}
+        {/* HITL 검토 대기 */}
+        {tab === 'hitl' && (
+        <section className="min-w-0">
           <div className="min-w-0 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
             <PanelHeader title="HITL 검토 대기" count="7건" sub="AI 신뢰도가 낮아 사람 검토가 필요한 항목입니다.">
               <Link href="/hitl" className="inline-flex items-center gap-1.5 rounded-sm border border-ink-700 bg-white px-3 py-2 text-[13px] font-semibold text-ink-300 hover:border-accent-600 hover:text-accent-700 whitespace-nowrap">
@@ -280,8 +302,12 @@ export default function DppCenterPage() {
               </table>
             </div>
           </div>
+        </section>
+        )}
 
-          {/* 최근 발행 이력 */}
+        {/* 발행 이력 — 최근 발행된 DPP */}
+        {tab === 'history' && (
+        <section className="min-w-0">
           <div className="min-w-0 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
             <PanelHeader title="최근 발행 이력" count="8건" sub="최근 7일간 발행된 DPP를 빠르게 열람합니다.">
               <select className="rounded-sm border border-ink-700 bg-white px-3 py-2 text-[13px] font-semibold text-ink-300 outline-none hover:border-accent-600" defaultValue="7">
@@ -323,6 +349,7 @@ export default function DppCenterPage() {
             </div>
           </div>
         </section>
+        )}
       </div>
 
       {modalOpen && (
