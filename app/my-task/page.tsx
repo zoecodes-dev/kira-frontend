@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { getActions, type ActionItem } from '@/lib/api';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
+import TabBar from '@/components/TabBar';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import {
@@ -307,6 +308,7 @@ export default function MyTaskPage() {
   );
   const todayKey = useMemo(getTodayKey, []);
   const priorityOverdueCount = priorityTasks.filter(task => isOverdue(task, todayKey)).length;
+  const [view, setView] = useState<'list' | 'request'>('list');
 
   return (
     <>
@@ -316,7 +318,20 @@ export default function MyTaskPage() {
         badge="P1"
       />
 
-      <div className="p-8 space-y-6">
+      <div className="px-8 pt-6">
+        <TabBar<'list' | 'request'>
+          tabs={[{ key: 'list', label: '내 업무 목록' }, { key: 'request', label: '자료 요청' }]}
+          value={view}
+          onChange={setView}
+        />
+      </div>
+
+      {view === 'request' ? (
+        <div className="p-8 pt-4">
+          <RequestArea />
+        </div>
+      ) : (
+      <div className="p-8 pt-4 space-y-6">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Metric label="진행 업무" value={stats.total} unit="건" tone="info" onClick={() => setMetricModal('active')} />
           <Metric label="기한 초과" value={stats.overdue} unit="건" tone="alert" onClick={() => setMetricModal('overdue')} />
@@ -412,9 +427,8 @@ export default function MyTaskPage() {
             </Card>
           </div>
         </div>
-
-        <RequestArea />
       </div>
+      )}
 
       {metricModal && (
         <TaskModal
