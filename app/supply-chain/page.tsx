@@ -5,7 +5,7 @@
 // 행을 누르면 해당 공급망의 맵 허브(/supply-chain/map?productId=…)로 진입한다.
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, ArrowRight, Database, Loader2, Network } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Database, Loader2 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import {
   ApiError,
@@ -33,6 +33,9 @@ export default function SupplyChainListPage() {
   const [chains, setChains] = useState<SupplyChainSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDemo, setIsDemo] = useState(false);
+  // 검색/필터 — 제품·고객사·단위기간. 'ALL'/빈 값이면 전체.
+  const [filterProduct, setFilterProduct] = useState('ALL');
+  const [filterCustomer, setFilterCustomer] = useState('ALL');
   // 단위기간(생산기간) 범위 필터 — 빈 값이면 전체. 겹치는(overlap) 공급망만 표시.
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
@@ -105,11 +108,36 @@ export default function SupplyChainListPage() {
     };
   }, []);
 
-  // 단위기간 범위 필터 적용 — 생산기간이 [filterFrom, filterTo] 와 겹치는 공급망만.
-  const visibleChains = useMemo(
-    () => chains.filter(c => chainOverlapsPeriod(c, filterFrom || undefined, filterTo || undefined)),
-    [chains, filterFrom, filterTo],
+  // 필터 드롭다운 옵션 — 현재 공급망에서 제품·고객사 고유값 추출.
+  const productOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    chains.forEach(c => { if (!seen.has(c.product_id)) seen.set(c.product_id, c.product_name); });
+    return Array.from(seen, ([id, name]) => ({ id, name }));
+  }, [chains]);
+  const customerOptions = useMemo(
+    () => Array.from(new Set(chains.map(c => c.customer_name).filter(Boolean))),
+    [chains],
   );
+
+  // 제품·고객사·단위기간 필터 적용(단위기간은 겹치는 공급망만).
+  const visibleChains = useMemo(
+    () =>
+      chains.filter(
+        c =>
+          (filterProduct === 'ALL' || c.product_id === filterProduct) &&
+          (filterCustomer === 'ALL' || c.customer_name === filterCustomer) &&
+          chainOverlapsPeriod(c, filterFrom || undefined, filterTo || undefined),
+      ),
+    [chains, filterProduct, filterCustomer, filterFrom, filterTo],
+  );
+
+  const anyFilterActive = filterProduct !== 'ALL' || filterCustomer !== 'ALL' || Boolean(filterFrom) || Boolean(filterTo);
+  function resetFilters() {
+    setFilterProduct('ALL');
+    setFilterCustomer('ALL');
+    setFilterFrom('');
+    setFilterTo('');
+  }
 
   function loadDemo() {
     setIsDemo(true);
@@ -172,6 +200,32 @@ export default function SupplyChainListPage() {
 
         <section className="mb-4 flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500">제품</span>
+            <select
+              value={filterProduct}
+              onChange={e => setFilterProduct(e.target.value)}
+              className="h-10 min-w-[180px] rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border"
+            >
+              <option value="ALL">전체 제품</option>
+              {productOptions.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500">고객사</span>
+            <select
+              value={filterCustomer}
+              onChange={e => setFilterCustomer(e.target.value)}
+              className="h-10 min-w-[160px] rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border"
+            >
+              <option value="ALL">전체 고객사</option>
+              {customerOptions.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-bold text-slate-500">단위기간 (생산기간) 시작</span>
             <input
               type="date"
@@ -192,16 +246,13 @@ export default function SupplyChainListPage() {
               aria-label="단위기간 종료"
             />
           </label>
-          {(filterFrom || filterTo) && (
+          {anyFilterActive && (
             <button
               type="button"
-              onClick={() => {
-                setFilterFrom('');
-                setFilterTo('');
-              }}
+              onClick={resetFilters}
               className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-500 shadow-sm hover:bg-slate-50"
             >
-              기간 초기화
+              필터 초기화
             </button>
           )}
           <span className="pb-2.5 text-xs font-medium text-slate-400">
@@ -231,8 +282,6 @@ function ChainListBody({
   totalCount: number;
   onOpen: (chain: SupplyChainSummary) => void;
 }) {
-  const summary = useMemo(() => ({ total: chains.length }), [chains]);
-
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 rounded-sm border border-dashed border-slate-300 bg-slate-50 px-6 py-20 text-sm font-semibold text-slate-400">
@@ -261,9 +310,10 @@ function ChainListBody({
 
   return (
     <>
-      <section className="mb-4 flex gap-4">
-        <SummaryCard label="전체 공급망" value={summary.total} hint="건" />
-      </section>
+      <div className="mb-2 flex items-baseline gap-2">
+        <span className="text-sm font-bold text-ink-100">공급망</span>
+        <span className="text-sm font-bold text-brand">{chains.length}건</span>
+      </div>
 
       <section className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
@@ -313,32 +363,6 @@ function ChainListBody({
         </div>
       </section>
     </>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  hint,
-  tone = 'default',
-}: {
-  label: string;
-  value: number;
-  hint: string;
-  tone?: 'default' | 'high' | 'medium';
-}) {
-  const color = tone === 'high' ? 'text-red-600' : tone === 'medium' ? 'text-amber-600' : 'text-ink-100';
-  return (
-    <div className="rounded-sm border border-slate-200 bg-white px-5 py-4 shadow-sm">
-      <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-        <Network className="h-3.5 w-3.5" />
-        {label}
-      </div>
-      <div className={`mt-2 text-3xl font-black ${color}`}>
-        {value}
-        <span className="ml-1 text-sm font-bold text-slate-400">{hint}</span>
-      </div>
-    </div>
   );
 }
 
