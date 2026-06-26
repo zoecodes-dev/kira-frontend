@@ -36,7 +36,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
               공급망 워크스페이스
             </div>
             <div className="space-y-0.5 mt-1">
@@ -53,7 +53,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
               DPP 센터
             </div>
             <div className="space-y-0.5 mt-1">
@@ -73,7 +73,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
               협력사 관리
             </div>
             <div className="space-y-0.5 mt-1">
@@ -103,7 +103,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
               물질·자재 관리
             </div>
             <div className="space-y-0.5 mt-1">
@@ -112,7 +112,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
               보고·결재
             </div>
             <div className="space-y-0.5 mt-1">
@@ -130,7 +130,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <div className="px-3 py-1.5 text-[11px] text-white/45 font-bold">
+            <div className="px-3 py-1.5 text-[11px] text-white/50 font-bold">
               감사·추적
             </div>
             <div className="space-y-0.5 mt-1">
