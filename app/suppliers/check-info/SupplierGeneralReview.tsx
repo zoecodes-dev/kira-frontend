@@ -294,13 +294,21 @@ function FieldStatus({ status }: { status: ReviewStatus }) {
   return <span className="text-xs font-semibold text-slate-500">해당 없음</span>;
 }
 
-function CompanyGrid({ rows = companyRows }: { rows?: string[][] }) {
+function CompanyGrid({ rows = companyRows, editable = false }: { rows?: string[][]; editable?: boolean }) {
   return (
     <div className="grid overflow-hidden rounded-sm border border-ink-700 md:grid-cols-2">
       {rows.map(([label, value, status]) => (
         <div key={label} className="grid grid-cols-[150px_minmax(0,1fr)_96px] items-center border-b border-r border-ink-700 px-4 py-3 last:border-b-0 even:border-r-0">
           <div className="text-sm font-medium text-ink-500">{label}</div>
-          <div className="truncate text-sm font-semibold text-ink-100">{value}</div>
+          {editable ? (
+            <input
+              defaultValue={value === '-' || value === '미입력' ? '' : value}
+              placeholder={`${label} 입력`}
+              className="w-full rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20"
+            />
+          ) : (
+            <div className="truncate text-sm font-semibold text-ink-100">{value}</div>
+          )}
           <div className="flex justify-end">
             <FieldStatus status={status as ReviewStatus} />
           </div>
@@ -310,7 +318,7 @@ function CompanyGrid({ rows = companyRows }: { rows?: string[][] }) {
   );
 }
 
-function DataTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+function DataTable({ headers, rows, editable = false }: { headers: string[]; rows: string[][]; editable?: boolean }) {
   return (
     <div className="overflow-x-auto rounded-sm border border-ink-700">
       <table className="min-w-full border-collapse text-sm">
@@ -328,7 +336,15 @@ function DataTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
             <tr key={`${row[0]}-${rowIndex}`} className="border-b border-ink-700 last:border-b-0 hover:bg-accent-50/30">
               {row.map((cell, cellIndex) => (
                 <td key={`${cell}-${cellIndex}`} className={clsx('whitespace-nowrap px-4 py-3 text-ink-500', cellIndex === 0 && 'font-semibold text-ink-100')}>
-                  {cellIndex === row.length - 1 ? <StatusBadge status={cell as ReviewStatus} /> : cell}
+                  {cellIndex === row.length - 1
+                    ? <StatusBadge status={cell as ReviewStatus} />
+                    : editable
+                      ? <input
+                          defaultValue={cell === '-' || cell === '미입력' || cell === '미첨부' ? '' : cell}
+                          placeholder={headers[cellIndex] ?? ''}
+                          className="w-full min-w-24 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20"
+                        />
+                      : cell}
                 </td>
               ))}
             </tr>
@@ -386,9 +402,10 @@ function EmptyData() {
   return <div className="rounded-sm border border-dashed border-ink-700 bg-slate-50 px-4 py-8 text-center text-sm text-ink-500">등록된 데이터가 없습니다.</div>;
 }
 
-function SectionContent({ section, real }: { section: CollectionSection; real?: RealData | null }) {
+function SectionContent({ section, real, editable = false }: { section: CollectionSection; real?: RealData | null; editable?: boolean }) {
   let content: ReactNode;
   // 실데이터(UUID)면 company/contacts/factories는 백엔드 값으로. 나머지(인증서/품목/원산지)는 mock 유지.
+  // editable=true(자료 제출 입력 모드)면 값 셀이 입력칸으로 렌더된다.
   if (real && section.key === 'company' && real.detail) {
     const d = real.detail;
     const rows: string[][] = [
@@ -397,30 +414,30 @@ function SectionContent({ section, real }: { section: CollectionSection; real?: 
       ['사업자 등록번호', d.businessRegNo ?? '-', fieldFilled(d.businessRegNo)],
       ['DUNS 번호', d.dunsNumber ?? '-', fieldFilled(d.dunsNumber)],
     ];
-    content = <CompanyGrid rows={rows} />;
+    content = <CompanyGrid rows={rows} editable={editable} />;
   } else if (real && section.key === 'contacts') {
     const rows = real.contacts.map(c => [c.role ?? '-', c.name ?? '-', c.email ?? '-', (c.mobile ?? c.phone) ?? '-', fieldFilled(c.email)]);
-    content = rows.length ? <DataTable headers={['구분', '담당자', '이메일', '연락처', '상태']} rows={rows} /> : <EmptyData />;
+    content = (rows.length || editable) ? <DataTable headers={['구분', '담당자', '이메일', '연락처', '상태']} rows={rows} editable={editable} /> : <EmptyData />;
   } else if (real && section.key === 'factories') {
     const rows = real.factories.map(f => [f.factoryName ?? '-', f.country ?? '-', f.address ?? '-', f.monthlyCapacity ?? '미입력', f.destination ?? '-', fieldFilled(f.factoryName)]);
-    content = rows.length ? <DataTable headers={['공장명', '국가', '주소', '생산능력', '납품지역', '상태']} rows={rows} /> : <EmptyData />;
+    content = (rows.length || editable) ? <DataTable headers={['공장명', '국가', '주소', '생산능력', '납품지역', '상태']} rows={rows} editable={editable} /> : <EmptyData />;
   } else if (real && section.key === 'certificates') {
     const rows = real.certs.map(c => [c.certificationType ?? '-', c.issuingBody ?? '-', c.issuedAt?.slice(0, 10) ?? '-', c.expiresAt?.slice(0, 10) ?? '-', c.documentUrl ? '첨부됨' : '미첨부', certStatus(c.expiresAt)]);
-    content = rows.length ? <DataTable headers={['인증서명', '발급기관', '발급일', '만료일', '첨부', '상태']} rows={rows} /> : <EmptyData />;
+    content = (rows.length || editable) ? <DataTable headers={['인증서명', '발급기관', '발급일', '만료일', '첨부', '상태']} rows={rows} editable={editable} /> : <EmptyData />;
   } else if (real && section.key === 'items') {
     const rows = real.items.map(i => [i.partCode ?? '-', i.partName ?? '-', i.tierLevel != null ? `T${i.tierLevel}` : '-', i.materialType ?? '-', '완료']);
-    content = rows.length ? <DataTable headers={['부품 코드', '부품명', 'Tier', '자재 유형', '상태']} rows={rows} /> : <EmptyData />;
+    content = (rows.length || editable) ? <DataTable headers={['부품 코드', '부품명', 'Tier', '자재 유형', '상태']} rows={rows} editable={editable} /> : <EmptyData />;
   } else if (real && section.key === 'origin') {
     const rows = real.originCerts.map(o => [o.certType ?? '-', o.originCountry ?? '-', o.issuingAuthority ?? '-', o.expiresAt?.slice(0, 10) ?? '-', originStatus(o.status)]);
-    content = rows.length ? <DataTable headers={['증빙 유형', '원산지', '발급기관', '만료일', '상태']} rows={rows} /> : <EmptyData />;
+    content = (rows.length || editable) ? <DataTable headers={['증빙 유형', '원산지', '발급기관', '만료일', '상태']} rows={rows} editable={editable} /> : <EmptyData />;
   } else {
     content = {
-      company: <CompanyGrid />,
-      contacts: <DataTable headers={['구분', '담당자', '이메일', '연락처', '상태']} rows={contactRows} />,
-      factories: <DataTable headers={['공장명', '국가', '주소', '생산능력', '납품지역', '상태']} rows={factoryRows} />,
-      certificates: <DataTable headers={['인증서명', '발급기관', '발급일', '만료일', '상태', '첨부파일']} rows={certificateRows} />,
-      items: <DataTable headers={['제품 코드', '제품명', '역할', '목적지', '상태']} rows={supplyItemRows} />,
-      origin: <DataTable headers={['규제', '대상 지역', '필요 증빙', '상태']} rows={originRows} />,
+      company: <CompanyGrid editable={editable} />,
+      contacts: <DataTable headers={['구분', '담당자', '이메일', '연락처', '상태']} rows={contactRows} editable={editable} />,
+      factories: <DataTable headers={['공장명', '국가', '주소', '생산능력', '납품지역', '상태']} rows={factoryRows} editable={editable} />,
+      certificates: <DataTable headers={['인증서명', '발급기관', '발급일', '만료일', '상태', '첨부파일']} rows={certificateRows} editable={editable} />,
+      items: <DataTable headers={['제품 코드', '제품명', '역할', '목적지', '상태']} rows={supplyItemRows} editable={editable} />,
+      origin: <DataTable headers={['규제', '대상 지역', '필요 증빙', '상태']} rows={originRows} editable={editable} />,
     }[section.key];
   }
 
@@ -435,13 +452,17 @@ function AccordionSection({
   section,
   onRequestSection,
   real,
+  editable = false,
+  showRequest = true,
 }: {
   section: CollectionSection;
   onRequestSection: (section: CollectionSection) => void;
   real?: RealData | null;
+  editable?: boolean;       // 입력 모드(자료 제출) — 값 셀을 입력칸으로
+  showRequest?: boolean;    // 원청 전용 '미입력 N건 요청' 버튼 노출 여부
 }) {
   // 섹션은 항상 펼쳐서 고정 표시(드롭다운 제거). 미입력/확인 필요면 그 자리에서 보완 요청.
-  const needsRequest = (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
+  const needsRequest = showRequest && (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
   return (
     <section id={`section-${section.key}`} className="scroll-mt-24 overflow-hidden border-b border-ink-700 bg-white first:rounded-t-sm first:border-t last:rounded-b-sm">
       <div className="flex w-full items-center justify-between gap-3 border-b border-ink-700 bg-slate-50/60 px-4 py-2.5">
@@ -467,7 +488,7 @@ function AccordionSection({
           )}
         </div>
       </div>
-      <SectionContent section={section} real={real} />
+      <SectionContent section={section} real={real} editable={editable} />
     </section>
   );
 }
@@ -477,13 +498,21 @@ export function SupplierGeneralReviewContent({
   supplierName: supplierNameProp,
   openRequest: openRequestProp,
   embedded = false,
+  mode = 'oem',
 }: {
   supplierId?: string;
   supplierName?: string;
   openRequest?: boolean;
   // 임베드 모드: 공급망 워크스페이스 모달 안에서 표준 양식을 그대로 재사용(돌아가기 바·풀페이지 배경 제거).
   embedded?: boolean;
+  // 같은 표준 양식을 3가지로 공유한다:
+  //  - 'oem'            : 원청 정보확인 + 자료요청(기본, 기존 동작)
+  //  - 'supplier-view'  : 협력사 '내 기업 정보' — 입력 완료된 정보를 읽기 전용으로
+  //  - 'supplier-input' : 협력사 '자료 제출' — 같은 양식에 입력칸을 뚫어 입력
+  mode?: 'oem' | 'supplier-view' | 'supplier-input';
 } = {}) {
+  const isOem = mode === 'oem';
+  const editable = mode === 'supplier-input';
   const searchParams = useSearchParams();
   const supplierId = supplierIdProp ?? searchParams.get('supplierId') ?? '';
   const supplierName = supplierNameProp ?? searchParams.get('supplier') ?? supplierSummary.name;
@@ -609,8 +638,12 @@ export function SupplierGeneralReviewContent({
   return (
     <main className={embedded ? '' : 'min-h-screen bg-slate-50 px-7 py-5'}>
       <div className="mb-4 flex items-center justify-between gap-4">
-        {embedded ? (
-          <span className="text-sm font-medium text-ink-500">협력사 정보 확인 · 자료 요청</span>
+        {embedded || !isOem ? (
+          <span className="text-sm font-medium text-ink-500">
+            {mode === 'supplier-view' ? '내 기업 정보 · 입력 완료 현황'
+              : mode === 'supplier-input' ? '자료 제출 · 표준 양식 입력'
+              : '협력사 정보 확인 · 자료 요청'}
+          </span>
         ) : (
           <button type="button" className="inline-flex items-center gap-2 text-sm font-medium text-ink-500 hover:text-accent-700">
             <ArrowLeft className="h-4 w-4" />
@@ -618,21 +651,35 @@ export function SupplierGeneralReviewContent({
           </button>
         )}
         <div className="flex items-center gap-2">
-          <div className="relative">
+          {/* 원청 전용: 추가 자료 요청 */}
+          {isOem && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsRequestModalOpen(true)}
+                className="inline-flex h-9 items-center gap-2 rounded-sm bg-brand px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-brand-hover active:opacity-75"
+              >
+                <MessageSquare className="h-4 w-4" />
+                추가 자료 요청하기
+              </button>
+              {urgentCount > 0 && (
+                <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-alert-solid px-1 text-[11px] font-bold text-white">
+                  {urgentCount}
+                </span>
+              )}
+            </div>
+          )}
+          {/* 협력사 입력 모드(자료 제출): 제출 */}
+          {editable && (
             <button
               type="button"
-              onClick={() => setIsRequestModalOpen(true)}
-              className="inline-flex h-9 items-center gap-2 rounded-sm bg-brand px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-brand-hover active:opacity-75"
+              onClick={() => alert('입력하신 표준 양식이 원청에 제출되었습니다. (검토 대기)')}
+              className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
             >
-              <MessageSquare className="h-4 w-4" />
-              추가 자료 요청하기
+              <Send className="h-4 w-4" />
+              제출하기
             </button>
-            {urgentCount > 0 && (
-              <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-alert-solid px-1 text-[11px] font-bold text-white">
-                {urgentCount}
-              </span>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
@@ -699,6 +746,8 @@ export function SupplierGeneralReviewContent({
             section={section}
             onRequestSection={openRequestForSection}
             real={api}
+            editable={editable}
+            showRequest={isOem}
           />
         ))}
       </section>
@@ -709,7 +758,7 @@ export function SupplierGeneralReviewContent({
         <MetaItem label="다음 제출 예정일" value={supplierSummary.nextDueDate} />
       </section>
 
-      {isRequestModalOpen && (
+      {isOem && isRequestModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
           <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-sm border border-ink-700 bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
