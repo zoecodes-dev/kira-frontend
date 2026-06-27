@@ -623,9 +623,33 @@ export const createDataRequest = (body: { targetSupplierId: string; requestedDat
     due_date: body.dueDate,
   });
 
+/** STEP3 협력사 '확인'(verify) — supply_chain_map.verification_status 갱신(supplychain 도메인). body는 snake_case. */
+export const verifySupplier = (body: { bomVersionId: string; supplierId: string; verified: boolean }) =>
+  api.post<{ verificationStatus: string; updatedEdges: number }>(`/supply-chain/verify`, {
+    bom_version_id: body.bomVersionId,
+    supplier_id: body.supplierId,
+    verified: body.verified,
+  });
+
 /** CTI 상세 (provider type별 detail 1종). 없으면 404. */
 export const getSupplierDetail = (id: string) =>
   api.get<SupplierDetail>(`/suppliers/${id}/detail`);
+
+/** 협력사 기업 기본정보 수정(자료 제출). 협력사 본인(supplier_id=id)만 허용. */
+export interface SupplierDetailUpdate {
+  companyNameEn?: string | null;
+  companyNameKo?: string | null;
+  businessRegNo?: string | null;
+  dunsNumber?: string | null;
+}
+export const updateSupplierDetail = (id: string, body: SupplierDetailUpdate) =>
+  // 요청 래퍼는 camel→snake 변환을 하지 않으므로 백엔드(snake_case) 키로 직접 보낸다.
+  api.patch<SupplierDetail>(`/suppliers/${id}/detail`, {
+    company_name_en: body.companyNameEn ?? null,
+    company_name_ko: body.companyNameKo ?? null,
+    business_reg_no: body.businessRegNo ?? null,
+    duns_number: body.dunsNumber ?? null,
+  });
 
 /** 리스크 프로필. 없으면 404. */
 export const getSupplierRiskProfile = (id: string) =>
@@ -862,6 +886,7 @@ export interface ApiSupplyChainMapNode {
   factoryId: string | null;
   tierLevel: number | null;
   hopLevel?: number | null;  // §10.2a — 차수 SSOT(원청=0, 1차=1). 1차 판정·차수 표시용
+  verificationStatus?: "verified" | "unverified" | null;  // §10.2a — STEP3 협력사 '확인' 상태(하이드레이션용)
   linkStatus: "supplychain_declared" | "supplychain_confirmed";
   // 납품(=생산 lot) 단위기간 + 생성 시각. §10.2a SELECT 에 추가됨(미배포 백엔드면 undefined).
   supplyPeriodFrom?: string | null;

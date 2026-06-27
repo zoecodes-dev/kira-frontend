@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowRight, Database, Loader2, Network } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
-import { ApiError, createDataRequest, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, type SupplierBrief } from '@/lib/api';
+import { ApiError, createDataRequest, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, verifySupplier, type SupplierBrief } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
 import PageHeader from '@/components/PageHeader';
 import HubStepBar from '@/components/supply-chain/HubStepBar';
@@ -32,9 +32,10 @@ export default function SupplyChainHub() {
   const [activeModal, setActiveModal] = useState<HubModal>(null);
   // 사용자가 수행한 액션 단계(STEP 4 검증). STEP 1·2는 데이터, STEP 3은 협력사 확인 완료로 판정.
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
-  // STEP 3 — 연결 협력사별 '확인' 처리 집합 + 일괄 자료요청 진행중 플래그.
+  // STEP 3 — 연결 협력사별 '확인' 처리 집합 + 일괄 자료요청 진행중 플래그 + 활성 BOM 버전(verify 대상).
   const [confirmedSuppliers, setConfirmedSuppliers] = useState<Set<string>>(new Set());
   const [requesting, setRequesting] = useState(false);
+  const [activeBomVersionId, setActiveBomVersionId] = useState<string | undefined>(undefined);
   // 맵 관리에서 시작한 자료요청은 협력사명을 직접 지정 (없으면 선택 노드 기준)
   const [requestLabel, setRequestLabel] = useState<string | null>(null);
 
@@ -55,10 +56,25 @@ export default function SupplyChainHub() {
   }, [visitedSteps, selectedProductId, pool, confirmedSuppliers]);
   const markVisited = (n: number) => setVisitedSteps(prev => (prev.has(n) ? prev : new Set(prev).add(n)));
 
-  // STEP 3 — 협력사 확인 토글 / 전체 확인 / 자료 일괄 요청(실 협력사 대상 createDataRequest).
+  // STEP 3 — 협력사 확인 토글 / 전체 확인 / 자료 일괄 요청. 확인은 supply-chain/verify로 백엔드 영속.
+  const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
+  const persistVerify = (id: string, verified: boolean) => {
+    if (activeBomVersionId && isUuid(id)) {
+      verifySupplier({ bomVersionId: activeBomVersionId, supplierId: id, verified }).catch(() => {});
+    }
+  };
   const toggleConfirm = (id: string) =>
-    setConfirmedSuppliers(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const confirmAll = () => setConfirmedSuppliers(new Set(pool.map(p => p.supplierId)));
+    setConfirmedSuppliers(prev => {
+      const n = new Set(prev);
+      const willConfirm = !n.has(id);
+      willConfirm ? n.add(id) : n.delete(id);
+      persistVerify(id, willConfirm);
+      return n;
+    });
+  const confirmAll = () => {
+    setConfirmedSuppliers(new Set(pool.map(p => p.supplierId)));
+    pool.forEach(p => persistVerify(p.supplierId, true));
+  };
   async function requestAllSuppliers() {
     const targets = pool.filter(p => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(p.supplierId));
     if (!targets.length) return;
@@ -176,6 +192,11 @@ export default function SupplyChainHub() {
               riskLevel: s.riskLevel ?? 'low',
             })),
         );
+        // STEP3 verify 대상 BOM 버전 저장 + 백엔드 verification_status로 '확인' 상태 하이드레이션.
+        setActiveBomVersionId(activeVersionId);
+        setConfirmedSuppliers(new Set(
+          map.supplyChainMap.filter(n => n.verificationStatus === 'verified').map(n => n.supplierId),
+        ));
       } catch {
         // 공급망 맵 없음 — 협력사 빈 상태 유지
       }
