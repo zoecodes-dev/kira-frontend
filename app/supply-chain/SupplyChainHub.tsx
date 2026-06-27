@@ -3,7 +3,7 @@
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, Database, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Database, Loader2 } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
 import { ApiError, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, type SupplierBrief } from '@/lib/api';
@@ -195,6 +195,16 @@ export default function SupplyChainHub() {
         />
       </PageHeader>
 
+      {loadStatus === null && !productsLoading && dataset.products.length > 0 && (
+        <FlowGuide
+          hasProduct={Boolean(selectedProductId)}
+          poolCount={pool.length}
+          tier1Count={tier1Pool.length}
+          hasSelection={Boolean(selectedNode)}
+          onOpenPool={() => setActiveModal('pool')}
+        />
+      )}
+
       {loadStatus === 'auth' && (
         <div className="mx-6 mt-4 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -304,6 +314,59 @@ export default function SupplyChainHub() {
             setActiveModal('dataRequest');
           }}
         />
+      )}
+    </div>
+  );
+}
+
+// 흐름 안내 배너 — 현재 단계와 '다음 할 일'을 상태 기반으로 명시(사용자가 다음 액션을 알 수 있게).
+function FlowGuide({
+  hasProduct, poolCount, tier1Count, hasSelection, onOpenPool,
+}: {
+  hasProduct: boolean; poolCount: number; tier1Count: number; hasSelection: boolean; onOpenPool: () => void;
+}) {
+  let step: string, title: string, desc: string, tone: 'info' | 'warn' | 'ok', cta = false;
+  if (!hasProduct) {
+    step = 'STEP 1'; tone = 'info';
+    title = '대표 제품을 선택하세요';
+    desc = '아래 표의 "제품" 드롭다운에서 대표 제품을 고르면 공급망 맵 구성이 시작됩니다.';
+  } else if (poolCount === 0 && tier1Count === 0) {
+    step = 'STEP 2'; tone = 'warn';
+    title = '이 제품은 다음 단계로 진행할 수 없습니다';
+    desc = '등록된 1차 협력사가 없어 협력사 Pool을 구성할 수 없습니다. 다른 제품을 선택하세요.';
+  } else if (poolCount === 0) {
+    step = 'STEP 2'; tone = 'info'; cta = true;
+    title = '협력사 Pool을 구성하세요';
+    desc = `상단 "STEP 2 협력사 Pool 구성"을 눌러 1차 협력사 ${tier1Count}개사 중 작업 대상을 선택·확정하면 STEP 3~7이 열립니다.`;
+  } else {
+    step = 'STEP 3 완료'; tone = 'ok';
+    title = '자동 맵핑 완료 — 이제 협력사를 관리하세요';
+    desc = hasSelection
+      ? '상단 STEP 4(협력사 정보 확인)·STEP 5(자료 요청)로 진행하거나, 아래 맵에서 다른 협력사 노드를 클릭하세요.'
+      : '아래 맵에서 협력사 노드를 클릭한 뒤 STEP 4·5로 정보 확인·자료 요청을 진행하세요.';
+  }
+  const toneCls =
+    tone === 'ok' ? 'border-ok-border bg-ok-bg text-ok-text'
+    : tone === 'warn' ? 'border-warn-border bg-warn-bg text-warn-text'
+    : 'border-info-border bg-info-bg text-info-text';
+  return (
+    <div className={`mx-6 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border px-4 py-3 ${toneCls}`}>
+      <div className="flex items-center gap-3">
+        <span className="shrink-0 rounded-full border border-current/30 bg-white/60 px-2.5 py-1 text-[11px] font-bold">{step}</span>
+        <div>
+          <p className="text-sm font-bold">{title}</p>
+          <p className="mt-0.5 text-sm opacity-90">{desc}</p>
+        </div>
+      </div>
+      {cta && (
+        <button
+          type="button"
+          onClick={onOpenPool}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-bold text-white hover:bg-brand-hover"
+        >
+          협력사 Pool 구성
+          <ArrowRight className="h-4 w-4" />
+        </button>
       )}
     </div>
   );
