@@ -618,6 +618,64 @@ export interface FileMeta {
 export const listFilesByContext = (context: string) =>
   api.get<FileMeta[]>(`/files?context=${encodeURIComponent(context)}`);
 
+/** 제3자 정보제공 동의서 = 데이터 계약(Data Contract). Catena-X 정렬. */
+export type ConsentStatus = "requested" | "returned" | "agreed" | "rejected" | "revoked" | "expired";
+export interface DataConsent {
+  consentId: string;
+  supplierId: string;
+  dataScope: string[];
+  purpose: string;
+  thirdPartySharing: boolean;
+  allowedRecipients?: string[] | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  revocable: boolean;
+  status: ConsentStatus;
+  requestedAt?: string | null;
+  returnedAt?: string | null;
+  agreedAt?: string | null;
+  revokedAt?: string | null;
+  signerName?: string | null;
+  signerTitle?: string | null;
+  signerEmail?: string | null;
+  signatureMethod?: string | null;
+  formVersion?: string | null;
+  formData?: Record<string, unknown> | null;
+  agreementHash?: string | null;
+  createdAt?: string | null;
+}
+export const getDataConsents = (supplierId: string) =>
+  api.get<DataConsent[]>(`/data-consents?supplier_id=${supplierId}`);
+/** 동의서 발송(계약 오퍼 생성). */
+export const createDataConsent = (body: {
+  supplierId: string; dataScope: string[]; purpose: string;
+  thirdPartySharing?: boolean; allowedRecipients?: string[]; validFrom?: string; validTo?: string; formVersion?: string;
+}) =>
+  api.post<DataConsent>(`/data-consents`, {
+    supplier_id: body.supplierId,
+    data_scope: body.dataScope,
+    purpose: body.purpose,
+    third_party_sharing: body.thirdPartySharing ?? false,
+    allowed_recipients: body.allowedRecipients,
+    valid_from: body.validFrom,
+    valid_to: body.validTo,
+    form_version: body.formVersion,
+  });
+/** 회신·서명·철회 — 상태 전이 + 회신 양식 데이터 영속. */
+export const updateDataConsent = (consentId: string, body: {
+  status: ConsentStatus; signerName?: string; signerTitle?: string; signerEmail?: string;
+  signatureMethod?: string; formData?: Record<string, unknown>; agreementHash?: string;
+}) =>
+  api.patch<DataConsent>(`/data-consents/${consentId}`, {
+    status: body.status,
+    signer_name: body.signerName,
+    signer_title: body.signerTitle,
+    signer_email: body.signerEmail,
+    signature_method: body.signatureMethod,
+    form_data: body.formData,
+    agreement_hash: body.agreementHash,
+  });
+
 /** 파일 업로드(multipart POST /files). 환경성적서 PDF 등. JSON이 아니라 FormData라 별도 fetch. */
 export async function uploadFile(file: File, context: string): Promise<{ fileId: string; fileName: string; url: string }> {
   const form = new FormData();
@@ -689,21 +747,12 @@ export const verifySupplier = (body: { bomVersionId: string; supplierId: string;
 export const getSupplierDetail = (id: string) =>
   api.get<SupplierDetail>(`/suppliers/${id}/detail`);
 
-/** 협력사 기업 기본정보 수정(자료 제출). 협력사 본인(supplier_id=id)만 허용. */
-export interface SupplierDetailUpdate {
-  companyNameEn?: string | null;
-  companyNameKo?: string | null;
-  businessRegNo?: string | null;
-  dunsNumber?: string | null;
-}
-export const updateSupplierDetail = (id: string, body: SupplierDetailUpdate) =>
-  // 요청 래퍼는 camel→snake 변환을 하지 않으므로 백엔드(snake_case) 키로 직접 보낸다.
-  api.patch<SupplierDetail>(`/suppliers/${id}/detail`, {
-    company_name_en: body.companyNameEn ?? null,
-    company_name_ko: body.companyNameKo ?? null,
-    business_reg_no: body.businessRegNo ?? null,
-    duns_number: body.dunsNumber ?? null,
-  });
+/** 협력사 '자료 제출' 영속화(PATCH /detail). 협력사 본인(supplier_id=id)만 허용.
+ *  body는 백엔드 snake_case 키 그대로(요청 래퍼가 camel→snake 변환을 하지 않음).
+ *  수용 키: company_name·country·business_reg_no·duns_number·provider_type·smelter_type·
+ *  core_minerals·carbon_intensity·energy_source·self_reported_risk_level (보낸 것만 갱신). */
+export const updateSupplierDetail = (id: string, body: Record<string, unknown>) =>
+  api.patch<SupplierDetail>(`/suppliers/${id}/detail`, body);
 
 /** 리스크 프로필. 없으면 404. */
 export const getSupplierRiskProfile = (id: string) =>

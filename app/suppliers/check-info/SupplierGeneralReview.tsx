@@ -13,8 +13,25 @@ import {
 } from '@/lib/api';
 
 const providerTypeLabel: Record<string, string> = {
-  manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산',
+  manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산', smelter: '제련소',
 };
+// 입력 양식 셀렉트 옵션 (값=백엔드 enum, 라벨=표시)
+const PROVIDER_OPTS = [
+  { value: 'manufacturer', label: '제조사 (manufacturer)' },
+  { value: 'recycler', label: '재활용 (recycler)' },
+  { value: 'trader', label: '트레이더 (trader)' },
+  { value: 'miner', label: '광산 (miner)' },
+  { value: 'smelter', label: '제련소 (smelter)' },
+];
+const SMELTER_OPTS = [
+  { value: 'rmi', label: 'RMI' },
+  { value: 'private', label: 'Private' },
+];
+const RISK_OPTS = [
+  { value: 'low', label: '저위험' },
+  { value: 'medium', label: '중위험' },
+  { value: 'high', label: '고위험' },
+];
 
 interface RealData {
   detail: ApiSupplierDetail | null;
@@ -272,27 +289,43 @@ function FieldStatus({ status }: { status: ReviewStatus }) {
   return <span className="text-xs font-semibold text-slate-500">해당 없음</span>;
 }
 
-function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPrefix = 'company' }: { rows?: string[][]; editable?: boolean; fieldKeys?: string[]; fieldPrefix?: string }) {
+function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPrefix = 'company', selects }: { rows?: string[][]; editable?: boolean; fieldKeys?: string[]; fieldPrefix?: string; selects?: Record<string, { value: string; label: string }[]> }) {
   return (
     <div className="grid overflow-hidden rounded-sm border border-ink-700 md:grid-cols-2">
-      {rows.map(([label, value, status], i) => (
+      {rows.map(([label, value, status], i) => {
+        const key = fieldKeys?.[i];
+        const opts = key ? selects?.[key] : undefined;
+        const dataField = key ? `${fieldPrefix}.${key}` : undefined;
+        return (
         <div key={label} className="grid grid-cols-[150px_minmax(0,1fr)_96px] items-center border-b border-r border-ink-700 px-4 py-3 last:border-b-0 even:border-r-0">
           <div className="text-sm font-medium text-ink-500">{label}</div>
           {editable ? (
-            <input
-              defaultValue={value === '-' || value === '미입력' ? '' : value}
-              placeholder={`${label} 입력`}
-              data-field={fieldKeys?.[i] ? `${fieldPrefix}.${fieldKeys[i]}` : undefined}
-              className="w-full rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20"
-            />
+            opts ? (
+              <select
+                defaultValue={value}
+                data-field={dataField}
+                className="w-full rounded-xs border border-ink-700 bg-white px-2 py-1.5 text-sm text-ink-100 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20"
+              >
+                <option value="">선택</option>
+                {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            ) : (
+              <input
+                defaultValue={value === '-' || value === '미입력' ? '' : value}
+                placeholder={`${label} 입력`}
+                data-field={dataField}
+                className="w-full rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20"
+              />
+            )
           ) : (
-            <div className="truncate text-sm font-semibold text-ink-100">{value}</div>
+            <div className="truncate text-sm font-semibold text-ink-100">{opts ? (opts.find(o => o.value === value)?.label ?? value) : value}</div>
           )}
           <div className="flex justify-end">
             <FieldStatus status={status as ReviewStatus} />
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -406,17 +439,18 @@ function SectionContent({ section, real, editable = false, isOem = false }: { se
   const d = real?.detail ?? null;
 
   if (section.key === 'company') {
-    const isSmelter = (d?.providerType as string) === 'smelter';
+    // 입력 모드에선 smelter 구분 행을 항상 노출(업종 변경 가능하도록).
+    const showSmelter = editable || (d?.providerType as string) === 'smelter';
     const rows: string[][] = [
       ['회사명', d?.companyName ?? '-', fieldFilled(d?.companyName)],
       ['소재 국가', d?.country ?? '-', fieldFilled(d?.country)],
       ['사업자 등록번호', d?.businessRegNo ?? '-', fieldFilled(d?.businessRegNo)],
       ['DUNS 번호 (선택)', d?.dunsNumber ?? '-', '완료'],
-      ['업종(provider type)', providerTypeLabel[d?.providerType ?? ''] ?? d?.providerType ?? '-', fieldFilled(d?.providerType)],
-      ...(isSmelter ? [['smelter 구분', d?.smelterType ?? '-', fieldFilled(d?.smelterType)] as string[]] : []),
+      ['업종(provider type)', d?.providerType ?? '', fieldFilled(d?.providerType)],
+      ...(showSmelter ? [['smelter 구분', d?.smelterType ?? '', '완료'] as string[]] : []),
     ];
-    const keys = ['companyName', 'country', 'businessRegNo', 'dunsNumber', 'providerType', ...(isSmelter ? ['smelterType'] : [])];
-    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="company" />;
+    const keys = ['companyName', 'country', 'businessRegNo', 'dunsNumber', 'providerType', ...(showSmelter ? ['smelterType'] : [])];
+    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="company" selects={{ providerType: PROVIDER_OPTS, smelterType: SMELTER_OPTS }} />;
   } else if (section.key === 'materials') {
     const cm = (d?.coreMinerals ?? {}) as Record<string, number>;
     const rows: string[][] = [
@@ -445,15 +479,15 @@ function SectionContent({ section, real, editable = false, isOem = false }: { se
     const ci = m.carbonIntensity;
     const es = m.energySource;
     const sr = real?.riskProfile?.selfReportedRiskLevel;
-    const srLabel = sr && sr !== 'unknown' ? ({ low: '저위험', medium: '중위험', high: '고위험', critical: '고위험' } as Record<string, string>)[sr] ?? sr : '-';
+    const srRaw = sr && sr !== 'unknown' ? sr : '';
     const rows: string[][] = [
       ['탄소집약도 (kgCO2eq/kg)', ci != null ? String(ci) : '-', fieldFilled(ci)],
       ['에너지원', (es as string) ?? '-', fieldFilled(es)],
-      ['실사 자가진단', srLabel, sr && sr !== 'unknown' ? '완료' : '미입력'],
+      ['실사 자가진단', srRaw, srRaw ? '완료' : '미입력'],
       // DD 보고서는 원청 전용 — 협력사 폼에는 표시하지 않는다.
       ...(isOem ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
     ];
-    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isOem ? ['ddReport'] : [])]} fieldPrefix="regulation" />;
+    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isOem ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} />;
   } else {
     // documents — 사업자등록증·환경성적서 업로드 여부.
     const docRow = (label: string, url?: string | null): string[] =>
@@ -637,21 +671,44 @@ export function SupplierGeneralReviewContent({
   // 협력사 '자료 제출' — 입력칸 값을 수집해 백엔드에 영속화(저장·제출 공통).
   // 기업 기본정보(company) 섹션은 supplier detail 단건 업데이트로 저장한다.
   async function persistForm() {
-    // 입력칸은 data-field 로 식별. company 섹션 4개 필드를 모아 PATCH.
+    // 입력칸/셀렉트는 data-field="섹션.필드" 로 식별. 전 섹션 값을 모아 snake_case 로 PATCH.
     const root = formRef.current;
-    const read = (field: string) =>
-      (root?.querySelector<HTMLInputElement>(`input[data-field="company.${field}"]`)?.value ?? '').trim();
-    const payload = {
-      companyNameEn: read('companyNameEn') || null,
-      companyNameKo: read('companyNameKo') || null,
-      businessRegNo: read('businessRegNo') || null,
-      dunsNumber: read('dunsNumber') || null,
+    const read = (field: string): string | undefined => {
+      const el = root?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-field="${field}"]`);
+      return el ? el.value.trim() : undefined;
     };
-    if (isRealSupplier) {
+    const payload: Record<string, unknown> = {};
+    const setStr = (k: string, v: string | undefined) => { if (v !== undefined) payload[k] = v === '' ? null : v; };
+    const setNum = (k: string, v: string | undefined) => { if (v !== undefined) payload[k] = v === '' ? null : Number(v); };
+    // 기업 기본정보
+    setStr('company_name', read('company.companyName'));
+    setStr('country', read('company.country'));
+    setStr('business_reg_no', read('company.businessRegNo'));
+    setStr('duns_number', read('company.dunsNumber'));
+    const pt = read('company.providerType'); if (pt) payload.provider_type = pt;        // NOT NULL — 빈값은 보내지 않음
+    const st = read('company.smelterType'); if (st !== undefined) payload.smelter_type = st || null;
+    // 소재 구성 → core_minerals
+    const li = read('materials.Li'), co = read('materials.Co'), ni = read('materials.Ni');
+    if (li !== undefined || co !== undefined || ni !== undefined) {
+      const cm: Record<string, number> = {};
+      if (li) cm.Li = Number(li);
+      if (co) cm.Co = Number(co);
+      if (ni) cm.Ni = Number(ni);
+      payload.core_minerals = Object.keys(cm).length ? cm : null;
+    }
+    // 규제 — 탄소발자국 / 실사 자가진단
+    setNum('carbon_intensity', read('regulation.carbonIntensity'));
+    setStr('energy_source', read('regulation.energySource'));
+    const srl = read('regulation.selfReportedRiskLevel'); if (srl) payload.self_reported_risk_level = srl;
+
+    if (isRealSupplier && Object.keys(payload).length > 0) {
       await updateSupplierDetail(supplierId, payload);
-      // 입력값 반영을 위해 detail 재조회(낙관적 갱신 대신 정확한 서버 값으로).
-      const fresh = await getSupplierDetail(supplierId).catch(() => null);
-      if (fresh) setApi(prev => (prev ? { ...prev, detail: fresh } : prev));
+      // 입력값 반영 — detail·risk-profile 재조회(정확한 서버 값으로).
+      const [fresh, rp] = await Promise.all([
+        getSupplierDetail(supplierId).catch(() => null),
+        getSupplierRiskProfile(supplierId).catch(() => null),
+      ]);
+      setApi(prev => (prev ? { ...prev, ...(fresh ? { detail: fresh } : {}), ...(rp ? { riskProfile: rp } : {}) } : prev));
     }
   }
 
