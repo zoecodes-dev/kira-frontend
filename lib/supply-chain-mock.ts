@@ -92,6 +92,7 @@ export interface SupplyChainMapRow {
   parent_supplier_id: string;
   child_supplier_id: string;
   part_id: string;
+  hop_level?: number | null; // 이 엣지(노드 연결)의 차수 — 겸업 시 노드별 tier 분리용(같은 협력사라도 hop마다 다름)
   po_number: string;
   invoice_number: string;
   supply_period_from: string;
@@ -532,7 +533,8 @@ export function buildTraceRows(ds: SupplyChainDataset, bomVersionId: string, per
             node_type: getNodeType(part),
             stage: getStage(part),
             depth: getDepth(part),
-            tier: `Tier ${supplier.tier}`,
+            // 노드별 차수 — 이 엣지의 hop_level 우선(겸업 시 같은 협력사도 노드마다 다름), 없으면 supplier.tier(mock).
+            tier: `Tier ${mapRow.hop_level ?? supplier.tier}`,
             part_id: part.part_id,
             part_name: part.part_name,
             part_code: part.part_code,
@@ -995,6 +997,7 @@ export function mergeSupplyChainMap(
     parent_supplier_id: n.supplierId, // 백엔드 맵 노드는 child만 제공(트리 구조는 ratios의 누적 경로로)
     child_supplier_id: n.supplierId,
     part_id: n.partId,
+    hop_level: n.hopLevel ?? null, // 엣지별 차수(SSOT) — 겸업 노드 tier 분리용
     po_number: '',
     invoice_number: '',
     // 실 납품 단위기간(§10.2a). 미노출이면 sentinel 로 폴백해 기간 필터(겹침)를 항상 통과시킨다.
