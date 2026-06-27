@@ -2,8 +2,10 @@
 
 // STEP 3 — 이 맵에 연결된 협력사 목록. 각 협력사를 '확인' 처리하거나, 자료를 일괄 요청한다.
 // (구 STEP4 정보확인 + STEP5 자료요청 + STEP6 정보입력요청을 한 곳으로 통합)
-import { Check, CheckCircle2, Loader2, Send, X } from 'lucide-react';
+import { useState } from 'react';
+import { Check, CheckCircle2, FileSignature, Loader2, Send, X } from 'lucide-react';
 import type { SupplierBrief } from '@/lib/api';
+import DataConsentModal from './DataConsentModal';
 
 const PROVIDER_LABEL: Record<string, string> = {
   manufacturer: '제조사',
@@ -31,6 +33,7 @@ export default function ConnectedSuppliersModal({
 }) {
   const confirmedCount = suppliers.filter(s => confirmed.has(s.supplierId)).length;
   const allConfirmed = suppliers.length > 0 && confirmedCount === suppliers.length;
+  const [consentSupplier, setConsentSupplier] = useState<SupplierBrief | null>(null);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4" onClick={onClose}>
@@ -84,18 +87,28 @@ export default function ConnectedSuppliersModal({
                         {s.riskLevel ? <span className="ml-2 text-slate-400">· 리스크 {s.riskLevel}</span> : null}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onToggleConfirm(s.supplierId)}
-                      className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-sm border px-3 text-xs font-bold transition ${
-                        isConfirmed
-                          ? 'border-ok-border bg-ok-bg text-ok-text'
-                          : 'border-slate-200 bg-white text-ink-400 hover:border-ok-border hover:text-ok-text'
-                      }`}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      {isConfirmed ? '확인됨' : '확인'}
-                    </button>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setConsentSupplier(s)}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-slate-200 bg-white px-2.5 text-xs font-bold text-ink-400 hover:border-brand hover:text-brand"
+                      >
+                        <FileSignature className="h-3.5 w-3.5" />
+                        동의서
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onToggleConfirm(s.supplierId)}
+                        className={`inline-flex h-8 items-center gap-1.5 rounded-sm border px-3 text-xs font-bold transition ${
+                          isConfirmed
+                            ? 'border-ok-border bg-ok-bg text-ok-text'
+                            : 'border-slate-200 bg-white text-ink-400 hover:border-ok-border hover:text-ok-text'
+                        }`}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {isConfirmed ? '확인됨' : '확인'}
+                      </button>
+                    </div>
                   </li>
                 );
               })}
@@ -112,6 +125,8 @@ export default function ConnectedSuppliersModal({
           </button>
         </div>
       </div>
+
+      {consentSupplier && <DataConsentModal supplier={consentSupplier} onClose={() => setConsentSupplier(null)} />}
     </div>
   );
 }
