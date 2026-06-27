@@ -515,6 +515,18 @@ export interface SupplierContact {
 export const getSupplierContacts = (id: string) =>
   api.get<{ supplierId: string; contacts: SupplierContact[] }>(`/suppliers/${id}/contacts`);
 
+/** 협력사 입력 완성도(data_completeness_status). 미집계면 rate/count는 null. */
+export interface SupplierCompleteness {
+  supplierId: string;
+  requiredFieldCount: number | null;
+  filledFieldCount: number | null;
+  completionRate: number | null;
+  missingFields: string[];
+  lastUpdatedAt: string | null;
+}
+export const getSupplierCompleteness = (id: string) =>
+  api.get<SupplierCompleteness>(`/suppliers/${id}/completeness`);
+
 /** 자료 요청(데이터 제출 요청) 목록. 원청/관리자는 전체, 협력사는 자기 것만. (submission §) */
 export type SubmissionStatusCode =
   | "submission_requested" | "submission_in_progress" | "submission_submitted"

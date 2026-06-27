@@ -1,7 +1,8 @@
 'use client';
 
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { getSupplierCompleteness, getSupplierContacts, getSupplierDetail } from '@/lib/api';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -389,23 +390,53 @@ function SupplierGeneralReviewContent() {
   const searchParams = useSearchParams();
   const supplierId = searchParams.get('supplierId') ?? '';
   const supplierName = searchParams.get('supplier') ?? supplierSummary.name;
+  // supplierId가 UUID면 실 백엔드(detail·contacts·completeness)에서 채우고, mock S-ID면 기존 mock 폴백.
+  const isRealSupplier = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId);
+  const [api, setApi] = useState<{
+    companyName?: string; providerType?: string;
+    manager?: string; email?: string; phone?: string;
+    rate?: number | null; filled?: number | null; required?: number | null;
+    lastUpdated?: string | null; missing?: string[];
+  } | null>(null);
+  useEffect(() => {
+    if (!isRealSupplier) { setApi(null); return; }
+    let cancelled = false;
+    (async () => {
+      const [detail, contactsRes, comp] = await Promise.all([
+        getSupplierDetail(supplierId).catch(() => null),
+        getSupplierContacts(supplierId).catch(() => null),
+        getSupplierCompleteness(supplierId).catch(() => null),
+      ]);
+      if (cancelled) return;
+      const pc = contactsRes?.contacts?.find(c => c.isPrimary) ?? contactsRes?.contacts?.[0];
+      setApi({
+        companyName: detail?.companyName, providerType: detail?.providerType,
+        manager: pc?.name ?? undefined, email: pc?.email ?? undefined, phone: (pc?.mobile ?? pc?.phone) ?? undefined,
+        rate: comp?.completionRate, filled: comp?.filledFieldCount, required: comp?.requiredFieldCount,
+        lastUpdated: comp?.lastUpdatedAt, missing: comp?.missingFields,
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [isRealSupplier, supplierId]);
+
   const selectedSupplier = suppliers.find(supplier => supplier.id === supplierId);
   const selectedName = getSupplierName(supplierId);
   const selectedCompleteness = supplierCompleteness.find(item => item.supplierId === supplierId);
-  const displayName = selectedName?.nameKo ?? supplierName;
-  const displayRole = selectedSupplier?.role ?? supplierSummary.role;
+  // mock 대표 연락처
+  const mockContacts = getContacts(supplierId);
+  const mockPrimary = mockContacts.find(c => c.isPrimary) ?? mockContacts[0];
+
+  const displayName = api?.companyName ?? selectedName?.nameKo ?? supplierName;
+  const displayRole = api?.providerType ?? selectedSupplier?.role ?? supplierSummary.role;
   const displayCountry = selectedSupplier?.country ?? supplierSummary.country;
   const displayTier = selectedSupplier ? `T${selectedSupplier.tier}` : supplierSummary.tier;
-  const displayRate = selectedCompleteness?.completionRate ?? supplierSummary.collectionRate;
-  const displayCompleted = selectedCompleteness?.filledFieldCount ?? supplierSummary.completed;
-  const displayTotal = selectedCompleteness?.requiredFieldCount ?? supplierSummary.total;
-  const displayLastUpdated = selectedCompleteness?.lastUpdatedAt ?? supplierSummary.lastSubmittedAt;
-  // 협력사별 대표(primary) 연락처 — 없으면 mock 요약값 폴백.
-  const contacts = getContacts(supplierId);
-  const primaryContact = contacts.find(c => c.isPrimary) ?? contacts[0];
-  const displayManager = primaryContact?.name ?? supplierSummary.manager;
-  const displayEmail = primaryContact?.email ?? supplierSummary.email;
-  const displayPhone = primaryContact?.mobile ?? primaryContact?.phone ?? supplierSummary.phone;
+  const displayRate = api?.rate ?? selectedCompleteness?.completionRate ?? supplierSummary.collectionRate;
+  const displayCompleted = api?.filled ?? selectedCompleteness?.filledFieldCount ?? supplierSummary.completed;
+  const displayTotal = api?.required ?? selectedCompleteness?.requiredFieldCount ?? supplierSummary.total;
+  const displayLastUpdated = (api?.lastUpdated ?? selectedCompleteness?.lastUpdatedAt ?? supplierSummary.lastSubmittedAt)?.slice(0, 16).replace('T', ' ');
+  const displayManager = api?.manager ?? mockPrimary?.name ?? supplierSummary.manager;
+  const displayEmail = api?.email ?? mockPrimary?.email ?? supplierSummary.email;
+  const displayPhone = api?.phone ?? mockPrimary?.mobile ?? mockPrimary?.phone ?? supplierSummary.phone;
   const [openSections, setOpenSections] = useState<SectionKey[]>(['company']);
   // 입력 현황에서 '자료 요청'으로 넘어오면(request=1) 요청 모달을 바로 연다 — 자연스러운 흐름 연결.
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(searchParams.get('request') === '1');
