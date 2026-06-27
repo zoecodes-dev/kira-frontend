@@ -613,13 +613,22 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
     if (!rowsByPartId.has(row.part_id)) rowsByPartId.set(row.part_id, row);
   });
 
+  // 형제 노드 정렬 키 = 차수(tier) 오름차순. "Tier N"/part.tier_level에서 숫자 추출(없으면 큰 값=뒤로).
+  const tierOrder = (row: TraceRow): number => {
+    const fromTier = parseInt(String(row.tier).replace(/[^0-9]/g, ''), 10);
+    if (!Number.isNaN(fromTier)) return fromTier;
+    const t = ds.parts.find(p => p.part_id === row.part_id)?.tier_level;
+    return typeof t === 'number' ? t : 99;
+  };
+  const byTier = (a: TraceRow, b: TraceRow) => tierOrder(a) - tierOrder(b) || a.part_name.localeCompare(b.part_name);
+
   function buildPartNode(row: TraceRow, depth: number): ExplorerNode {
     const part = ds.parts.find(item => item.part_id === row.part_id);
     const childPartNodes = ds.parts
       .filter(item => item.parent_part_id === row.part_id)
       .map(item => rowsByPartId.get(item.part_id))
       .filter((item): item is TraceRow => Boolean(item))
-      .sort((a, b) => a.part_name.localeCompare(b.part_name))
+      .sort(byTier)
       .map(childRow => buildPartNode(childRow, depth + 1));
 
     return {
@@ -648,7 +657,7 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
     .filter(part => !part.parent_part_id || !partIdSet.has(part.parent_part_id))
     .map(part => rowsByPartId.get(part.part_id))
     .filter((item): item is TraceRow => Boolean(item))
-    .sort((a, b) => a.part_name.localeCompare(b.part_name))
+    .sort(byTier)
     .map(row => buildPartNode(row, 1));
 
   return {
