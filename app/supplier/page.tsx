@@ -53,6 +53,7 @@ import {
 import {
   getSupplierEsg,
   getSupplierFactories,
+  getTokenSupplierId,
   type SupplierFactory,
 } from '@/lib/api';
 interface MockSupplier {
@@ -86,7 +87,16 @@ interface MockFactory {
 // T1 시점에서 하위 공급망(Upstream) 데이터 수집 시나리오를 구현
 // Upstream(원재료 공급): S-CAM-001 양극재, S-CAM-002 양극재, S-ANO-001 음극재
 // Downstream(납품처): 없음 (T1이 최상위 배터리 제조사 — 원청사가 최종 납품처)
-const supplierId = 'S-CELL-001';
+// 협력사 포털 페르소나 — 로그인 토큰의 supplier_id(백엔드 UUID)를 목 데이터 키로 해석한다.
+// 데모: 한양셀 a1111111 → 'S-CELL-001'. 미로그인/미매핑이면 데모 기본값으로 폴백.
+// (포털 데이터가 아직 목 기반이라 UUID↔페르소나 변환을 둔다. 실데이터 연동 시 이 맵 제거.)
+const BACKEND_SUPPLIER_PERSONA: Record<string, string> = {
+  'a1111111-1111-4000-8000-000000000001': 'S-CELL-001', // 한양셀 제조(주)
+};
+const supplierId = (() => {
+  const sid = getTokenSupplierId();
+  return (sid && BACKEND_SUPPLIER_PERSONA[sid]) || 'S-CELL-001';
+})();
 
 const riskLabel: Record<string, string> = {
   low: '저위험',
@@ -590,7 +600,8 @@ export default function SupplierPage() {
   const [selectedSupplyNodeId, setSelectedSupplyNodeId] = useState<string | null>(null);
 
   // ── '내 기업 정보'(company-info) 탭 전용 — 공장/인증서 실제 API 연동 ──────────
-  // NOTE: supplierId는 데모 페르소나(S-CELL-001). 운영 시 로그인 세션의 협력사 UUID로 대체.
+  // NOTE: supplierId는 로그인 토큰의 supplier_id(백엔드 UUID)를 페르소나로 해석한 값.
+  //       실데이터 연동 전까지는 목 데이터 키(S-CELL-001 등)로 매핑해 사용한다.
   const [apiFactories, setApiFactories] = useState<MockFactory[]>([]);
   const [apiCerts, setApiCerts] = useState<{ certId: string; certName: string; issuingBody: string; status: 'active' | 'expiring_soon' | 'expired'; expiresAt: string }[]>([]);
   useEffect(() => {

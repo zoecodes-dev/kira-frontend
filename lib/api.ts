@@ -43,6 +43,21 @@ export function clearToken(): void {
   window.localStorage.removeItem(TOKEN_KEY);
 }
 
+// JWT payload 의 supplier_id 클레임(협력사 본인 식별 §0.5). 클라이언트 전용·미로그인/OEM 이면 null.
+// 협력사 포털이 로그인한 본인 supplier 로 스코프를 잡는 소스.
+export function getTokenSupplierId(): string | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const claims = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof claims.supplier_id === "string" ? claims.supplier_id : null;
+  } catch {
+    return null;
+  }
+}
+
 // ───────────────────────────────────────────────────────────
 // snake_case → camelCase 어댑터 (재귀, 배열/객체 모두 처리)
 //   백엔드 응답 키는 snake_case, 프론트 타입은 camelCase로 통일.
