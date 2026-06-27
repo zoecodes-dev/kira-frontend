@@ -2,18 +2,15 @@
 
 // 공급망 맵과 M-BOM 형성 화면이 공유하는 원본 화면 컴포넌트입니다.
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import ExcelJS from 'exceljs';
 import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
 import {
   Box,
   ChevronDown,
   Download,
-  ExternalLink,
   FileSpreadsheet,
   Gem,
   Info,
-  Maximize2,
   Package,
   Plus,
   RefreshCw,
@@ -21,7 +18,6 @@ import {
 } from 'lucide-react';
 import {
   mockDataset,
-  supplierDetailIdMap,
   statusMeta,
   getRiskTone,
   buildTraceRows,
@@ -354,10 +350,6 @@ export function SupplyChainMapPageContent({
               맵 형성하기
             </button>
           )}
-          <button className="inline-flex h-11 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-ink-400 shadow-sm hover:bg-slate-50">
-            <Maximize2 className="h-4 w-4" />
-            전체 화면
-          </button>
         </div>
       </section>
 
@@ -384,16 +376,6 @@ export function SupplyChainMapPageContent({
       {formationGenerated && hasSelection && explorerTree && selectedNode && (
         <>
           <section id="supply-node-detail" className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.06)] scroll-mt-4">
-            <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 bg-white px-4 py-3">
-              <LegendBadge status="verified" />
-              <LegendBadge status="watch" />
-              <LegendBadge status="feoc_review" />
-              <LegendBadge status="audit_required" />
-              <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-500">
-                <Info className="h-3.5 w-3.5" />
-                정보 부족
-              </span>
-            </div>
             <div className="flex flex-col">
               <div className="border-b border-slate-200 p-4">
                 <SupplyMapTree
@@ -777,11 +759,25 @@ function MapDetailPanel({ selectedNode, formationMode = false }: { selectedNode:
     ['검증률', hideFormationValues ? '-' : row.verification_progress],
   ];
 
-  // 실 협력사 노드(원청/Tier0·제품 루트 제외, UUID)면 상세 정보를 이 카드 안에 그대로 띄운다(팝업 대신 인라인).
+  // 실 협력사 노드(원청/Tier0·제품 루트 제외, UUID)면 '선택 노드 상세 정보' 요약 없이
+  // 표준 정보 폼만 인라인으로 띄운다(팝업·요약 카드 제거).
   const isRealSupplierNode = !hideFormationValues
     && selectedNode.type !== 'product'
     && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(row.supplier_id)
     && row.tier !== 'Tier 0';
+
+  if (isRealSupplierNode) {
+    return (
+      <aside className="bg-white">
+        <SupplierGeneralReviewContent
+          key={row.supplier_id}
+          embedded
+          supplierId={row.supplier_id}
+          supplierName={row.supplier_name}
+        />
+      </aside>
+    );
+  }
 
   return (
     <aside className="bg-white">
@@ -814,43 +810,6 @@ function MapDetailPanel({ selectedNode, formationMode = false }: { selectedNode:
           </div>
         </div>
       </div>
-      {isRealSupplierNode ? (
-        <div className="border-t border-slate-200 bg-slate-50/40">
-          {/* 선택한 협력사의 표준 정보·자료요청을 이 카드 안에 그대로(팝업 없이) */}
-          <SupplierGeneralReviewContent
-            key={row.supplier_id}
-            embedded
-            supplierId={row.supplier_id}
-            supplierName={row.supplier_name}
-          />
-        </div>
-      ) : (
-        <div className="p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-ink-100">연결 제품</h3>
-            <span className="text-xs font-semibold text-slate-500">연결된 제품 수 {hideFormationValues ? '-' : '3개'}</span>
-          </div>
-          <div className="space-y-3 text-sm">
-            {hideFormationValues ? (
-              <div>
-                <div className="font-bold text-ink-100">-</div>
-                <div className="mt-1 text-xs font-medium text-slate-500">-</div>
-              </div>
-            ) : (
-              [
-                ['Battery Cell A', 'BAT-NCM811-100Ah'],
-                ['Battery Module B', 'BOM-MODULE-B'],
-                ['ESS Pack C', 'ESS-PACK-C'],
-              ].map(([name, code]) => (
-                <div key={name}>
-                  <div className="font-bold text-ink-100">{name}</div>
-                  <div className="mt-1 text-xs font-medium text-slate-500">{code}</div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
     </aside>
   );
 }
@@ -868,9 +827,6 @@ function StatCell({ label, value, suffix, tone = 'default' }: { label: string; v
   );
 }
 
-function LegendBadge({ status }: { status: RiskStatus }) {
-  return <StatusBadge status={status} />;
-}
 
 function getExplorerIcon(type: ExplorerNode['type']) {
   if (type === 'product') return Box;
