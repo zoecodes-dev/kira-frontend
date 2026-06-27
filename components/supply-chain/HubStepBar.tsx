@@ -7,6 +7,7 @@ interface HubStepBarProps {
   poolCount: number;
   hasProduct: boolean;
   completed: Set<number>; // 완료된 단계 번호 — 상단 버튼에 완료 색(초록+체크) 표시
+  locked?: boolean;       // 완료 공급망 — '수정' 전까지 단계 버튼 잠금(읽기 전용)
   onOpenPool: () => void;
   onOpenSuppliers: () => void; // STEP 3 — 연결 협력사 확인·자료 요청(목록)
   onOpenVerify: () => void;    // STEP 4 — 최종 검증(만료·실데이터)
@@ -62,6 +63,7 @@ export default function HubStepBar({
   poolCount,
   hasProduct,
   completed,
+  locked = false,
   onOpenPool,
   onOpenSuppliers,
   onOpenVerify,
@@ -95,7 +97,7 @@ export default function HubStepBar({
           hint={!hasProduct ? '제품을 먼저 선택' : poolDone ? `${poolCount}개사 선택됨` : '1차 협력사 선택'}
           Icon={Users}
           onClick={onOpenPool}
-          disabled={!hasProduct}
+          disabled={!hasProduct || locked}
           done={completed.has(2)}
         />
 
@@ -106,7 +108,7 @@ export default function HubStepBar({
           hint={!poolDone ? 'Pool 확정 후' : `연결 협력사 ${poolCount}개사 확인·요청`}
           Icon={ClipboardCheck}
           onClick={onOpenSuppliers}
-          disabled={!poolDone}
+          disabled={!poolDone || locked}
           done={completed.has(3)}
         />
 
@@ -117,7 +119,7 @@ export default function HubStepBar({
           hint={!poolDone ? 'Pool 확정 후' : '만료·실데이터 검증'}
           Icon={ShieldCheck}
           onClick={onOpenVerify}
-          disabled={!poolDone}
+          disabled={!poolDone || locked}
           done={completed.has(4)}
         />
 
