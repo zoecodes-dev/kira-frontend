@@ -32,7 +32,7 @@ export default function MaterialRegulationResultsPage() {
     getRegulationResults().then(list => {
       if (list && list.length) setResults(list.map((x, i) => ({
         id: `RR-${String(i + 1).padStart(3, '0')}`,
-        material: x.material ? `제품 ${x.material.slice(0, 8)}` : '자재',
+        material: x.material ?? '자재',
         supplier: x.supplierName ?? '협력사',
         regulation: x.regulation ?? '-',
         verdict: x.verdict,
