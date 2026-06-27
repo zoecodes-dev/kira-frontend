@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getActions, getDataRequests, getSuppliers, type ActionItem, type ApiDataRequest } from '@/lib/api';
+import { createDataRequest, getActions, getDataRequests, getSuppliers, type ActionItem, type ApiDataRequest, type SupplierBrief } from '@/lib/api';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
+import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
+import DueDiligenceBoard from '@/components/DueDiligenceBoard';
 import { getStoredRequests, type DataRequestRecord } from '@/lib/data-request-store';
 import { getSupplierName } from '@/lib/supplier-detail-data';
 import {
   CheckCircle2, FileCheck2,
-  ShieldAlert, UserCheck, ArrowRight, Bell,
+  ShieldAlert, UserCheck, ArrowRight, Bell, Plus, Send,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -197,32 +199,46 @@ function deriveRequestStatus(r: ApiDataRequest): RequestStatus {
 }
 
 function RequestArea() {
-  // 실 백엔드 GET /data-requests + 협력사명(getSuppliers) 배선. 실패 시 mock 폴백.
-  // localStorage 발송 기록은 백엔드 POST 미배선 구간을 메우려고 함께 병합(같은 협력사 저장본 우선).
+  // 실 백엔드 GET /data-requests + 협력사명(getSuppliers). 공급망 맵의 자료 요청 추가(POST)를 여기로 끌어옴.
   const [apiRows, setApiRows] = useState<DataRequest[] | null>(null);
   const [stored, setStored] = useState<DataRequestRecord[]>([]);
-  useEffect(() => {
+  const [suppliers, setSuppliers] = useState<SupplierBrief[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addSup, setAddSup] = useState('');
+  const [addType, setAddType] = useState('');
+  const [addDue, setAddDue] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
     setStored(getStoredRequests());
-    let cancelled = false;
-    (async () => {
-      try {
-        const [reqs, sups] = await Promise.all([getDataRequests(), getSuppliers()]);
-        const nameById = new Map(sups.map(s => [s.supplierId, s.companyName]));
-        const rows: DataRequest[] = reqs.map(r => ({
-          supplierId: r.targetSupplierId ?? r.requestId,
-          supplier: (r.targetSupplierId && nameById.get(r.targetSupplierId)) || '협력사',
-          title: r.requestedDataType ?? '자료 요청',
-          status: deriveRequestStatus(r),
-          due: r.dueDate?.slice(0, 10) ?? '-',
-          missing: r.missingCount ?? -1, // 백엔드 누락 건수(미집계면 -1 → 표시 생략)
-        }));
-        if (!cancelled) setApiRows(rows);
-      } catch {
-        if (!cancelled) setApiRows(null); // 인증/네트워크 실패 → mock 유지
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+    try {
+      const [reqs, sups] = await Promise.all([getDataRequests(), getSuppliers()]);
+      setSuppliers(sups);
+      const nameById = new Map(sups.map(s => [s.supplierId, s.companyName]));
+      setApiRows(reqs.map(r => ({
+        supplierId: r.targetSupplierId ?? r.requestId,
+        supplier: (r.targetSupplierId && nameById.get(r.targetSupplierId)) || '협력사',
+        title: r.requestedDataType ?? '자료 요청',
+        status: deriveRequestStatus(r),
+        due: r.dueDate?.slice(0, 10) ?? '-',
+        missing: r.missingCount ?? -1,
+      })));
+    } catch {
+      setApiRows(null); // 인증/네트워크 실패 → mock 유지
+    }
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  // 작성 요청 추가 — 공급망 맵에서 쓰던 createDataRequest를 My Task로.
+  async function addRequest() {
+    if (!addSup || !addType.trim()) return;
+    setBusy(true);
+    try {
+      await createDataRequest({ targetSupplierId: addSup, requestedDataType: addType.trim(), dueDate: addDue || undefined });
+      setShowAdd(false); setAddSup(''); setAddType(''); setAddDue('');
+      await load();
+    } catch { /* noop */ } finally { setBusy(false); }
+  }
 
   const base: DataRequest[] = apiRows ?? dataRequests;
   const requests: (DataRequest | DataRequestRecord)[] = [
@@ -238,23 +254,45 @@ function RequestArea() {
           <h2 className="text-base font-bold text-ink-100">자료 요청</h2>
           <p className="mt-0.5 text-sm text-ink-500">협력사 자료 요청의 기한·제출·검토 대기를 한 곳에서 처리</p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {counts.map(({ s, n }) => (
             <span key={s} className={clsx('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold', requestStatusMeta[s].chip)}>
               {requestStatusMeta[s].label} {n}
             </span>
           ))}
+          <button type="button" onClick={() => setShowAdd(v => !v)} className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-sm bg-brand px-3 text-xs font-bold text-white hover:bg-brand-hover">
+            <Plus className="h-3.5 w-3.5" /> 작성 요청 추가
+          </button>
         </div>
       </div>
+
+      {showAdd && (
+        <div className="flex flex-wrap items-end gap-2 border-b border-ink-700/40 bg-slate-50 px-5 py-3">
+          <label className="flex flex-col gap-1 text-[11px] font-bold text-ink-500">협력사
+            <select value={addSup} onChange={e => setAddSup(e.target.value)} className="h-9 min-w-[180px] rounded-sm border border-slate-200 px-2 text-sm text-ink-100">
+              <option value="">선택</option>
+              {suppliers.map(s => <option key={s.supplierId} value={s.supplierId}>{s.companyName}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] font-bold text-ink-500">요청 자료
+            <input value={addType} onChange={e => setAddType(e.target.value)} placeholder="예: 환경성적서, 원산지 증빙" className="h-9 min-w-[200px] rounded-sm border border-slate-200 px-2 text-sm" />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] font-bold text-ink-500">마감일
+            <input type="date" value={addDue} onChange={e => setAddDue(e.target.value)} className="h-9 rounded-sm border border-slate-200 px-2 text-sm" />
+          </label>
+          <button type="button" onClick={addRequest} disabled={busy || !addSup || !addType.trim()} className="inline-flex h-9 items-center gap-1.5 rounded-sm bg-brand px-3 text-sm font-bold text-white hover:bg-brand-hover disabled:opacity-50">
+            <Send className="h-3.5 w-3.5" /> 요청 발송
+          </button>
+        </div>
+      )}
       <div className="divide-y divide-ink-700/30">
         {requests.map(req => {
           const meta = requestStatusMeta[req.status];
           const reviewMode = req.status === 'submitted';
           // 협력사명은 정식 명칭(master)에서 끌어와 mock/저장본 드리프트 방지.
           const supplierLabel = getSupplierName(req.supplierId)?.nameKo ?? req.supplier;
-          const href = reviewMode
-            ? '/submission-review'
-            : `/suppliers/check-info?supplierId=${req.supplierId}&supplier=${encodeURIComponent(supplierLabel)}&request=1`;
+          // submission-review 페이지 폐기 → 검토도 표준 협력사 정보 페이지(check-info)로.
+          const href = `/suppliers/check-info?supplierId=${req.supplierId}&supplier=${encodeURIComponent(supplierLabel)}${reviewMode ? '' : '&request=1'}`;
           return (
             <div key={req.supplierId} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50">
               <span className={clsx('h-2 w-2 shrink-0 rounded-full', meta.dot)} />
@@ -285,104 +323,27 @@ function RequestArea() {
 }
 
 export default function MyTaskPage() {
-  const [tasks, setTasks] = useState<Task[]>(_MOCK_TASKS);
-  const [filter, setFilter] = useState<'all' | TaskStatus>('all');
-
-  useEffect(() => {
-    getActions().then(items => {
-      if (items && items.length > 0) setTasks(items.map(adaptAction));
-    }).catch(() => {/* mock 유지 */});
-  }, []);
-
-  const filtered = sortByPriority(filter === 'all' ? tasks : tasks.filter(task => task.status === filter));
-
-  const [view, setView] = useState<'list' | 'request' | 'inputStatus'>('list');
-
+  // 업무 분장 단위 허브 — 실제 쓰이는 기능만: 자료 요청(+추가), 협력사 승인(HITL), 공급망 실사, 입력 현황.
+  const [view, setView] = useState<'request' | 'hitl' | 'dd' | 'inputStatus'>('request');
   return (
     <>
       <PageHeader
         title="My Task"
-        description="담당자 개인이 오늘 처리해야 할 승인, 반려, 리마인드, 리스크 조치를 모아 보는 화면"
+        description="담당자 업무 분장 — 협력사 자료 요청, 제출 자료 AI 검증(HITL) 승인, 공급망 실사, 입력 현황을 한 곳에서"
         badge="P1"
         tabs={[
-          { label: '내 업무 목록', active: view === 'list', onClick: () => setView('list') },
           { label: '자료 요청', active: view === 'request', onClick: () => setView('request') },
+          { label: '협력사 승인 (HITL)', active: view === 'hitl', onClick: () => setView('hitl') },
+          { label: '공급망 실사', active: view === 'dd', onClick: () => setView('dd') },
           { label: '협력사 입력 현황', active: view === 'inputStatus', onClick: () => setView('inputStatus') },
         ]}
       />
-
-      {view === 'request' ? (
-        <div className="p-8 pt-4">
-          <RequestArea />
-        </div>
-      ) : view === 'inputStatus' ? (
-        <div className="p-8 pt-4">
-          <SupplierInputStatusBoard embedded />
-        </div>
-      ) : (
       <div className="p-8 pt-4">
-        {/* 내 업무 목록 — 표 (전체 폭) */}
-        <div className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
-            <div className="flex items-center justify-between border-b border-ink-700 bg-ink-800/60 px-5 py-4">
-              <div>
-                <h2 className="text-base font-bold text-ink-100">내 업무 목록</h2>
-                <p className="mt-0.5 text-sm text-ink-500">우선순위 · 마감일 순</p>
-              </div>
-              <div className="flex overflow-hidden rounded-xs border border-ink-700/60">
-                {taskFilters.map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => setFilter(key)}
-                    className={clsx(
-                      'px-2.5 py-1.5 text-xs font-semibold transition-colors',
-                      filter === key ? 'bg-ink-700 text-ink-100' : 'text-ink-500 hover:text-ink-200',
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="divide-y divide-ink-700/30">
-              {filtered.length === 0 && (
-                <div className="px-5 py-12 text-center text-sm text-ink-500">해당하는 업무가 없습니다.</div>
-              )}
-              {filtered.map(task => {
-                const meta = typeMeta[task.type];
-                const TypeIcon = meta.icon;
-                const dot = { critical: 'bg-alert-solid', high: 'bg-alert-solid', medium: 'bg-warn-solid', low: 'bg-ok-solid' }[task.priority];
-                const statusCls = { today: 'text-warn-text', overdue: 'text-alert-text', waiting: 'text-ink-400', done: 'text-ok-text' }[task.status];
-                return (
-                  <button
-                    key={task.id}
-                    onClick={() => (window.location.href = task.targetHref)}
-                    className={clsx(
-                      'flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-slate-50',
-                      task.status === 'done' && 'opacity-50',
-                    )}
-                  >
-                    <span className={clsx('h-2.5 w-2.5 shrink-0 rounded-full', dot)} />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[15px] font-bold text-ink-100">{task.title}</div>
-                      <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
-                        <TypeIcon className="h-3.5 w-3.5 shrink-0" />
-                        <span className="font-semibold">{meta.label}</span>
-                        <span className="opacity-40">·</span>
-                        <span className="truncate">{task.description}</span>
-                      </div>
-                    </div>
-                    <div className="hidden shrink-0 text-right sm:block">
-                      <div className={clsx('text-sm font-bold', statusCls)}>{statusMeta[task.status].label}</div>
-                      <div className="mt-0.5 text-[11px] text-ink-500">{task.owner} · <span className="num-mono">{task.due}</span></div>
-                    </div>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-ink-500" />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        {view === 'request' && <RequestArea />}
+        {view === 'hitl' && <HitlReviewCard />}
+        {view === 'dd' && <DueDiligenceBoard />}
+        {view === 'inputStatus' && <SupplierInputStatusBoard embedded />}
       </div>
-      )}
     </>
   );
 }
