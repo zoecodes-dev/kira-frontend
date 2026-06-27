@@ -637,50 +637,40 @@ export function SupplierGeneralReviewContent({
       </div>
 
       <section className="rounded-sm border border-ink-700 bg-white shadow-control">
-        <div className="grid items-center gap-x-6 gap-y-3 px-5 py-3 xl:grid-cols-[minmax(0,1.4fr)_240px_210px_190px]">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="px-5 py-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="truncate text-lg font-semibold tracking-tight text-ink-100">{displayName}</h1>
+            <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-xs font-semibold text-ok-text">{displayTier}</span>
+            <span className="text-xs font-medium text-ink-500">{displayRole} <span className="mx-1.5 text-ink-700">|</span> {displayCountry}</span>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-500">
+            <span className="font-semibold text-ink-100">담당자</span>
+            <span>{displayManager}</span>
+            <span className="h-3 w-px bg-ink-700" />
+            <span>{displayEmail}</span>
+            <span className="h-3 w-px bg-ink-700" />
+            <span>{displayPhone}</span>
+          </div>
+          {/* 수집률·제출일·검토상태 — 폭이 좁아도 항상 한 줄(grid-cols-3) */}
+          <div className="mt-3 grid grid-cols-3 gap-4 border-t border-ink-700 pt-3">
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="truncate text-lg font-semibold tracking-tight text-ink-100">{displayName}</h1>
-                <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-xs font-semibold text-ok-text">
-                  {displayTier}
-                </span>
+              <div className="text-xs font-medium text-ink-500">전체 수집률</div>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="text-xl font-semibold text-ok-text">{displayRate}%</span>
+                <div className="min-w-10 flex-1"><ProgressBar value={displayRate} status="완료" /></div>
               </div>
-              <div className="mt-1 text-xs font-medium text-ink-500">{displayRole} <span className="mx-1.5 text-ink-700">|</span> {displayCountry}</div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-500">
-                <span className="font-semibold text-ink-100">담당자</span>
-                <span>{displayManager}</span>
-                <span className="h-3 w-px bg-ink-700" />
-                <span>{displayEmail}</span>
-                <span className="h-3 w-px bg-ink-700" />
-                <span>{displayPhone}</span>
+              <div className="mt-1 text-xs text-ink-500">{displayCompleted} / {displayTotal} 수집</div>
+            </div>
+            <div className="min-w-0 border-l border-ink-700 pl-4">
+              <div className="text-xs font-medium text-ink-500">최근 제출일</div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-100">
+                {displayLastUpdated}
+                <StatusBadge status="완료" />
               </div>
             </div>
-          </div>
-
-          <div className="border-l border-ink-700 pl-6">
-            <div className="text-xs font-medium text-ink-500">전체 수집률</div>
-            <div className="mt-1 flex items-center gap-3">
-              <span className="text-2xl font-semibold text-ok-text">{displayRate}%</span>
-              <div className="min-w-20 flex-1">
-                <ProgressBar value={displayRate} status="완료" />
-              </div>
-            </div>
-            <div className="mt-1 text-xs text-ink-500">{displayCompleted} / {displayTotal} 항목 수집 완료</div>
-          </div>
-
-          <div className="border-l border-ink-700 pl-6">
-            <div className="text-xs font-medium text-ink-500">최근 제출일</div>
-            <div className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-ink-100">
-              {displayLastUpdated}
-              <StatusBadge status="완료" />
-            </div>
-          </div>
-
-          <div className="border-l border-ink-700 pl-6">
-            <div className="text-xs font-medium text-ink-500">원청 검토 상태</div>
-            <div className="mt-1.5">
-              <StatusBadge status={supplierSummary.reviewStatus} />
+            <div className="min-w-0 border-l border-ink-700 pl-4">
+              <div className="text-xs font-medium text-ink-500">원청 검토 상태</div>
+              <div className="mt-1.5"><StatusBadge status={supplierSummary.reviewStatus} /></div>
             </div>
           </div>
         </div>
@@ -690,7 +680,7 @@ export function SupplierGeneralReviewContent({
         <div className="mb-2.5 flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-ink-100">수집 항목 요약</h2>
         </div>
-        <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-6 gap-2">
           {liveSections.map(section => <SummaryCard key={section.key} section={section} />)}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-4">
