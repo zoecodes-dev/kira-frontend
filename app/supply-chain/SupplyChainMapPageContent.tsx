@@ -3,7 +3,7 @@
 // 공급망 맵과 M-BOM 형성 화면이 공유하는 원본 화면 컴포넌트입니다.
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
   Box,
   ChevronDown,
@@ -183,7 +183,7 @@ export function SupplyChainMapPageContent({
   const exportHeaders = ['고객사', '단위기간', '제품', 'BOM 버전', 'Tier', '품목/부품', '원재료/광물', '공급사', '사업장', '국가', 'PO 번호', '공급기간', '공급비율(%)', '리스크 상태'];
   const COL_WIDTHS = [16, 12, 26, 12, 8, 22, 18, 24, 18, 8, 14, 22, 12, 12];
 
-  function getExportRows(rows: TraceRow[], periodCol: string) {
+  function getExportRows(rows: TraceRow[], periodCol: string): (string | number)[][] {
     return rows.map(row => [
       customerName,
       periodCol,
@@ -197,32 +197,59 @@ export function SupplyChainMapPageContent({
       formationMode ? '-' : row.country,
       formationMode ? '-' : row.po_number,
       formationMode ? '-' : row.supply_period,
-      formationMode ? '-' : String(row.supply_ratio),
+      formationMode ? '-' : row.supply_ratio, // 숫자 유지 — 공급비율 % 서식용
       formationMode ? '-' : statusMeta[row.risk_status].label,
     ]);
   }
 
-  // 실 .xlsx 생성(SheetJS) — 컬럼 너비 양식 + 헤더 행. HTML-as-xls 대신 진짜 워크북.
-  function writeXlsx(filename: string, aoa: (string | number)[][], sheetName: string) {
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = COL_WIDTHS.map(w => ({ wch: w }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    XLSX.writeFile(wb, filename);
+  // 실 .xlsx 생성(exceljs) — 헤더 강조(굵은 흰글씨+브랜드 배경)·테두리·헤더 고정·자동필터·공급비율 % 서식.
+  async function writeXlsx(filename: string, sheetName: string, dataRows: (string | number)[][]) {
+    const thin = { style: 'thin' as const, color: { argb: 'FFD9D9D9' } };
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet(sheetName, { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = exportHeaders.map((h, i) => ({ header: h, width: COL_WIDTHS[i] }));
+
+    const headerRow = ws.getRow(1);
+    headerRow.height = 22;
+    headerRow.eachCell(cell => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14532D' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = { top: thin, bottom: thin, left: thin, right: thin };
+    });
+
+    dataRows.forEach(r => ws.addRow(r));
+    for (let i = 2; i <= ws.rowCount; i++) {
+      ws.getRow(i).eachCell(cell => {
+        cell.border = { top: thin, bottom: thin, left: thin, right: thin };
+        cell.alignment = { vertical: 'middle' };
+      });
+    }
+    ws.getColumn(13).numFmt = '0"%"'; // 공급비율(%)
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: exportHeaders.length } };
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const stamp = new Date().toISOString().slice(0, 10);
   const code = selectedProduct?.product_code ?? 'export';
 
-  function downloadCustomerExcel() {
+  async function downloadCustomerExcel() {
     // 고객사 제출용 — 필터(기간/공장/PO) 무시하고 전체 공급망을 내보낸다.
     const fullRows = selectedBomVersion ? buildTraceRows(dataset, selectedBomVersionId, ' ~ ', 'ALL', 'ALL') : [];
-    writeXlsx(`고객사제출_${code}_${stamp}.xlsx`, [exportHeaders, ...getExportRows(fullRows, '전체')], '공급망 제출');
+    await writeXlsx(`고객사제출_${code}_${stamp}.xlsx`, '공급망 제출', getExportRows(fullRows, '전체'));
   }
 
-  function downloadExcel() {
+  async function downloadExcel() {
     // 현재 화면(필터 적용) 기준 .xlsx.
-    writeXlsx(`공급망_추적_${code}_${stamp}.xlsx`, [exportHeaders, ...getExportRows(traceRows, periodLabel)], '공급망 추적');
+    await writeXlsx(`공급망_추적_${code}_${stamp}.xlsx`, '공급망 추적', getExportRows(traceRows, periodLabel));
   }
 
   function downloadCsv() {
