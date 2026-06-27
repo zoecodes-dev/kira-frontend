@@ -6,8 +6,9 @@ import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
 import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
-import RegulationResultsCard from '@/components/dashboard/RegulationResultsCard';
+import RegulationResultsCard, { type RegReviewRow } from '@/components/dashboard/RegulationResultsCard';
 import AiParsingReviewModal from '@/components/dashboard/AiParsingReviewModal';
+import RegulationReviewModal from '@/components/dashboard/RegulationReviewModal';
 import DueDiligenceBoard from '@/components/DueDiligenceBoard';
 import { getStoredRequests, type DataRequestRecord } from '@/lib/data-request-store';
 import { getSupplierName } from '@/lib/supplier-detail-data';
@@ -329,8 +330,10 @@ type MyTaskView = 'request' | 'hitl' | 'dd' | 'inputStatus';
 export default function MyTaskPage() {
   // 업무 분장 단위 허브 — 실제 쓰이는 기능만: 자료 요청(+추가), 협력사 승인(HITL), 공급망 실사, 입력 현황.
   const [view, setView] = useState<MyTaskView>('request');
-  // 검토 클릭 시 AI 파싱 뷰를 띄울 대상 협력사.
+  // 검토 클릭 시 AI 파싱 뷰를 띄울 대상 협력사(데이터 추출 검토).
   const [review, setReview] = useState<{ supplierId: string; supplierName: string } | null>(null);
+  // 규제 검증 검토 — AI 판정 결과 + 파싱 뷰 함께.
+  const [regReview, setRegReview] = useState<RegReviewRow | null>(null);
   // 딥링크 ?tab=hitl|dd|inputStatus|request (규제 검증 결과 등 편입 화면 진입용).
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
@@ -356,7 +359,7 @@ export default function MyTaskPage() {
           <div className="space-y-5">
             {/* AI 파싱 결과 = 데이터 추출 검토 + 규제 검증 결과. 검토 클릭 → AI 파싱 뷰 모달. */}
             <HitlReviewCard onReview={openReview} />
-            <RegulationResultsCard onReview={openReview} />
+            <RegulationResultsCard onReview={setRegReview} />
           </div>
         )}
         {view === 'dd' && <DueDiligenceBoard />}
@@ -364,6 +367,9 @@ export default function MyTaskPage() {
       </div>
       {review && (
         <AiParsingReviewModal supplierId={review.supplierId} supplierName={review.supplierName} onClose={() => setReview(null)} />
+      )}
+      {regReview && (
+        <RegulationReviewModal row={regReview} onClose={() => setRegReview(null)} />
       )}
     </>
   );

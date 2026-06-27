@@ -756,6 +756,8 @@ export interface RegulationResult {
   confidence: number | null;
   needsHumanReview: boolean;
   evidence: string[];
+  citedClauses: string[];     // AI가 대조한 규제 조항(예: ["IRA FEOC"])
+  reasoningText: string | null; // AI 판단 근거(근거 자료↔조항 대조 결과)
 }
 export const getRegulationResults = () => api.get<RegulationResult[]>(`/regulation/materials/regulation-results`);
 
