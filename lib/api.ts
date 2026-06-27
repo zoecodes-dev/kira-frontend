@@ -375,6 +375,12 @@ export interface SupplierDetail extends SupplierBrief {
   establishedYear?: number | null;
   employeeCount?: number | null;
   completenessScore?: number | null;
+  // 협력사 입력 양식 확장 필드 (마스터폼)
+  country?: string | null;                  // 소재 국가
+  smelterType?: string | null;              // provider_type='smelter'일 때 rmi/private
+  coreMinerals?: Record<string, number> | null;  // 소재 구성: 핵심광물 함량(%) {"Li":..}
+  businessRegDocUrl?: string | null;        // 사업자등록증 업로드 URL
+  environmentalReportUrl?: string | null;   // 환경성적서 업로드 URL
   manufacturerDetail: SupplierManufacturerDetail | null;
   recyclerDetail: SupplierRecyclerDetail | null;
   traderDetail: SupplierTraderDetail | null;
@@ -386,6 +392,7 @@ export interface SupplierRiskProfileResponse {
   supplierId: string;
   overallRiskScore: number;
   riskLevel: SupplierRiskLevel;
+  selfReportedRiskLevel?: string | null;   // 실사 자가진단 결과(협력사 자가신고)
   feocStatus: SupplierFeocStatus;
 }
 

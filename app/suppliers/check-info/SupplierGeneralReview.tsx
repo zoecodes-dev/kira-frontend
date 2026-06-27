@@ -6,6 +6,7 @@ import {
   createDataRequest,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierEsg, getSupplierOriginCertificates, getSupplierSuppliedItems, updateSupplierDetail,
+  getSupplierRiskProfile, type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type EsgCertification as ApiCert, type OriginCert as ApiOriginCert, type SuppliedItem as ApiItem,
@@ -23,6 +24,7 @@ interface RealData {
   certs: ApiCert[];
   originCerts: ApiOriginCert[];
   items: ApiItem[];
+  riskProfile: ApiRiskProfile | null;   // 규제 — 실사 자가진단(self_reported_risk_level)
 }
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -57,7 +59,7 @@ import {
 } from 'lucide-react';
 
 type ReviewStatus = '완료' | '입력 중' | '확인 필요' | '미입력' | '해당 없음';
-type SectionKey = 'company' | 'contacts' | 'factories' | 'certificates' | 'items' | 'origin';
+type SectionKey = 'company' | 'materials' | 'factories' | 'regulation' | 'documents';
 
 interface CollectionSection {
   key: SectionKey;
@@ -93,67 +95,41 @@ const sections: CollectionSection[] = [
     key: 'company',
     order: 1,
     title: '기업 기본정보',
-    completed: 4,
-    total: 4,
-    status: '완료',
+    completed: 0, total: 1, status: '미입력',
     icon: <FileText className="h-5 w-5" />,
-    comment: '',
-    missing: [],
+    comment: '', missing: [],
   },
   {
-    key: 'contacts',
+    key: 'materials',
     order: 2,
-    title: '담당자 연락처',
-    completed: 0,
-    total: 4,
-    status: '미입력',
-    icon: <UserRound className="h-5 w-5" />,
-    comment: '품질·물류·비상 연락 담당자가 아직 입력되지 않았습니다.',
-    missing: ['품질 담당자', '물류 담당자', '비상 연락처', '대체 승인자'],
+    title: '소재 구성',
+    completed: 0, total: 1, status: '미입력',
+    icon: <Box className="h-5 w-5" />,
+    comment: '핵심광물(Li/Co/Ni) 함량(%)을 입력하세요.', missing: [],
   },
   {
     key: 'factories',
     order: 3,
-    title: '공장·사업장',
-    completed: 0,
-    total: 5,
-    status: '미입력',
+    title: '공장 정보',
+    completed: 0, total: 1, status: '미입력',
     icon: <Building2 className="h-5 w-5" />,
-    comment: '공장 주소와 생산능력, 납품지역을 표 기준으로 보완 요청해야 합니다.',
-    missing: ['생산능력', '납품지역', '공장 담당자', '가동 상태', '주소 증빙'],
+    comment: '공급비율·위치(원산지)·공장 담당자.', missing: [],
   },
   {
-    key: 'certificates',
+    key: 'regulation',
     order: 4,
-    title: '인증서',
-    completed: 2,
-    total: 8,
-    status: '확인 필요',
-    icon: <FileText className="h-5 w-5" />,
-    comment: 'IATF 16949와 ISO 14001 갱신본 첨부가 필요합니다.',
-    missing: ['IATF 16949', 'ISO 14001 갱신본', 'RMI 인증', '첨부파일 2건', '발급기관 확인', '만료일 확인'],
-  },
-  {
-    key: 'items',
-    order: 5,
-    title: '공급 품목',
-    completed: 1,
-    total: 3,
-    status: '입력 중',
-    icon: <Box className="h-5 w-5" />,
-    comment: '',
-    missing: ['품목별 HS 코드', '월 공급량'],
-  },
-  {
-    key: 'origin',
-    order: 6,
-    title: '원산지/규제 정보',
-    completed: 1,
-    total: 3,
-    status: '확인 필요',
+    title: '규제',
+    completed: 0, total: 1, status: '미입력',
     icon: <Globe className="h-5 w-5" />,
-    comment: 'EU/US 목적지별 원산지 증빙과 FEOC 자기선언을 확인해야 합니다.',
-    missing: ['원산지 증명서', 'FEOC 자기선언'],
+    comment: '탄소발자국·실사 자가진단.', missing: [],
+  },
+  {
+    key: 'documents',
+    order: 5,
+    title: '필요 문서',
+    completed: 0, total: 1, status: '미입력',
+    icon: <FileText className="h-5 w-5" />,
+    comment: '사업자등록증·환경성적서.', missing: [],
   },
 ];
 
@@ -296,7 +272,7 @@ function FieldStatus({ status }: { status: ReviewStatus }) {
   return <span className="text-xs font-semibold text-slate-500">해당 없음</span>;
 }
 
-function CompanyGrid({ rows = companyRows, editable = false, fieldKeys }: { rows?: string[][]; editable?: boolean; fieldKeys?: string[] }) {
+function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPrefix = 'company' }: { rows?: string[][]; editable?: boolean; fieldKeys?: string[]; fieldPrefix?: string }) {
   return (
     <div className="grid overflow-hidden rounded-sm border border-ink-700 md:grid-cols-2">
       {rows.map(([label, value, status], i) => (
@@ -306,7 +282,7 @@ function CompanyGrid({ rows = companyRows, editable = false, fieldKeys }: { rows
             <input
               defaultValue={value === '-' || value === '미입력' ? '' : value}
               placeholder={`${label} 입력`}
-              data-field={fieldKeys?.[i] ? `company.${fieldKeys[i]}` : undefined}
+              data-field={fieldKeys?.[i] ? `${fieldPrefix}.${fieldKeys[i]}` : undefined}
               className="w-full rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20"
             />
           ) : (
@@ -372,29 +348,47 @@ function deriveSectionMeta(
   real: RealData,
 ): Pick<CollectionSection, 'completed' | 'total' | 'status' | 'missing'> {
   const has = (v: unknown) => v !== null && v !== undefined && v !== '';
+  const d = real.detail;
   if (key === 'company') {
-    const d = real.detail;
     const fields: [string, unknown][] = [
-      ['영문 정식명칭', d?.companyNameEn],
-      ['한글 명칭', d?.companyNameKo],
+      ['회사명', d?.companyName],
+      ['소재 국가', d?.country],
       ['사업자 등록번호', d?.businessRegNo],
-      ['DUNS 번호', d?.dunsNumber],
+      ['업종(provider type)', d?.providerType],
     ];
     const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
     const completed = fields.length - missing.length;
     return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
   }
-  const table: Record<Exclude<SectionKey, 'company'>, [number, string]> = {
-    contacts: [real.contacts.length, '담당자 연락처'],
-    factories: [real.factories.length, '사업장 정보'],
-    certificates: [real.certs.length, '인증서'],
-    items: [real.items.length, '공급 품목'],
-    origin: [real.originCerts.length, '원산지/규제 증빙'],
-  };
-  const [count, label] = table[key];
+  if (key === 'materials') {
+    const cm = d?.coreMinerals ?? {};
+    const fields: [string, unknown][] = [['Li 함량', cm.Li], ['Co 함량', cm.Co], ['Ni 함량', cm.Ni]];
+    const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
+    const completed = fields.length - missing.length;
+    return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
+  }
+  if (key === 'regulation') {
+    const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
+    const fields: [string, unknown][] = [
+      ['탄소집약도', m.carbonIntensity],
+      ['에너지원', m.energySource],
+      ['실사 자가진단', real.riskProfile?.selfReportedRiskLevel && real.riskProfile.selfReportedRiskLevel !== 'unknown' ? real.riskProfile.selfReportedRiskLevel : null],
+    ];
+    const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
+    const completed = fields.length - missing.length;
+    return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
+  }
+  if (key === 'documents') {
+    const fields: [string, unknown][] = [['사업자등록증', d?.businessRegDocUrl], ['환경성적서', d?.environmentalReportUrl]];
+    const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
+    const completed = fields.length - missing.length;
+    return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
+  }
+  // factories
+  const count = real.factories.length;
   return count > 0
     ? { completed: count, total: count, status: '완료', missing: [] }
-    : { completed: 0, total: 1, status: '미입력', missing: [label] };
+    : { completed: 0, total: 1, status: '미입력', missing: ['공장 정보'] };
 }
 const certStatus = (expiresAt: string | null): ReviewStatus =>
   (expiresAt && new Date(expiresAt).getTime() < Date.now() ? '확인 필요' : '완료');
@@ -405,43 +399,77 @@ function EmptyData() {
   return <div className="rounded-sm border border-dashed border-ink-700 bg-slate-50 px-4 py-8 text-center text-sm text-ink-500">등록된 데이터가 없습니다.</div>;
 }
 
-function SectionContent({ section, real, editable = false }: { section: CollectionSection; real?: RealData | null; editable?: boolean }) {
+// 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
+// editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isOem)만 노출.
+function SectionContent({ section, real, editable = false, isOem = false }: { section: CollectionSection; real?: RealData | null; editable?: boolean; isOem?: boolean }) {
   let content: ReactNode;
-  // 실데이터(UUID)면 company/contacts/factories는 백엔드 값으로. 나머지(인증서/품목/원산지)는 mock 유지.
-  // editable=true(자료 제출 입력 모드)면 값 셀이 입력칸으로 렌더된다.
-  if (real && section.key === 'company' && real.detail) {
-    const d = real.detail;
+  const d = real?.detail ?? null;
+
+  if (section.key === 'company') {
+    const isSmelter = (d?.providerType as string) === 'smelter';
     const rows: string[][] = [
-      ['영문 정식명칭', d.companyNameEn ?? '-', fieldFilled(d.companyNameEn)],
-      ['한글 명칭', d.companyNameKo ?? '-', fieldFilled(d.companyNameKo)],
-      ['사업자 등록번호', d.businessRegNo ?? '-', fieldFilled(d.businessRegNo)],
-      ['DUNS 번호', d.dunsNumber ?? '-', fieldFilled(d.dunsNumber)],
+      ['회사명', d?.companyName ?? '-', fieldFilled(d?.companyName)],
+      ['소재 국가', d?.country ?? '-', fieldFilled(d?.country)],
+      ['사업자 등록번호', d?.businessRegNo ?? '-', fieldFilled(d?.businessRegNo)],
+      ['DUNS 번호 (선택)', d?.dunsNumber ?? '-', '완료'],
+      ['업종(provider type)', providerTypeLabel[d?.providerType ?? ''] ?? d?.providerType ?? '-', fieldFilled(d?.providerType)],
+      ...(isSmelter ? [['smelter 구분', d?.smelterType ?? '-', fieldFilled(d?.smelterType)] as string[]] : []),
     ];
-    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={['companyNameEn', 'companyNameKo', 'businessRegNo', 'dunsNumber']} />;
-  } else if (real && section.key === 'contacts') {
-    const rows = real.contacts.map(c => [c.role ?? '-', c.name ?? '-', c.email ?? '-', (c.mobile ?? c.phone) ?? '-', fieldFilled(c.email)]);
-    content = (rows.length || editable) ? <DataTable headers={['구분', '담당자', '이메일', '연락처', '상태']} rows={rows} editable={editable} /> : <EmptyData />;
-  } else if (real && section.key === 'factories') {
-    const rows = real.factories.map(f => [f.factoryName ?? '-', f.country ?? '-', f.address ?? '-', f.monthlyCapacity ?? '미입력', f.destination ?? '-', fieldFilled(f.factoryName)]);
-    content = (rows.length || editable) ? <DataTable headers={['공장명', '국가', '주소', '생산능력', '납품지역', '상태']} rows={rows} editable={editable} /> : <EmptyData />;
-  } else if (real && section.key === 'certificates') {
-    const rows = real.certs.map(c => [c.certificationType ?? '-', c.issuingBody ?? '-', c.issuedAt?.slice(0, 10) ?? '-', c.expiresAt?.slice(0, 10) ?? '-', c.documentUrl ? '첨부됨' : '미첨부', certStatus(c.expiresAt)]);
-    content = (rows.length || editable) ? <DataTable headers={['인증서명', '발급기관', '발급일', '만료일', '첨부', '상태']} rows={rows} editable={editable} /> : <EmptyData />;
-  } else if (real && section.key === 'items') {
-    const rows = real.items.map(i => [i.partCode ?? '-', i.partName ?? '-', i.tierLevel != null ? `T${i.tierLevel}` : '-', i.materialType ?? '-', '완료']);
-    content = (rows.length || editable) ? <DataTable headers={['부품 코드', '부품명', 'Tier', '자재 유형', '상태']} rows={rows} editable={editable} /> : <EmptyData />;
-  } else if (real && section.key === 'origin') {
-    const rows = real.originCerts.map(o => [o.certType ?? '-', o.originCountry ?? '-', o.issuingAuthority ?? '-', o.expiresAt?.slice(0, 10) ?? '-', originStatus(o.status)]);
-    content = (rows.length || editable) ? <DataTable headers={['증빙 유형', '원산지', '발급기관', '만료일', '상태']} rows={rows} editable={editable} /> : <EmptyData />;
+    const keys = ['companyName', 'country', 'businessRegNo', 'dunsNumber', 'providerType', ...(isSmelter ? ['smelterType'] : [])];
+    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="company" />;
+  } else if (section.key === 'materials') {
+    const cm = (d?.coreMinerals ?? {}) as Record<string, number>;
+    const rows: string[][] = [
+      ['Li (리튬) 함량(%)', cm.Li != null ? String(cm.Li) : '-', fieldFilled(cm.Li)],
+      ['Co (코발트) 함량(%)', cm.Co != null ? String(cm.Co) : '-', fieldFilled(cm.Co)],
+      ['Ni (니켈) 함량(%)', cm.Ni != null ? String(cm.Ni) : '-', fieldFilled(cm.Ni)],
+    ];
+    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={['Li', 'Co', 'Ni']} fieldPrefix="materials" />;
+  } else if (section.key === 'factories') {
+    // 공급비율(supplychain 산출)·위치(원산지)·공장 담당자만. 공장당 대표 담당자는 contacts에서 매칭.
+    const contactFor = (factoryId?: string | null) => real?.contacts.find(c => c.factoryId === factoryId);
+    const rows = (real?.factories ?? []).map(f => {
+      const c = contactFor(f.factoryId);
+      const loc = [f.country, f.region].filter(Boolean).join(' · ') || '-';
+      return [
+        f.factoryName ?? '-',
+        loc,
+        f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-',
+        c ? `${c.name ?? '-'}${c.email ? ` (${c.email})` : ''}` : '-',
+        fieldFilled(f.factoryName),
+      ];
+    });
+    content = rows.length ? <DataTable headers={['공장명', '위치(원산지)', '공급비율', '공장 담당자', '상태']} rows={rows} /> : <EmptyData />;
+  } else if (section.key === 'regulation') {
+    const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
+    const ci = m.carbonIntensity;
+    const es = m.energySource;
+    const sr = real?.riskProfile?.selfReportedRiskLevel;
+    const srLabel = sr && sr !== 'unknown' ? ({ low: '저위험', medium: '중위험', high: '고위험', critical: '고위험' } as Record<string, string>)[sr] ?? sr : '-';
+    const rows: string[][] = [
+      ['탄소집약도 (kgCO2eq/kg)', ci != null ? String(ci) : '-', fieldFilled(ci)],
+      ['에너지원', (es as string) ?? '-', fieldFilled(es)],
+      ['실사 자가진단', srLabel, sr && sr !== 'unknown' ? '완료' : '미입력'],
+      // DD 보고서는 원청 전용 — 협력사 폼에는 표시하지 않는다.
+      ...(isOem ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
+    ];
+    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isOem ? ['ddReport'] : [])]} fieldPrefix="regulation" />;
   } else {
-    content = {
-      company: <CompanyGrid editable={editable} />,
-      contacts: <DataTable headers={['구분', '담당자', '이메일', '연락처', '상태']} rows={contactRows} editable={editable} />,
-      factories: <DataTable headers={['공장명', '국가', '주소', '생산능력', '납품지역', '상태']} rows={factoryRows} editable={editable} />,
-      certificates: <DataTable headers={['인증서명', '발급기관', '발급일', '만료일', '상태', '첨부파일']} rows={certificateRows} editable={editable} />,
-      items: <DataTable headers={['제품 코드', '제품명', '역할', '목적지', '상태']} rows={supplyItemRows} editable={editable} />,
-      origin: <DataTable headers={['규제', '대상 지역', '필요 증빙', '상태']} rows={originRows} editable={editable} />,
-    }[section.key];
+    // documents — 사업자등록증·환경성적서 업로드 여부.
+    const docRow = (label: string, url?: string | null): string[] =>
+      [label, url ? '업로드됨' : '미업로드', url ? '완료' : '미입력'];
+    const rows = [
+      docRow('사업자등록증', d?.businessRegDocUrl),
+      docRow('환경성적서', d?.environmentalReportUrl),
+    ];
+    content = (
+      <div className="space-y-2">
+        <DataTable headers={['문서', '상태', '확인']} rows={rows} />
+        {editable && (
+          <div className="text-[11px] text-ink-500">※ 업로드 칸은 파일 첨부 연동 후 활성화됩니다. (현재 업로드 여부만 표시)</div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -457,12 +485,14 @@ function AccordionSection({
   real,
   editable = false,
   showRequest = true,
+  isOem = false,
 }: {
   section: CollectionSection;
   onRequestSection: (section: CollectionSection) => void;
   real?: RealData | null;
   editable?: boolean;       // 입력 모드(자료 제출) — 값 셀을 입력칸으로
   showRequest?: boolean;    // 원청 전용 '미입력 N건 요청' 버튼 노출 여부
+  isOem?: boolean;          // 원청 모드 — DD 보고서 등 원청 전용 항목 노출
 }) {
   // 섹션은 항상 펼쳐서 고정 표시(드롭다운 제거). 미입력/확인 필요면 그 자리에서 보완 요청.
   const needsRequest = showRequest && (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
@@ -491,7 +521,7 @@ function AccordionSection({
           )}
         </div>
       </div>
-      <SectionContent section={section} real={real} editable={editable} />
+      <SectionContent section={section} real={real} editable={editable} isOem={isOem} />
     </section>
   );
 }
@@ -532,7 +562,7 @@ export function SupplierGeneralReviewContent({
     if (!isRealSupplier) { setApi(null); return; }
     let cancelled = false;
     (async () => {
-      const [detail, contactsRes, factoriesRes, comp, esgRes, originRes, itemsRes] = await Promise.all([
+      const [detail, contactsRes, factoriesRes, comp, esgRes, originRes, itemsRes, riskRes] = await Promise.all([
         getSupplierDetail(supplierId).catch(() => null),
         getSupplierContacts(supplierId).catch(() => null),
         getSupplierFactories(supplierId).catch(() => null),
@@ -540,6 +570,7 @@ export function SupplierGeneralReviewContent({
         getSupplierEsg(supplierId).catch(() => null),
         getSupplierOriginCertificates(supplierId).catch(() => null),
         getSupplierSuppliedItems(supplierId).catch(() => null),
+        getSupplierRiskProfile(supplierId).catch(() => null),
       ]);
       if (cancelled) return;
       setApi({
@@ -550,6 +581,7 @@ export function SupplierGeneralReviewContent({
         certs: esgRes?.certifications ?? [],
         originCerts: originRes?.originCertificates ?? [],
         items: itemsRes?.items ?? [],
+        riskProfile: riskRes,
       });
     })();
     return () => { cancelled = true; };
@@ -841,6 +873,7 @@ export function SupplierGeneralReviewContent({
             real={api}
             editable={editable}
             showRequest={isOem}
+            isOem={isOem}
           />
         ))}
       </section>
