@@ -3,7 +3,7 @@
 // STEP 3 — 이 맵에 연결된 협력사 목록. 각 협력사를 '확인' 처리하거나, 자료를 일괄 요청한다.
 // (구 STEP4 정보확인 + STEP5 자료요청 + STEP6 정보입력요청을 한 곳으로 통합)
 import { useState } from 'react';
-import { Check, CheckCircle2, FileSignature, Loader2, Send, X } from 'lucide-react';
+import { Check, CheckCircle2, FileSignature, Loader2, Mail, Send, X } from 'lucide-react';
 import type { SupplierBrief } from '@/lib/api';
 import DataConsentModal from './DataConsentModal';
 
@@ -21,6 +21,7 @@ export default function ConnectedSuppliersModal({
   onToggleConfirm,
   onConfirmAll,
   onRequestAll,
+  onOpenMail,
   onClose,
 }: {
   suppliers: SupplierBrief[];
@@ -29,6 +30,7 @@ export default function ConnectedSuppliersModal({
   onToggleConfirm: (supplierId: string) => void;
   onConfirmAll: () => void;
   onRequestAll: () => void;
+  onOpenMail: () => void;   // 정보 입력 요청 메일 · 동의서 발송 화면(허브가 연다)
   onClose: () => void;
 }) {
   const confirmedCount = suppliers.filter(s => confirmed.has(s.supplierId)).length;
@@ -53,6 +55,13 @@ export default function ConnectedSuppliersModal({
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/60 px-5 py-2.5">
           <span className="text-xs font-bold text-ink-400">확인 {confirmedCount} / {suppliers.length}</span>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenMail}
+              className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-slate-200 bg-white px-3 text-xs font-bold text-ink-400 hover:border-brand hover:text-brand"
+            >
+              <Mail className="h-3.5 w-3.5" /> 정보 입력 요청 메일 · 동의서
+            </button>
             <button
               type="button"
               onClick={onConfirmAll}
