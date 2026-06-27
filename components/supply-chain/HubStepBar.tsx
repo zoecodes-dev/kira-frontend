@@ -7,6 +7,7 @@ interface HubStepBarProps {
   poolCount: number;
   hasSelection: boolean;
   hasProduct: boolean;
+  oemSelected?: boolean; // 원청(Tier0) 노드가 선택됨 — STEP4·5는 협력사 대상이라 안내 문구 구분
   completed: Set<number>; // 완료된 단계 번호 — 상단 버튼에 완료 색(초록+체크) 표시
   onOpenPool: () => void;
   onOpenSupplierInfo: () => void;
@@ -65,6 +66,7 @@ export default function HubStepBar({
   poolCount,
   hasSelection,
   hasProduct,
+  oemSelected = false,
   completed,
   onOpenPool,
   onOpenSupplierInfo,
@@ -131,7 +133,7 @@ export default function HubStepBar({
         <StepButton
           index={4}
           label="협력사 정보 확인"
-          hint={!poolDone ? 'Pool 확정 후' : hasSelection ? '선택 노드 기준' : '노드를 먼저 선택'}
+          hint={!poolDone ? 'Pool 확정 후' : hasSelection ? '표준 페이지에서 확인' : oemSelected ? '원청은 대상 아님' : '협력사 노드 선택'}
           Icon={ClipboardCheck}
           onClick={onOpenSupplierInfo}
           disabled={!poolDone || !hasSelection}
@@ -140,7 +142,7 @@ export default function HubStepBar({
         <StepButton
           index={5}
           label="자료 업데이트 요청"
-          hint={!poolDone ? 'Pool 확정 후' : hasSelection ? '검증 후 보완 요청' : '노드를 먼저 선택'}
+          hint={!poolDone ? 'Pool 확정 후' : hasSelection ? '빈 항목 보완 요청' : oemSelected ? '원청은 대상 아님' : '협력사 노드 선택'}
           Icon={RefreshCw}
           onClick={onOpenDataRequest}
           disabled={!poolDone || !hasSelection}

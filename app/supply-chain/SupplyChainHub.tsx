@@ -2,7 +2,7 @@
 
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowRight, Database, Loader2, Network } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
@@ -21,6 +21,7 @@ export type HubModal = null | 'pool' | 'supplierInfo' | 'dataRequest' | 'invite'
 export default function SupplyChainHub() {
   // 공급망 목록에서 특정 공급망을 누르고 들어오면 productId(+bomVersionId)로 해당 Lot을 선택해 연다.
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialProductId = searchParams.get('productId') ?? undefined;
   const initialBomVersionId = searchParams.get('bomVersionId') ?? undefined;
   const [pool, setPool] = useState<SupplierBrief[]>([]);
@@ -202,6 +203,19 @@ export default function SupplyChainHub() {
   );
   const requestableSelection = !!selectedNode && !isOemNode;
 
+  // STEP4(정보확인)·STEP5(자료요청)은 check-info 표준 페이지로 수렴 — 한 페이지에서 확인+빈 항목 요청.
+  const checkInfoHref = (request: boolean) => {
+    const params = new URLSearchParams();
+    if (activeSupplierId) params.set('supplierId', activeSupplierId);
+    params.set('supplier', activeNodeLabel);
+    if (request) params.set('request', '1');
+    return `/suppliers/check-info?${params.toString()}`;
+  };
+  const goCheckInfo = (request: boolean) => {
+    markVisited(request ? 5 : 4);
+    router.push(checkInfoHref(request));
+  };
+
   const close = () => setActiveModal(null);
 
   return (
@@ -219,10 +233,11 @@ export default function SupplyChainHub() {
           poolCount={pool.length}
           hasSelection={requestableSelection}
           hasProduct={Boolean(selectedProductId)}
+          oemSelected={isOemNode}
           completed={completed}
           onOpenPool={() => setActiveModal('pool')}
-          onOpenSupplierInfo={() => { markVisited(4); setActiveModal('supplierInfo'); }}
-          onOpenDataRequest={() => { markVisited(5); setActiveModal('dataRequest'); }}
+          onOpenSupplierInfo={() => goCheckInfo(false)}
+          onOpenDataRequest={() => goCheckInfo(true)}
           onOpenInvite={() => { markVisited(6); setActiveModal('invite'); }}
           onOpenMapManage={() => { markVisited(7); setActiveModal('mapManage'); }}
         />
