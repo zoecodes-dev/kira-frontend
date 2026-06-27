@@ -27,8 +27,8 @@ export default function AiParsingReviewModal({
           </button>
         </div>
         <div className="min-h-0 flex-1">
-          {/* 모든 문서 검토 완료(제출) 시 모달 닫기 */}
-          <AiParsingView supplierId={supplierId} onConfirmComplete={onClose} />
+          {/* 모든 문서 검토 완료(제출) 시 모달 닫기. realOnly — 실 추출만(무관한 mock 금지). */}
+          <AiParsingView supplierId={supplierId} onConfirmComplete={onClose} realOnly />
         </div>
       </div>
     </div>
