@@ -1,15 +1,20 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import Badge from '@/components/Badge';
 import { ArrowRight, FileText, ShieldAlert } from 'lucide-react';
 import clsx from 'clsx';
+import { getRegulationResults } from '@/lib/api';
 
-const results = [
-  { id: 'REG-001', material: 'NCM811 양극재', supplier: 'POS Cathode Materials', regulation: 'EU_BATTERY', verdict: 'passed', confidence: 0.94, clause: 'Annex XIII', evidence: 'Recycled_content_report.pdf', target: '/submission-review' },
-  { id: 'REG-002', material: 'NCM 전구체', supplier: 'Quzhou Precursor', regulation: 'IRA', verdict: 'gray_zone', confidence: 0.72, clause: 'FEOC ownership', evidence: 'ownership_disclosure.xlsx', target: '/submission-review' },
-  { id: 'REG-003', material: '코발트 원광', supplier: 'Katanga Cobalt Mining', regulation: 'CONFLICT_MINERALS', verdict: 'warning', confidence: 0.81, clause: 'Due diligence evidence', evidence: 'Cobalt_origin_certificate_scan.pdf', target: '/submission-review?tab=dd' },
-  { id: 'REG-004', material: '코발트 원광', supplier: 'Ganzhou Rare Metals', regulation: 'IRA', verdict: 'violation', confidence: 0.91, clause: 'FEOC direct ownership 25%', evidence: 'ownership_structure_scan.pdf', target: '/submission-review?tab=dd' },
-  { id: 'REG-005', material: '니켈 원광', supplier: 'Sulawesi Nickel Mine', regulation: 'EUDR', verdict: 'gray_zone', confidence: 0.68, clause: 'Mine boundary coordinates', evidence: 'Mine_boundary_coordinates.geojson', target: '/submission-status' },
+interface ResultRow { id: string; material: string; supplier: string; regulation: string; verdict: string; confidence: number; clause: string; evidence: string; target: string }
+
+// 백엔드 미연동/실패 시 폴백 mock. HITL 후보는 My Task 협력사 승인(HITL)로 연결.
+const MOCK_RESULTS: ResultRow[] = [
+  { id: 'REG-001', material: 'NCM811 양극재', supplier: 'POS Cathode Materials', regulation: 'EU_BATTERY', verdict: 'passed', confidence: 0.94, clause: '자동 판정', evidence: 'Recycled_content_report.pdf', target: '/dashboard' },
+  { id: 'REG-002', material: 'NCM 전구체', supplier: 'Quzhou Precursor', regulation: 'IRA', verdict: 'warning', confidence: 0.72, clause: 'HITL 후보 · 사람 검토 필요', evidence: 'ownership_disclosure.xlsx', target: '/my-task' },
+  { id: 'REG-004', material: '코발트 원광', supplier: 'Ganzhou Rare Metals', regulation: 'IRA', verdict: 'violation', confidence: 0.91, clause: 'FEOC direct ownership 25%', evidence: 'ownership_structure_scan.pdf', target: '/my-task' },
 ];
 
 const tone = {
@@ -17,13 +22,32 @@ const tone = {
   warning: 'warn',
   gray_zone: 'info',
   violation: 'alert',
+  reject: 'alert',
 } as const;
 
 export default function MaterialRegulationResultsPage() {
+  // AI 규제 검증 결과(compliance_results) 실데이터. 실패 시 mock 폴백.
+  const [results, setResults] = useState<ResultRow[]>(MOCK_RESULTS);
+  useEffect(() => {
+    getRegulationResults().then(list => {
+      if (list && list.length) setResults(list.map((x, i) => ({
+        id: `RR-${String(i + 1).padStart(3, '0')}`,
+        material: x.material ? `제품 ${x.material.slice(0, 8)}` : '자재',
+        supplier: x.supplierName ?? '협력사',
+        regulation: x.regulation ?? '-',
+        verdict: x.verdict,
+        confidence: x.confidence ?? 0,
+        clause: x.needsHumanReview ? 'HITL 후보 · 사람 검토 필요' : '자동 판정',
+        evidence: x.evidence?.[0] ?? '-',
+        target: x.needsHumanReview ? '/my-task' : '/dashboard',
+      })));
+    }).catch(() => { /* mock 유지 */ });
+  }, []);
+
   const stats = [
     { label: '전체 판정', value: results.length, tone: 'neutral' as const },
     { label: '통과', value: results.filter(r => r.verdict === 'passed').length, tone: 'ok' as const },
-    { label: '검토 필요', value: results.filter(r => r.verdict === 'gray_zone').length, tone: 'warn' as const },
+    { label: '검토 필요(HITL)', value: results.filter(r => r.confidence < 0.85).length, tone: 'warn' as const },
     { label: '위반', value: results.filter(r => r.verdict === 'violation').length, tone: 'alert' as const },
   ];
 

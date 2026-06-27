@@ -745,6 +745,20 @@ export interface AiExtraction {
 }
 export const getAiExtractions = () => api.get<AiExtraction[]>(`/data-requests/ai-extractions`);
 
+/** AI 규제 검증 결과(compliance_results) — verdict + confidence + HITL 후보. */
+export interface RegulationResult {
+  resultId: string;
+  material: string | null;
+  supplierId: string | null;
+  supplierName: string | null;
+  regulation: string | null;
+  verdict: string;            // passed / warning / violation / reject
+  confidence: number | null;
+  needsHumanReview: boolean;
+  evidence: string[];
+}
+export const getRegulationResults = () => api.get<RegulationResult[]>(`/regulation/materials/regulation-results`);
+
 /** HITL 리뷰 승인/반려(batch 단위) — hitl_reviews 갱신 + 파이프라인 재개/차단. */
 export const approveHitl = (batchId: string, decisionText: string) =>
   api.post(`/hitl/${batchId}/approve`, { decision_text: decisionText });
