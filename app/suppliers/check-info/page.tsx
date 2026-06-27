@@ -2,7 +2,22 @@
 
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
 import { Suspense, useEffect, useState } from 'react';
-import { getSupplierCompleteness, getSupplierContacts, getSupplierDetail } from '@/lib/api';
+import {
+  getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
+  type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
+  type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
+} from '@/lib/api';
+
+const providerTypeLabel: Record<string, string> = {
+  manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산',
+};
+
+interface RealData {
+  detail: ApiSupplierDetail | null;
+  contacts: ApiSupplierContact[];
+  factories: ApiSupplierFactory[];
+  comp: ApiCompleteness | null;
+}
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -277,10 +292,10 @@ function FieldStatus({ status }: { status: ReviewStatus }) {
   return <span className="text-xs font-semibold text-slate-500">해당 없음</span>;
 }
 
-function CompanyGrid() {
+function CompanyGrid({ rows = companyRows }: { rows?: string[][] }) {
   return (
     <div className="grid overflow-hidden rounded-sm border border-ink-700 md:grid-cols-2">
-      {companyRows.map(([label, value, status]) => (
+      {rows.map(([label, value, status]) => (
         <div key={label} className="grid grid-cols-[150px_minmax(0,1fr)_96px] items-center border-b border-r border-ink-700 px-4 py-3 last:border-b-0 even:border-r-0">
           <div className="text-sm font-medium text-ink-500">{label}</div>
           <div className="truncate text-sm font-semibold text-ink-100">{value}</div>
@@ -334,15 +349,44 @@ function ReviewComment({ section }: { section: CollectionSection }) {
   );
 }
 
-function SectionContent({ section }: { section: CollectionSection }) {
-  const content = {
-    company: <CompanyGrid />,
-    contacts: <DataTable headers={['구분', '담당자', '이메일', '연락처', '상태']} rows={contactRows} />,
-    factories: <DataTable headers={['공장명', '국가', '주소', '생산능력', '납품지역', '상태']} rows={factoryRows} />,
-    certificates: <DataTable headers={['인증서명', '발급기관', '발급일', '만료일', '상태', '첨부파일']} rows={certificateRows} />,
-    items: <DataTable headers={['제품 코드', '제품명', '역할', '목적지', '상태']} rows={supplyItemRows} />,
-    origin: <DataTable headers={['규제', '대상 지역', '필요 증빙', '상태']} rows={originRows} />,
-  }[section.key];
+const fieldFilled = (v: unknown): ReviewStatus => (v !== null && v !== undefined && v !== '' ? '완료' : '미입력');
+
+function EmptyData() {
+  return <div className="rounded-sm border border-dashed border-ink-700 bg-slate-50 px-4 py-8 text-center text-sm text-ink-500">등록된 데이터가 없습니다.</div>;
+}
+
+function SectionContent({ section, real }: { section: CollectionSection; real?: RealData | null }) {
+  let content: ReactNode;
+  // 실데이터(UUID)면 company/contacts/factories는 백엔드 값으로. 나머지(인증서/품목/원산지)는 mock 유지.
+  if (real && section.key === 'company' && real.detail) {
+    const d = real.detail;
+    const rows: string[][] = [
+      ['영문 정식명칭', d.companyNameEn ?? '-', fieldFilled(d.companyNameEn)],
+      ['한글 명칭', d.companyNameKo ?? '-', fieldFilled(d.companyNameKo)],
+      ['대표자', d.ceoName ?? '-', fieldFilled(d.ceoName)],
+      ['사업자 등록번호', d.businessRegNo ?? '-', fieldFilled(d.businessRegNo)],
+      ['DUNS 번호', d.dunsNumber ?? '-', fieldFilled(d.dunsNumber)],
+      ['웹사이트', d.website ?? '-', fieldFilled(d.website)],
+      ['설립연도', d.establishedYear != null ? String(d.establishedYear) : '-', fieldFilled(d.establishedYear)],
+      ['직원 수', d.employeeCount != null ? `${d.employeeCount}명` : '-', fieldFilled(d.employeeCount)],
+    ];
+    content = <CompanyGrid rows={rows} />;
+  } else if (real && section.key === 'contacts') {
+    const rows = real.contacts.map(c => [c.role ?? '-', c.name ?? '-', c.email ?? '-', (c.mobile ?? c.phone) ?? '-', fieldFilled(c.email)]);
+    content = rows.length ? <DataTable headers={['구분', '담당자', '이메일', '연락처', '상태']} rows={rows} /> : <EmptyData />;
+  } else if (real && section.key === 'factories') {
+    const rows = real.factories.map(f => [f.factoryName ?? '-', f.country ?? '-', f.address ?? '-', f.monthlyCapacity ?? '미입력', f.destination ?? '-', fieldFilled(f.factoryName)]);
+    content = rows.length ? <DataTable headers={['공장명', '국가', '주소', '생산능력', '납품지역', '상태']} rows={rows} /> : <EmptyData />;
+  } else {
+    content = {
+      company: <CompanyGrid />,
+      contacts: <DataTable headers={['구분', '담당자', '이메일', '연락처', '상태']} rows={contactRows} />,
+      factories: <DataTable headers={['공장명', '국가', '주소', '생산능력', '납품지역', '상태']} rows={factoryRows} />,
+      certificates: <DataTable headers={['인증서명', '발급기관', '발급일', '만료일', '상태', '첨부파일']} rows={certificateRows} />,
+      items: <DataTable headers={['제품 코드', '제품명', '역할', '목적지', '상태']} rows={supplyItemRows} />,
+      origin: <DataTable headers={['규제', '대상 지역', '필요 증빙', '상태']} rows={originRows} />,
+    }[section.key];
+  }
 
   return (
     <div className="space-y-[14px] border-t border-ink-700 bg-white p-4">
@@ -356,10 +400,12 @@ function AccordionSection({
   section,
   isOpen,
   onToggle,
+  real,
 }: {
   section: CollectionSection;
   isOpen: boolean;
   onToggle: () => void;
+  real?: RealData | null;
 }) {
   return (
     <section id={`section-${section.key}`} className="scroll-mt-24 overflow-hidden border-b border-ink-700 bg-white first:rounded-t-sm first:border-t last:rounded-b-sm">
@@ -381,7 +427,7 @@ function AccordionSection({
           )}
         </div>
       </button>
-      {isOpen && <SectionContent section={section} />}
+      {isOpen && <SectionContent section={section} real={real} />}
     </section>
   );
 }
@@ -392,33 +438,29 @@ function SupplierGeneralReviewContent() {
   const supplierName = searchParams.get('supplier') ?? supplierSummary.name;
   // supplierId가 UUID면 실 백엔드(detail·contacts·completeness)에서 채우고, mock S-ID면 기존 mock 폴백.
   const isRealSupplier = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId);
-  const [api, setApi] = useState<{
-    companyName?: string; providerType?: string;
-    manager?: string; email?: string; phone?: string;
-    rate?: number | null; filled?: number | null; required?: number | null;
-    lastUpdated?: string | null; missing?: string[];
-  } | null>(null);
+  const [api, setApi] = useState<RealData | null>(null);
   useEffect(() => {
     if (!isRealSupplier) { setApi(null); return; }
     let cancelled = false;
     (async () => {
-      const [detail, contactsRes, comp] = await Promise.all([
+      const [detail, contactsRes, factoriesRes, comp] = await Promise.all([
         getSupplierDetail(supplierId).catch(() => null),
         getSupplierContacts(supplierId).catch(() => null),
+        getSupplierFactories(supplierId).catch(() => null),
         getSupplierCompleteness(supplierId).catch(() => null),
       ]);
       if (cancelled) return;
-      const pc = contactsRes?.contacts?.find(c => c.isPrimary) ?? contactsRes?.contacts?.[0];
       setApi({
-        companyName: detail?.companyName, providerType: detail?.providerType,
-        manager: pc?.name ?? undefined, email: pc?.email ?? undefined, phone: (pc?.mobile ?? pc?.phone) ?? undefined,
-        rate: comp?.completionRate, filled: comp?.filledFieldCount, required: comp?.requiredFieldCount,
-        lastUpdated: comp?.lastUpdatedAt, missing: comp?.missingFields,
+        detail,
+        contacts: contactsRes?.contacts ?? [],
+        factories: factoriesRes?.factories ?? [],
+        comp,
       });
     })();
     return () => { cancelled = true; };
   }, [isRealSupplier, supplierId]);
 
+  const apiPrimary = api?.contacts.find(c => c.isPrimary) ?? api?.contacts[0];
   const selectedSupplier = suppliers.find(supplier => supplier.id === supplierId);
   const selectedName = getSupplierName(supplierId);
   const selectedCompleteness = supplierCompleteness.find(item => item.supplierId === supplierId);
@@ -426,17 +468,17 @@ function SupplierGeneralReviewContent() {
   const mockContacts = getContacts(supplierId);
   const mockPrimary = mockContacts.find(c => c.isPrimary) ?? mockContacts[0];
 
-  const displayName = api?.companyName ?? selectedName?.nameKo ?? supplierName;
-  const displayRole = api?.providerType ?? selectedSupplier?.role ?? supplierSummary.role;
+  const displayName = api?.detail?.companyName ?? selectedName?.nameKo ?? supplierName;
+  const displayRole = (api?.detail && providerTypeLabel[api.detail.providerType]) ?? selectedSupplier?.role ?? supplierSummary.role;
   const displayCountry = selectedSupplier?.country ?? supplierSummary.country;
   const displayTier = selectedSupplier ? `T${selectedSupplier.tier}` : supplierSummary.tier;
-  const displayRate = api?.rate ?? selectedCompleteness?.completionRate ?? supplierSummary.collectionRate;
-  const displayCompleted = api?.filled ?? selectedCompleteness?.filledFieldCount ?? supplierSummary.completed;
-  const displayTotal = api?.required ?? selectedCompleteness?.requiredFieldCount ?? supplierSummary.total;
-  const displayLastUpdated = (api?.lastUpdated ?? selectedCompleteness?.lastUpdatedAt ?? supplierSummary.lastSubmittedAt)?.slice(0, 16).replace('T', ' ');
-  const displayManager = api?.manager ?? mockPrimary?.name ?? supplierSummary.manager;
-  const displayEmail = api?.email ?? mockPrimary?.email ?? supplierSummary.email;
-  const displayPhone = api?.phone ?? mockPrimary?.mobile ?? mockPrimary?.phone ?? supplierSummary.phone;
+  const displayRate = api?.comp?.completionRate ?? selectedCompleteness?.completionRate ?? supplierSummary.collectionRate;
+  const displayCompleted = api?.comp?.filledFieldCount ?? selectedCompleteness?.filledFieldCount ?? supplierSummary.completed;
+  const displayTotal = api?.comp?.requiredFieldCount ?? selectedCompleteness?.requiredFieldCount ?? supplierSummary.total;
+  const displayLastUpdated = (api?.comp?.lastUpdatedAt ?? selectedCompleteness?.lastUpdatedAt ?? supplierSummary.lastSubmittedAt)?.slice(0, 16).replace('T', ' ');
+  const displayManager = apiPrimary?.name ?? mockPrimary?.name ?? supplierSummary.manager;
+  const displayEmail = apiPrimary?.email ?? mockPrimary?.email ?? supplierSummary.email;
+  const displayPhone = apiPrimary?.mobile ?? apiPrimary?.phone ?? mockPrimary?.mobile ?? mockPrimary?.phone ?? supplierSummary.phone;
   const [openSections, setOpenSections] = useState<SectionKey[]>(['company']);
   // 입력 현황에서 '자료 요청'으로 넘어오면(request=1) 요청 모달을 바로 연다 — 자연스러운 흐름 연결.
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(searchParams.get('request') === '1');
@@ -619,6 +661,7 @@ function SupplierGeneralReviewContent() {
             section={section}
             isOpen={openSections.includes(section.key)}
             onToggle={() => toggleSection(section.key)}
+            real={api}
           />
         ))}
       </section>

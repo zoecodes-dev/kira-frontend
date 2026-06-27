@@ -335,6 +335,16 @@ export interface SupplierMinerDetail {
 
 export interface SupplierDetail extends SupplierBrief {
   feocStatus: SupplierFeocStatus;
+  // 기업 기본정보 (suppliers 테이블 — 없으면 null)
+  companyNameEn?: string | null;
+  companyNameKo?: string | null;
+  ceoName?: string | null;
+  businessRegNo?: string | null;
+  dunsNumber?: string | null;
+  website?: string | null;
+  establishedYear?: number | null;
+  employeeCount?: number | null;
+  completenessScore?: number | null;
   manufacturerDetail: SupplierManufacturerDetail | null;
   recyclerDetail: SupplierRecyclerDetail | null;
   traderDetail: SupplierTraderDetail | null;
