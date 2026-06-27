@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import {
   AlertCircle,
   ArrowRight,
@@ -20,7 +19,6 @@ import {
   FileText,
   KeyRound,
   LayoutDashboard,
-  LogOut,
   MapPin,
   Network,
   ShieldAlert,
@@ -30,6 +28,7 @@ import {
 } from 'lucide-react';
 import Badge from '@/components/Badge';
 import Card from '@/components/Card';
+import PageHeader from '@/components/PageHeader';
 import SubmitWizardModal from '@/components/supplier/SubmitWizardModal';
 import EightStageStepper from '@/components/supplier/EightStageStepper';
 import SupplyChainMap from '@/components/supplier/SupplyChainMap';
@@ -46,7 +45,6 @@ import {
   getFactories,
   getRiskProfile,
   getSupplierName,
-  getSupplierExtended,
   parts,
   purchaseOrders,
   regulationMeta,
@@ -460,35 +458,29 @@ function SupplierInfoPreview({
                     {factory.destination === 'BOTH' ? 'EU + US' : factory.destination ?? 'KR'}
                   </Badge>
                 </div>
-                {/* 상세(주소·가동기간·처리량·납품흐름·적용규제)는 내 사업장(self)에서만.
-                    타사(직접 연결 업체)에는 원청 제공 범위를 넘는 정보라 비표시. */}
-                {self && (
-                  <>
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-[11px] text-ink-500">
-                      <div className="flex items-start gap-1.5">
-                        <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
-                        <span>{factory.address}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 num-mono">
-                        <Calendar className="h-3 w-3 shrink-0" />
-                        <span>{factory.operatingPeriodFrom} ~ {factory.operatingPeriodTo ?? '현재'}</span>
-                      </div>
-                      {factory.monthlyCapacity && <div>월 처리량: {factory.monthlyCapacity}</div>}
-                      {factory.destinationDetail && <div>납품 흐름: {factory.destinationDetail}</div>}
+                <div className="mt-3 grid grid-cols-2 gap-3 text-[11px] text-ink-500">
+                  <div className="flex items-start gap-1.5">
+                    <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
+                    <span>{factory.address}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 num-mono">
+                    <Calendar className="h-3 w-3 shrink-0" />
+                    <span>{factory.operatingPeriodFrom} ~ {factory.operatingPeriodTo ?? '현재'}</span>
+                  </div>
+                  {factory.monthlyCapacity && <div>월 처리량: {factory.monthlyCapacity}</div>}
+                  {factory.destinationDetail && <div>납품 흐름: {factory.destinationDetail}</div>}
+                </div>
+                {factory.applicableRegulations && factory.applicableRegulations.length > 0 && (
+                  <div className="mt-3 border-t border-ink-700 pt-3">
+                    <div className="mb-1.5 text-[10px] font-bold text-ink-500">적용 규제</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {factory.applicableRegulations.map(reg => (
+                        <span key={reg} className="rounded-xs border border-accent-100 bg-accent-50 px-2 py-1 text-[10px] font-bold text-accent-900">
+                          {regulationMeta[reg]?.label ?? reg}
+                        </span>
+                      ))}
                     </div>
-                    {factory.applicableRegulations && factory.applicableRegulations.length > 0 && (
-                      <div className="mt-3 border-t border-ink-700 pt-3">
-                        <div className="mb-1.5 text-[10px] font-bold text-ink-500">적용 규제</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {factory.applicableRegulations.map(reg => (
-                            <span key={reg} className="rounded-xs border border-accent-100 bg-accent-50 px-2 py-1 text-[10px] font-bold text-accent-900">
-                              {regulationMeta[reg]?.label ?? reg}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  </div>
                 )}
               </div>
             ))}
@@ -496,9 +488,7 @@ function SupplierInfoPreview({
         </div>
       </div>{/* /사업장 카드 */}
 
-      {/* 인증서 카드 — 타사(직접 연결 업체)에는 인증서 전체 목록을 표시하지 않는다.
-          (원청이 제공하는 범위를 넘는 정보. 내 인증서(self)에서만 노출) */}
-      {self && (
+      {/* 인증서 카드 */}
       <div className="rounded-sm border border-ink-700 bg-white shadow-control">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-ink-700">
           <div>
@@ -566,8 +556,7 @@ function SupplierInfoPreview({
             })}
           </div>
         </div>
-      </div>
-      )}{/* /인증서 카드 (self 전용) */}
+      </div>{/* /인증서 카드 */}
     </div>
   );
 }
@@ -717,8 +706,6 @@ export default function SupplierPage() {
   }
   const supplier = suppliers.find(item => item.id === supplierId) as unknown as MockSupplier | undefined;
   const name = getSupplierName(supplierId);
-  // 원청사 표준 양식(check-info) '기업 기본정보' 섹션과 동일 필드의 SSOT
-  const supplierExt = getSupplierExtended(supplierId);
   const contacts = getContacts(supplierId) as unknown as MockContact[];
 
   // ── 작업7-1. completeness 오버라이드 — T1 배터리 제조사 현실적 완성도 반영 ──
@@ -894,29 +881,19 @@ export default function SupplierPage() {
           onSelect={setActiveView}
         />
         <div className="min-w-0 flex-1">
-          {/* 헤더가 찌그러지지 않도록 shrink-0 추가 */}
-          <header className="shrink-0 border-b border-ink-700 bg-white px-8 py-5 shadow-control">
-            <div className="flex items-center justify-between gap-4">
-              {/* 좌: 타이틀 */}
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-accent-700 text-white">
-                  <Factory className="h-5 w-5" strokeWidth={2.3} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-lg font-bold tracking-tight">협력사 업무공간</h1>
-                    <Badge tone="info">내 회사 기준</Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-ink-500">
-                    내 회사 정보, 원청 요청 자료, 직접 연결된 공급망만 확인합니다.
-                  </p>
-                </div>
-              </div>
-              {/* 우: 오늘 날짜 + 알림 벨 + 로그아웃 — 원청사 GNB 정합성 */}
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400">
+          {/* 원청 페이지 표준 헤더(PageHeader) 적용 — 제목·배지·설명·우측 액션·로그아웃 고정.
+              협력사 고유 액션(오늘 날짜·알림 벨)은 actions 슬롯에 그대로 보존. */}
+          <PageHeader
+            title="협력사 업무공간"
+            badge="내 회사 기준"
+            description="내 회사 정보, 원청 요청 자료, 직접 연결된 공급망만 확인합니다."
+            actions={
+              <>
+                <div className="flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-medium text-ink-400">
                   <Calendar className="h-3.5 w-3.5" />
-                  {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace(/\.$/, '')}
+                  <span className="num-mono">
+                    {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace(/\.$/, '')}
+                  </span>
                 </div>
                 <SupplierNotificationBell
                   notifications={notifications}
@@ -924,16 +901,9 @@ export default function SupplierPage() {
                   onMarkAllRead={markAllNotifsRead}
                   onNavigate={(view) => setActiveView(view as SupplierView)}
                 />
-                <Link
-                  href="/"
-                  className="inline-flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                  로그아웃
-                </Link>
-              </div>
-            </div>
-          </header>
+              </>
+            }
+          />
 
           {/* ✨ ai-parsing 뷰일 때는 꽉 찬 높이(h-calc), 아닐 때는 기존 패딩 적용 ✨ */}
           <div className={activeView === 'ai-parsing' ? 'h-[calc(100vh-82px)]' : 'space-y-6 p-8'}>
@@ -1020,17 +990,13 @@ export default function SupplierPage() {
               </div>
             </div>
 
-            {/* 기본 정보 그리드 — 원청사 표준 양식 '기업 기본정보' 섹션과 동일 필드.
-                입력(계정 설정) ↔ 확인(내 기업 정보) ↔ 원청 요청 양식을 같은 항목으로 정합. */}
+            {/* 기본 정보 그리드 — InfoGeneralSection 스타일 */}
             <div className="px-6 py-5">
               <div className="grid grid-cols-3 gap-4">
                 {[
-                  { label: '대표자',        value: supplierExt?.ceoName ?? '미입력' },
-                  { label: '사업자 등록번호', value: supplierExt?.businessRegNo ?? '미입력' },
-                  { label: 'DUNS 번호',     value: supplierExt?.dunsNumber ?? '미입력' },
-                  { label: '웹사이트',       value: supplierExt?.website ?? '미입력' },
-                  { label: '설립연도',       value: supplierExt?.establishedYear != null ? `${supplierExt.establishedYear}년` : '미입력' },
-                  { label: '직원 수',        value: supplierExt?.employeeCount != null ? `${supplierExt.employeeCount}명` : '미입력' },
+                  { label: '역할',     value: supplier?.role ?? '—' },
+                  { label: '국가/지역', value: supplier?.region ?? '—' },
+                  { label: '상태',     value: supplierStatusMeta[supplier?.status ?? '']?.label ?? '—' },
                 ].map(({ label, value }) => (
                   <div key={label} className="rounded-xs border border-ink-700 bg-ink-800 px-4 py-3">
                     <div className="text-[10px] font-bold text-ink-500">{label}</div>
@@ -1582,24 +1548,19 @@ export default function SupplierPage() {
           </div>
 
           {/* ── 기업 기본 정보 ── */}
-          {/* 원청사 표준 양식(check-info '기업 기본정보' 섹션)과 1:1 정합한 8개 필드.
-              국가/지역·본사 주소는 회사 기본정보가 아니라 사업장(factory) 항목이므로
-              아래 '사업장 정보' 섹션에서만 입력받는다(양식 중복·불일치 제거). */}
           <section className="rounded-sm border border-ink-700 bg-white shadow-control">
             <div className="border-b border-ink-700 px-6 py-4">
               <div className="text-sm font-bold text-ink-100">기업 기본 정보</div>
-              <div className="mt-0.5 text-[10px] text-ink-500">원청사 표준 양식 기준 · 회사명·대표자·등록번호 등 법인 정보</div>
+              <div className="mt-0.5 text-[10px] text-ink-500">회사명, 사업자 등록 번호 등 법인 정보</div>
             </div>
             <div className="grid grid-cols-2 gap-5 px-6 py-5">
               {[
-                { label: '영문 정식명칭', key: 'nameEn', value: name?.nameEn ?? supplier?.name ?? '', placeholder: 'Hanyang Cell Manufacturing Co., Ltd.' },
-                { label: '한글 명칭', key: 'nameKo', value: name?.nameKo ?? '', placeholder: '한양셀 제조(주)' },
-                { label: '대표자', key: 'ceo', value: supplierExt?.ceoName ?? '', placeholder: '대표자 이름 입력' },
-                { label: '사업자 등록번호', key: 'bizNum', value: supplierExt?.businessRegNo ?? '', placeholder: '000-00-00000' },
-                { label: 'DUNS 번호', key: 'duns', value: supplierExt?.dunsNumber ?? '', placeholder: '00-000-0000' },
-                { label: '웹사이트', key: 'website', value: supplierExt?.website ?? '', placeholder: 'https://example.com' },
-                { label: '설립연도', key: 'establishedYear', value: supplierExt?.establishedYear != null ? String(supplierExt.establishedYear) : '', placeholder: '예: 2008' },
-                { label: '직원 수', key: 'employeeCount', value: supplierExt?.employeeCount != null ? String(supplierExt.employeeCount) : '', placeholder: '예: 1240' },
+                { label: '기업명 (영문)', key: 'nameEn', value: name?.nameEn ?? supplier?.name ?? '', placeholder: 'Sulawesi Nickel Mine Corp.' },
+                { label: '기업명 (한글)', key: 'nameKo', value: name?.nameKo ?? '', placeholder: '술라웨시 니켈광산(주)' },
+                { label: '사업자 등록 번호', key: 'bizNum', value: '', placeholder: '000-00-00000' },
+                { label: '국가 / 지역', key: 'region', value: supplier?.region ?? '', placeholder: 'ID · 술라웨시' },
+                { label: '대표자명', key: 'ceo', value: '', placeholder: '대표자 이름 입력' },
+                { label: '본사 주소', key: 'address', value: '', placeholder: '본사 주소 입력' },
               ].map(field => (
                 <div key={field.key}>
                   <label className="block text-[10px] font-bold text-ink-500 mb-1.5">{field.label}</label>
