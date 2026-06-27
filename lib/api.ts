@@ -166,14 +166,29 @@ export const api = {
 //   이후 모든 요청에 Bearer 자동 첨부된다.
 //   응답은 snake_case → camelCase 변환됨(token 키는 단어라 그대로).
 // ───────────────────────────────────────────────────────────
+// 백엔드 user.role 실제 값(docker/01_schema.sql chk_user_role).
+// 원청(OEM) 측: admin·owner_esg·owner_purchasing / 협력사 측: supplier_ceo·supplier_esg.
+export type UserRole =
+  | "admin"
+  | "owner_esg"
+  | "owner_purchasing"
+  | "supplier_ceo"
+  | "supplier_esg";
+
 export interface LoginResponse {
   token: string;
-  role: "oem" | "supplier";
+  role: UserRole;
   userId: string;
   tenantId: string;
   supplierId: string | null; // 백엔드 매핑 도입 전까지 null (회신 §2)
   displayName: string;
 }
+
+// 협력사 역할 판별 — 로그인 후 화면 분기/권한에 쓴다.
+// 백엔드는 'supplier' 단일값이 아니라 supplier_ceo/supplier_esg 처럼 세분화된 값을
+// 내려주므로 접두사로 판별한다(=== 'supplier' 정확비교는 항상 false라 협력사가 원청으로 샜음).
+export const isSupplierRole = (role: string | null | undefined): boolean =>
+  typeof role === "string" && role.startsWith("supplier");
 
 export const login = (email: string, password: string) =>
   api.post<LoginResponse>("/auth/login", { email, password });
