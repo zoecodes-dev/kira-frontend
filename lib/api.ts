@@ -727,6 +727,33 @@ export const getDataRequests = (params?: { supplierId?: string }) => {
   return api.get<ApiDataRequest[]>(`/data-requests${q}`);
 };
 
+/** HITL 협력사 승인 — 자료요청 AI 파싱 결과(입력+AI분석+신뢰도). */
+export interface AiExtraction {
+  requestId: string;
+  supplierId: string | null;
+  supplierName: string | null;
+  requestedDataType: string | null;
+  submissionStatus: string | null;
+  parsedFields: Record<string, string | number>;
+  confidenceMap: Record<string, number>;
+  unparsedFields: string[];
+}
+export const getAiExtractions = () => api.get<AiExtraction[]>(`/data-requests/ai-extractions`);
+
+/** JWT sub(user_id) 디코드 — 승인 등 actor_id용. */
+export function getTokenUserId(): string | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const claims = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof claims.sub === "string" ? claims.sub : null;
+  } catch { return null; }
+}
+
+/** 자료요청 승인(AI 파싱 검토 완료) — 자료 요청 완료로 전이. */
+export const approveDataRequest = (requestId: string, reason?: string) =>
+  api.post<ApiDataRequest>(`/data-requests/${requestId}/approve`, { actor_id: getTokenUserId(), reason });
+
 /** 자료 요청 생성(POST). 요청자(requester)는 백엔드가 토큰에서 채운다. body는 snake_case 그대로. */
 export const createDataRequest = (body: { targetSupplierId: string; requestedDataType: string; dueDate?: string }) =>
   api.post<ApiDataRequest>(`/data-requests`, {

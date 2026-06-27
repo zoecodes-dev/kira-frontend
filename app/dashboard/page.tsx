@@ -27,6 +27,7 @@ import {
   ArrowRight, Activity, AlertCircle, Bot, FileText, Bell, CalendarDays, ChevronDown,
 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
+import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
 import Link from 'next/link';
 import clsx from 'clsx';
 
@@ -654,6 +655,9 @@ export default function DashboardPage() {
               고위험 협력사 {highRiskSuppliers}개사와 누락 문서 {missingFieldCount}건이 규제 대응 및 통관 적합성에 영향을 줍니다. Katanga Cobalt, Ganzhou Rare Metals를 우선 확인하세요.
             </span>
           </div>
+
+          {/* 협력사 승인(HITL) — 협력사 제출 자료를 AI가 파싱하고 사람이 검증·승인 */}
+          <HitlReviewCard />
 
           <DashboardSupplyChainMap />
 
