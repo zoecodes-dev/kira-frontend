@@ -81,6 +81,17 @@ export default function SupplyChainHub() {
     setConfirmedSuppliers(new Set(pool.map(p => p.supplierId)));
     pool.forEach(p => persistVerify(p.supplierId, true));
   };
+  // STEP4 최종 검증 결과 영속 — 환경성적서 통과=verified, 실패=unverified로 백엔드 반영.
+  const onStep4Verified = (results: { supplierId: string; passed: boolean }[]) => {
+    setConfirmedSuppliers(prev => {
+      const n = new Set(prev);
+      results.forEach(r => {
+        if (r.passed) n.add(r.supplierId); else n.delete(r.supplierId);
+        persistVerify(r.supplierId, r.passed);
+      });
+      return n;
+    });
+  };
   async function requestAllSuppliers() {
     const targets = pool.filter(p => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(p.supplierId));
     if (!targets.length) return;
@@ -447,6 +458,7 @@ export default function SupplyChainHub() {
         <MapManageModal
           pool={pool}
           onClose={close}
+          onVerified={onStep4Verified}
           onRequestUpdate={supplier => {
             setRequestLabel(supplier.companyName);
             setActiveModal('dataRequest');

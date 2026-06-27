@@ -4,16 +4,19 @@
 // 연결 협력사의 실데이터를 가져와 검증한다.
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { CheckCircle2, Leaf, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Leaf, Loader2, Paperclip, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
 import ModalShell from './ModalShell';
-import { getSupplierCarbonDeclarations, getSupplierEsg, type CarbonDeclaration, type SupplierBrief } from '@/lib/api';
+import { getSupplierCarbonDeclarations, getSupplierEsg, listFilesByContext, uploadFile, type CarbonDeclaration, type SupplierBrief } from '@/lib/api';
 
 type EpdStatus = 'verified' | 'declared' | 'expired' | 'missing';
+
+const epdContext = (supplierId: string) => `carbon-epd:${supplierId}`;
 
 interface VerifyRow {
   supplier: SupplierBrief;
   epd: EpdStatus;
   carbonIntensity: number | null;
+  epdDocs: number; // 첨부된 환경성적서 PDF 건수
   expired: number; // 인증서 만료 건수
   soon: number;    // 인증서 임박 건수
 }
@@ -49,14 +52,20 @@ export default function MapManageModal({
   pool,
   onClose,
   onRequestUpdate,
+  onVerified,
 }: {
   pool: SupplierBrief[];
   onClose: () => void;
   onRequestUpdate: (supplier: SupplierBrief) => void;
+  // 검증 완료 시 협력사별 환경성적서 통과 여부를 백엔드(verification_status)에 영속.
+  onVerified?: (results: { supplierId: string; passed: boolean }[]) => void;
 }) {
   const [rows, setRows] = useState<VerifyRow[]>([]);
   const [loading, setLoading] = useState(pool.length > 0);
   const [finalConfirmed, setFinalConfirmed] = useState(false);
+  const [reload, setReload] = useState(0);       // 업로드 후 재조회 트리거
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (pool.length === 0) { setLoading(false); return; }
@@ -65,10 +74,11 @@ export default function MapManageModal({
       setLoading(true);
       const result = await Promise.all(
         pool.map(async supplier => {
-          // 환경성적서(핵심) + 인증서 만료(보조) 실데이터 동시 조회.
-          const [carbonRes, esgRes] = await Promise.all([
+          // 환경성적서(핵심) + 인증서 만료(보조) + 환경성적서 첨부 PDF 동시 조회.
+          const [carbonRes, esgRes, docs] = await Promise.all([
             getSupplierCarbonDeclarations(supplier.supplierId).catch(() => null),
             getSupplierEsg(supplier.supplierId).catch(() => null),
+            listFilesByContext(epdContext(supplier.supplierId)).catch(() => []),
           ]);
           const decls = carbonRes?.declarations ?? [];
           const epd = epdStatusOf(decls);
@@ -79,13 +89,27 @@ export default function MapManageModal({
             if (exp === 'expired') expired += 1;
             else if (exp === 'soon') soon += 1;
           });
-          return { supplier, epd, carbonIntensity, expired, soon } as VerifyRow;
+          return { supplier, epd, carbonIntensity, epdDocs: (docs ?? []).length, expired, soon } as VerifyRow;
         }),
       );
       if (!cancelled) { setRows(result); setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [pool]);
+  }, [pool, reload]);
+
+  // 환경성적서 PDF 업로드 → POST /files(context=carbon-epd:supplierId) → 재조회.
+  async function handleUpload(supplierId: string, file: File) {
+    setUploadingId(supplierId);
+    setUploadError(null);
+    try {
+      await uploadFile(file, epdContext(supplierId));
+      setReload(n => n + 1);
+    } catch {
+      setUploadError('업로드 실패 — 환경/자격증명(S3)을 확인하세요.');
+    } finally {
+      setUploadingId(null);
+    }
+  }
 
   const epdFailed = rows.filter(r => !EPD_META[r.epd].pass);   // 환경성적서 미제출/만료 = 검증 실패(핵심)
   const allPass = rows.length > 0 && epdFailed.length === 0;
@@ -103,7 +127,11 @@ export default function MapManageModal({
           </label>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              // 환경성적서 검증 결과를 협력사별로 영속(통과=verified, 실패=unverified).
+              onVerified?.(rows.map(r => ({ supplierId: r.supplier.supplierId, passed: EPD_META[r.epd].pass })));
+              onClose();
+            }}
             disabled={!finalConfirmed}
             className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -163,21 +191,37 @@ export default function MapManageModal({
                     )}
                     {r.expired > 0 && <span className="rounded-full border border-alert-border bg-alert-bg px-1.5 py-0.5 font-bold text-alert-text">인증서 만료 {r.expired}</span>}
                     {r.soon > 0 && <span className="rounded-full border border-warn-border bg-warn-bg px-1.5 py-0.5 font-bold text-warn-text">인증서 임박 {r.soon}</span>}
+                    <span className={clsx('inline-flex items-center gap-1', r.epdDocs > 0 ? 'text-ok-text' : 'text-slate-400')}>
+                      <Paperclip className="h-3 w-3" />환경성적서 첨부 {r.epdDocs}건
+                    </span>
                   </div>
                 </div>
-                {needsRequest && (
-                  <button
-                    type="button"
-                    onClick={() => onRequestUpdate(r.supplier)}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-brand bg-white px-3 py-1.5 text-xs font-semibold text-brand hover:bg-ok-bg"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    자료 요청
-                  </button>
-                )}
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 hover:border-ok-border hover:text-ok-text">
+                    {uploadingId === r.supplier.supplierId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                    환경성적서 업로드
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(r.supplier.supplierId, f); e.target.value = ''; }}
+                    />
+                  </label>
+                  {needsRequest && (
+                    <button
+                      type="button"
+                      onClick={() => onRequestUpdate(r.supplier)}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-brand bg-white px-3 py-1.5 text-xs font-semibold text-brand hover:bg-ok-bg"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      자료 요청
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
+          {uploadError && <p className="px-1 pt-1 text-xs font-semibold text-alert-text">{uploadError}</p>}
         </div>
       )}
     </ModalShell>

@@ -598,6 +598,37 @@ export interface CarbonDeclaration {
 export const getSupplierCarbonDeclarations = (id: string) =>
   api.get<{ supplierId: string; declarations: CarbonDeclaration[] }>(`/suppliers/${id}/carbon-declarations`);
 
+/** 공통 파일 메타. 환경성적서 첨부 등 context별 업로드 파일. */
+export interface FileMeta {
+  fileId: string;
+  fileName: string;
+  sizeBytes?: number | null;
+  contentType?: string | null;
+  context?: string | null;
+  createdAt?: string | null;
+}
+/** context 태그로 업로드된 파일 목록(예: 'carbon-epd:<supplierId>'). */
+export const listFilesByContext = (context: string) =>
+  api.get<FileMeta[]>(`/files?context=${encodeURIComponent(context)}`);
+
+/** 파일 업로드(multipart POST /files). 환경성적서 PDF 등. JSON이 아니라 FormData라 별도 fetch. */
+export async function uploadFile(file: File, context: string): Promise<{ fileId: string; fileName: string; url: string }> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('context', context);
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}/files`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  if (!res.ok) {
+    if (res.status === 401) clearToken();
+    throw new ApiError(res.status, `HTTP ${res.status}`);
+  }
+  return snakeToCamel(await res.json());
+}
+
 /** 공급 품목(supply_chain_map→parts). */
 export interface SuppliedItem {
   partId: string;
