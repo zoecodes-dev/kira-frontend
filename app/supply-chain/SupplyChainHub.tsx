@@ -2,8 +2,8 @@
 
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertTriangle, ArrowRight, Database, Loader2, Network } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { AlertTriangle, ArrowRight, Database, Loader2, Network, X } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
 import { ApiError, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, type SupplierBrief } from '@/lib/api';
@@ -11,7 +11,7 @@ import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
 import PageHeader from '@/components/PageHeader';
 import HubStepBar from '@/components/supply-chain/HubStepBar';
 import PoolModal from '@/components/supply-chain/PoolModal';
-import SupplierInfoModal from '@/components/supply-chain/SupplierInfoModal';
+import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
 import DataRequestModal from '@/components/supply-chain/DataRequestModal';
 import InviteMailModal from '@/components/supply-chain/InviteMailModal';
 import MapManageModal from '@/components/supply-chain/MapManageModal';
@@ -21,7 +21,6 @@ export type HubModal = null | 'pool' | 'supplierInfo' | 'dataRequest' | 'invite'
 export default function SupplyChainHub() {
   // 공급망 목록에서 특정 공급망을 누르고 들어오면 productId(+bomVersionId)로 해당 Lot을 선택해 연다.
   const searchParams = useSearchParams();
-  const router = useRouter();
   const initialProductId = searchParams.get('productId') ?? undefined;
   const initialBomVersionId = searchParams.get('bomVersionId') ?? undefined;
   const [pool, setPool] = useState<SupplierBrief[]>([]);
@@ -31,6 +30,8 @@ export default function SupplyChainHub() {
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>(initialProductId);
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [activeModal, setActiveModal] = useState<HubModal>(null);
+  // STEP5(자료요청)로 표준 정보 드로어를 열 때 요청 모달을 바로 띄울지.
+  const [infoOpenRequest, setInfoOpenRequest] = useState(false);
   // 사용자가 수행한 액션 단계(4~7). STEP 1~3은 데이터 상태로 자동 판정.
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
   // 맵 관리에서 시작한 자료요청은 협력사명을 직접 지정 (없으면 선택 노드 기준)
@@ -203,17 +204,12 @@ export default function SupplyChainHub() {
   );
   const requestableSelection = !!selectedNode && !isOemNode;
 
-  // STEP4(정보확인)·STEP5(자료요청)은 check-info 표준 페이지로 수렴 — 한 페이지에서 확인+빈 항목 요청.
-  const checkInfoHref = (request: boolean) => {
-    const params = new URLSearchParams();
-    if (activeSupplierId) params.set('supplierId', activeSupplierId);
-    params.set('supplier', activeNodeLabel);
-    if (request) params.set('request', '1');
-    return `/suppliers/check-info?${params.toString()}`;
-  };
-  const goCheckInfo = (request: boolean) => {
+  // STEP4(정보확인)·STEP5(자료요청)은 워크스페이스를 떠나지 않고, check-info 표준 양식을
+  // 드로어로 임베드해 같은 화면에서 확인+빈 항목 요청한다. STEP5는 요청 모달을 바로 연다.
+  const openStandardInfo = (request: boolean) => {
     markVisited(request ? 5 : 4);
-    router.push(checkInfoHref(request));
+    setInfoOpenRequest(request);
+    setActiveModal('supplierInfo');
   };
 
   const close = () => setActiveModal(null);
@@ -236,8 +232,8 @@ export default function SupplyChainHub() {
           oemSelected={isOemNode}
           completed={completed}
           onOpenPool={() => setActiveModal('pool')}
-          onOpenSupplierInfo={() => goCheckInfo(false)}
-          onOpenDataRequest={() => goCheckInfo(true)}
+          onOpenSupplierInfo={() => openStandardInfo(false)}
+          onOpenDataRequest={() => openStandardInfo(true)}
           onOpenInvite={() => { markVisited(6); setActiveModal('invite'); }}
           onOpenMapManage={() => { markVisited(7); setActiveModal('mapManage'); }}
         />
@@ -365,16 +361,31 @@ export default function SupplyChainHub() {
         />
       )}
 
+      {/* STEP4·5 — 워크스페이스를 떠나지 않고 check-info 표준 양식을 드로어로 임베드 */}
       {activeModal === 'supplierInfo' && (
-        <SupplierInfoModal
-          supplierId={activeSupplierId}
-          nodeLabel={activeNodeLabel}
-          onClose={close}
-          onRequestUpdate={() => {
-            setRequestLabel(null);
-            setActiveModal('dataRequest');
-          }}
-        />
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={close}>
+          <div className="flex h-full w-full max-w-5xl flex-col bg-slate-50 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
+              <h2 className="text-sm font-bold text-ink-100">협력사 정보 확인 · 자료 요청</h2>
+              <button
+                type="button"
+                onClick={close}
+                className="rounded-md p-1.5 text-ink-400 hover:bg-slate-100 hover:text-ink-100"
+                aria-label="닫기"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <SupplierGeneralReviewContent
+                embedded
+                supplierId={activeSupplierId}
+                supplierName={activeNodeLabel}
+                openRequest={infoOpenRequest}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {activeModal === 'dataRequest' && (
