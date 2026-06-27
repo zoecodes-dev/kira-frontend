@@ -3,7 +3,7 @@
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, ArrowRight, Database, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Database, Loader2, Network } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
 import { ApiError, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, type SupplierBrief } from '@/lib/api';
@@ -50,6 +50,10 @@ export default function SupplyChainHub() {
     return s;
   }, [visitedSteps, selectedProductId, pool.length]);
   const markVisited = (n: number) => setVisitedSteps(prev => (prev.has(n) ? prev : new Set(prev).add(n)));
+
+  // ④ 진입 게이트 — 첫 진입 시 빈 상태에서 '맵 생성하기'로 제품을 고르고 맵을 연다. URL 제품 진입·데모는 게이트 스킵.
+  const [mapStarted, setMapStarted] = useState(Boolean(initialProductId));
+  const [entryProductId, setEntryProductId] = useState(initialProductId ?? '');
 
   // 진입 시 제품 목록 조회. 토큰 없음/401·403은 알림으로 표면화(조용한 빈 화면 방지).
   useEffect(() => {
@@ -159,6 +163,7 @@ export default function SupplyChainHub() {
 
   function loadDemo() {
     setIsDemo(true);
+    setMapStarted(true); // 데모는 진입 게이트 건너뛰고 바로 맵 표시
     setDataset(mockDataset);
     setSelectedProductId(mockDataset.products[0]?.product_id);
     // 데모도 동일 규칙 — tier-1 협력사만 Pool 후보로.
@@ -217,7 +222,7 @@ export default function SupplyChainHub() {
         />
       </PageHeader>
 
-      {loadStatus === null && !productsLoading && dataset.products.length > 0 && (
+      {loadStatus === null && !productsLoading && dataset.products.length > 0 && mapStarted && (
         <FlowGuide
           hasProduct={Boolean(selectedProductId)}
           poolCount={pool.length}
@@ -277,16 +282,55 @@ export default function SupplyChainHub() {
         </button>
       </div>
 
-      <SupplyChainMapPageContent
-        dataset={dataset}
-        embedded
-        initialProductId={initialProductId}
-        initialBomVersionId={initialBomVersionId}
-        highlightSupplierIds={new Set(pool.map(s => s.supplierId))}
-        onNodeSelect={setSelectedNode}
-        onConnectClick={() => setActiveModal('invite')}
-        onProductChange={handleProductChange}
-      />
+      {/* ④ 진입 게이트: 첫 진입 시 빈 상태 → 제품 선택 + '맵 생성하기' */}
+      {!mapStarted && loadStatus === null && !productsLoading && dataset.products.length > 0 && (
+        <div className="mx-6 mt-6 rounded-md border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-ok-bg text-ok-text">
+            <Network className="h-6 w-6" />
+          </span>
+          <h2 className="mt-4 text-lg font-bold text-ink-100">공급망 맵 생성</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            대표 제품을 선택하고 맵을 생성하면, 해당 제품의 1차 협력사부터 자동 맵핑됩니다.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <select
+              value={entryProductId || dataset.products[0]?.product_id || ''}
+              onChange={e => setEntryProductId(e.target.value)}
+              className="min-w-[260px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none"
+            >
+              {dataset.products.map(prod => (
+                <option key={prod.product_id} value={prod.product_id}>{prod.product_name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                const chosen = entryProductId || dataset.products[0]?.product_id || '';
+                setEntryProductId(chosen);
+                setMapStarted(true);
+                if (chosen) handleProductChange(chosen); // Hub 상태(STEP1 완료) + BOM/맵 로드 즉시 보장
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-hover"
+            >
+              <ArrowRight className="h-4 w-4" />
+              맵 생성하기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mapStarted && (
+        <SupplyChainMapPageContent
+          dataset={dataset}
+          embedded
+          initialProductId={initialProductId ?? entryProductId}
+          initialBomVersionId={initialBomVersionId}
+          highlightSupplierIds={new Set(pool.map(s => s.supplierId))}
+          onNodeSelect={setSelectedNode}
+          onConnectClick={() => setActiveModal('invite')}
+          onProductChange={handleProductChange}
+        />
+      )}
 
       {activeModal === 'pool' && (
         <PoolModal

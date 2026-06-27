@@ -406,33 +406,50 @@ function AccordionSection({
   section,
   isOpen,
   onToggle,
+  onRequestSection,
   real,
 }: {
   section: CollectionSection;
   isOpen: boolean;
   onToggle: () => void;
+  onRequestSection: (section: CollectionSection) => void;
   real?: RealData | null;
 }) {
+  // 미입력/확인 필요 섹션은 그 자리에서 바로 보완 요청할 수 있게 인라인 버튼 노출.
+  const needsRequest = (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
   return (
     <section id={`section-${section.key}`} className="scroll-mt-24 overflow-hidden border-b border-ink-700 bg-white first:rounded-t-sm first:border-t last:rounded-b-sm">
-      <button type="button" onClick={onToggle} className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left hover:bg-slate-50">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex w-full items-center justify-between gap-4 px-4 py-4 hover:bg-slate-50">
+        <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-3 text-left">
           <span className={clsx('flex h-5 w-5 items-center justify-center', iconTone(section.status))}>{section.icon}</span>
           <span className="truncate text-base font-semibold text-ink-100">
             {section.order}. {section.title}
           </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-4">
+        </button>
+        <div className="flex shrink-0 items-center gap-3">
           <span className="text-sm font-medium text-ink-500">{section.completed} / {section.total} 완료</span>
           <span className="h-4 w-px bg-ink-700" />
           <StatusBadge status={section.status} />
-          {isOpen ? (
-            <ChevronDown className="h-4 w-4 text-ink-400" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-ink-400" />
+          {needsRequest && (
+            <button
+              type="button"
+              onClick={() => onRequestSection(section)}
+              className="inline-flex items-center gap-1 rounded-sm border border-alert-border bg-alert-bg px-2 py-1 text-xs font-semibold text-alert-text hover:bg-alert-solid hover:text-white"
+              title={`미입력 항목: ${section.missing.join(', ')}`}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              미입력 {section.missing.length}건 요청
+            </button>
           )}
+          <button type="button" onClick={onToggle} aria-label="섹션 펼치기/접기">
+            {isOpen ? (
+              <ChevronDown className="h-4 w-4 text-ink-400" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-ink-400" />
+            )}
+          </button>
         </div>
-      </button>
+      </div>
       {isOpen && <SectionContent section={section} real={real} />}
     </section>
   );
@@ -515,12 +532,24 @@ function SupplierGeneralReviewContent() {
     });
   }
 
+  // 섹션별 인라인 요청 — 해당 섹션의 미입력 항목만 선택해 요청 모달을 연다(한 페이지에서 "이 항목 비어서 → 요청").
+  function openRequestForSection(section: CollectionSection) {
+    const next = new Set<string>();
+    section.missing.forEach(item => next.add(`${section.key}:${item}`));
+    setCheckedItems(next);
+    setIsRequestModalOpen(true);
+  }
+
   const urgentCount = sections.reduce((sum, section) =>
     section.status === '미입력' || section.status === '확인 필요' ? sum + section.missing.length : sum, 0);
 
   async function sendRequest() {
     setRequestSent(true);
-    const title = `추가 자료 요청 · ${checkedItems.size}개 항목`;
+    // 요청 제목 = 실제 부족(미입력) 항목명. "어떤 자료가 부족해서 요청"이 한눈에.
+    const items = Array.from(checkedItems).map(k => k.split(':').slice(1).join(':'));
+    const title = items.length
+      ? `보완 요청 · ${items.slice(0, 3).join(', ')}${items.length > 3 ? ` 외 ${items.length - 3}건` : ''}`
+      : '보완 요청';
     if (isRealSupplier) {
       // 실 협력사 → 백엔드 POST /data-requests (요청자는 토큰에서 채움).
       try {
@@ -684,6 +713,7 @@ function SupplierGeneralReviewContent() {
             section={section}
             isOpen={openSections.includes(section.key)}
             onToggle={() => toggleSection(section.key)}
+            onRequestSection={openRequestForSection}
             real={api}
           />
         ))}
