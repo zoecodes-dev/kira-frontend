@@ -3,7 +3,7 @@
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, ArrowRight, Database, Loader2, Network } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
 import { ApiError, createDataRequest, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, verifySupplier, type SupplierBrief } from '@/lib/api';
@@ -46,14 +46,20 @@ export default function SupplyChainHub() {
   // 조회 상태 알림: 'auth'=토큰 없음/401·403, 'error'=그 외 실패, null=정상
   const [loadStatus, setLoadStatus] = useState<'auth' | 'error' | null>(null);
 
-  // 완료 단계 — STEP1(제품선택)·2(Pool확정)는 상태 기반, 3(연결 협력사 전부 확인), 4(검증 수행 시).
+  // 완료 공급망 = Pool 채워짐 + 연결 협력사 전부 확인(verification_status verified).
+  const chainComplete = pool.length > 0 && pool.every(p => confirmedSuppliers.has(p.supplierId));
+  // 완료 공급망은 '수정'을 누르기 전까지 전체 완료·잠금 상태로 본다.
+  const [editMode, setEditMode] = useState(false);
+  const locked = chainComplete && !editMode;
+
+  // 완료 단계 — STEP1(제품)·2(Pool)는 상태 기반, 3(전부 확인)·4(검증)는 완료 공급망이면 done.
   const completed = useMemo(() => {
     const s = new Set<number>(visitedSteps);
     if (selectedProductId) s.add(1);
     if (pool.length > 0) s.add(2);
-    if (pool.length > 0 && pool.every(p => confirmedSuppliers.has(p.supplierId))) s.add(3);
+    if (chainComplete) { s.add(3); s.add(4); }
     return s;
-  }, [visitedSteps, selectedProductId, pool, confirmedSuppliers]);
+  }, [visitedSteps, selectedProductId, pool.length, chainComplete]);
   const markVisited = (n: number) => setVisitedSteps(prev => (prev.has(n) ? prev : new Set(prev).add(n)));
 
   // STEP 3 — 협력사 확인 토글 / 전체 확인 / 자료 일괄 요청. 확인은 supply-chain/verify로 백엔드 영속.
@@ -131,6 +137,8 @@ export default function SupplyChainHub() {
     setSelectedProductId(productId);
     setTier1Pool([]);
     setPool([]);
+    setConfirmedSuppliers(new Set());
+    setEditMode(false); // 새 공급망 진입 — 완료면 다시 잠금 상태로.
 
     // 1) BOM 버전 목록(실 bomVersionId) — 없으면 트리 합성 버전으로 폴백
     let versions: Awaited<ReturnType<typeof getProductBomVersions>> = [];
@@ -181,17 +189,19 @@ export default function SupplyChainHub() {
             map.supplyChainMap.filter(n => n.tierLevel === firstTier).map(n => n.supplierId),
           );
         }
-        setTier1Pool(
-          map.suppliers
-            .filter(s => tier1Ids.has(s.supplierId))
-            .map(s => ({
-              supplierId: s.supplierId,
-              companyName: s.companyName,
-              providerType: s.providerType,
-              status: s.status as SupplierBrief['status'],
-              riskLevel: s.riskLevel ?? 'low',
-            })),
-        );
+        const tier1List = map.suppliers
+          .filter(s => tier1Ids.has(s.supplierId))
+          .map(s => ({
+            supplierId: s.supplierId,
+            companyName: s.companyName,
+            providerType: s.providerType,
+            status: s.status as SupplierBrief['status'],
+            riskLevel: s.riskLevel ?? 'low',
+          }));
+        setTier1Pool(tier1List);
+        // 기존/완료 공급망은 1차 협력사가 이미 연결돼 있으므로 Pool을 하이드레이션 →
+        // STEP2가 'Pool 구성' 프롬프트 대신 완료로 보이게(빈 Pool 버그 수정).
+        setPool(tier1List);
         // STEP3 verify 대상 BOM 버전 저장 + 백엔드 verification_status로 '확인' 상태 하이드레이션.
         setActiveBomVersionId(activeVersionId);
         setConfirmedSuppliers(new Set(
@@ -255,13 +265,14 @@ export default function SupplyChainHub() {
           poolCount={pool.length}
           hasProduct={Boolean(selectedProductId)}
           completed={completed}
+          locked={locked}
           onOpenPool={() => setActiveModal('pool')}
           onOpenSuppliers={() => setActiveModal('suppliers')}
           onOpenVerify={() => { markVisited(4); setActiveModal('mapManage'); }}
         />
       </PageHeader>
 
-      {loadStatus === null && !productsLoading && dataset.products.length > 0 && mapStarted && (
+      {loadStatus === null && !productsLoading && dataset.products.length > 0 && mapStarted && !locked && (
         <FlowGuide
           hasProduct={Boolean(selectedProductId)}
           poolCount={pool.length}
@@ -269,6 +280,27 @@ export default function SupplyChainHub() {
           hasSelection={Boolean(selectedNode)}
           onOpenPool={() => setActiveModal('pool')}
         />
+      )}
+
+      {/* 완료 공급망 — 전체 완료·잠금 상태. '수정'을 눌러야 단계 편집 가능. */}
+      {loadStatus === null && !productsLoading && mapStarted && locked && (
+        <div className="mx-6 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-ok-border bg-ok-bg px-4 py-3 text-ok-text">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
+            <div>
+              <p className="text-sm font-bold">이 공급망은 완료되었습니다</p>
+              <p className="mt-0.5 text-sm opacity-90">연결 협력사 {pool.length}개사 확인·검증 완료. 변경하려면 수정을 누르세요.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditMode(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-ok-border bg-white px-3 py-1.5 text-sm font-bold text-ok-text hover:bg-ok-bg"
+          >
+            <Pencil className="h-4 w-4" />
+            수정
+          </button>
+        </div>
       )}
 
       {loadStatus === 'auth' && (
