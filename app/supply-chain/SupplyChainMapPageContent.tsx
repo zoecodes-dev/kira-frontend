@@ -3,6 +3,7 @@
 // 공급망 맵과 M-BOM 형성 화면이 공유하는 원본 화면 컴포넌트입니다.
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 import {
   Box,
   ChevronDown,
@@ -174,15 +175,18 @@ export function SupplyChainMapPageContent({
     });
   }
 
-  // 고객사는 백엔드 미연동 — mock 고정값 (추후 고객사 마스터 연동)
-  const customerName = '고객사 A (EU)';
+  // 고객사명 — 선택 제품의 실 고객사(getProducts customer_name). 없으면 '-'.
+  const customerName = selectedProduct?.customer_name || '-';
+  // 기간 컬럼 표기 — 필터 비어있으면 '전체'.
+  const periodLabel = period.replace(/[\s~]/g, '') ? period : '전체';
 
   const exportHeaders = ['고객사', '단위기간', '제품', 'BOM 버전', 'Tier', '품목/부품', '원재료/광물', '공급사', '사업장', '국가', 'PO 번호', '공급기간', '공급비율(%)', '리스크 상태'];
+  const COL_WIDTHS = [16, 12, 26, 12, 8, 22, 18, 24, 18, 8, 14, 22, 12, 12];
 
-  function getExportRows() {
-    return traceRows.map(row => [
+  function getExportRows(rows: TraceRow[], periodCol: string) {
+    return rows.map(row => [
       customerName,
-      period,
+      periodCol,
       selectedProduct?.product_name ?? '-',
       row.bom_version,
       row.tier,
@@ -198,42 +202,37 @@ export function SupplyChainMapPageContent({
     ]);
   }
 
-  function downloadCustomerExcel() {
-    // 고객사 제출용: 추적 테이블 전체(고객사·단위기간·BOM·PO 구분 포함)
-    const rows = [exportHeaders, ...getExportRows()];
-    const tableHtml = `<table>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</table>`;
-    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"/></head><body>${tableHtml}</body></html>`;
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `고객사제출_${selectedProduct?.product_code ?? 'export'}_${new Date().toISOString().slice(0, 10)}.xls`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // 실 .xlsx 생성(SheetJS) — 컬럼 너비 양식 + 헤더 행. HTML-as-xls 대신 진짜 워크북.
+  function writeXlsx(filename: string, aoa: (string | number)[][], sheetName: string) {
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = COL_WIDTHS.map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, filename);
   }
 
-  function downloadCsv() {
-    const rows = [exportHeaders, ...getExportRows()];
-    const csv = rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
-    const bom = '﻿';
-    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `공급망_추적_${selectedProduct?.product_code ?? 'export'}_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const code = selectedProduct?.product_code ?? 'export';
+
+  function downloadCustomerExcel() {
+    // 고객사 제출용 — 필터(기간/공장/PO) 무시하고 전체 공급망을 내보낸다.
+    const fullRows = selectedBomVersion ? buildTraceRows(dataset, selectedBomVersionId, ' ~ ', 'ALL', 'ALL') : [];
+    writeXlsx(`고객사제출_${code}_${stamp}.xlsx`, [exportHeaders, ...getExportRows(fullRows, '전체')], '공급망 제출');
   }
 
   function downloadExcel() {
-    const rows = [exportHeaders, ...getExportRows()];
-    const tableHtml = `<table>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</table>`;
-    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"/></head><body>${tableHtml}</body></html>`;
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    // 현재 화면(필터 적용) 기준 .xlsx.
+    writeXlsx(`공급망_추적_${code}_${stamp}.xlsx`, [exportHeaders, ...getExportRows(traceRows, periodLabel)], '공급망 추적');
+  }
+
+  function downloadCsv() {
+    const rows = [exportHeaders, ...getExportRows(traceRows, periodLabel)];
+    const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `공급망_추적_${selectedProduct?.product_code ?? 'export'}_${new Date().toISOString().slice(0, 10)}.xls`;
+    a.download = `공급망_추적_${code}_${stamp}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
