@@ -6,6 +6,7 @@ import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
 import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
+import RegulationResultsCard from '@/components/dashboard/RegulationResultsCard';
 import DueDiligenceBoard from '@/components/DueDiligenceBoard';
 import { getStoredRequests, type DataRequestRecord } from '@/lib/data-request-store';
 import { getSupplierName } from '@/lib/supplier-detail-data';
@@ -322,9 +323,16 @@ function RequestArea() {
   );
 }
 
+type MyTaskView = 'request' | 'hitl' | 'dd' | 'inputStatus';
+
 export default function MyTaskPage() {
   // 업무 분장 단위 허브 — 실제 쓰이는 기능만: 자료 요청(+추가), 협력사 승인(HITL), 공급망 실사, 입력 현황.
-  const [view, setView] = useState<'request' | 'hitl' | 'dd' | 'inputStatus'>('request');
+  const [view, setView] = useState<MyTaskView>('request');
+  // 딥링크 ?tab=hitl|dd|inputStatus|request (규제 검증 결과 등 편입 화면 진입용).
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t === 'hitl' || t === 'dd' || t === 'inputStatus' || t === 'request') setView(t);
+  }, []);
   return (
     <>
       <PageHeader
@@ -340,7 +348,13 @@ export default function MyTaskPage() {
       />
       <div className="p-8 pt-4">
         {view === 'request' && <RequestArea />}
-        {view === 'hitl' && <HitlReviewCard />}
+        {view === 'hitl' && (
+          <div className="space-y-5">
+            {/* AI 파싱 결과 = 데이터 추출 검토 + 규제 검증 결과. 둘 다 저신뢰는 사람이 검증(HITL). */}
+            <HitlReviewCard />
+            <RegulationResultsCard />
+          </div>
+        )}
         {view === 'dd' && <DueDiligenceBoard />}
         {view === 'inputStatus' && <SupplierInputStatusBoard embedded />}
       </div>

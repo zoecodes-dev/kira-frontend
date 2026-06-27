@@ -383,14 +383,14 @@ function DashboardSupplyChainMap() {
     productMap.get(p.productId)!.count++;
   });
   const products = Array.from(productMap.values()).map(data => {
-    return { name: data.modelName, type: `총 ${data.count}건`, supply: `${data.count}건`, href: '/materials/regulation-results' };
+    return { name: data.modelName, type: `총 ${data.count}건`, supply: `${data.count}건`, href: '/my-task?tab=hitl' };
   });
 
   const changes = [
     { time: '09:21', title: '공급망 경로 변경', desc: 'Battery Pack A > 핵심광물 경로 변경', tag: '공급망', tone: 'success', href: '/supply-chain/map' },
     { time: '08:30', title: '신규 공급사 등록', desc: 'Eco Materials Co., Ltd.', tag: '공급사', tone: 'info', href: '/suppliers/check-info' },
     { time: '07:12', title: '인증서 갱신', desc: 'ISO 14001 한양 제조(주)', tag: '인증서', tone: 'success', href: '/suppliers/check-info' },
-    { time: '06:45', title: 'BOM 변경', desc: 'Battery Cell Module v2.1', tag: '제품', tone: 'warning', href: '/materials/regulation-results' },
+    { time: '06:45', title: 'BOM 변경', desc: 'Battery Cell Module v2.1', tag: '제품', tone: 'warning', href: '/my-task?tab=hitl' },
     { time: '06:10', title: '실사 완료', desc: 'XYZ Metals Co., Ltd.', tag: '실사', tone: 'purple', href: '/submission-review?tab=dd' },
   ];
 
@@ -459,7 +459,7 @@ function DashboardSupplyChainMap() {
 
       {/* Row 2: 제품 현황 | 최근 변경사항 */}
       <div className="grid grid-cols-2 items-stretch gap-2">
-        <DashboardPanel title="제품 현황" action="전체 보기" actionHref="/materials/regulation-results">
+        <DashboardPanel title="제품 현황" action="전체 보기" actionHref="/my-task?tab=hitl">
           {products.slice(0, 4).map(product => (
             <ProductStatusRow key={product.name} product={product} />
           ))}

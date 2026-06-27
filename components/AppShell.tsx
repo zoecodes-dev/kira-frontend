@@ -66,7 +66,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* 물질·자재 관리 */}
           <div className="border-t border-white/10 py-2.5">
             <div className="space-y-0.5">
-              <NavLink href="/materials/regulation-results" iconName="flask" label="규제 검증 결과" subtitle="자재 규제 판정" />
+              <NavLink href="/my-task?tab=hitl" iconName="flask" label="규제 검증 결과" subtitle="My Task · 협력사 승인(HITL)" />
             </div>
           </div>
 
