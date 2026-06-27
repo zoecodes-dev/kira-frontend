@@ -196,6 +196,12 @@ export default function SupplyChainHub() {
       : selectedNode.row.part_name
     : '선택 노드';
 
+  // 원청(자기 자신=Tier 0/제품 루트)은 협력사가 아니므로 정보확인·자료요청 대상이 아니다(STEP4·5 비활성).
+  const isOemNode = !!selectedNode && (
+    selectedNode.type === 'product' || selectedNode.row.tier === 'Tier 0'
+  );
+  const requestableSelection = !!selectedNode && !isOemNode;
+
   const close = () => setActiveModal(null);
 
   return (
@@ -211,7 +217,7 @@ export default function SupplyChainHub() {
       >
         <HubStepBar
           poolCount={pool.length}
-          hasSelection={Boolean(selectedNode)}
+          hasSelection={requestableSelection}
           hasProduct={Boolean(selectedProductId)}
           completed={completed}
           onOpenPool={() => setActiveModal('pool')}
