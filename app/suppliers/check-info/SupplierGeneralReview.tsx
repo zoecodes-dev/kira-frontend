@@ -49,6 +49,7 @@ import {
   MoreHorizontal,
   Pencil,
   Phone,
+  Save,
   Send,
   UserRound,
   X,
@@ -518,6 +519,7 @@ export function SupplierGeneralReviewContent({
   // 협력사: 보기(읽기 전용) ↔ 입력(자료 제출) — 라우트 변경 없이 editable 토글.
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [saved, setSaved] = useState(false);   // 저장하기 직후 '저장됨' 피드백
   const editable = isSupplier && editing;
   const formRef = useRef<HTMLElement>(null);
   const searchParams = useSearchParams();
@@ -600,27 +602,47 @@ export function SupplierGeneralReviewContent({
   const urgentCount = liveSections.reduce((sum, section) =>
     section.status === '미입력' || section.status === '확인 필요' ? sum + section.missing.length : sum, 0);
 
-  // 협력사 '자료 제출' — 입력칸 값을 수집해 백엔드에 영속화한다.
-  // 기업 기본정보(company) 섹션은 supplier detail 단건 업데이트로 저장.
+  // 협력사 '자료 제출' — 입력칸 값을 수집해 백엔드에 영속화(저장·제출 공통).
+  // 기업 기본정보(company) 섹션은 supplier detail 단건 업데이트로 저장한다.
+  async function persistForm() {
+    // 입력칸은 data-field 로 식별. company 섹션 4개 필드를 모아 PATCH.
+    const root = formRef.current;
+    const read = (field: string) =>
+      (root?.querySelector<HTMLInputElement>(`input[data-field="company.${field}"]`)?.value ?? '').trim();
+    const payload = {
+      companyNameEn: read('companyNameEn') || null,
+      companyNameKo: read('companyNameKo') || null,
+      businessRegNo: read('businessRegNo') || null,
+      dunsNumber: read('dunsNumber') || null,
+    };
+    if (isRealSupplier) {
+      await updateSupplierDetail(supplierId, payload);
+      // 입력값 반영을 위해 detail 재조회(낙관적 갱신 대신 정확한 서버 값으로).
+      const fresh = await getSupplierDetail(supplierId).catch(() => null);
+      if (fresh) setApi(prev => (prev ? { ...prev, detail: fresh } : prev));
+    }
+  }
+
+  // 저장하기 — DB 영속화 후 계속 입력(편집 유지).
+  async function saveSupplierForm() {
+    setSubmitting(true);
+    setSaved(false);
+    try {
+      await persistForm();
+      setSaved(true);
+    } catch {
+      alert('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // 제출하기 — DB 영속화 후 보기 화면으로 복귀.
   async function submitSupplierForm() {
     setSubmitting(true);
     try {
-      // 입력칸은 data-field 로 식별. company 섹션 4개 필드를 모아 PATCH.
-      const root = formRef.current;
-      const read = (field: string) =>
-        (root?.querySelector<HTMLInputElement>(`input[data-field="company.${field}"]`)?.value ?? '').trim();
-      const payload = {
-        companyNameEn: read('companyNameEn') || null,
-        companyNameKo: read('companyNameKo') || null,
-        businessRegNo: read('businessRegNo') || null,
-        dunsNumber: read('dunsNumber') || null,
-      };
-      if (isRealSupplier) {
-        await updateSupplierDetail(supplierId, payload);
-      }
-      // 입력값 반영을 위해 detail 재조회(낙관적 갱신 대신 정확한 서버 값으로).
-      const fresh = isRealSupplier ? await getSupplierDetail(supplierId).catch(() => null) : null;
-      if (fresh) setApi(prev => (prev ? { ...prev, detail: fresh } : prev));
+      await persistForm();
+      setSaved(false);
       setEditing(false);
     } catch {
       alert('제출에 실패했습니다. 잠시 후 다시 시도해주세요.');
@@ -709,7 +731,7 @@ export function SupplierGeneralReviewContent({
           {isSupplier && !editing && (
             <button
               type="button"
-              onClick={() => setEditing(true)}
+              onClick={() => { setSaved(false); setEditing(true); }}
               className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
             >
               <Pencil className="h-4 w-4" />
@@ -718,12 +740,27 @@ export function SupplierGeneralReviewContent({
           )}
           {isSupplier && editing && (
             <>
+              {saved && (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-ok-text">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  저장됨
+                </span>
+              )}
               <button
                 type="button"
-                onClick={() => setEditing(false)}
+                onClick={() => { setSaved(false); setEditing(false); }}
                 className="inline-flex h-9 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-sm font-semibold text-ink-500 transition-colors hover:border-accent-500 hover:text-accent-700"
               >
                 취소
+              </button>
+              <button
+                type="button"
+                onClick={saveSupplierForm}
+                disabled={submitting}
+                className="inline-flex h-9 items-center gap-2 rounded-sm border border-accent-600 bg-accent-50 px-3 text-sm font-semibold text-accent-700 transition-colors hover:bg-accent-100 active:opacity-75 disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" />
+                {submitting ? '저장 중…' : '저장하기'}
               </button>
               <button
                 type="button"
