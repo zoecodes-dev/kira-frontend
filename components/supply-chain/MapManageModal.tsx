@@ -4,21 +4,34 @@
 // 연결 협력사의 실데이터를 가져와 검증한다.
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { CheckCircle2, Leaf, Loader2, Paperclip, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
+import { CheckCircle2, FileSignature, Leaf, Loader2, Paperclip, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
 import ModalShell from './ModalShell';
-import { getSupplierCarbonDeclarations, getSupplierEsg, listFilesByContext, uploadFile, type CarbonDeclaration, type SupplierBrief } from '@/lib/api';
+import { getDataConsents, getSupplierCarbonDeclarations, getSupplierEsg, listFilesByContext, uploadFile, type CarbonDeclaration, type DataConsent, type SupplierBrief } from '@/lib/api';
 
 type EpdStatus = 'verified' | 'declared' | 'expired' | 'missing';
 
 const epdContext = (supplierId: string) => `carbon-epd:${supplierId}`;
+
+interface ConsentState { agreed: boolean; label: string }
 
 interface VerifyRow {
   supplier: SupplierBrief;
   epd: EpdStatus;
   carbonIntensity: number | null;
   epdDocs: number; // 첨부된 환경성적서 PDF 건수
+  consent: ConsentState; // 제3자 정보제공 동의(데이터 계약) 상태
   expired: number; // 인증서 만료 건수
   soon: number;    // 인증서 임박 건수
+}
+
+/** 데이터 계약 동의 상태: 동의완료(agreed·유효) / 동의만료 / 발송됨 / 미발송 등 */
+function consentStateOf(consents: DataConsent[]): ConsentState {
+  if (!consents.length) return { agreed: false, label: '미발송' };
+  const latest = consents[0]; // 최신순
+  const expired = !!latest.validTo && new Date(latest.validTo).getTime() < Date.now();
+  if (latest.status === 'agreed') return expired ? { agreed: false, label: '동의만료' } : { agreed: true, label: '동의완료' };
+  const map: Record<string, string> = { requested: '발송됨', returned: '회신', rejected: '거절', revoked: '철회', expired: '만료' };
+  return { agreed: false, label: map[latest.status] ?? latest.status };
 }
 
 /** 만료일 판정: 경과=expired, 90일 이내=soon, 그 외=valid */
@@ -74,11 +87,12 @@ export default function MapManageModal({
       setLoading(true);
       const result = await Promise.all(
         pool.map(async supplier => {
-          // 환경성적서(핵심) + 인증서 만료(보조) + 환경성적서 첨부 PDF 동시 조회.
-          const [carbonRes, esgRes, docs] = await Promise.all([
+          // 환경성적서(핵심) + 제3자 동의(핵심) + 인증서 만료(보조) + 환경성적서 첨부 동시 조회.
+          const [carbonRes, esgRes, docs, consents] = await Promise.all([
             getSupplierCarbonDeclarations(supplier.supplierId).catch(() => null),
             getSupplierEsg(supplier.supplierId).catch(() => null),
             listFilesByContext(epdContext(supplier.supplierId)).catch(() => []),
+            getDataConsents(supplier.supplierId).catch(() => []),
           ]);
           const decls = carbonRes?.declarations ?? [];
           const epd = epdStatusOf(decls);
@@ -89,7 +103,7 @@ export default function MapManageModal({
             if (exp === 'expired') expired += 1;
             else if (exp === 'soon') soon += 1;
           });
-          return { supplier, epd, carbonIntensity, epdDocs: (docs ?? []).length, expired, soon } as VerifyRow;
+          return { supplier, epd, carbonIntensity, epdDocs: (docs ?? []).length, consent: consentStateOf(consents ?? []), expired, soon } as VerifyRow;
         }),
       );
       if (!cancelled) { setRows(result); setLoading(false); }
@@ -111,8 +125,10 @@ export default function MapManageModal({
     }
   }
 
-  const epdFailed = rows.filter(r => !EPD_META[r.epd].pass);   // 환경성적서 미제출/만료 = 검증 실패(핵심)
-  const allPass = rows.length > 0 && epdFailed.length === 0;
+  // 검증 통과 = 환경성적서 통과 AND 데이터 계약 동의(둘 다 핵심 게이트).
+  const rowPass = (r: VerifyRow) => EPD_META[r.epd].pass && r.consent.agreed;
+  const failed = rows.filter(r => !rowPass(r));
+  const allPass = rows.length > 0 && failed.length === 0;
 
   return (
     <ModalShell
@@ -129,7 +145,7 @@ export default function MapManageModal({
             type="button"
             onClick={() => {
               // 환경성적서 검증 결과를 협력사별로 영속(통과=verified, 실패=unverified).
-              onVerified?.(rows.map(r => ({ supplierId: r.supplier.supplierId, passed: EPD_META[r.epd].pass })));
+              onVerified?.(rows.map(r => ({ supplierId: r.supplier.supplierId, passed: rowPass(r) })));
               onClose();
             }}
             disabled={!finalConfirmed}
@@ -147,8 +163,8 @@ export default function MapManageModal({
           <div className="num-mono mt-1 text-2xl font-bold text-ink-100">{pool.length}</div>
         </div>
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-center">
-          <div className="text-xs font-semibold text-slate-500">환경성적서 미비</div>
-          <div className={clsx('num-mono mt-1 text-2xl font-bold', epdFailed.length > 0 ? 'text-alert-text' : 'text-ok-text')}>{epdFailed.length}</div>
+          <div className="text-xs font-semibold text-slate-500">검증 미통과</div>
+          <div className={clsx('num-mono mt-1 text-2xl font-bold', failed.length > 0 ? 'text-alert-text' : 'text-ok-text')}>{failed.length}</div>
         </div>
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-center">
           <div className="text-xs font-semibold text-slate-500">검증 결과</div>
@@ -176,7 +192,7 @@ export default function MapManageModal({
           {rows.map(r => {
             const meta = EPD_META[r.epd];
             const certIssue = r.expired > 0 || r.soon > 0;
-            const needsRequest = !meta.pass || certIssue;
+            const needsRequest = !rowPass(r) || certIssue;
             return (
               <div key={r.supplier.supplierId} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2">
                 <div className="min-w-0">
@@ -185,6 +201,11 @@ export default function MapManageModal({
                     <span className={clsx('inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-bold', meta.cls)}>
                       {meta.pass ? <ShieldCheck className="h-3 w-3" /> : <Leaf className="h-3 w-3" />}
                       환경성적서 {meta.label}
+                    </span>
+                    <span className={clsx('inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-bold',
+                      r.consent.agreed ? 'border-ok-border bg-ok-bg text-ok-text' : 'border-alert-border bg-alert-bg text-alert-text')}>
+                      <FileSignature className="h-3 w-3" />
+                      데이터 동의 {r.consent.label}
                     </span>
                     {r.carbonIntensity != null && (
                       <span className="text-slate-500">{r.carbonIntensity} kgCO₂e/kWh</span>
