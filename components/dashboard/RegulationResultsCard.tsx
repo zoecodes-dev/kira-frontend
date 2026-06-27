@@ -7,7 +7,13 @@ import clsx from 'clsx';
 import { ArrowRight, FileText, Scale, ShieldAlert } from 'lucide-react';
 import { getRegulationResults } from '@/lib/api';
 
-interface ResultRow { id: string; material: string; supplier: string; supplierId: string | null; regulation: string; verdict: string; confidence: number; clause: string; evidence: string }
+export interface RegReviewRow {
+  id: string; material: string; supplier: string; supplierId: string | null;
+  regulation: string; verdict: string; confidence: number; clause: string; evidence: string;
+  citedClauses: string[];   // AI가 대조한 규제 조항
+  reasoning: string;        // AI 판단 근거(근거↔조항 대조 결과)
+}
+type ResultRow = RegReviewRow;
 
 const VERDICT_CLS: Record<string, string> = {
   passed: 'border-ok-border bg-ok-bg text-ok-text',
@@ -18,11 +24,11 @@ const VERDICT_CLS: Record<string, string> = {
 };
 
 const MOCK: ResultRow[] = [
-  { id: 'RR-001', material: 'BMW iX3 Cylindrical NCM811 108Ah', supplier: '한양셀 제조(주)', supplierId: null, regulation: 'EU_BATTERY_ART7', verdict: 'passed', confidence: 0.96, clause: '자동 판정', evidence: '-' },
-  { id: 'RR-002', material: 'BMW i4 Prismatic NCM 81Ah', supplier: '대성정밀(주)', supplierId: null, regulation: 'EU_BATTERY', verdict: 'warning', confidence: 0.70, clause: 'HITL 후보 · 사람 검토 필요', evidence: '-' },
+  { id: 'RR-001', material: 'BMW iX3 Cylindrical NCM811 108Ah', supplier: '한양셀 제조(주)', supplierId: null, regulation: 'EU_BATTERY_ART7', verdict: 'passed', confidence: 0.96, clause: '자동 판정', evidence: '-', citedClauses: ['EU 2023/1542 Art.7'], reasoning: '탄소발자국 신고 정상' },
+  { id: 'RR-002', material: 'BMW i4 Prismatic NCM 81Ah', supplier: '대성정밀(주)', supplierId: null, regulation: 'EU_BATTERY', verdict: 'warning', confidence: 0.70, clause: 'HITL 후보 · 사람 검토 필요', evidence: '-', citedClauses: ['EU 2023/1542'], reasoning: '전구체 원산지 미확인 — 사람 검토 필요' },
 ];
 
-export default function RegulationResultsCard({ onReview }: { onReview?: (supplierId: string, supplierName: string) => void }) {
+export default function RegulationResultsCard({ onReview }: { onReview?: (row: RegReviewRow) => void }) {
   const [rows, setRows] = useState<ResultRow[]>(MOCK);
   useEffect(() => {
     getRegulationResults().then(list => {
@@ -36,6 +42,8 @@ export default function RegulationResultsCard({ onReview }: { onReview?: (suppli
         confidence: x.confidence ?? 0,
         clause: x.needsHumanReview ? 'HITL 후보 · 사람 검토 필요' : '자동 판정',
         evidence: (x.evidence && x.evidence[0]) || '-',
+        citedClauses: x.citedClauses ?? [],
+        reasoning: x.reasoningText ?? '',
       })));
     }).catch(() => { /* mock 유지 */ });
   }, []);
@@ -87,7 +95,7 @@ export default function RegulationResultsCard({ onReview }: { onReview?: (suppli
                 </td>
                 <td className="px-4 py-3">
                   {r.supplierId && (
-                    <button type="button" onClick={() => onReview?.(r.supplierId!, r.supplier)} className="inline-flex items-center gap-1 text-xs font-semibold text-accent-700 hover:text-accent-600">
+                    <button type="button" onClick={() => onReview?.(r)} className="inline-flex items-center gap-1 text-xs font-semibold text-accent-700 hover:text-accent-600">
                       검토 <ArrowRight className="h-3.5 w-3.5" />
                     </button>
                   )}
