@@ -435,6 +435,7 @@ export default function SupplyChainHub() {
           onToggleConfirm={toggleConfirm}
           onConfirmAll={confirmAll}
           onRequestAll={requestAllSuppliers}
+          onOpenMail={() => setActiveModal('invite')}
           onClose={close}
         />
       )}

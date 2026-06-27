@@ -4,8 +4,8 @@
 // 원청이 협력사에 동의서를 발송하고, 회신(서명) 상태와 받은 양식 데이터를 확인한다.
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { CheckCircle2, FileSignature, Loader2, Send, X } from 'lucide-react';
-import { createDataConsent, getDataConsents, updateDataConsent, type DataConsent, type SupplierBrief } from '@/lib/api';
+import { CheckCircle2, FileSignature, Loader2, X } from 'lucide-react';
+import { getDataConsents, updateDataConsent, type DataConsent, type SupplierBrief } from '@/lib/api';
 
 const SCOPE_OPTIONS: { key: string; label: string }[] = [
   { key: 'company', label: '기업 기본정보' },
@@ -15,8 +15,6 @@ const SCOPE_OPTIONS: { key: string; label: string }[] = [
   { key: 'origin', label: '원산지/규제' },
   { key: 'sub_suppliers', label: '하위 협력사' },
 ];
-const PURPOSE_OPTIONS = ['EU_BATTERY', 'SUPPLY_CHAIN_DD', 'CSDDD', 'CONFLICT_MINERALS'];
-
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   requested: { label: '발송됨', cls: 'border-info-border bg-info-bg text-info-text' },
   returned:  { label: '회신',   cls: 'border-info-border bg-info-bg text-info-text' },
@@ -30,10 +28,6 @@ export default function DataConsentModal({ supplier, onClose }: { supplier: Supp
   const [consents, setConsents] = useState<DataConsent[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [scope, setScope] = useState<Set<string>>(new Set(['company', 'carbon_epd', 'origin']));
-  const [purpose, setPurpose] = useState('EU_BATTERY');
-  const [thirdParty, setThirdParty] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -42,22 +36,6 @@ export default function DataConsentModal({ supplier, onClose }: { supplier: Supp
     finally { setLoading(false); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [supplier.supplierId]);
-
-  async function send() {
-    setBusy(true);
-    try {
-      await createDataConsent({
-        supplierId: supplier.supplierId,
-        dataScope: Array.from(scope),
-        purpose,
-        thirdPartySharing: thirdParty,
-        validFrom: new Date().toISOString().slice(0, 10),
-        formVersion: 'v1.0',
-      });
-      setShowForm(false);
-      await load();
-    } finally { setBusy(false); }
-  }
 
   // 회신 기록(데모) — 협력사 서명·양식 회신을 원청이 수신 처리(requested/returned → agreed).
   async function markAgreed(c: DataConsent) {
@@ -87,47 +65,14 @@ export default function DataConsentModal({ supplier, onClose }: { supplier: Supp
 
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-5 py-2.5">
           <span className="text-xs font-bold text-ink-400">계약 이력 {consents.length}건</span>
-          <button type="button" onClick={() => setShowForm(v => !v)} className="inline-flex h-8 items-center gap-1.5 rounded-sm bg-brand px-3 text-xs font-bold text-white hover:bg-brand-hover">
-            <Send className="h-3.5 w-3.5" /> 동의서 발송
-          </button>
+          <span className="text-[11px] font-medium text-slate-500">발송은 "정보 입력 요청 메일 · 동의서"에서</span>
         </div>
-
-        {showForm && (
-          <div className="border-b border-slate-200 bg-white px-5 py-4">
-            <div className="text-xs font-bold text-ink-400">동의 데이터 범위(data scope)</div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {SCOPE_OPTIONS.map(o => (
-                <button key={o.key} type="button"
-                  onClick={() => setScope(prev => { const n = new Set(prev); n.has(o.key) ? n.delete(o.key) : n.add(o.key); return n; })}
-                  className={clsx('rounded-sm border px-2 py-1 text-xs font-semibold', scope.has(o.key) ? 'border-ok-border bg-ok-bg text-ok-text' : 'border-slate-200 bg-white text-ink-400')}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-4">
-              <label className="flex items-center gap-2 text-xs font-semibold text-ink-400">
-                목적
-                <select value={purpose} onChange={e => setPurpose(e.target.value)} className="rounded-sm border border-slate-200 px-2 py-1 text-xs font-semibold text-ink-100">
-                  {PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-ink-400">
-                <input type="checkbox" checked={thirdParty} onChange={e => setThirdParty(e.target.checked)} className="h-4 w-4 accent-brand" />
-                제3자(고객사·규제기관) 재공유 허용
-              </label>
-              <button type="button" onClick={send} disabled={busy || scope.size === 0}
-                className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-sm bg-brand px-3 text-xs font-bold text-white hover:bg-brand-hover disabled:opacity-50">
-                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} 발송
-              </button>
-            </div>
-          </div>
-        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {loading ? (
             <div className="flex flex-col items-center gap-2 py-10 text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /><span className="text-sm font-semibold">불러오는 중…</span></div>
           ) : consents.length === 0 ? (
-            <div className="rounded-md border border-dashed border-slate-200 px-3 py-8 text-center text-sm text-slate-500">발송된 동의서가 없습니다. "동의서 발송"으로 데이터 계약을 시작하세요.</div>
+            <div className="rounded-md border border-dashed border-slate-200 px-3 py-8 text-center text-sm text-slate-500">발송된 동의서가 없습니다. 상단 "정보 입력 요청 메일 · 동의서"에서 발송하면 여기에 이력이 쌓입니다.</div>
           ) : (
             <ul className="space-y-2.5">
               {consents.map(c => {

@@ -4,10 +4,21 @@
 //  · 시스템 제공 표준 템플릿 / 제3자 정보 확인 동의서 첨부 / 본인인증 담당자(PIC) 재확인
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { CheckCircle2, Paperclip, Send, ShieldCheck, Users } from 'lucide-react';
+import { CheckCircle2, FileSignature, Loader2, Paperclip, Send, ShieldCheck, Users } from 'lucide-react';
 import ModalShell from './ModalShell';
-import type { SupplierBrief } from '@/lib/api';
+import { createDataConsent, type SupplierBrief } from '@/lib/api';
 import { CONSENT_ATTACHMENT, INVITE_MAIL_SUBJECT, buildInviteMailBody } from '@/lib/supply-chain-mail-template';
+
+// 메일에 첨부하는 제3자 정보제공 동의서 = 데이터 계약(Data Contract) 조건.
+const SCOPE_OPTIONS: { key: string; label: string }[] = [
+  { key: 'company', label: '기업 기본정보' },
+  { key: 'contacts', label: '담당자 연락처' },
+  { key: 'factories', label: '공장·사업장' },
+  { key: 'carbon_epd', label: '환경성적서(탄소)' },
+  { key: 'origin', label: '원산지/규제' },
+  { key: 'sub_suppliers', label: '하위 협력사' },
+];
+const PURPOSE_OPTIONS = ['EU_BATTERY', 'SUPPLY_CHAIN_DD', 'CSDDD', 'CONFLICT_MINERALS'];
 
 interface DraftState {
   email: string;
@@ -55,12 +66,32 @@ export default function InviteMailModal({
   const draft = selected ? drafts[selected.supplierId] : null;
   const sentCount = useMemo(() => Object.values(drafts).filter(d => d.sent).length, [drafts]);
 
+  // 메일에 첨부할 동의서(데이터 계약) 조건 — 표준 양식이라 발송 대상 공통.
+  const [scope, setScope] = useState<Set<string>>(new Set(['company', 'contacts', 'factories', 'carbon_epd', 'origin']));
+  const [purpose, setPurpose] = useState('EU_BATTERY');
+  const [thirdParty, setThirdParty] = useState(true);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
   function patch(id: string, p: Partial<DraftState>) {
     setDrafts(prev => ({ ...prev, [id]: { ...prev[id], ...p } }));
   }
 
-  function send(id: string) {
-    patch(id, { sent: true });
+  // 발송 = 초대 메일 + 제3자 동의서 → 데이터 계약(consent 'requested') 생성.
+  async function send(id: string) {
+    setSendingId(id);
+    try {
+      await createDataConsent({
+        supplierId: id,
+        dataScope: Array.from(scope),
+        purpose,
+        thirdPartySharing: thirdParty,
+        validFrom: new Date().toISOString().slice(0, 10),
+        formVersion: 'v1.0',
+      }).catch(() => {});
+      patch(id, { sent: true });
+    } finally {
+      setSendingId(null);
+    }
   }
 
   return (
@@ -179,22 +210,53 @@ export default function InviteMailModal({
                 />
               </div>
 
+              {/* 첨부 동의서 = 데이터 계약(Data Contract) 조건. 발송 시 이 조건으로 동의가 생성된다. */}
+              <div className="rounded-md border border-brand/30 bg-accent-50/40 p-3">
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-brand">
+                  <FileSignature className="h-4 w-4" />
+                  제3자 정보제공 동의서 (데이터 계약) · 발송 시 함께 요청
+                </div>
+                <div className="text-[11px] font-semibold text-slate-500">동의 데이터 범위</div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {SCOPE_OPTIONS.map(o => (
+                    <button key={o.key} type="button" disabled={draft.sent}
+                      onClick={() => setScope(prev => { const n = new Set(prev); n.has(o.key) ? n.delete(o.key) : n.add(o.key); return n; })}
+                      className={clsx('rounded-sm border px-2 py-1 text-xs font-semibold disabled:opacity-60',
+                        scope.has(o.key) ? 'border-ok-border bg-ok-bg text-ok-text' : 'border-slate-200 bg-white text-ink-400')}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2.5 flex flex-wrap items-center gap-4">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-ink-400">
+                    목적
+                    <select value={purpose} disabled={draft.sent} onChange={e => setPurpose(e.target.value)} className="rounded-sm border border-slate-200 px-2 py-1 text-xs font-semibold text-ink-100">
+                      {PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-ink-400">
+                    <input type="checkbox" checked={thirdParty} disabled={draft.sent} onChange={e => setThirdParty(e.target.checked)} className="h-3.5 w-3.5 accent-brand" />
+                    제3자(고객사·규제기관) 재공유 허용
+                  </label>
+                </div>
+              </div>
+
               <div className="flex justify-end pt-1">
                 {draft.sent ? (
                   <span className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-100 px-4 text-sm font-semibold text-slate-500">
                     <CheckCircle2 className="h-4 w-4" />
-                    발송 완료
+                    발송 완료 · 동의 요청됨
                   </span>
                 ) : (
                   <button
                     type="button"
                     onClick={() => send(selected.supplierId)}
-                    disabled={!draft.picConfirmed || !draft.email.trim()}
+                    disabled={!draft.picConfirmed || !draft.email.trim() || scope.size === 0 || sendingId === selected.supplierId}
                     title={!draft.picConfirmed ? '담당자(PIC) 재확인이 필요합니다.' : undefined}
                     className="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Send className="h-4 w-4" />
-                    발송하기
+                    {sendingId === selected.supplierId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    메일·동의서 발송
                   </button>
                 )}
               </div>
