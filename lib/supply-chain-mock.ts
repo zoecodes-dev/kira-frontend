@@ -653,12 +653,19 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
   // 제품 직속 = 최상위 부품. parent_part_id가 null이거나, 부모가 이 부품집합에 없는 경우(forest 루트)도 포함.
   // (BOM이 forest면 최상위 부품의 parent가 BOM 밖을 가리켜 non-null이라, null만 보면 제품 1노드만 남는다.)
   const partIdSet = new Set(ds.parts.map(p => p.part_id));
-  const children = ds.parts
+  const rootRows = ds.parts
     .filter(part => !part.parent_part_id || !partIdSet.has(part.parent_part_id))
     .map(part => rowsByPartId.get(part.part_id))
     .filter((item): item is TraceRow => Boolean(item))
-    .sort(byTier)
-    .map(row => buildPartNode(row, 1));
+    .sort(byTier);
+  // 실 공급망은 차수를 건너뛰어(예: Module/t1 누락) 트리가 여러 forest-root로 끊긴다.
+  // 차수 오름차순으로 단일 체인 연결 → product → tier0 → … → 광산 으로 쭉 내려간다.
+  // depth=i+1 로 빌드하면 root[i]를 root[i-1]의 자식으로 중첩해도 깊이가 일관된다.
+  const rootNodes = rootRows.map((row, i) => buildPartNode(row, i + 1));
+  for (let i = rootNodes.length - 1; i > 0; i--) {
+    rootNodes[i - 1].children = [...rootNodes[i - 1].children, rootNodes[i]];
+  }
+  const children = rootNodes.length ? [rootNodes[0]] : [];
 
   return {
     key: `product:${product.product_id}`,
