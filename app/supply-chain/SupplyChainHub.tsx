@@ -6,16 +6,17 @@ import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowRight, Database, Loader2, Network } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
-import { ApiError, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, type SupplierBrief } from '@/lib/api';
+import { ApiError, createDataRequest, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, type SupplierBrief } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
 import PageHeader from '@/components/PageHeader';
 import HubStepBar from '@/components/supply-chain/HubStepBar';
 import PoolModal from '@/components/supply-chain/PoolModal';
+import ConnectedSuppliersModal from '@/components/supply-chain/ConnectedSuppliersModal';
 import DataRequestModal from '@/components/supply-chain/DataRequestModal';
 import InviteMailModal from '@/components/supply-chain/InviteMailModal';
 import MapManageModal from '@/components/supply-chain/MapManageModal';
 
-export type HubModal = null | 'pool' | 'supplierInfo' | 'dataRequest' | 'invite' | 'mapManage';
+export type HubModal = null | 'pool' | 'suppliers' | 'dataRequest' | 'invite' | 'mapManage';
 
 export default function SupplyChainHub() {
   // 공급망 목록에서 특정 공급망을 누르고 들어오면 productId(+bomVersionId)로 해당 Lot을 선택해 연다.
@@ -29,8 +30,11 @@ export default function SupplyChainHub() {
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>(initialProductId);
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [activeModal, setActiveModal] = useState<HubModal>(null);
-  // 사용자가 수행한 액션 단계(4~7). STEP 1~3은 데이터 상태로 자동 판정.
+  // 사용자가 수행한 액션 단계(STEP 4 검증). STEP 1·2는 데이터, STEP 3은 협력사 확인 완료로 판정.
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
+  // STEP 3 — 연결 협력사별 '확인' 처리 집합 + 일괄 자료요청 진행중 플래그.
+  const [confirmedSuppliers, setConfirmedSuppliers] = useState<Set<string>>(new Set());
+  const [requesting, setRequesting] = useState(false);
   // 맵 관리에서 시작한 자료요청은 협력사명을 직접 지정 (없으면 선택 노드 기준)
   const [requestLabel, setRequestLabel] = useState<string | null>(null);
 
@@ -41,14 +45,32 @@ export default function SupplyChainHub() {
   // 조회 상태 알림: 'auth'=토큰 없음/401·403, 'error'=그 외 실패, null=정상
   const [loadStatus, setLoadStatus] = useState<'auth' | 'error' | null>(null);
 
-  // 완료 단계 집합 — STEP1(제품선택)·2·3(Pool확정 자동맵핑)은 상태 기반, 4~7은 액션 수행 시.
+  // 완료 단계 — STEP1(제품선택)·2(Pool확정)는 상태 기반, 3(연결 협력사 전부 확인), 4(검증 수행 시).
   const completed = useMemo(() => {
     const s = new Set<number>(visitedSteps);
     if (selectedProductId) s.add(1);
-    if (pool.length > 0) { s.add(2); s.add(3); }
+    if (pool.length > 0) s.add(2);
+    if (pool.length > 0 && pool.every(p => confirmedSuppliers.has(p.supplierId))) s.add(3);
     return s;
-  }, [visitedSteps, selectedProductId, pool.length]);
+  }, [visitedSteps, selectedProductId, pool, confirmedSuppliers]);
   const markVisited = (n: number) => setVisitedSteps(prev => (prev.has(n) ? prev : new Set(prev).add(n)));
+
+  // STEP 3 — 협력사 확인 토글 / 전체 확인 / 자료 일괄 요청(실 협력사 대상 createDataRequest).
+  const toggleConfirm = (id: string) =>
+    setConfirmedSuppliers(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const confirmAll = () => setConfirmedSuppliers(new Set(pool.map(p => p.supplierId)));
+  async function requestAllSuppliers() {
+    const targets = pool.filter(p => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(p.supplierId));
+    if (!targets.length) return;
+    setRequesting(true);
+    const due = new Date(Date.now() + 7 * 86400000).toISOString();
+    for (const t of targets) {
+      try {
+        await createDataRequest({ targetSupplierId: t.supplierId, requestedDataType: '자료 보완 일괄 요청', dueDate: due });
+      } catch { /* 일부 실패해도 계속 (데모) */ }
+    }
+    setRequesting(false);
+  }
 
   // ④ 진입 게이트 — 첫 진입 시 빈 상태에서 '맵 생성하기'로 제품을 고르고 맵을 연다. URL 제품 진입·데모는 게이트 스킵.
   const [mapStarted, setMapStarted] = useState(Boolean(initialProductId));
@@ -195,19 +217,6 @@ export default function SupplyChainHub() {
       : selectedNode.row.part_name
     : '선택 노드';
 
-  // 원청(자기 자신=Tier 0/제품 루트)은 협력사가 아니므로 정보확인·자료요청 대상이 아니다(STEP4·5 비활성).
-  const isOemNode = !!selectedNode && (
-    selectedNode.type === 'product' || selectedNode.row.tier === 'Tier 0'
-  );
-  const requestableSelection = !!selectedNode && !isOemNode;
-
-  // STEP4(정보확인)·STEP5(자료요청)은 팝업을 띄우지 않는다 — 선택한 협력사 정보는
-  // 맵의 '선택 노드 상세 정보' 카드에 인라인으로 표시되므로, 그 카드로 스크롤만 한다.
-  const openStandardInfo = (request: boolean) => {
-    markVisited(request ? 5 : 4);
-    document.getElementById('supply-node-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   const close = () => setActiveModal(null);
 
   return (
@@ -223,15 +232,11 @@ export default function SupplyChainHub() {
       >
         <HubStepBar
           poolCount={pool.length}
-          hasSelection={requestableSelection}
           hasProduct={Boolean(selectedProductId)}
-          oemSelected={isOemNode}
           completed={completed}
           onOpenPool={() => setActiveModal('pool')}
-          onOpenSupplierInfo={() => openStandardInfo(false)}
-          onOpenDataRequest={() => openStandardInfo(true)}
-          onOpenInvite={() => { markVisited(6); setActiveModal('invite'); }}
-          onOpenMapManage={() => { markVisited(7); setActiveModal('mapManage'); }}
+          onOpenSuppliers={() => setActiveModal('suppliers')}
+          onOpenVerify={() => { markVisited(4); setActiveModal('mapManage'); }}
         />
       </PageHeader>
 
@@ -357,6 +362,19 @@ export default function SupplyChainHub() {
         />
       )}
 
+      {/* STEP 3 — 연결 협력사 확인 + 자료 일괄 요청 */}
+      {activeModal === 'suppliers' && (
+        <ConnectedSuppliersModal
+          suppliers={pool}
+          confirmed={confirmedSuppliers}
+          requesting={requesting}
+          onToggleConfirm={toggleConfirm}
+          onConfirmAll={confirmAll}
+          onRequestAll={requestAllSuppliers}
+          onClose={close}
+        />
+      )}
+
       {activeModal === 'dataRequest' && (
         <DataRequestModal
           supplierLabel={requestLabel ?? (activeSupplierId ? `${activeNodeLabel} · ${activeSupplierId}` : activeNodeLabel)}
@@ -364,7 +382,7 @@ export default function SupplyChainHub() {
             setRequestLabel(null);
             close();
           }}
-          onBack={() => setActiveModal(requestLabel ? 'mapManage' : 'supplierInfo')}
+          onBack={() => setActiveModal('mapManage')}
         />
       )}
 
@@ -404,13 +422,11 @@ function FlowGuide({
   } else if (poolCount === 0) {
     step = 'STEP 2'; tone = 'info'; cta = true;
     title = '협력사 Pool을 구성하세요';
-    desc = `상단 "STEP 2 협력사 Pool 구성"을 눌러 1차 협력사 ${tier1Count}개사 중 작업 대상을 선택·확정하면 STEP 3~7이 열립니다.`;
+    desc = `상단 "STEP 2 협력사 Pool 구성"을 눌러 1차 협력사 ${tier1Count}개사 중 작업 대상을 선택·확정하면 STEP 3~5가 열립니다.`;
   } else {
-    step = 'STEP 3 완료'; tone = 'ok';
-    title = '자동 맵핑 완료 — 이제 협력사를 관리하세요';
-    desc = hasSelection
-      ? '상단 STEP 4(협력사 정보 확인)·STEP 5(자료 요청)로 진행하거나, 아래 맵에서 다른 협력사 노드를 클릭하세요.'
-      : '아래 맵에서 협력사 노드를 클릭한 뒤 STEP 4·5로 정보 확인·자료 요청을 진행하세요.';
+    step = 'STEP 3'; tone = 'ok';
+    title = '맵 구성 완료 — 협력사를 확인하세요';
+    desc = '상단 "STEP 3 협력사 확인·자료 요청"에서 연결 협력사를 확인하거나 자료를 일괄 요청하세요. 협력사 노드를 클릭하면 상세 정보가 맵에 바로 표시됩니다.';
   }
   const toneCls =
     tone === 'ok' ? 'border-ok-border bg-ok-bg text-ok-text'
