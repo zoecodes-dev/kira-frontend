@@ -578,6 +578,7 @@ export interface ApiDataRequest {
   dueDate: string | null;
   responseStatus: ResponseStatusCode | null;
   submissionStatus: SubmissionStatusCode | null;
+  missingCount: number | null;
 }
 export const getDataRequests = (params?: { supplierId?: string }) => {
   const q = params?.supplierId ? `?supplier_id=${params.supplierId}` : "";
