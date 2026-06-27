@@ -498,6 +498,44 @@ export const getSuppliers = (params?: SupplierListParams) =>
 export const getSupplier = (id: string) =>
   api.get<SupplierBrief>(`/suppliers/${id}`);
 
+/** 협력사 담당자 연락처 목록(대표 우선). 내 테넌트 소유만(아니면 404). */
+export interface SupplierContact {
+  contactId: string;
+  factoryId: string | null;
+  name: string | null;
+  nameEn: string | null;
+  role: string | null;
+  department: string | null;
+  email: string | null;
+  phone: string | null;
+  mobile: string | null;
+  isPrimary: boolean;
+  language: string | null;
+}
+export const getSupplierContacts = (id: string) =>
+  api.get<{ supplierId: string; contacts: SupplierContact[] }>(`/suppliers/${id}/contacts`);
+
+/** 자료 요청(데이터 제출 요청) 목록. 원청/관리자는 전체, 협력사는 자기 것만. (submission §) */
+export type SubmissionStatusCode =
+  | "submission_requested" | "submission_in_progress" | "submission_submitted"
+  | "submission_review" | "submission_approved" | "submission_rework" | "submission_rejected";
+export type ResponseStatusCode =
+  | "response_pending" | "response_responded" | "response_overdue" | "response_escalated";
+export interface ApiDataRequest {
+  requestId: string;
+  requesterUserId: string | null;
+  targetSupplierId: string | null;
+  requestedDataType: string | null;
+  requestedAt: string | null;
+  dueDate: string | null;
+  responseStatus: ResponseStatusCode | null;
+  submissionStatus: SubmissionStatusCode | null;
+}
+export const getDataRequests = (params?: { supplierId?: string }) => {
+  const q = params?.supplierId ? `?supplier_id=${params.supplierId}` : "";
+  return api.get<ApiDataRequest[]>(`/data-requests${q}`);
+};
+
 /** CTI 상세 (provider type별 detail 1종). 없으면 404. */
 export const getSupplierDetail = (id: string) =>
   api.get<SupplierDetail>(`/suppliers/${id}/detail`);

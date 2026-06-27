@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getActions, type ActionItem } from '@/lib/api';
+import { getActions, getDataRequests, getSuppliers, type ActionItem, type ApiDataRequest } from '@/lib/api';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
@@ -184,13 +184,50 @@ const dataRequests: DataRequest[] = [
   { supplier: 'QZ Precursor', supplierId: 'S-PRE-001', title: '전구체 배합 데이터·제조 공정도', status: 'progress', due: '2026-06-14', missing: 2 },
 ];
 
+// 백엔드 상태(submission/response) → 프론트 4버킷 파생.
+function deriveRequestStatus(r: ApiDataRequest): RequestStatus {
+  if (r.responseStatus === 'response_overdue') return 'overdue';
+  if (r.submissionStatus === 'submission_submitted' || r.submissionStatus === 'submission_review' || r.submissionStatus === 'submission_approved') return 'submitted';
+  if (r.dueDate) {
+    const diff = new Date(r.dueDate).getTime() - Date.now();
+    if (diff < 0) return 'overdue';
+    if (diff < 7 * 86400000) return 'dueSoon';
+  }
+  return 'progress';
+}
+
 function RequestArea() {
-  // 발송된 요청(localStorage) + mock — 같은 협력사는 저장본 우선. 입력현황 발송이 여기 반영된다.
+  // 실 백엔드 GET /data-requests + 협력사명(getSuppliers) 배선. 실패 시 mock 폴백.
+  // localStorage 발송 기록은 백엔드 POST 미배선 구간을 메우려고 함께 병합(같은 협력사 저장본 우선).
+  const [apiRows, setApiRows] = useState<DataRequest[] | null>(null);
   const [stored, setStored] = useState<DataRequestRecord[]>([]);
-  useEffect(() => { setStored(getStoredRequests()); }, []);
+  useEffect(() => {
+    setStored(getStoredRequests());
+    let cancelled = false;
+    (async () => {
+      try {
+        const [reqs, sups] = await Promise.all([getDataRequests(), getSuppliers()]);
+        const nameById = new Map(sups.map(s => [s.supplierId, s.companyName]));
+        const rows: DataRequest[] = reqs.map(r => ({
+          supplierId: r.targetSupplierId ?? r.requestId,
+          supplier: (r.targetSupplierId && nameById.get(r.targetSupplierId)) || '협력사',
+          title: r.requestedDataType ?? '자료 요청',
+          status: deriveRequestStatus(r),
+          due: r.dueDate?.slice(0, 10) ?? '-',
+          missing: -1, // 백엔드 미제공 → 누락 건수 표시 생략
+        }));
+        if (!cancelled) setApiRows(rows);
+      } catch {
+        if (!cancelled) setApiRows(null); // 인증/네트워크 실패 → mock 유지
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const base: DataRequest[] = apiRows ?? dataRequests;
   const requests: (DataRequest | DataRequestRecord)[] = [
     ...stored,
-    ...dataRequests.filter(d => !stored.some(s => s.supplierId === d.supplierId)),
+    ...base.filter(d => !stored.some(s => s.supplierId === d.supplierId)),
   ];
   const order: RequestStatus[] = ['overdue', 'submitted', 'dueSoon', 'progress'];
   const counts = order.map(s => ({ s, n: requests.filter(r => r.status === s).length }));
@@ -230,7 +267,7 @@ function RequestArea() {
               </div>
               <div className="hidden shrink-0 text-right sm:block">
                 <div className="text-[11px] text-ink-500">마감 {req.due}</div>
-                <div className="text-[11px] text-ink-500">누락 {req.missing}건</div>
+                {req.missing >= 0 && <div className="text-[11px] text-ink-500">누락 {req.missing}건</div>}
               </div>
               <Link
                 href={href}
