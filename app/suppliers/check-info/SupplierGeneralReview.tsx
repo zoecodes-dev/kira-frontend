@@ -91,12 +91,12 @@ const sections: CollectionSection[] = [
     key: 'company',
     order: 1,
     title: '기업 기본정보',
-    completed: 3,
-    total: 7,
-    status: '확인 필요',
+    completed: 4,
+    total: 4,
+    status: '완료',
     icon: <FileText className="h-5 w-5" />,
-    comment: '대표자 정보의 공식 문서 첨부가 필요합니다. (2025-05-14)',
-    missing: ['대표자 공식 증빙', '직원 수 확인', '설립연도 증빙', '웹사이트 소유 확인'],
+    comment: '',
+    missing: [],
   },
   {
     key: 'contacts',
@@ -136,11 +136,11 @@ const sections: CollectionSection[] = [
     order: 5,
     title: '공급 품목',
     completed: 1,
-    total: 5,
+    total: 3,
     status: '입력 중',
     icon: <Box className="h-5 w-5" />,
-    comment: 'Pack 공급 품목과 납품 모델 매핑을 확인해야 합니다.',
-    missing: ['품목별 HS 코드', '납품 모델', '월 공급량', 'BOM 연결'],
+    comment: '',
+    missing: ['품목별 HS 코드', '월 공급량'],
   },
   {
     key: 'origin',
@@ -157,13 +157,9 @@ const sections: CollectionSection[] = [
 
 const companyRows = [
   ['영문 정식명칭', 'Hanyang Mfg', '완료'],
-  ['설립연도', '2010', '입력 중'],
   ['한글 명칭', '한양 제조(주)', '완료'],
-  ['직원 수', '250명', '미입력'],
   ['사업자 등록번호', '123-45-67890', '완료'],
-  ['웹사이트', 'www.hanyangmfg.com', '입력 중'],
   ['DUNS 번호', '98-765-4321', '완료'],
-  ['대표자', 'Kim CEO', '완료'],
 ];
 
 const contactRows = [
@@ -273,18 +269,18 @@ function SummaryCard({ section }: { section: CollectionSection }) {
     <button
       type="button"
       onClick={() => document.getElementById(`section-${section.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-      className="rounded-sm border border-ink-700 bg-white p-4 text-left shadow-control transition hover:border-accent-200 hover:bg-accent-50/30"
+      className="rounded-sm border border-ink-700 bg-white p-2.5 text-left shadow-control transition hover:border-accent-200 hover:bg-accent-50/30"
     >
-      <div className="flex items-start gap-3">
-        <div className={clsx('mt-0.5', iconTone(section.status))}>{section.icon}</div>
+      <div className="flex items-center gap-2">
+        <div className={clsx(iconTone(section.status))}>{section.icon}</div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-ink-100">{section.title}</div>
-          <div className="mt-1 text-sm text-ink-500">{section.completed} / {section.total}</div>
+          <div className="truncate text-xs font-semibold text-ink-100">{section.title}</div>
+          <div className="text-xs text-ink-500">{section.completed} / {section.total}</div>
         </div>
       </div>
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-2 flex items-center gap-2">
         <ProgressBar value={rate} status={section.status} />
-        <div className="w-9 text-right text-sm font-semibold text-ink-100">{rate}%</div>
+        <div className="w-8 text-right text-xs font-semibold text-ink-100">{rate}%</div>
       </div>
     </button>
   );
@@ -344,6 +340,43 @@ function DataTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
 }
 
 const fieldFilled = (v: unknown): ReviewStatus => (v !== null && v !== undefined && v !== '' ? '완료' : '미입력');
+
+function sectionStatusFrom(completed: number, total: number): ReviewStatus {
+  if (total === 0) return '해당 없음';
+  if (completed === 0) return '미입력';
+  return completed >= total ? '완료' : '확인 필요';
+}
+
+// 실 협력사 데이터로 섹션별 집계(완료/전체/상태/미입력)를 도출 — 하드코딩 금지(요약카드·헤더·요청 모두 이 값 사용).
+function deriveSectionMeta(
+  key: SectionKey,
+  real: RealData,
+): Pick<CollectionSection, 'completed' | 'total' | 'status' | 'missing'> {
+  const has = (v: unknown) => v !== null && v !== undefined && v !== '';
+  if (key === 'company') {
+    const d = real.detail;
+    const fields: [string, unknown][] = [
+      ['영문 정식명칭', d?.companyNameEn],
+      ['한글 명칭', d?.companyNameKo],
+      ['사업자 등록번호', d?.businessRegNo],
+      ['DUNS 번호', d?.dunsNumber],
+    ];
+    const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
+    const completed = fields.length - missing.length;
+    return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
+  }
+  const table: Record<Exclude<SectionKey, 'company'>, [number, string]> = {
+    contacts: [real.contacts.length, '담당자 연락처'],
+    factories: [real.factories.length, '사업장 정보'],
+    certificates: [real.certs.length, '인증서'],
+    items: [real.items.length, '공급 품목'],
+    origin: [real.originCerts.length, '원산지/규제 증빙'],
+  };
+  const [count, label] = table[key];
+  return count > 0
+    ? { completed: count, total: count, status: '완료', missing: [] }
+    : { completed: 0, total: 1, status: '미입력', missing: [label] };
+}
 const certStatus = (expiresAt: string | null): ReviewStatus =>
   (expiresAt && new Date(expiresAt).getTime() < Date.now() ? '확인 필요' : '완료');
 const originStatus = (s: string | null): ReviewStatus =>
@@ -361,12 +394,8 @@ function SectionContent({ section, real }: { section: CollectionSection; real?: 
     const rows: string[][] = [
       ['영문 정식명칭', d.companyNameEn ?? '-', fieldFilled(d.companyNameEn)],
       ['한글 명칭', d.companyNameKo ?? '-', fieldFilled(d.companyNameKo)],
-      ['대표자', d.ceoName ?? '-', fieldFilled(d.ceoName)],
       ['사업자 등록번호', d.businessRegNo ?? '-', fieldFilled(d.businessRegNo)],
       ['DUNS 번호', d.dunsNumber ?? '-', fieldFilled(d.dunsNumber)],
-      ['웹사이트', d.website ?? '-', fieldFilled(d.website)],
-      ['설립연도', d.establishedYear != null ? String(d.establishedYear) : '-', fieldFilled(d.establishedYear)],
-      ['직원 수', d.employeeCount != null ? `${d.employeeCount}명` : '-', fieldFilled(d.employeeCount)],
     ];
     content = <CompanyGrid rows={rows} />;
   } else if (real && section.key === 'contacts') {
@@ -404,31 +433,26 @@ function SectionContent({ section, real }: { section: CollectionSection; real?: 
 
 function AccordionSection({
   section,
-  isOpen,
-  onToggle,
   onRequestSection,
   real,
 }: {
   section: CollectionSection;
-  isOpen: boolean;
-  onToggle: () => void;
   onRequestSection: (section: CollectionSection) => void;
   real?: RealData | null;
 }) {
-  // 미입력/확인 필요 섹션은 그 자리에서 바로 보완 요청할 수 있게 인라인 버튼 노출.
+  // 섹션은 항상 펼쳐서 고정 표시(드롭다운 제거). 미입력/확인 필요면 그 자리에서 보완 요청.
   const needsRequest = (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
   return (
     <section id={`section-${section.key}`} className="scroll-mt-24 overflow-hidden border-b border-ink-700 bg-white first:rounded-t-sm first:border-t last:rounded-b-sm">
-      <div className="flex w-full items-center justify-between gap-4 px-4 py-4 hover:bg-slate-50">
-        <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-          <span className={clsx('flex h-5 w-5 items-center justify-center', iconTone(section.status))}>{section.icon}</span>
-          <span className="truncate text-base font-semibold text-ink-100">
+      <div className="flex w-full items-center justify-between gap-3 border-b border-ink-700 bg-slate-50/60 px-4 py-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <span className={clsx('flex h-4 w-4 items-center justify-center', iconTone(section.status))}>{section.icon}</span>
+          <span className="truncate text-sm font-semibold text-ink-100">
             {section.order}. {section.title}
           </span>
-        </button>
+        </div>
         <div className="flex shrink-0 items-center gap-3">
-          <span className="text-sm font-medium text-ink-500">{section.completed} / {section.total} 완료</span>
-          <span className="h-4 w-px bg-ink-700" />
+          <span className="text-xs font-medium text-ink-500">{section.completed} / {section.total} 완료</span>
           <StatusBadge status={section.status} />
           {needsRequest && (
             <button
@@ -441,16 +465,9 @@ function AccordionSection({
               미입력 {section.missing.length}건 요청
             </button>
           )}
-          <button type="button" onClick={onToggle} aria-label="섹션 펼치기/접기">
-            {isOpen ? (
-              <ChevronDown className="h-4 w-4 text-ink-400" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-ink-400" />
-            )}
-          </button>
         </div>
       </div>
-      {isOpen && <SectionContent section={section} real={real} />}
+      <SectionContent section={section} real={real} />
     </section>
   );
 }
@@ -519,20 +536,13 @@ export function SupplierGeneralReviewContent({
   const displayManager = apiPrimary?.name ?? mockPrimary?.name ?? supplierSummary.manager;
   const displayEmail = apiPrimary?.email ?? mockPrimary?.email ?? supplierSummary.email;
   const displayPhone = apiPrimary?.mobile ?? apiPrimary?.phone ?? mockPrimary?.mobile ?? mockPrimary?.phone ?? supplierSummary.phone;
-  const [openSections, setOpenSections] = useState<SectionKey[]>(['company']);
   // 입력 현황에서 '자료 요청'으로 넘어오면(request=1) 요청 모달을 바로 연다 — 자연스러운 흐름 연결.
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(openRequestProp ?? (searchParams.get('request') === '1'));
   const [requestSent, setRequestSent] = useState(false);
   const [requestNote, setRequestNote] = useState('');
-  const [checkedItems, setCheckedItems] = useState<Set<string>>(() => {
-    const preChecked = new Set<string>();
-    sections.forEach(section => {
-      if (section.status === '미입력' || section.status === '확인 필요') {
-        section.missing.forEach(item => preChecked.add(`${section.key}:${item}`));
-      }
-    });
-    return preChecked;
-  });
+  // 실 협력사면 섹션 집계를 실데이터로 도출, 아니면(데모/mock) static 구성 사용.
+  const liveSections = api ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, api) })) : sections;
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
   function toggleItem(key: string) {
     setCheckedItems(prev => {
@@ -551,7 +561,7 @@ export function SupplierGeneralReviewContent({
     setIsRequestModalOpen(true);
   }
 
-  const urgentCount = sections.reduce((sum, section) =>
+  const urgentCount = liveSections.reduce((sum, section) =>
     section.status === '미입력' || section.status === '확인 필요' ? sum + section.missing.length : sum, 0);
 
   async function sendRequest() {
@@ -591,17 +601,6 @@ export function SupplierGeneralReviewContent({
     }, 1500);
   }
 
-  function toggleSection(sectionKey: SectionKey) {
-    setOpenSections(current =>
-      current.includes(sectionKey)
-        ? current.filter(key => key !== sectionKey)
-        : [...current, sectionKey]
-    );
-  }
-
-  function setAllSections(open: boolean) {
-    setOpenSections(open ? sections.map(section => section.key) : []);
-  }
 
   if (!supplierId) {
     return <SupplierInputStatusBoard />;
@@ -634,27 +633,21 @@ export function SupplierGeneralReviewContent({
               </span>
             )}
           </div>
-          <ToolbarButton icon={<BarChart3 className="h-4 w-4" />} label="데이터 비교" />
-          <ToolbarButton icon={<Download className="h-4 w-4" />} label="내보내기" />
-          <ToolbarButton icon={<MoreHorizontal className="h-4 w-4" />} />
         </div>
       </div>
 
       <section className="rounded-sm border border-ink-700 bg-white shadow-control">
-        <div className="grid items-center gap-6 px-5 py-5 xl:grid-cols-[minmax(0,1.4fr)_280px_240px_210px]">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ok-solid text-xl font-bold text-white">H</div>
-            </div>
+        <div className="grid items-center gap-x-6 gap-y-3 px-5 py-3 xl:grid-cols-[minmax(0,1.4fr)_240px_210px_190px]">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="truncate text-2xl font-semibold tracking-tight text-ink-100">{displayName}</h1>
+                <h1 className="truncate text-lg font-semibold tracking-tight text-ink-100">{displayName}</h1>
                 <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-xs font-semibold text-ok-text">
                   {displayTier}
                 </span>
               </div>
-              <div className="mt-2 text-sm font-medium text-ink-500">{displayRole} <span className="mx-2 text-ink-700">|</span> {displayCountry}</div>
-              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink-500">
+              <div className="mt-1 text-xs font-medium text-ink-500">{displayRole} <span className="mx-1.5 text-ink-700">|</span> {displayCountry}</div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-500">
                 <span className="font-semibold text-ink-100">담당자</span>
                 <span>{displayManager}</span>
                 <span className="h-3 w-px bg-ink-700" />
@@ -666,53 +659,41 @@ export function SupplierGeneralReviewContent({
           </div>
 
           <div className="border-l border-ink-700 pl-6">
-            <div className="text-sm font-medium text-ink-500">전체 수집률</div>
-            <div className="mt-2 flex items-center gap-5">
-              <span className="text-3xl font-semibold text-ok-text">{displayRate}%</span>
-              <div className="min-w-28 flex-1">
+            <div className="text-xs font-medium text-ink-500">전체 수집률</div>
+            <div className="mt-1 flex items-center gap-3">
+              <span className="text-2xl font-semibold text-ok-text">{displayRate}%</span>
+              <div className="min-w-20 flex-1">
                 <ProgressBar value={displayRate} status="완료" />
               </div>
             </div>
-            <div className="mt-2 text-sm text-ink-500">{displayCompleted} / {displayTotal} 항목 수집 완료</div>
+            <div className="mt-1 text-xs text-ink-500">{displayCompleted} / {displayTotal} 항목 수집 완료</div>
           </div>
 
           <div className="border-l border-ink-700 pl-6">
-            <div className="text-sm font-medium text-ink-500">최근 제출일</div>
-            <div className="mt-3 flex items-center gap-3 text-sm font-semibold text-ink-100">
+            <div className="text-xs font-medium text-ink-500">최근 제출일</div>
+            <div className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-ink-100">
               {displayLastUpdated}
               <StatusBadge status="완료" />
             </div>
           </div>
 
           <div className="border-l border-ink-700 pl-6">
-            <div className="text-sm font-medium text-ink-500">원청 검토 상태</div>
-            <div className="mt-3">
+            <div className="text-xs font-medium text-ink-500">원청 검토 상태</div>
+            <div className="mt-1.5">
               <StatusBadge status={supplierSummary.reviewStatus} />
             </div>
-            <button type="button" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-info-text hover:text-info-text">
-              상태 이력
-              <ChevronRight className="h-4 w-4" />
-            </button>
           </div>
         </div>
       </section>
 
-      <section className="mt-4 rounded-sm border border-ink-700 bg-white p-4 shadow-control">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-ink-100">수집 항목 요약</h2>
-          <button
-            type="button"
-            onClick={() => setAllSections(openSections.length !== sections.length)}
-            className="inline-flex items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 py-2 text-sm font-medium text-ink-500 hover:text-accent-700"
-          >
-            {openSections.length === sections.length ? '항목 전체 접기' : '항목 전체 펼치기'}
-            <ChevronDown className="h-4 w-4" />
-          </button>
+      <section className="mt-3 rounded-sm border border-ink-700 bg-white p-3 shadow-control">
+        <div className="mb-2.5 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-ink-100">수집 항목 요약</h2>
         </div>
-        <div className="grid gap-3 lg:grid-cols-3 2xl:grid-cols-6">
-          {sections.map(section => <SummaryCard key={section.key} section={section} />)}
+        <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {liveSections.map(section => <SummaryCard key={section.key} section={section} />)}
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-5">
+        <div className="mt-3 flex flex-wrap items-center gap-4">
           <LegendItem status="완료" icon={<CheckCircle2 className="h-4 w-4" />} />
           <LegendItem status="입력 중" icon={<HelpCircle className="h-4 w-4" />} />
           <LegendItem status="확인 필요" icon={<HelpCircle className="h-4 w-4" />} />
@@ -722,12 +703,10 @@ export function SupplierGeneralReviewContent({
       </section>
 
       <section className="mt-4 rounded-sm border border-ink-700 bg-white shadow-control">
-        {sections.map(section => (
+        {liveSections.map(section => (
           <AccordionSection
             key={section.key}
             section={section}
-            isOpen={openSections.includes(section.key)}
-            onToggle={() => toggleSection(section.key)}
             onRequestSection={openRequestForSection}
             real={api}
           />
@@ -759,7 +738,7 @@ export function SupplierGeneralReviewContent({
             </div>
 
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-              {sections
+              {liveSections
                 .filter(section => section.missing.length > 0)
                 .map(section => (
                   <div key={section.key}>
