@@ -112,9 +112,16 @@ export default function SupplyChainHub() {
       try {
         const map = await getProductSupplyChainMap(productId, { bomVersionId: activeVersionId });
         setDataset(ds => mergeSupplyChainMap(ds, productId, activeVersionId, map));
-        // STEP 2 Pool 후보 = 이 제품 맵의 tier-1 노드에 연결된 협력사만 (전역 목록 금지).
+        // STEP 2 Pool 후보 = 이 제품의 '1차 협력사'(OEM 바로 아래 단계) 협력사만 (전역 목록 금지).
+        // 1차 정의: tierLevel 0(=OEM/Pack, 요청노드)을 제외한 '최소 비-0 tierLevel'.
+        //   제품마다 BOM 계층이 달라(예: {0,1,..} vs {0,2,4,..}) tierLevel===1 고정은 빈 Pool을 만든다.
         // tierLevel은 merge 과정에서 유실되므로 원본 응답에서 직접 추출한다.
-        const tier1Ids = new Set(map.supplyChainMap.filter(n => n.tierLevel === 1).map(n => n.supplierId));
+        const levels = map.supplyChainMap.map(n => n.tierLevel).filter((t): t is number => typeof t === 'number');
+        const nonZero = levels.filter(t => t > 0);
+        const firstTier = nonZero.length ? Math.min(...nonZero) : (levels.length ? Math.min(...levels) : null);
+        const tier1Ids = new Set(
+          map.supplyChainMap.filter(n => n.tierLevel === firstTier).map(n => n.supplierId),
+        );
         setTier1Pool(
           map.suppliers
             .filter(s => tier1Ids.has(s.supplierId))
