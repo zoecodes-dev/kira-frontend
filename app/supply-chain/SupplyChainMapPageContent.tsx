@@ -583,8 +583,6 @@ function SupplyMapRow({
   const rowTone = getRiskTone(node.status);
   const isProduct = node.type === 'product';
   const hideFormationValues = formationMode;
-  // 확정 Pool에 포함된 협력사 노드 — 맵에서 강조 (형성 모드에선 협력사 값 숨김이라 제외).
-  const isPooled = !formationMode && !!node.row && !!highlightSupplierIds?.has(node.row.supplier_id);
 
   return (
     <div className="relative min-w-[980px]">
@@ -610,7 +608,7 @@ function SupplyMapRow({
             : rowTone === 'danger'
               ? 'bg-white hover:bg-alert-bg'
               : 'bg-white hover:bg-slate-50'
-        } ${isPooled ? 'ring-2 ring-inset ring-ok-solid' : ''}`}
+        }`}
       >
         <div className="flex min-w-0 items-center gap-3" style={{ paddingLeft: `${node.depth * 24}px` }}>
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isProduct ? 'bg-ok-solid' : rowTone === 'danger' ? 'bg-alert-solid' : 'bg-ok-solid'}`} />
@@ -626,9 +624,6 @@ function SupplyMapRow({
         <span className="text-sm font-medium text-ink-400">{hideFormationValues || isProduct ? '-' : node.providerType}</span>
         <span className={`flex min-w-0 items-center gap-1.5 truncate text-sm font-medium ${isProduct || hideFormationValues ? 'text-ink-400' : 'text-ink-100'}`}>
           <span className="truncate">{hideFormationValues || isProduct ? '-' : node.supplierName}</span>
-          {isPooled && (
-            <span className="shrink-0 rounded-full border border-ok-border bg-ok-bg px-1.5 py-0.5 text-[10px] font-bold text-ok-text">Pool</span>
-          )}
         </span>
         <span className="text-sm font-medium text-ink-100">{hideFormationValues ? '-' : node.supplyRatio}</span>
         <span className="text-sm font-medium text-ink-100">{hideFormationValues ? '-' : node.verificationProgress}</span>
