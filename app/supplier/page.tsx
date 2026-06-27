@@ -251,8 +251,7 @@ function SupplierSidebar({
 }) {
   const menu = [
     { id: 'dashboard'         as const, label: '홈',         subtitle: '요약 · 우선 조치',      icon: LayoutDashboard },
-    { id: 'company-info'      as const, label: '내 기업 정보', subtitle: '완성도 · 인증서 · 담당자', icon: Building2 },
-    { id: 'submit-documents'  as const, label: '자료 제출',   subtitle: '요청 자료 업로드',       icon: Upload },
+    { id: 'company-info'      as const, label: '내 기업 정보', subtitle: '정보 확인 · 자료 제출(입력)', icon: Building2 },
     { id: 'ai-parsing'        as const, label: 'AI 파싱 확인', subtitle: '추출 결과 검토 · 수정',  icon: ScanLine },
     { id: 'submission-status' as const, label: '검증 현황',   subtitle: '검토 결과 · 재요청',     icon: ClipboardList },
     { id: 'supply-chain'      as const, label: '공급망 연결',        subtitle: '직접 연결 업체',          icon: Network },
@@ -600,48 +599,9 @@ export default function SupplierPage() {
   // ── 공급망 연결 화면 — 선택된 노드 ID (supply-chain 뷰 상세 패널 연동) ──────
   const [selectedSupplyNodeId, setSelectedSupplyNodeId] = useState<string | null>(null);
 
-  // ── '내 기업 정보'(company-info) 탭 전용 — 공장/인증서 실제 API 연동 ──────────
-  // NOTE: supplierId는 로그인 토큰의 supplier_id(백엔드 UUID)를 페르소나로 해석한 값.
-  //       실데이터 연동 전까지는 목 데이터 키(S-CELL-001 등)로 매핑해 사용한다.
-  // 백엔드 실데이터 호출은 로그인 토큰의 supplier_id(UUID)로. (supplierId는 목 데이터 페르소나 키)
+  // 협력사 본인 supplier UUID — '내 기업 정보' 탭의 표준 양식(SupplierGeneralReviewContent)이
+  // 실 백엔드 6섹션을 fetch하는 데 쓴다. 미로그인/미매핑이면 데모 기본값.
   const supplierUuid = getTokenSupplierId() ?? 'a1111111-1111-4000-8000-000000000001';
-  const [apiFactories, setApiFactories] = useState<MockFactory[]>([]);
-  const [apiCerts, setApiCerts] = useState<{ certId: string; certName: string; issuingBody: string; status: 'active' | 'expiring_soon' | 'expired'; expiresAt: string }[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const [fac, esg] = await Promise.all([
-        getSupplierFactories(supplierUuid).catch(() => null),
-        getSupplierEsg(supplierUuid).catch(() => null),
-      ]);
-      if (cancelled) return;
-      const mapFactory = (f: SupplierFactory): MockFactory => ({
-        factoryId: f.factoryId,
-        factoryName: f.factoryName,
-        factoryNameEn: f.factoryNameEn ?? undefined,
-        destination: f.destination ?? undefined,
-        address: f.address ?? undefined,
-        operatingPeriodFrom: f.operatingPeriodFrom,
-        operatingPeriodTo: f.operatingPeriodTo ?? undefined,
-        establishedAt: f.operatingPeriodFrom,
-        capacity: f.monthlyCapacity ?? undefined,
-        monthlyCapacity: f.monthlyCapacity ?? undefined,
-        destinationDetail: f.destinationDetail ?? undefined,
-        applicableRegulations: undefined,
-        factoryRole: f.factoryRole,
-        region: f.region,
-      });
-      setApiFactories((fac?.factories ?? []).filter(f => f.factoryRole !== 'headquarters').map(mapFactory));
-      setApiCerts((esg?.certifications ?? []).map(c => ({
-        certId: c.certId,
-        certName: c.certificationType,
-        issuingBody: c.issuingBody,
-        status: deriveCertStatusPortal(c.expiresAt),
-        expiresAt: c.expiresAt,
-      })));
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   // ─── 공유 알림 상태 — GNB 벨 + 수신함 페이지 1:1 동기화 ─────────────────────
   type NotifType = 'sla_warning' | 'violation' | 'approval_needed' | 'info';
@@ -653,7 +613,7 @@ export default function SupplierPage() {
     { notification_id: 'notif-001', notification_type: 'sla_warning',
       subject: '원산지 증빙 제출 기한 임박',
       body: '광산 폴리곤 좌표 등록 요청의 마감이 3일 남았습니다. 기한 내 미제출 시 보완 요청으로 전환됩니다.',
-      status: 'pending', created_at: '2026-06-08T09:30:00Z', deep_link: 'submit-documents' },
+      status: 'pending', created_at: '2026-06-08T09:30:00Z', deep_link: 'company-info' },
     { notification_id: 'notif-002', notification_type: 'violation',
       subject: 'EUDR 규정 위반 항목 지적',
       body: '환경영향평가 갱신본이 기준을 충족하지 않아 반려되었습니다. 시정 완료 회신 폼을 제출해 주세요.',
@@ -665,7 +625,7 @@ export default function SupplierPage() {
     { notification_id: 'notif-004', notification_type: 'sla_warning',
       subject: '커뮤니티 합의서 제출 기한 안내',
       body: '커뮤니티 합의서의 제출 기한이 2026-06-25로 9일 남았습니다.',
-      status: 'read', created_at: '2026-06-05T10:00:00Z', deep_link: 'submit-documents' },
+      status: 'read', created_at: '2026-06-05T10:00:00Z', deep_link: 'company-info' },
   ]);
   const [selectedNotifId, setSelectedNotifId] = useState<string | null>('notif-001');
   function markNotifRead(id: string) {
@@ -721,7 +681,7 @@ export default function SupplierPage() {
     setWizardInitialItems([targetLabel]);
     setWizardReworkMode(false);
     setWizardCertRenewalMode(true);
-    setActiveView('submit-documents'); // 탭도 자료 제출로 이동
+    setActiveView('company-info'); // 탭도 자료 제출로 이동
     setWizardOpen(true);
   }
   const supplier = suppliers.find(item => item.id === supplierId) as unknown as MockSupplier | undefined;
@@ -937,7 +897,7 @@ export default function SupplierPage() {
             )}
 
         {activeView === 'company-info' && (
-          <SupplierGeneralReviewContent supplierId={supplierUuid} mode="supplier-view" embedded />
+          <SupplierGeneralReviewContent supplierId={supplierUuid} mode="supplier" embedded />
         )}
 
         {activeView === 'dashboard' && (
@@ -945,7 +905,7 @@ export default function SupplierPage() {
         {/* ── 영역 B: 진행 현황 KPI (상단 가로 4개) ── */}
         <section className="grid grid-cols-4 gap-4">
           <div
-            onClick={() => setActiveView('submit-documents')}
+            onClick={() => setActiveView('company-info')}
             className="cursor-pointer rounded-sm border border-ink-700 bg-white p-5 shadow-control transition-shadow hover:shadow-md"
           >
             <div className="flex items-center justify-between gap-2 mb-3">
@@ -1389,10 +1349,6 @@ export default function SupplierPage() {
         </div>
         )}
 
-        {activeView === 'submit-documents' && (
-          <SupplierGeneralReviewContent supplierId={supplierUuid} mode="supplier-input" embedded />
-        )}
-
         {activeView === 'submission-status' && (
         <div className="space-y-4">
 
@@ -1717,7 +1673,8 @@ export default function SupplierPage() {
           }
 
           const deepLinkLabel: Record<string, string> = {
-            'submit-documents':  '자료 제출',
+            'company-info':      '내 기업 정보',
+            'submit-documents':  '내 기업 정보',
             'submission-status': '검증 현황',
             'ai-parsing':        'AI 파싱 확인',
             'supply-chain':      '공급망 연결',
@@ -1839,7 +1796,7 @@ export default function SupplierPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (selectedNotif.deep_link === 'submit-documents') {
+                          if (selectedNotif.deep_link === 'company-info') {
                             openWizardFromActionCenter(selectedNotif.subject, '제출 필요');
                           } else {
                             setActiveView(selectedNotif.deep_link as SupplierView);
@@ -1848,7 +1805,7 @@ export default function SupplierPage() {
                         className="inline-flex shrink-0 items-center gap-2 rounded-xs bg-accent-700 px-4 py-2.5 text-xs font-bold text-white shadow-control hover:bg-accent-900 transition-colors"
                       >
                         <ArrowRight className="h-3.5 w-3.5" />
-                        {selectedNotif.deep_link === 'submit-documents' ? '해당 자료 제출하러 가기' : `${deepLinkLabel[selectedNotif.deep_link] ?? '관련 화면'} 바로 가기`}
+                        {selectedNotif.deep_link === 'company-info' ? '해당 자료 제출하러 가기' : `${deepLinkLabel[selectedNotif.deep_link] ?? '관련 화면'} 바로 가기`}
                       </button>
                     )}
                   </div>

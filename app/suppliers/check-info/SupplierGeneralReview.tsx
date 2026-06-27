@@ -1,11 +1,11 @@
 'use client';
 
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   createDataRequest,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
-  getSupplierEsg, getSupplierOriginCertificates, getSupplierSuppliedItems,
+  getSupplierEsg, getSupplierOriginCertificates, getSupplierSuppliedItems, updateSupplierDetail,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type EsgCertification as ApiCert, type OriginCert as ApiOriginCert, type SuppliedItem as ApiItem,
@@ -47,6 +47,7 @@ import {
   Mail,
   MessageSquare,
   MoreHorizontal,
+  Pencil,
   Phone,
   Send,
   UserRound,
@@ -294,16 +295,17 @@ function FieldStatus({ status }: { status: ReviewStatus }) {
   return <span className="text-xs font-semibold text-slate-500">해당 없음</span>;
 }
 
-function CompanyGrid({ rows = companyRows, editable = false }: { rows?: string[][]; editable?: boolean }) {
+function CompanyGrid({ rows = companyRows, editable = false, fieldKeys }: { rows?: string[][]; editable?: boolean; fieldKeys?: string[] }) {
   return (
     <div className="grid overflow-hidden rounded-sm border border-ink-700 md:grid-cols-2">
-      {rows.map(([label, value, status]) => (
+      {rows.map(([label, value, status], i) => (
         <div key={label} className="grid grid-cols-[150px_minmax(0,1fr)_96px] items-center border-b border-r border-ink-700 px-4 py-3 last:border-b-0 even:border-r-0">
           <div className="text-sm font-medium text-ink-500">{label}</div>
           {editable ? (
             <input
               defaultValue={value === '-' || value === '미입력' ? '' : value}
               placeholder={`${label} 입력`}
+              data-field={fieldKeys?.[i] ? `company.${fieldKeys[i]}` : undefined}
               className="w-full rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20"
             />
           ) : (
@@ -414,7 +416,7 @@ function SectionContent({ section, real, editable = false }: { section: Collecti
       ['사업자 등록번호', d.businessRegNo ?? '-', fieldFilled(d.businessRegNo)],
       ['DUNS 번호', d.dunsNumber ?? '-', fieldFilled(d.dunsNumber)],
     ];
-    content = <CompanyGrid rows={rows} editable={editable} />;
+    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={['companyNameEn', 'companyNameKo', 'businessRegNo', 'dunsNumber']} />;
   } else if (real && section.key === 'contacts') {
     const rows = real.contacts.map(c => [c.role ?? '-', c.name ?? '-', c.email ?? '-', (c.mobile ?? c.phone) ?? '-', fieldFilled(c.email)]);
     content = (rows.length || editable) ? <DataTable headers={['구분', '담당자', '이메일', '연락처', '상태']} rows={rows} editable={editable} /> : <EmptyData />;
@@ -505,14 +507,19 @@ export function SupplierGeneralReviewContent({
   openRequest?: boolean;
   // 임베드 모드: 공급망 워크스페이스 모달 안에서 표준 양식을 그대로 재사용(돌아가기 바·풀페이지 배경 제거).
   embedded?: boolean;
-  // 같은 표준 양식을 3가지로 공유한다:
-  //  - 'oem'            : 원청 정보확인 + 자료요청(기본, 기존 동작)
-  //  - 'supplier-view'  : 협력사 '내 기업 정보' — 입력 완료된 정보를 읽기 전용으로
-  //  - 'supplier-input' : 협력사 '자료 제출' — 같은 양식에 입력칸을 뚫어 입력
-  mode?: 'oem' | 'supplier-view' | 'supplier-input';
+  // 같은 표준 양식을 공유한다:
+  //  - 'oem'      : 원청 정보확인 + 자료요청(기본, 기존 동작)
+  //  - 'supplier' : 협력사 — 한 페이지에서 '내 기업 정보(보기)' ↔ '자료 제출(입력)'을
+  //                 화면 전환 없이 같은 양식의 칸만 토글한다.
+  mode?: 'oem' | 'supplier';
 } = {}) {
   const isOem = mode === 'oem';
-  const editable = mode === 'supplier-input';
+  const isSupplier = mode === 'supplier';
+  // 협력사: 보기(읽기 전용) ↔ 입력(자료 제출) — 라우트 변경 없이 editable 토글.
+  const [editing, setEditing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const editable = isSupplier && editing;
+  const formRef = useRef<HTMLElement>(null);
   const searchParams = useSearchParams();
   const supplierId = supplierIdProp ?? searchParams.get('supplierId') ?? '';
   const supplierName = supplierNameProp ?? searchParams.get('supplier') ?? supplierSummary.name;
@@ -593,6 +600,35 @@ export function SupplierGeneralReviewContent({
   const urgentCount = liveSections.reduce((sum, section) =>
     section.status === '미입력' || section.status === '확인 필요' ? sum + section.missing.length : sum, 0);
 
+  // 협력사 '자료 제출' — 입력칸 값을 수집해 백엔드에 영속화한다.
+  // 기업 기본정보(company) 섹션은 supplier detail 단건 업데이트로 저장.
+  async function submitSupplierForm() {
+    setSubmitting(true);
+    try {
+      // 입력칸은 data-field 로 식별. company 섹션 4개 필드를 모아 PATCH.
+      const root = formRef.current;
+      const read = (field: string) =>
+        (root?.querySelector<HTMLInputElement>(`input[data-field="company.${field}"]`)?.value ?? '').trim();
+      const payload = {
+        companyNameEn: read('companyNameEn') || null,
+        companyNameKo: read('companyNameKo') || null,
+        businessRegNo: read('businessRegNo') || null,
+        dunsNumber: read('dunsNumber') || null,
+      };
+      if (isRealSupplier) {
+        await updateSupplierDetail(supplierId, payload);
+      }
+      // 입력값 반영을 위해 detail 재조회(낙관적 갱신 대신 정확한 서버 값으로).
+      const fresh = isRealSupplier ? await getSupplierDetail(supplierId).catch(() => null) : null;
+      if (fresh) setApi(prev => (prev ? { ...prev, detail: fresh } : prev));
+      setEditing(false);
+    } catch {
+      alert('제출에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function sendRequest() {
     setRequestSent(true);
     // 요청 제목 = 실제 부족(미입력) 항목명. "어떤 자료가 부족해서 요청"이 한눈에.
@@ -636,12 +672,12 @@ export function SupplierGeneralReviewContent({
   }
 
   return (
-    <main className={embedded ? '' : 'min-h-screen bg-slate-50 px-7 py-5'}>
+    <main ref={formRef} className={embedded ? '' : 'min-h-screen bg-slate-50 px-7 py-5'}>
       <div className="mb-4 flex items-center justify-between gap-4">
         {embedded || !isOem ? (
           <span className="text-sm font-medium text-ink-500">
-            {mode === 'supplier-view' ? '내 기업 정보 · 입력 완료 현황'
-              : mode === 'supplier-input' ? '자료 제출 · 표준 양식 입력'
+            {isSupplier
+              ? (editing ? '자료 제출 · 표준 양식 입력' : '내 기업 정보 · 입력 완료 현황')
               : '협력사 정보 확인 · 자료 요청'}
           </span>
         ) : (
@@ -669,16 +705,36 @@ export function SupplierGeneralReviewContent({
               )}
             </div>
           )}
-          {/* 협력사 입력 모드(자료 제출): 제출 */}
-          {editable && (
+          {/* 협력사: 보기 ↔ 입력 토글 (라우트 변경 없이 같은 양식의 칸만 전환) */}
+          {isSupplier && !editing && (
             <button
               type="button"
-              onClick={() => alert('입력하신 표준 양식이 원청에 제출되었습니다. (검토 대기)')}
+              onClick={() => setEditing(true)}
               className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
             >
-              <Send className="h-4 w-4" />
-              제출하기
+              <Pencil className="h-4 w-4" />
+              자료 제출 · 정보 입력
             </button>
+          )}
+          {isSupplier && editing && (
+            <>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="inline-flex h-9 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-sm font-semibold text-ink-500 transition-colors hover:border-accent-500 hover:text-accent-700"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={submitSupplierForm}
+                disabled={submitting}
+                className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75 disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+                {submitting ? '제출 중…' : '제출하기'}
+              </button>
+            </>
           )}
         </div>
       </div>
