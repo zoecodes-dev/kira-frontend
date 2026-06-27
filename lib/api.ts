@@ -826,6 +826,8 @@ export const getProductBomVersions = (productId: string) =>
 export interface ApiSupplyChainMapNode {
   mapId: string;
   partId: string;
+  partName?: string | null;  // §10.2a SELECT에 추가됨(맵 트리 부품명용)
+  partCode?: string | null;
   supplierId: string;        // child_supplier_id
   factoryId: string | null;
   tierLevel: number | null;
