@@ -3,7 +3,6 @@
 // AI 규제 검증 결과 = AI 파싱 결과(verdict + confidence). 협력사 제출 자료를 AI가 규제별로 판정하고,
 // 저신뢰(HITL 후보)는 사람이 검증한다. My Task '협력사 승인(HITL)'에 데이터 추출 검토와 함께 편입.
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import clsx from 'clsx';
 import { ArrowRight, FileText, Scale, ShieldAlert } from 'lucide-react';
 import { getRegulationResults } from '@/lib/api';
@@ -23,7 +22,7 @@ const MOCK: ResultRow[] = [
   { id: 'RR-002', material: 'BMW i4 Prismatic NCM 81Ah', supplier: '대성정밀(주)', supplierId: null, regulation: 'EU_BATTERY', verdict: 'warning', confidence: 0.70, clause: 'HITL 후보 · 사람 검토 필요', evidence: '-' },
 ];
 
-export default function RegulationResultsCard() {
+export default function RegulationResultsCard({ onReview }: { onReview?: (supplierId: string, supplierName: string) => void }) {
   const [rows, setRows] = useState<ResultRow[]>(MOCK);
   useEffect(() => {
     getRegulationResults().then(list => {
@@ -88,9 +87,9 @@ export default function RegulationResultsCard() {
                 </td>
                 <td className="px-4 py-3">
                   {r.supplierId && (
-                    <Link href={`/suppliers/check-info?supplierId=${r.supplierId}&supplier=${encodeURIComponent(r.supplier)}`} className="inline-flex items-center gap-1 text-xs font-semibold text-accent-700 hover:text-accent-600">
+                    <button type="button" onClick={() => onReview?.(r.supplierId!, r.supplier)} className="inline-flex items-center gap-1 text-xs font-semibold text-accent-700 hover:text-accent-600">
                       검토 <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
+                    </button>
                   )}
                 </td>
               </tr>

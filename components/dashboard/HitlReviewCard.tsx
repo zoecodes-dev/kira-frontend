@@ -5,7 +5,7 @@
 // 데이터 출처: GET /data-requests/ai-extractions (document_extraction_results — 자료 요청과 연결).
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { Bot, CheckCircle2, ChevronDown, ChevronRight, Loader2, ShieldAlert, XCircle } from 'lucide-react';
+import { Bot, CheckCircle2, ChevronDown, ChevronRight, Loader2, ScanLine, ShieldAlert, XCircle } from 'lucide-react';
 import { approveDataRequest, approveHitl, getAiExtractions, rejectHitl, type AiExtraction } from '@/lib/api';
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -16,7 +16,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 };
 const ATTENTION = 0.8; // 신뢰도 0.8 미만 = 사람 검토 필요(그 이상은 AI 자동통과)
 
-export default function HitlReviewCard() {
+export default function HitlReviewCard({ onReview }: { onReview?: (supplierId: string, supplierName: string) => void }) {
   const [items, setItems] = useState<AiExtraction[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -95,6 +95,12 @@ export default function HitlReviewCard() {
                     </div>
                   </button>
                   <div className="flex shrink-0 items-center gap-1.5">
+                    {onReview && x.supplierId && (
+                      <button type="button" onClick={() => onReview(x.supplierId, x.supplierName ?? '협력사')}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-ink-700 bg-white px-3 text-xs font-bold text-ink-200 hover:bg-slate-50">
+                        <ScanLine className="h-3.5 w-3.5" /> 검토
+                      </button>
+                    )}
                     {x.hitlReviewId && (
                       <button type="button" onClick={() => reject(x)} disabled={busyId === x.requestId}
                         className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-alert-border bg-white px-3 text-xs font-bold text-alert-text hover:bg-alert-bg disabled:opacity-50">
