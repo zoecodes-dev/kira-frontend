@@ -251,56 +251,62 @@ function SupplierSidebar({
     { id: 'edit-info'         as const, label: '계정 설정',   subtitle: '비밀번호 · 담당자 정보', icon: KeyRound },
   ];
 
+  // 원청 AppShell 사이드바 양식(bg-brand · 흰 텍스트 · active 흰 바 · NavLink 스타일)으로
+  // 통일. 메뉴 항목·onClick 탭 전환은 협력사 그대로 유지하고 시각 양식만 맞춘다.
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-ink-700 bg-white shadow-control">
-      <div className="border-b border-ink-700 p-5">
+    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-brand text-white shadow-control">
+      <div className="border-b border-white/10 p-5 shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-accent-700 text-white">
-            <Factory className="h-4 w-4" strokeWidth={2.4} />
+          <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-white shadow-control">
+            <Factory className="h-4 w-4 text-brand" strokeWidth={2.5} />
           </div>
           <div className="min-w-0">
-            <div className="truncate text-xs font-bold text-ink-100">협력사 업무공간</div>
-            <div className="truncate text-[11px] text-ink-500">{supplierName}</div>
+            <div className="truncate text-sm font-bold tracking-tight text-white">협력사 업무공간</div>
+            <div className="truncate text-[11px] text-white/55">{supplierName}</div>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {menu.map(item => {
-          const Icon = item.icon;
-          const active = item.id === activeView;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onSelect(item.id)}
-              className={
-                active
-                  ? 'flex w-full items-center gap-3 rounded-sm border border-accent-100 bg-accent-50 px-3 py-2.5 text-left text-accent-900'
-                  : 'flex w-full items-center gap-3 rounded-sm border border-transparent px-3 py-2.5 text-left text-ink-400 transition-colors hover:bg-ink-800 hover:text-ink-100'
-              }
-            >
-              <div className={
-                active
-                  ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-accent-700 bg-accent-700 text-white'
-                  : 'flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-ink-700 bg-white text-ink-400'
-              }>
-                <Icon className="h-4 w-4" strokeWidth={active ? 2.4 : 1.9} />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-semibold">{item.label}</div>
-                <div className="truncate text-[10px] text-ink-500">{item.subtitle}</div>
-              </div>
-            </button>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto py-1">
+        <div className="py-2.5">
+          <div className="space-y-0.5">
+            {menu.map(item => {
+              const Icon = item.icon;
+              const active = item.id === activeView;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onSelect(item.id)}
+                  className={
+                    active
+                      ? 'flex w-full items-center gap-3 rounded-none px-3 py-2.5 text-left font-semibold bg-white text-[#11352A] transition-colors'
+                      : 'flex w-full items-center gap-3 rounded-none px-3 py-2.5 text-left font-medium bg-transparent text-white/90 transition-colors hover:bg-white/8'
+                  }
+                >
+                  <div className={
+                    active
+                      ? 'flex h-8 w-8 shrink-0 items-center justify-center text-[#11352A]'
+                      : 'flex h-8 w-8 shrink-0 items-center justify-center text-white/75'
+                  }>
+                    <Icon className="h-4 w-4" strokeWidth={active ? 2.5 : 2} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px]">{item.label}</div>
+                    <div className={`truncate text-[10px] ${active ? 'text-[#11352A]/60' : 'text-white/50'}`}>{item.subtitle}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </nav>
 
-      <div className="border-t border-ink-700 bg-ink-800 p-4">
-        <div className="text-[11px] font-semibold text-ink-500">접속 권한</div>
+      <div className="border-t border-white/10 bg-black/15 p-4 shrink-0">
+        <div className="text-[11px] font-semibold text-white/50">접속 권한</div>
         <div className="mt-1 flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-signal-ok" />
-          <span className="text-xs font-semibold text-ink-200">내 회사 기준 보기</span>
+          <span className="h-1.5 w-1.5 rounded-full bg-ok-solid pulse-soft" />
+          <span className="text-xs font-semibold text-white/80">내 회사 기준 보기</span>
         </div>
       </div>
     </aside>
