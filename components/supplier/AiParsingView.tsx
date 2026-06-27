@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getAiExtractions, type AiExtraction } from '@/lib/api';
 import { CheckCircle2, FileText, ScanLine } from 'lucide-react';
 import Badge from '@/components/Badge';
 import ExtractionTable from './ExtractionTable';
@@ -72,6 +73,25 @@ const MOCK_PARSED_DOCS: ParsedDoc[] = [
 // 문서별 완료 여부를 추적하기 위한 타입
 type CompletedMap = Record<string, boolean>;
 
+// 실 AI 추출(GET /data-requests/ai-extractions) → AiParsingView 문서 형태. 협력사/원청 동일 데이터.
+const STATUS_TO_REVIEW: Record<string, ParsedDoc['submissionStatus']> = {
+  submission_approved: 'approved', submission_rework: 'rework', submission_rejected: 'rejected',
+};
+function extractionToDoc(x: AiExtraction): ParsedDoc {
+  const fields: ExtractionField[] = Object.keys(x.parsedFields).map(k => {
+    const confidence = x.confidenceMap[k] ?? 0;
+    return { fieldId: k, label: k, aiValue: String(x.parsedFields[k]), confidence, requiresAttention: confidence < 0.8, unit: '' };
+  });
+  return {
+    docId: x.requestId,
+    fileName: `${x.requestedDataType ?? '자료'}.pdf`,
+    requestType: x.requestedDataType ?? '자료',
+    uploadedAt: '',
+    submissionStatus: STATUS_TO_REVIEW[x.submissionStatus ?? ''] ?? 'review',
+    extractionResult: { fields, unparsedFields: x.unparsedFields },
+  };
+}
+
 export default function AiParsingView({
   supplierId,
   onConfirmComplete,
@@ -79,12 +99,26 @@ export default function AiParsingView({
   supplierId: string;
   onConfirmComplete: () => void;
 }) {
+  // 공통 모듈 — 실 AI 추출(getAiExtractions)을 이 협력사 기준으로 가져와 표시. 없으면 mock 폴백.
+  // (원청 대시보드 HitlReviewCard와 동일 데이터 소스 = 협력사/원청 동일 데이터.)
+  const [docs, setDocs] = useState<ParsedDoc[]>(MOCK_PARSED_DOCS);
   const [activeDocId, setActiveDocId] = useState(MOCK_PARSED_DOCS[0].docId);
   // 문서별 제출 완료 여부 — { [docId]: true }
   const [completedDocs, setCompletedDocs] = useState<CompletedMap>({});
 
-  const activeDoc = MOCK_PARSED_DOCS.find(d => d.docId === activeDocId) ?? MOCK_PARSED_DOCS[0];
-  const allCompleted = MOCK_PARSED_DOCS.every(d => completedDocs[d.docId]);
+  useEffect(() => {
+    let cancelled = false;
+    getAiExtractions()
+      .then(list => {
+        const mine = list.filter(x => !supplierId || x.supplierId === supplierId).map(extractionToDoc);
+        if (!cancelled && mine.length) { setDocs(mine); setActiveDocId(mine[0].docId); }
+      })
+      .catch(() => { /* 실패 시 mock 유지 */ });
+    return () => { cancelled = true; };
+  }, [supplierId]);
+
+  const activeDoc = docs.find(d => d.docId === activeDocId) ?? docs[0];
+  const allCompleted = docs.every(d => completedDocs[d.docId]);
 
   // ExtractionTable에서 "저장 및 다음으로" 클릭 시 호출
   // → 현재 문서를 완료 처리하고, 다음 미완료 탭으로 자동 이동
@@ -93,7 +127,7 @@ export default function AiParsingView({
     setCompletedDocs(updated);
 
     // 다음 미완료 문서로 자동 이동
-    const next = MOCK_PARSED_DOCS.find(d => !updated[d.docId]);
+    const next = docs.find(d => !updated[d.docId]);
     if (next) {
       setActiveDocId(next.docId);
     } else {
@@ -120,13 +154,13 @@ export default function AiParsingView({
         </div>
         {/* 전체 완료 여부 배지 */}
         <Badge tone={allCompleted ? 'ok' : 'neutral'}>
-          {Object.keys(completedDocs).length} / {MOCK_PARSED_DOCS.length} 완료
+          {Object.keys(completedDocs).length} / {docs.length} 완료
         </Badge>
       </div>
 
       {/* ── 2. 문서 탭 ── */}
       <div className="flex shrink-0 items-end gap-0.5 border-b border-ink-700 bg-white px-4 pt-2">
-        {MOCK_PARSED_DOCS.map(doc => {
+        {docs.map(doc => {
           const isActive = doc.docId === activeDocId;
           const isDone = !!completedDocs[doc.docId];
           return (
@@ -186,7 +220,7 @@ export default function AiParsingView({
           isLastDoc={
             // 현재 탭이 마지막 미완료 문서인지 판단
             // → 마지막 문서일 때 버튼 텍스트를 "원청사로 제출"로 변경
-            MOCK_PARSED_DOCS.filter(d => !completedDocs[d.docId]).length === 1 &&
+            docs.filter(d => !completedDocs[d.docId]).length === 1 &&
             !completedDocs[activeDoc.docId]
           }
         />

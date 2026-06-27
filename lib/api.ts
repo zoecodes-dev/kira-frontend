@@ -737,8 +737,19 @@ export interface AiExtraction {
   parsedFields: Record<string, string | number>;
   confidenceMap: Record<string, number>;
   unparsedFields: string[];
+  // hitl_reviews 연결(있으면) — 승인/반려가 백엔드 HITL 큐도 갱신.
+  batchId?: string | null;
+  hitlReviewId?: string | null;
+  hitlStatus?: string | null;
+  hitlReason?: string | null;
 }
 export const getAiExtractions = () => api.get<AiExtraction[]>(`/data-requests/ai-extractions`);
+
+/** HITL 리뷰 승인/반려(batch 단위) — hitl_reviews 갱신 + 파이프라인 재개/차단. */
+export const approveHitl = (batchId: string, decisionText: string) =>
+  api.post(`/hitl/${batchId}/approve`, { decision_text: decisionText });
+export const rejectHitl = (batchId: string, decisionText: string) =>
+  api.post(`/hitl/${batchId}/reject`, { decision_text: decisionText });
 
 /** JWT sub(user_id) 디코드 — 승인 등 actor_id용. */
 export function getTokenUserId(): string | null {

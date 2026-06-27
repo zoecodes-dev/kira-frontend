@@ -5,8 +5,8 @@
 // 데이터 출처: GET /data-requests/ai-extractions (document_extraction_results — 자료 요청과 연결).
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { Bot, CheckCircle2, ChevronDown, ChevronRight, Loader2, ShieldAlert } from 'lucide-react';
-import { approveDataRequest, getAiExtractions, type AiExtraction } from '@/lib/api';
+import { Bot, CheckCircle2, ChevronDown, ChevronRight, Loader2, ShieldAlert, XCircle } from 'lucide-react';
+import { approveDataRequest, approveHitl, getAiExtractions, rejectHitl, type AiExtraction } from '@/lib/api';
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   submission_approved: { label: '승인됨', cls: 'border-ok-border bg-ok-bg text-ok-text' },
@@ -30,11 +30,22 @@ export default function HitlReviewCard() {
   }
   useEffect(() => { load(); }, []);
 
-  async function approve(id: string) {
-    setBusyId(id);
-    try { await approveDataRequest(id, 'HITL AI 파싱 검토 완료'); await load(); }
-    catch { /* noop */ }
-    finally { setBusyId(null); }
+  // 승인 = 자료요청 완료 + (연결된 경우) HITL 리뷰 승인(파이프라인 재개).
+  async function approve(x: AiExtraction) {
+    setBusyId(x.requestId);
+    try {
+      if (x.batchId && x.hitlReviewId) await approveHitl(x.batchId, 'HITL AI 파싱 검토 완료').catch(() => {});
+      await approveDataRequest(x.requestId, 'HITL AI 파싱 검토 완료').catch(() => {});
+      await load();
+    } finally { setBusyId(null); }
+  }
+  // 반려 = (연결된 경우) HITL 리뷰 반려(파이프라인 차단) — 협력사 재요청 대상.
+  async function reject(x: AiExtraction) {
+    setBusyId(x.requestId);
+    try {
+      if (x.batchId && x.hitlReviewId) await rejectHitl(x.batchId, 'AI 파싱값 검토 반려 — 재요청').catch(() => {});
+      await load();
+    } finally { setBusyId(null); }
   }
 
   const attentionCount = (x: AiExtraction) =>
@@ -75,14 +86,27 @@ export default function HitlReviewCard() {
                         {attn > 0
                           ? <span className="inline-flex items-center gap-1 rounded-full border border-alert-border bg-alert-bg px-1.5 py-0.5 font-bold text-alert-text"><ShieldAlert className="h-3 w-3" />검토 필요 {attn}</span>
                           : <span className="inline-flex items-center gap-1 rounded-full border border-ok-border bg-ok-bg px-1.5 py-0.5 font-bold text-ok-text"><CheckCircle2 className="h-3 w-3" />AI 자동통과</span>}
+                        {x.hitlReviewId && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-warn-border bg-warn-bg px-1.5 py-0.5 font-bold text-warn-text">
+                            <Bot className="h-3 w-3" />HITL {x.hitlReason ?? ''} {x.hitlStatus === 'hitl_pending' ? '검토대기' : x.hitlStatus}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>
-                  <button type="button" onClick={() => approve(x.requestId)} disabled={busyId === x.requestId || x.submissionStatus === 'submission_approved'}
-                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-sm bg-brand px-3 text-xs font-bold text-white hover:bg-brand-hover disabled:opacity-50">
-                    {busyId === x.requestId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                    {x.submissionStatus === 'submission_approved' ? '승인됨' : '승인'}
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {x.hitlReviewId && (
+                      <button type="button" onClick={() => reject(x)} disabled={busyId === x.requestId}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-alert-border bg-white px-3 text-xs font-bold text-alert-text hover:bg-alert-bg disabled:opacity-50">
+                        <XCircle className="h-3.5 w-3.5" /> 반려
+                      </button>
+                    )}
+                    <button type="button" onClick={() => approve(x)} disabled={busyId === x.requestId || x.submissionStatus === 'submission_approved'}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-sm bg-brand px-3 text-xs font-bold text-white hover:bg-brand-hover disabled:opacity-50">
+                      {busyId === x.requestId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                      {x.submissionStatus === 'submission_approved' ? '승인됨' : '승인'}
+                    </button>
+                  </div>
                 </div>
 
                 {open && (
