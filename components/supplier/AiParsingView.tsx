@@ -95,14 +95,19 @@ function extractionToDoc(x: AiExtraction): ParsedDoc {
 export default function AiParsingView({
   supplierId,
   onConfirmComplete,
+  realOnly = false,
 }: {
   supplierId: string;
   onConfirmComplete: () => void;
+  // realOnly: 실 AI 추출만 표시(없으면 빈 상태). 원청 검토 모달용 — 무관한 mock 금지.
+  // false(기본)면 협력사 데모처럼 실데이터 없을 때 mock 폴백.
+  realOnly?: boolean;
 }) {
-  // 공통 모듈 — 실 AI 추출(getAiExtractions)을 이 협력사 기준으로 가져와 표시. 없으면 mock 폴백.
+  // 공통 모듈 — 실 AI 추출(getAiExtractions)을 이 협력사 기준으로 가져와 표시.
   // (원청 대시보드 HitlReviewCard와 동일 데이터 소스 = 협력사/원청 동일 데이터.)
-  const [docs, setDocs] = useState<ParsedDoc[]>(MOCK_PARSED_DOCS);
-  const [activeDocId, setActiveDocId] = useState(MOCK_PARSED_DOCS[0].docId);
+  const [docs, setDocs] = useState<ParsedDoc[]>(realOnly ? [] : MOCK_PARSED_DOCS);
+  const [activeDocId, setActiveDocId] = useState(realOnly ? '' : MOCK_PARSED_DOCS[0].docId);
+  const [loaded, setLoaded] = useState(false);
   // 문서별 제출 완료 여부 — { [docId]: true }
   const [completedDocs, setCompletedDocs] = useState<CompletedMap>({});
 
@@ -111,11 +116,27 @@ export default function AiParsingView({
     getAiExtractions()
       .then(list => {
         const mine = list.filter(x => !supplierId || x.supplierId === supplierId).map(extractionToDoc);
-        if (!cancelled && mine.length) { setDocs(mine); setActiveDocId(mine[0].docId); }
+        if (cancelled) return;
+        if (mine.length) { setDocs(mine); setActiveDocId(mine[0].docId); }
+        else if (realOnly) { setDocs([]); setActiveDocId(''); } // 실데이터 없음 → 빈 상태(mock 금지)
       })
-      .catch(() => { /* 실패 시 mock 유지 */ });
+      .catch(() => { /* 실패: realOnly면 빈 상태 유지, 아니면 mock 유지 */ })
+      .finally(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
-  }, [supplierId]);
+  }, [supplierId, realOnly]);
+
+  // realOnly이고 추출 자료가 없으면 무관한 mock 대신 빈/로딩 상태 표시.
+  if (docs.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-ink-800 text-center text-ink-400">
+        <div>
+          <ScanLine className="mx-auto mb-2 h-8 w-8 opacity-30" />
+          <p className="text-sm font-semibold">{loaded ? '이 협력사의 추출된 근거 자료가 없습니다.' : 'AI 추출 결과 불러오는 중…'}</p>
+          {loaded && <p className="mt-1 text-[11px] opacity-70">협력사가 자료를 제출하면 AI 파싱 결과가 여기에 표시됩니다.</p>}
+        </div>
+      </div>
+    );
+  }
 
   const activeDoc = docs.find(d => d.docId === activeDocId) ?? docs[0];
   const allCompleted = docs.every(d => completedDocs[d.docId]);
