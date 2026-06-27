@@ -558,6 +558,14 @@ export const getDataRequests = (params?: { supplierId?: string }) => {
   return api.get<ApiDataRequest[]>(`/data-requests${q}`);
 };
 
+/** 자료 요청 생성(POST). 요청자(requester)는 백엔드가 토큰에서 채운다. body는 snake_case 그대로. */
+export const createDataRequest = (body: { targetSupplierId: string; requestedDataType: string; dueDate?: string }) =>
+  api.post<ApiDataRequest>(`/data-requests`, {
+    target_supplier_id: body.targetSupplierId,
+    requested_data_type: body.requestedDataType,
+    due_date: body.dueDate,
+  });
+
 /** CTI 상세 (provider type별 detail 1종). 없으면 404. */
 export const getSupplierDetail = (id: string) =>
   api.get<SupplierDetail>(`/suppliers/${id}/detail`);

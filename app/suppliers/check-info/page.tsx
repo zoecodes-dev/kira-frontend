@@ -3,6 +3,7 @@
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
 import { Suspense, useEffect, useState } from 'react';
 import {
+  createDataRequest,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
@@ -506,17 +507,28 @@ function SupplierGeneralReviewContent() {
   const urgentCount = sections.reduce((sum, section) =>
     section.status === '미입력' || section.status === '확인 필요' ? sum + section.missing.length : sum, 0);
 
-  function sendRequest() {
+  async function sendRequest() {
     setRequestSent(true);
-    // 발송 기록을 저장 → My Task 자료 요청 탭에 반영(루프 닫기).
-    if (supplierId) {
-      const due = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const title = `추가 자료 요청 · ${checkedItems.size}개 항목`;
+    if (isRealSupplier) {
+      // 실 협력사 → 백엔드 POST /data-requests (요청자는 토큰에서 채움).
+      try {
+        await createDataRequest({
+          targetSupplierId: supplierId,
+          requestedDataType: title,
+          dueDate: new Date(Date.now() + 7 * 86400000).toISOString(),
+        });
+      } catch {
+        /* 발송 실패해도 UI는 닫는다(데모). 실패 토스트는 추후. */
+      }
+    } else if (supplierId) {
+      // mock 협력사 → localStorage 기록(백엔드 미연동 구간).
       addStoredRequest({
         supplier: displayName,
         supplierId,
-        title: `추가 자료 요청 · ${checkedItems.size}개 항목`,
+        title,
         status: 'progress',
-        due,
+        due: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
         missing: checkedItems.size,
         createdAt: new Date().toISOString(),
       });
