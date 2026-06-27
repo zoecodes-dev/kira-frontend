@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import ExcelJS from 'exceljs';
+import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
 import {
   Box,
   ChevronDown,
@@ -180,8 +181,8 @@ export function SupplyChainMapPageContent({
   // 기간 컬럼 표기 — 필터 비어있으면 '전체'.
   const periodLabel = period.replace(/[\s~]/g, '') ? period : '전체';
 
-  const exportHeaders = ['고객사', '단위기간', '제품', 'BOM 버전', 'Tier', '품목/부품', '원재료/광물', '공급사', '사업장', '국가', 'PO 번호', '공급기간', '공급비율(%)', '리스크 상태'];
-  const COL_WIDTHS = [16, 12, 26, 12, 8, 22, 18, 24, 18, 8, 14, 22, 12, 12];
+  const exportHeaders = ['고객사', '단위기간', '제품', 'BOM 버전', 'Tier', '품목/부품', '원재료/광물', '공급사', '사업장', '국가', '공급기간', '공급비율(%)', '리스크 상태'];
+  const COL_WIDTHS = [16, 12, 26, 12, 8, 22, 18, 24, 18, 8, 22, 12, 12];
 
   function getExportRows(rows: TraceRow[], periodCol: string): (string | number)[][] {
     return rows.map(row => [
@@ -195,7 +196,6 @@ export function SupplyChainMapPageContent({
       formationMode ? '-' : row.supplier_name,
       formationMode ? '-' : row.factory_name,
       formationMode ? '-' : row.country,
-      formationMode ? '-' : row.po_number,
       formationMode ? '-' : row.supply_period,
       formationMode ? '-' : row.supply_ratio, // 숫자 유지 — 공급비율 % 서식용
       formationMode ? '-' : statusMeta[row.risk_status].label,
@@ -225,7 +225,7 @@ export function SupplyChainMapPageContent({
         cell.alignment = { vertical: 'middle' };
       });
     }
-    ws.getColumn(13).numFmt = '0"%"'; // 공급비율(%)
+    ws.getColumn(12).numFmt = '0"%"'; // 공급비율(%) — PO 번호 제거로 한 칸 당겨짐
     ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: exportHeaders.length } };
 
     const buf = await wb.xlsx.writeBuffer();
@@ -383,7 +383,7 @@ export function SupplyChainMapPageContent({
 
       {formationGenerated && hasSelection && explorerTree && selectedNode && (
         <>
-          <section className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.06)]">
+          <section id="supply-node-detail" className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.06)] scroll-mt-4">
             <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 bg-white px-4 py-3">
               <LegendBadge status="verified" />
               <LegendBadge status="watch" />
@@ -777,6 +777,12 @@ function MapDetailPanel({ selectedNode, formationMode = false }: { selectedNode:
     ['검증률', hideFormationValues ? '-' : row.verification_progress],
   ];
 
+  // 실 협력사 노드(원청/Tier0·제품 루트 제외, UUID)면 상세 정보를 이 카드 안에 그대로 띄운다(팝업 대신 인라인).
+  const isRealSupplierNode = !hideFormationValues
+    && selectedNode.type !== 'product'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(row.supplier_id)
+    && row.tier !== 'Tier 0';
+
   return (
     <aside className="bg-white">
       <div className="border-b border-slate-200 p-4">
@@ -807,60 +813,44 @@ function MapDetailPanel({ selectedNode, formationMode = false }: { selectedNode:
             <span className="text-right font-semibold text-ink-100">{hideFormationValues ? '-' : '2025.05.14 09:30'}</span>
           </div>
         </div>
-        <div className="mt-5 rounded-sm bg-warn-bg p-4 text-sm text-ink-400">
-          <div className="mb-2 font-bold text-ink-100">리스크 요약</div>
-          <ul className="space-y-1 text-xs font-medium leading-5">
+      </div>
+      {isRealSupplierNode ? (
+        <div className="border-t border-slate-200 bg-slate-50/40">
+          {/* 선택한 협력사의 표준 정보·자료요청을 이 카드 안에 그대로(팝업 없이) */}
+          <SupplierGeneralReviewContent
+            key={row.supplier_id}
+            embedded
+            supplierId={row.supplier_id}
+            supplierName={row.supplier_name}
+          />
+        </div>
+      ) : (
+        <div className="p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-ink-100">연결 제품</h3>
+            <span className="text-xs font-semibold text-slate-500">연결된 제품 수 {hideFormationValues ? '-' : '3개'}</span>
+          </div>
+          <div className="space-y-3 text-sm">
             {hideFormationValues ? (
-              <li>· -</li>
-            ) : (
-              <>
-                <li>· 원산지: 중국 발생 가능성 있음</li>
-                <li>· FEOC 관련 규제 검토 필요</li>
-                <li>· 추가 증빙 서류 요청됨</li>
-              </>
-            )}
-          </ul>
-        </div>
-      </div>
-      <div className="p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-ink-100">연결 제품</h3>
-          <span className="text-xs font-semibold text-slate-500">연결된 제품 수 {hideFormationValues ? '-' : '3개'}</span>
-        </div>
-        <div className="space-y-3 text-sm">
-          {hideFormationValues ? (
-            <div>
-              <div className="font-bold text-ink-100">-</div>
-              <div className="mt-1 text-xs font-medium text-slate-500">-</div>
-            </div>
-          ) : (
-            [
-              ['Battery Cell A', 'BAT-NCM811-100Ah'],
-              ['Battery Module B', 'BOM-MODULE-B'],
-              ['ESS Pack C', 'ESS-PACK-C'],
-            ].map(([name, code]) => (
-              <div key={name}>
-                <div className="font-bold text-ink-100">{name}</div>
-                <div className="mt-1 text-xs font-medium text-slate-500">{code}</div>
+              <div>
+                <div className="font-bold text-ink-100">-</div>
+                <div className="mt-1 text-xs font-medium text-slate-500">-</div>
               </div>
-            ))
-          )}
+            ) : (
+              [
+                ['Battery Cell A', 'BAT-NCM811-100Ah'],
+                ['Battery Module B', 'BOM-MODULE-B'],
+                ['ESS Pack C', 'ESS-PACK-C'],
+              ].map(([name, code]) => (
+                <div key={name}>
+                  <div className="font-bold text-ink-100">{name}</div>
+                  <div className="mt-1 text-xs font-medium text-slate-500">{code}</div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
-        {!hideFormationValues && supplierDetailIdMap[row.supplier_id] ? (
-          <Link
-            href={`/suppliers/${supplierDetailIdMap[row.supplier_id]}/info`}
-            className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white text-sm font-semibold text-ink-400 hover:bg-slate-50"
-          >
-            공급사 상세 페이지로 이동
-            <ExternalLink className="h-4 w-4" />
-          </Link>
-        ) : (
-          <button disabled className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-400 cursor-not-allowed">
-            공급사 상세 페이지로 이동
-            <ExternalLink className="h-4 w-4" />
-          </button>
-        )}
-      </div>
+      )}
     </aside>
   );
 }
