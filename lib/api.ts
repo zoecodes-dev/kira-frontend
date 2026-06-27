@@ -537,6 +537,32 @@ export interface SupplierCompleteness {
 export const getSupplierCompleteness = (id: string) =>
   api.get<SupplierCompleteness>(`/suppliers/${id}/completeness`);
 
+/** 원산지/규제 증빙(origin_certificates). */
+export interface OriginCert {
+  certId: string;
+  certType: string | null;
+  certNumber: string | null;
+  issuingAuthority: string | null;
+  issuedAt: string | null;
+  expiresAt: string | null;
+  originCountry: string | null;
+  status: string | null;
+  documentUrl: string | null;
+}
+export const getSupplierOriginCertificates = (id: string) =>
+  api.get<{ supplierId: string; originCertificates: OriginCert[] }>(`/suppliers/${id}/origin-certificates`);
+
+/** 공급 품목(supply_chain_map→parts). */
+export interface SuppliedItem {
+  partId: string;
+  partCode: string | null;
+  partName: string | null;
+  tierLevel: number | null;
+  materialType: string | null;
+}
+export const getSupplierSuppliedItems = (id: string) =>
+  api.get<{ supplierId: string; items: SuppliedItem[] }>(`/suppliers/${id}/supplied-items`);
+
 /** 자료 요청(데이터 제출 요청) 목록. 원청/관리자는 전체, 협력사는 자기 것만. (submission §) */
 export type SubmissionStatusCode =
   | "submission_requested" | "submission_in_progress" | "submission_submitted"

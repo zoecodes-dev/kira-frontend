@@ -5,8 +5,10 @@ import { Suspense, useEffect, useState } from 'react';
 import {
   createDataRequest,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
+  getSupplierEsg, getSupplierOriginCertificates, getSupplierSuppliedItems,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
+  type EsgCertification as ApiCert, type OriginCert as ApiOriginCert, type SuppliedItem as ApiItem,
 } from '@/lib/api';
 
 const providerTypeLabel: Record<string, string> = {
@@ -18,6 +20,9 @@ interface RealData {
   contacts: ApiSupplierContact[];
   factories: ApiSupplierFactory[];
   comp: ApiCompleteness | null;
+  certs: ApiCert[];
+  originCerts: ApiOriginCert[];
+  items: ApiItem[];
 }
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -351,6 +356,10 @@ function ReviewComment({ section }: { section: CollectionSection }) {
 }
 
 const fieldFilled = (v: unknown): ReviewStatus => (v !== null && v !== undefined && v !== '' ? '완료' : '미입력');
+const certStatus = (expiresAt: string | null): ReviewStatus =>
+  (expiresAt && new Date(expiresAt).getTime() < Date.now() ? '확인 필요' : '완료');
+const originStatus = (s: string | null): ReviewStatus =>
+  ({ valid: '완료', expiring_soon: '확인 필요', expired: '미입력', under_review: '입력 중' } as Record<string, ReviewStatus>)[s ?? ''] ?? '완료';
 
 function EmptyData() {
   return <div className="rounded-sm border border-dashed border-ink-700 bg-slate-50 px-4 py-8 text-center text-sm text-ink-500">등록된 데이터가 없습니다.</div>;
@@ -378,6 +387,15 @@ function SectionContent({ section, real }: { section: CollectionSection; real?: 
   } else if (real && section.key === 'factories') {
     const rows = real.factories.map(f => [f.factoryName ?? '-', f.country ?? '-', f.address ?? '-', f.monthlyCapacity ?? '미입력', f.destination ?? '-', fieldFilled(f.factoryName)]);
     content = rows.length ? <DataTable headers={['공장명', '국가', '주소', '생산능력', '납품지역', '상태']} rows={rows} /> : <EmptyData />;
+  } else if (real && section.key === 'certificates') {
+    const rows = real.certs.map(c => [c.certificationType ?? '-', c.issuingBody ?? '-', c.issuedAt?.slice(0, 10) ?? '-', c.expiresAt?.slice(0, 10) ?? '-', c.documentUrl ? '첨부됨' : '미첨부', certStatus(c.expiresAt)]);
+    content = rows.length ? <DataTable headers={['인증서명', '발급기관', '발급일', '만료일', '첨부', '상태']} rows={rows} /> : <EmptyData />;
+  } else if (real && section.key === 'items') {
+    const rows = real.items.map(i => [i.partCode ?? '-', i.partName ?? '-', i.tierLevel != null ? `T${i.tierLevel}` : '-', i.materialType ?? '-', '완료']);
+    content = rows.length ? <DataTable headers={['부품 코드', '부품명', 'Tier', '자재 유형', '상태']} rows={rows} /> : <EmptyData />;
+  } else if (real && section.key === 'origin') {
+    const rows = real.originCerts.map(o => [o.certType ?? '-', o.originCountry ?? '-', o.issuingAuthority ?? '-', o.expiresAt?.slice(0, 10) ?? '-', originStatus(o.status)]);
+    content = rows.length ? <DataTable headers={['증빙 유형', '원산지', '발급기관', '만료일', '상태']} rows={rows} /> : <EmptyData />;
   } else {
     content = {
       company: <CompanyGrid />,
@@ -392,7 +410,8 @@ function SectionContent({ section, real }: { section: CollectionSection; real?: 
   return (
     <div className="space-y-[14px] border-t border-ink-700 bg-white p-4">
       {content}
-      <ReviewComment section={section} />
+      {/* 원청 검토 코멘트는 백엔드 소스가 없어 mock — 실 협력사엔 숨김(stale 표시 방지). */}
+      {!real && <ReviewComment section={section} />}
     </div>
   );
 }
@@ -444,11 +463,14 @@ function SupplierGeneralReviewContent() {
     if (!isRealSupplier) { setApi(null); return; }
     let cancelled = false;
     (async () => {
-      const [detail, contactsRes, factoriesRes, comp] = await Promise.all([
+      const [detail, contactsRes, factoriesRes, comp, esgRes, originRes, itemsRes] = await Promise.all([
         getSupplierDetail(supplierId).catch(() => null),
         getSupplierContacts(supplierId).catch(() => null),
         getSupplierFactories(supplierId).catch(() => null),
         getSupplierCompleteness(supplierId).catch(() => null),
+        getSupplierEsg(supplierId).catch(() => null),
+        getSupplierOriginCertificates(supplierId).catch(() => null),
+        getSupplierSuppliedItems(supplierId).catch(() => null),
       ]);
       if (cancelled) return;
       setApi({
@@ -456,6 +478,9 @@ function SupplierGeneralReviewContent() {
         contacts: contactsRes?.contacts ?? [],
         factories: factoriesRes?.factories ?? [],
         comp,
+        certs: esgRes?.certifications ?? [],
+        originCerts: originRes?.originCertificates ?? [],
+        items: itemsRes?.items ?? [],
       });
     })();
     return () => { cancelled = true; };
