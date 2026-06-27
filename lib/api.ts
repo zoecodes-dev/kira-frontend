@@ -831,6 +831,7 @@ export interface ApiSupplyChainMapNode {
   supplierId: string;        // child_supplier_id
   factoryId: string | null;
   tierLevel: number | null;
+  hopLevel?: number | null;  // §10.2a — 차수 SSOT(원청=0, 1차=1). 1차 판정·차수 표시용
   linkStatus: "supplychain_declared" | "supplychain_confirmed";
   // 납품(=생산 lot) 단위기간 + 생성 시각. §10.2a SELECT 에 추가됨(미배포 백엔드면 undefined).
   supplyPeriodFrom?: string | null;

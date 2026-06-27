@@ -1,7 +1,7 @@
 'use client';
 
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowRight, Database, Loader2 } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
@@ -30,6 +30,8 @@ export default function SupplyChainHub() {
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>(initialProductId);
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [activeModal, setActiveModal] = useState<HubModal>(null);
+  // 사용자가 수행한 액션 단계(4~7). STEP 1~3은 데이터 상태로 자동 판정.
+  const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
   // 맵 관리에서 시작한 자료요청은 협력사명을 직접 지정 (없으면 선택 노드 기준)
   const [requestLabel, setRequestLabel] = useState<string | null>(null);
 
@@ -39,6 +41,15 @@ export default function SupplyChainHub() {
   const [isDemo, setIsDemo] = useState(false);
   // 조회 상태 알림: 'auth'=토큰 없음/401·403, 'error'=그 외 실패, null=정상
   const [loadStatus, setLoadStatus] = useState<'auth' | 'error' | null>(null);
+
+  // 완료 단계 집합 — STEP1(제품선택)·2·3(Pool확정 자동맵핑)은 상태 기반, 4~7은 액션 수행 시.
+  const completed = useMemo(() => {
+    const s = new Set<number>(visitedSteps);
+    if (selectedProductId) s.add(1);
+    if (pool.length > 0) { s.add(2); s.add(3); }
+    return s;
+  }, [visitedSteps, selectedProductId, pool.length]);
+  const markVisited = (n: number) => setVisitedSteps(prev => (prev.has(n) ? prev : new Set(prev).add(n)));
 
   // 진입 시 제품 목록 조회. 토큰 없음/401·403은 알림으로 표면화(조용한 빈 화면 방지).
   useEffect(() => {
@@ -113,15 +124,22 @@ export default function SupplyChainHub() {
         const map = await getProductSupplyChainMap(productId, { bomVersionId: activeVersionId });
         setDataset(ds => mergeSupplyChainMap(ds, productId, activeVersionId, map));
         // STEP 2 Pool 후보 = 이 제품의 '1차 협력사'(OEM 바로 아래 단계) 협력사만 (전역 목록 금지).
-        // 1차 정의: tierLevel 0(=OEM/Pack, 요청노드)을 제외한 '최소 비-0 tierLevel'.
-        //   제품마다 BOM 계층이 달라(예: {0,1,..} vs {0,2,4,..}) tierLevel===1 고정은 빈 Pool을 만든다.
-        // tierLevel은 merge 과정에서 유실되므로 원본 응답에서 직접 추출한다.
-        const levels = map.supplyChainMap.map(n => n.tierLevel).filter((t): t is number => typeof t === 'number');
-        const nonZero = levels.filter(t => t > 0);
-        const firstTier = nonZero.length ? Math.min(...nonZero) : (levels.length ? Math.min(...levels) : null);
-        const tier1Ids = new Set(
-          map.supplyChainMap.filter(n => n.tierLevel === firstTier).map(n => n.supplierId),
-        );
+        // 1차 정의: 차수 SSOT = supply_chain_map.hop_level(원청=0, 1차=1). 스키마 보장 축.
+        //   hop_level 미배포(undefined) 백엔드면 tierLevel 최소 비-0으로 폴백.
+        const hasHop = map.supplyChainMap.some(n => typeof n.hopLevel === 'number');
+        let tier1Ids: Set<string>;
+        if (hasHop) {
+          tier1Ids = new Set(
+            map.supplyChainMap.filter(n => n.hopLevel === 1).map(n => n.supplierId),
+          );
+        } else {
+          const levels = map.supplyChainMap.map(n => n.tierLevel).filter((t): t is number => typeof t === 'number');
+          const nonZero = levels.filter(t => t > 0);
+          const firstTier = nonZero.length ? Math.min(...nonZero) : (levels.length ? Math.min(...levels) : null);
+          tier1Ids = new Set(
+            map.supplyChainMap.filter(n => n.tierLevel === firstTier).map(n => n.supplierId),
+          );
+        }
         setTier1Pool(
           map.suppliers
             .filter(s => tier1Ids.has(s.supplierId))
@@ -190,11 +208,12 @@ export default function SupplyChainHub() {
           poolCount={pool.length}
           hasSelection={Boolean(selectedNode)}
           hasProduct={Boolean(selectedProductId)}
+          completed={completed}
           onOpenPool={() => setActiveModal('pool')}
-          onOpenSupplierInfo={() => setActiveModal('supplierInfo')}
-          onOpenDataRequest={() => setActiveModal('dataRequest')}
-          onOpenInvite={() => setActiveModal('invite')}
-          onOpenMapManage={() => setActiveModal('mapManage')}
+          onOpenSupplierInfo={() => { markVisited(4); setActiveModal('supplierInfo'); }}
+          onOpenDataRequest={() => { markVisited(5); setActiveModal('dataRequest'); }}
+          onOpenInvite={() => { markVisited(6); setActiveModal('invite'); }}
+          onOpenMapManage={() => { markVisited(7); setActiveModal('mapManage'); }}
         />
       </PageHeader>
 

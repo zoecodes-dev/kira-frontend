@@ -1014,12 +1014,21 @@ export function mergeSupplyChainMap(
     volume: 0,
   }));
 
+  // 차수(tier) = supply_chain_map.hop_level(SSOT). 겸업(한 협력사가 여러 hop)이면 최소 hop(=가장 직접 차수).
+  const hopBySupplier = new Map<string, number>();
+  for (const n of resp.supplyChainMap) {
+    if (typeof n.hopLevel === 'number') {
+      const cur = hopBySupplier.get(n.supplierId);
+      if (cur === undefined || n.hopLevel < cur) hopBySupplier.set(n.supplierId, n.hopLevel);
+    }
+  }
+
   const suppliers: MockSupplier[] = resp.suppliers.map(s => ({
     supplier_id: s.supplierId,
     company_name: s.companyName,
     company_name_en: '',
     provider_type: s.providerType,
-    tier: 0,
+    tier: hopBySupplier.get(s.supplierId) ?? 0,
     parent_supplier_id: null,
     status: s.status ?? '',
     risk_level: (s.riskLevel as MockSupplier['risk_level']) ?? 'low',
