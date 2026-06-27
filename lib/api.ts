@@ -582,6 +582,22 @@ export interface OriginCert {
 export const getSupplierOriginCertificates = (id: string) =>
   api.get<{ supplierId: string; originCertificates: OriginCert[] }>(`/suppliers/${id}/origin-certificates`);
 
+/** 환경성적서(탄소발자국, EU 배터리법 Art7) — 공장별 factory_carbon_declarations. STEP4 최종 검증 핵심. */
+export interface CarbonDeclaration {
+  declarationId: string;
+  factoryId: string;
+  factoryName: string | null;
+  carbonIntensity: number | null;     // kg CO2e/kWh
+  methodology: string | null;
+  declaredAt: string | null;
+  validFrom: string | null;
+  validTo: string | null;
+  source: "supplier_declared" | "third_party_verified" | "estimated" | null;
+  isActive: boolean | null;
+}
+export const getSupplierCarbonDeclarations = (id: string) =>
+  api.get<{ supplierId: string; declarations: CarbonDeclaration[] }>(`/suppliers/${id}/carbon-declarations`);
+
 /** 공급 품목(supply_chain_map→parts). */
 export interface SuppliedItem {
   partId: string;
