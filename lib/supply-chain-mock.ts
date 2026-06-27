@@ -506,11 +506,23 @@ export function buildTraceRows(ds: SupplyChainDataset, bomVersionId: string, per
 
       if (!part || !supplier || !bomItem) return [];
 
-      return ratios
-        .filter(ratio => !factoryId || factoryId === 'ALL' || ratio.factory_id === factoryId)
+      // ratio/factory 시드가 희박해도(맵 노드 6개에 ratio 1개 등) 맵 노드당 최소 1행 생성 —
+      // 협력사 노드가 트리에 떠야 STEP 4(노드 클릭) 동작. factory는 없으면 placeholder.
+      const effectiveRatios = ratios.length
+        ? ratios.filter(ratio => !factoryId || factoryId === 'ALL' || ratio.factory_id === factoryId)
+        : [{ ratio_id: `${mapRow.map_id}:na`, map_id: mapRow.map_id, factory_id: '', ratio_percentage: 0, volume: 0 }];
+
+      return effectiveRatios
         .flatMap(ratio => {
-          const factory = ds.supplier_factories.find(item => item.factory_id === ratio.factory_id);
-          if (!factory) return [];
+          const factory = ds.supplier_factories.find(item => item.factory_id === ratio.factory_id) ?? {
+            factory_id: ratio.factory_id || '',
+            factory_name: '-',
+            factory_name_en: '',
+            country: '',
+            region: '',
+            factory_role: FACTORY_ROLE_FALLBACK,
+            destination: 'EU' as const,
+          };
           const riskStatus = getRiskStatus(supplier, mapRow);
           const country = factory.country || bomItem.origin_country;
           const bomVersion = ds.bom_versions.find(version => version.bom_version_id === bomVersionId);
@@ -627,8 +639,11 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
     };
   }
 
+  // 제품 직속 = 최상위 부품. parent_part_id가 null이거나, 부모가 이 부품집합에 없는 경우(forest 루트)도 포함.
+  // (BOM이 forest면 최상위 부품의 parent가 BOM 밖을 가리켜 non-null이라, null만 보면 제품 1노드만 남는다.)
+  const partIdSet = new Set(ds.parts.map(p => p.part_id));
   const children = ds.parts
-    .filter(part => !part.parent_part_id)
+    .filter(part => !part.parent_part_id || !partIdSet.has(part.parent_part_id))
     .map(part => rowsByPartId.get(part.part_id))
     .filter((item): item is TraceRow => Boolean(item))
     .sort((a, b) => a.part_name.localeCompare(b.part_name))
@@ -1044,6 +1059,29 @@ export function mergeSupplyChainMap(
     }
   }
 
+  // 부품 stub backfill — §10.2a가 참조하는 부품이 BOM 트리 커버리지에 없을 수 있어(예: Pack/Module),
+  // 맵 응답의 part_name/tier_level로 최소 part를 추가(buildTraceRows가 part 없으면 행 누락).
+  // parent_part_id는 §10.2a가 부품 트리 부모를 안 주므로 null(=제품 직속으로 붙음).
+  const existingPartIds = new Set(ds.parts.map(p => p.part_id));
+  const seenStub = new Set<string>();
+  const partStubs: Part[] = [];
+  for (const n of resp.supplyChainMap) {
+    if (existingPartIds.has(n.partId) || seenStub.has(n.partId)) continue;
+    seenStub.add(n.partId);
+    const tier = n.tierLevel ?? 0;
+    partStubs.push({
+      part_id: n.partId,
+      part_code: n.partCode ?? n.partId,
+      part_name: n.partName ?? `부품 (Tier ${tier})`,
+      tier_level: tier,
+      parent_part_id: null,
+      material_type: '',
+      function_purpose: '',
+      purchase_unit: '',
+      kind: tier <= 1 ? 'component' : tier >= 5 ? 'mineral' : 'material',
+    });
+  }
+
   const newSupplierIds = new Set(suppliers.map(s => s.supplier_id));
   const newFactoryIds = new Set(supplier_factories.map(f => f.factory_id));
   const oldVersionMapIds = new Set(
@@ -1052,6 +1090,7 @@ export function mergeSupplyChainMap(
 
   return {
     ...ds,
+    parts: [...ds.parts, ...partStubs],
     suppliers: [...ds.suppliers.filter(s => !newSupplierIds.has(s.supplier_id)), ...suppliers],
     supplier_factories: [...ds.supplier_factories.filter(f => !newFactoryIds.has(f.factory_id)), ...supplier_factories],
     supply_chain_map: [...ds.supply_chain_map.filter(m => m.bom_version_id !== bomVersionId), ...supply_chain_map],

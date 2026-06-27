@@ -67,7 +67,8 @@ export function SupplyChainMapPageContent({
     [dataset, selectedProductId],
   );
   const [selectedBomVersionId, setSelectedBomVersionId] = useState(availableBomVersions[0]?.bom_version_id ?? '');
-  const [period, setPeriod] = useState('2026-05-01 ~ 2026-05-31');
+  // 기본은 '전체 기간'(빈 값) — 특정 월로 고정하면 그 기간에 생산 안 된 공급망이 통째로 숨겨진다(§10.2a 기간과 불일치).
+  const [period, setPeriod] = useState(' ~ ');
   const [selectedFactoryId, setSelectedFactoryId] = useState('ALL');
   const [selectedPoNumber, setSelectedPoNumber] = useState('ALL');
   const [selectedNodeKey, setSelectedNodeKey] = useState(dataset.products[0] ? `product:${dataset.products[0].product_id}` : '');
@@ -121,7 +122,7 @@ export function SupplyChainMapPageContent({
     const nextVersions = dataset.bom_versions.filter(version => version.product_id === productId);
     setSelectedProductId(productId);
     setSelectedBomVersionId(nextVersions[0]?.bom_version_id ?? '');
-    setPeriod('2026-05-01 ~ 2026-05-31');
+    setPeriod(' ~ ');  // 전체 기간(특정 월 고정 시 §10.2a 기간과 불일치로 공급망이 숨겨짐)
     setSelectedFactoryId('ALL');
     setSelectedPoNumber('ALL');
     setSelectedNodeKey(`product:${productId}`);

@@ -163,7 +163,10 @@ export default function SupplyChainHub() {
       ? selectedNode.rows[0]?.supplier_id
       : selectedNode.row.supplier_id
     : undefined;
-  const activeSupplierId = activeMockSupplierId ? supplierDetailIdMap[activeMockSupplierId] : undefined;
+  // mock 브리지에 매핑이 있으면 그걸, 없으면(실데이터 UUID) supplier_id 자체를 사용 → STEP4가 실 협력사로 조회.
+  const activeSupplierId = activeMockSupplierId
+    ? supplierDetailIdMap[activeMockSupplierId] ?? activeMockSupplierId
+    : undefined;
   const activeNodeLabel = selectedNode
     ? selectedNode.type === 'product'
       ? selectedNode.product.product_name
