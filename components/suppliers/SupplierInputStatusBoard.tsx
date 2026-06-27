@@ -1,46 +1,119 @@
 'use client';
 
-// 협력사 입력 현황 개요 보드 — 협력사별 입력률·누락·검토 상태를 한눈에 본다.
-// /suppliers/check-info(인덱스)와 My Task 탭에서 공용으로 사용.
-//   embedded=false → 자체 페이지 래퍼(제목·배경 포함)
-//   embedded=true  → My Task 탭 등에 끼워 넣는 본문만(요약카드 + 표)
+// 협력사 입력 현황 개요 보드 — 협력사별 입력률·누락·상태를 한눈에 본다.
+// 실 백엔드(getSuppliers + getSupplierCompleteness)로 채우고, 인증/네트워크 실패 시 mock 폴백.
+// /suppliers/check-info(인덱스)와 My Task 탭에서 공용 사용. embedded=true면 페이지 래퍼 생략.
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { ChevronRight, Send } from 'lucide-react';
-import { suppliers } from '@/lib/data';
+import { suppliers as mockSuppliers } from '@/lib/data';
 import { getRemindLogs, getSupplierName, supplierCompleteness } from '@/lib/supplier-detail-data';
+import { getSuppliers, getSupplierCompleteness, type SupplierType } from '@/lib/api';
 
-function inputStatusMeta(rate: number, missingCount: number, reminderCount: number) {
-  if (missingCount === 0) {
-    return { label: '완료', className: 'border-ok-border bg-ok-bg text-ok-text' };
-  }
-  if (reminderCount >= 2) {
-    return { label: '보완 지연', className: 'border-alert-border bg-alert-bg text-alert-text' };
-  }
-  if (rate >= 80) {
-    return { label: '검토 대기', className: 'border-warn-border bg-warn-bg text-warn-text' };
-  }
+const providerTypeLabel: Record<SupplierType, string> = {
+  manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산',
+};
+
+interface BoardRow {
+  supplierId: string;
+  name: string;
+  sub: string;          // 보조 라벨(유형 또는 한글명)
+  typeLabel: string;
+  hasData: boolean;     // 완성도 집계 행 존재 여부
+  completionRate: number;
+  missingFields: string[];
+  status: { label: string; className: string };
+  lastUpdated: string;
+}
+
+const NOT_AGGREGATED = { label: '미집계', className: 'border-slate-200 bg-slate-100 text-slate-500' };
+
+function statusMeta(rate: number, missingCount: number) {
+  if (missingCount === 0) return { label: '완료', className: 'border-ok-border bg-ok-bg text-ok-text' };
+  if (rate < 50) return { label: '보완 지연', className: 'border-alert-border bg-alert-bg text-alert-text' };
+  if (rate >= 80) return { label: '검토 대기', className: 'border-warn-border bg-warn-bg text-warn-text' };
   return { label: '작성중', className: 'border-info-border bg-info-bg text-info-text' };
 }
 
-export default function SupplierInputStatusBoard({ embedded = false }: { embedded?: boolean }) {
-  const rows = supplierCompleteness
+function fmt(ts: string | null | undefined) {
+  return ts ? ts.slice(0, 16).replace('T', ' ') : '-';
+}
+
+// mock 폴백 행 — 기존 mock 데이터 기반.
+function buildMockRows(): BoardRow[] {
+  return supplierCompleteness
     .map(item => {
-      const supplier = suppliers.find(entry => entry.id === item.supplierId);
+      const supplier = mockSuppliers.find(s => s.id === item.supplierId);
       const name = getSupplierName(item.supplierId);
       const reminders = getRemindLogs(item.supplierId);
-      const status = inputStatusMeta(item.completionRate, item.missingFields.length, reminders.length);
-      return { ...item, supplier, name, status };
+      const missingCount = item.missingFields.length;
+      const status = reminders.length >= 2 && missingCount > 0
+        ? { label: '보완 지연', className: 'border-alert-border bg-alert-bg text-alert-text' }
+        : statusMeta(item.completionRate, missingCount);
+      return {
+        supplierId: item.supplierId,
+        name: name?.nameEn ?? supplier?.name ?? item.supplierId,
+        sub: name?.nameKo ?? item.supplierId,
+        typeLabel: supplier ? `T${supplier.tier} · ${supplier.country ?? '-'}` : '-',
+        hasData: true,
+        completionRate: item.completionRate,
+        missingFields: item.missingFields,
+        status,
+        lastUpdated: fmt(item.lastUpdatedAt),
+      };
     })
-    .sort((a, b) => {
-      if (a.missingFields.length !== b.missingFields.length) return b.missingFields.length - a.missingFields.length;
-      return a.completionRate - b.completionRate;
-    });
+    .sort((a, b) => (b.missingFields.length - a.missingFields.length) || (a.completionRate - b.completionRate));
+}
 
-  const pendingCount = rows.filter(row => row.missingFields.length > 0).length;
-  const reviewCount = rows.filter(row => row.status.label === '검토 대기').length;
-  const delayedCount = rows.filter(row => row.status.label === '보완 지연').length;
-  const avgRate = rows.length > 0 ? Math.round(rows.reduce((sum, row) => sum + row.completionRate, 0) / rows.length) : 0;
+export default function SupplierInputStatusBoard({ embedded = false }: { embedded?: boolean }) {
+  const [rows, setRows] = useState<BoardRow[] | null>(null);
+  const [isMock, setIsMock] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const sups = await getSuppliers();
+        const comps = await Promise.all(
+          sups.map(s => getSupplierCompleteness(s.supplierId).catch(() => null)),
+        );
+        if (cancelled) return;
+        const real: BoardRow[] = sups.map((s, i) => {
+          const c = comps[i];
+          const hasData = c != null && c.completionRate != null;
+          const rate = hasData ? (c!.completionRate as number) : 0;
+          const missing = c?.missingFields ?? [];
+          return {
+            supplierId: s.supplierId,
+            name: s.companyName,
+            sub: providerTypeLabel[s.providerType] ?? s.providerType,
+            typeLabel: providerTypeLabel[s.providerType] ?? s.providerType,
+            hasData,
+            completionRate: rate,
+            missingFields: missing,
+            status: hasData ? statusMeta(rate, missing.length) : NOT_AGGREGATED,
+            lastUpdated: fmt(c?.lastUpdatedAt),
+          };
+        }).sort((a, b) =>
+          (Number(b.hasData) - Number(a.hasData)) ||
+          (b.missingFields.length - a.missingFields.length) ||
+          (a.completionRate - b.completionRate));
+        setRows(real);
+        setIsMock(false);
+      } catch {
+        if (!cancelled) { setRows(buildMockRows()); setIsMock(true); }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const data = rows ?? [];
+  const pendingCount = data.filter(r => r.missingFields.length > 0).length;
+  const reviewCount = data.filter(r => r.status.label === '검토 대기').length;
+  const delayedCount = data.filter(r => r.status.label === '보완 지연').length;
+  const withData = data.filter(r => r.hasData);
+  const avgRate = withData.length > 0 ? Math.round(withData.reduce((s, r) => s + r.completionRate, 0) / withData.length) : 0;
 
   const body = (
     <>
@@ -62,7 +135,7 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
 
       <section className="mb-4 grid gap-3 md:grid-cols-4">
         {[
-          { label: '전체 협력사', value: rows.length, tone: 'text-ink-100' },
+          { label: '전체 협력사', value: data.length, tone: 'text-ink-100' },
           { label: '작성중/누락', value: pendingCount, tone: 'text-info-text' },
           { label: '검토 대기', value: reviewCount, tone: 'text-warn-text' },
           { label: '보완 지연', value: delayedCount, tone: 'text-alert-text' },
@@ -78,100 +151,84 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-700 bg-slate-50 px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-ink-100">작성중인 협력사</h2>
-            <p className="mt-1 text-sm text-ink-500">평균 입력률 {avgRate}% · 누락 항목이 많은 순으로 정렬</p>
+            <p className="mt-1 text-sm text-ink-500">
+              평균 입력률 {avgRate}% · 누락 항목이 많은 순으로 정렬{isMock && ' · (데모 데이터)'}
+            </p>
           </div>
-          <div className="text-sm font-medium text-ink-500">협력사명 또는 검토 버튼을 누르면 상세 화면으로 이동합니다.</div>
+          <div className="text-sm font-medium text-ink-500">협력사명 또는 버튼을 누르면 상세 화면으로 이동합니다.</div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px]">
+          <table className="w-full min-w-[920px]">
             <thead className="border-b border-ink-700 bg-white">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">협력사</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">Tier</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">국가</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">입력률</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">상태</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">누락 항목</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">최근 업데이트</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-ink-500">작업</th>
+                {['협력사', '유형', '입력률', '상태', '누락 항목', '최근 업데이트', '작업'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-sm font-semibold text-ink-500">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-700/60">
-              {rows.map(row => {
-                const supplierLabel = row.name?.nameEn ?? row.supplier?.name ?? row.supplierId;
+              {rows === null && (
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-ink-500">불러오는 중…</td></tr>
+              )}
+              {rows !== null && data.length === 0 && (
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-ink-500">표시할 협력사가 없습니다.</td></tr>
+              )}
+              {data.map(row => {
                 const visibleMissing = row.missingFields.slice(0, 2);
                 const hiddenCount = Math.max(row.missingFields.length - visibleMissing.length, 0);
-                const progressTone =
-                  row.completionRate >= 90 ? 'bg-ok-solid' :
-                  row.completionRate >= 75 ? 'bg-warn-solid' :
-                  row.completionRate >= 60 ? 'bg-warn-solid' :
-                  'bg-alert-solid';
-
+                const tone = row.completionRate >= 90 ? 'bg-ok-solid' : row.completionRate >= 60 ? 'bg-warn-solid' : 'bg-alert-solid';
+                const detailHref = `/suppliers/check-info?supplierId=${row.supplierId}&supplier=${encodeURIComponent(row.name)}`;
                 return (
                   <tr key={row.supplierId} className="hover:bg-slate-50">
                     <td className="px-4 py-3 align-middle">
-                      <Link
-                        href={`/suppliers/check-info?supplierId=${row.supplierId}&supplier=${encodeURIComponent(supplierLabel)}`}
-                        className="group inline-block max-w-[280px]"
-                      >
-                        <div className="truncate font-semibold text-ink-100 group-hover:text-accent-700 group-hover:underline">
-                          {supplierLabel}
-                        </div>
-                        <div className="mt-1 truncate text-sm text-ink-500 group-hover:text-accent-600">
-                          {row.name?.nameKo ?? row.supplierId}
-                        </div>
+                      <Link href={detailHref} className="group inline-block max-w-[280px]">
+                        <div className="truncate font-semibold text-ink-100 group-hover:text-accent-700 group-hover:underline">{row.name}</div>
+                        <div className="mt-1 truncate text-sm text-ink-500 group-hover:text-accent-600">{row.sub}</div>
                       </Link>
                     </td>
-                    <td className="px-4 py-3 align-middle text-sm font-semibold text-ink-300 num-mono">
-                      T{row.supplier?.tier ?? '-'}
-                    </td>
-                    <td className="px-4 py-3 align-middle text-sm text-ink-500">{row.supplier?.country ?? '-'}</td>
+                    <td className="px-4 py-3 align-middle text-sm text-ink-500">{row.typeLabel}</td>
                     <td className="px-4 py-3 align-middle">
-                      <div className="flex min-w-36 items-center gap-3">
-                        <div className="h-2 flex-1 rounded-full bg-slate-100">
-                          <div className={clsx('h-full rounded-full', progressTone)} style={{ width: `${row.completionRate}%` }} />
+                      {row.hasData ? (
+                        <div className="flex min-w-36 items-center gap-3">
+                          <div className="h-2 flex-1 rounded-full bg-slate-100">
+                            <div className={clsx('h-full rounded-full', tone)} style={{ width: `${row.completionRate}%` }} />
+                          </div>
+                          <span className="w-12 text-right text-sm font-bold text-ink-100 num-mono">{row.completionRate}%</span>
                         </div>
-                        <span className="w-12 text-right text-sm font-bold text-ink-100 num-mono">{row.completionRate}%</span>
-                      </div>
+                      ) : (
+                        <span className="text-sm text-ink-500">-</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 align-middle">
-                      <span className={clsx('inline-flex rounded-xs border px-2.5 py-1 text-xs font-semibold', row.status.className)}>
-                        {row.status.label}
-                      </span>
+                      <span className={clsx('inline-flex rounded-xs border px-2.5 py-1 text-xs font-semibold', row.status.className)}>{row.status.label}</span>
                     </td>
                     <td className="px-4 py-3 align-middle">
                       {row.missingFields.length === 0 ? (
                         <span className="text-sm text-ink-500">없음</span>
                       ) : (
                         <div className="flex flex-wrap gap-1.5">
-                          {visibleMissing.map(field => (
-                            <span key={field} className="rounded-xs border border-ink-700 bg-slate-50 px-2 py-1 text-xs font-medium text-ink-300">
-                              {field}
-                            </span>
+                          {visibleMissing.map(f => (
+                            <span key={f} className="rounded-xs border border-ink-700 bg-slate-50 px-2 py-1 text-xs font-medium text-ink-300">{f}</span>
                           ))}
                           {hiddenCount > 0 && (
-                            <span className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500">
-                              외 {hiddenCount}건
-                            </span>
+                            <span className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500">외 {hiddenCount}건</span>
                           )}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 align-middle text-sm text-ink-500 num-mono">{row.lastUpdatedAt}</td>
+                    <td className="px-4 py-3 align-middle text-sm text-ink-500 num-mono">{row.lastUpdated}</td>
                     <td className="px-4 py-3 align-middle">
                       {row.missingFields.length > 0 ? (
-                        // 누락 있음 → 자연스러운 다음 단계: 상세+요청 모달 자동 오픈(request=1)
                         <Link
-                          href={`/suppliers/check-info?supplierId=${row.supplierId}&supplier=${encodeURIComponent(supplierLabel)}&request=1`}
+                          href={`${detailHref}&request=1`}
                           className="inline-flex items-center gap-1.5 rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-sm font-semibold text-accent-700 hover:border-accent-600"
                         >
                           <Send className="h-3.5 w-3.5" /> 자료 요청
                         </Link>
                       ) : (
-                        // 누락 없음 → 검토만
                         <Link
-                          href={`/suppliers/check-info?supplierId=${row.supplierId}&supplier=${encodeURIComponent(supplierLabel)}`}
+                          href={detailHref}
                           className="inline-flex items-center gap-1 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-sm font-semibold text-ink-500 hover:border-accent-600 hover:text-accent-700"
                         >
                           검토 <ChevronRight className="h-4 w-4" />
