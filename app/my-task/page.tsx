@@ -214,7 +214,7 @@ function RequestArea() {
           title: r.requestedDataType ?? '자료 요청',
           status: deriveRequestStatus(r),
           due: r.dueDate?.slice(0, 10) ?? '-',
-          missing: -1, // 백엔드 미제공 → 누락 건수 표시 생략
+          missing: r.missingCount ?? -1, // 백엔드 누락 건수(미집계면 -1 → 표시 생략)
         }));
         if (!cancelled) setApiRows(rows);
       } catch {

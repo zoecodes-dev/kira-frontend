@@ -343,18 +343,6 @@ function DataTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
   );
 }
 
-function ReviewComment({ section }: { section: CollectionSection }) {
-  return (
-    <aside className="rounded-sm border border-ink-700 bg-slate-50 p-4">
-      <div className="text-sm font-semibold text-ink-100">원청 검토 코멘트</div>
-      <p className="mt-3 text-sm leading-6 text-ink-500">{section.comment}</p>
-      <button type="button" className="mt-4 rounded-sm border border-ink-700 bg-white px-3 py-2 text-sm font-medium text-ink-500 hover:text-accent-700">
-        코멘트 보기
-      </button>
-    </aside>
-  );
-}
-
 const fieldFilled = (v: unknown): ReviewStatus => (v !== null && v !== undefined && v !== '' ? '완료' : '미입력');
 const certStatus = (expiresAt: string | null): ReviewStatus =>
   (expiresAt && new Date(expiresAt).getTime() < Date.now() ? '확인 필요' : '완료');
@@ -410,8 +398,6 @@ function SectionContent({ section, real }: { section: CollectionSection; real?: 
   return (
     <div className="space-y-[14px] border-t border-ink-700 bg-white p-4">
       {content}
-      {/* 원청 검토 코멘트는 백엔드 소스가 없어 mock — 실 협력사엔 숨김(stale 표시 방지). */}
-      {!real && <ReviewComment section={section} />}
     </div>
   );
 }
