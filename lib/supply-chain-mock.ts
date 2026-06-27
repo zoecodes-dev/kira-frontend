@@ -1076,23 +1076,24 @@ export function mergeSupplyChainMap(
   // parent_part_id는 §10.2a가 부품 트리 부모를 안 주므로 null(=제품 직속으로 붙음).
   const existingPartIds = new Set(ds.parts.map(p => p.part_id));
   const seenStub = new Set<string>();
-  const partStubs: Part[] = [];
-  for (const n of resp.supplyChainMap) {
-    if (existingPartIds.has(n.partId) || seenStub.has(n.partId)) continue;
-    seenStub.add(n.partId);
-    const tier = n.tierLevel ?? 0;
-    partStubs.push({
-      part_id: n.partId,
-      part_code: n.partCode ?? n.partId,
-      part_name: n.partName ?? `부품 (Tier ${tier})`,
-      tier_level: tier,
-      parent_part_id: null,
-      material_type: '',
-      function_purpose: '',
-      purchase_unit: '',
-      kind: tier <= 1 ? 'component' : tier >= 5 ? 'mineral' : 'material',
-    });
-  }
+  // 백엔드는 부품 트리 부모를 안 주므로, tier(차수) 오름차순으로 정렬해 '이전(낮은) tier'를
+  // 부모로 체인 연결한다 → 트리가 product → tier0 → tier1 → … → 광산 으로 숫자대로 내려간다.
+  // (tier0이 제품 직속·고정 최상단, 광산이 최하단. 평면+알파벳 정렬로 차수가 뒤섞이던 문제 해결.)
+  const stubSeed = resp.supplyChainMap
+    .filter(n => !existingPartIds.has(n.partId) && !seenStub.has(n.partId) && (seenStub.add(n.partId), true))
+    .map(n => ({ id: n.partId, code: n.partCode, name: n.partName, tier: n.tierLevel ?? 0 }))
+    .sort((a, b) => a.tier - b.tier);
+  const partStubs: Part[] = stubSeed.map((s, idx) => ({
+    part_id: s.id,
+    part_code: s.code ?? s.id,
+    part_name: s.name ?? `부품 (Tier ${s.tier})`,
+    tier_level: s.tier,
+    parent_part_id: idx === 0 ? null : stubSeed[idx - 1].id,
+    material_type: '',
+    function_purpose: '',
+    purchase_unit: '',
+    kind: s.tier <= 1 ? 'component' : s.tier >= 5 ? 'mineral' : 'material',
+  }));
 
   const newSupplierIds = new Set(suppliers.map(s => s.supplier_id));
   const newFactoryIds = new Set(supplier_factories.map(f => f.factory_id));
