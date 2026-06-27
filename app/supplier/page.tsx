@@ -602,14 +602,16 @@ export default function SupplierPage() {
   // ── '내 기업 정보'(company-info) 탭 전용 — 공장/인증서 실제 API 연동 ──────────
   // NOTE: supplierId는 로그인 토큰의 supplier_id(백엔드 UUID)를 페르소나로 해석한 값.
   //       실데이터 연동 전까지는 목 데이터 키(S-CELL-001 등)로 매핑해 사용한다.
+  // 백엔드 실데이터 호출은 로그인 토큰의 supplier_id(UUID)로. (supplierId는 목 데이터 페르소나 키)
+  const supplierUuid = getTokenSupplierId() ?? 'a1111111-1111-4000-8000-000000000001';
   const [apiFactories, setApiFactories] = useState<MockFactory[]>([]);
   const [apiCerts, setApiCerts] = useState<{ certId: string; certName: string; issuingBody: string; status: 'active' | 'expiring_soon' | 'expired'; expiresAt: string }[]>([]);
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const [fac, esg] = await Promise.all([
-        getSupplierFactories(supplierId).catch(() => null),
-        getSupplierEsg(supplierId).catch(() => null),
+        getSupplierFactories(supplierUuid).catch(() => null),
+        getSupplierEsg(supplierUuid).catch(() => null),
       ]);
       if (cancelled) return;
       const mapFactory = (f: SupplierFactory): MockFactory => ({
