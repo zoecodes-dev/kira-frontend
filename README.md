@@ -8,7 +8,7 @@ Next.js 14, TypeScript, Tailwind CSS 기반으로 구성되어 있습니다.
 | 계정 유형 | 아이디 | 비밀번호 | 이동 화면 |
 | --- | --- | --- | --- |
 | 원청사 | `oem@kira.demo` | `demo1234` | `/dashboard` |
-| 협력사 | `supplier@sulawesi-nickel.com` | `demo1234` | `/supplier` |
+| 협력사 | `supplier@hanyang-cell.com` | `demo1234` | `/supplier` |
 
 `/` 경로는 로그인 화면입니다. 입력한 계정 권한에 따라 원청사 화면과 협력사 화면으로 자동 분기됩니다.
 

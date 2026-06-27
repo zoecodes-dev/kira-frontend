@@ -31,7 +31,7 @@ const demoAccounts: Record<LoginRole, { email: string; password: string; label: 
     target: '/dashboard',
   },
   supplier: {
-    email: 'supplier@sulawesi-nickel.com',
+    email: 'supplier@hanyang-cell.com',
     password: 'demo1234',
     label: '협력사 계정',
     target: '/supplier',
@@ -40,7 +40,7 @@ const demoAccounts: Record<LoginRole, { email: string; password: string; label: 
 
 function inferRole(email: string): LoginRole {
   const normalized = email.toLowerCase();
-  if (normalized.includes('supplier') || normalized.includes('vendor') || normalized.includes('sulawesi')) {
+  if (normalized.includes('supplier') || normalized.includes('vendor') || normalized.includes('hanyang')) {
     return 'supplier';
   }
   return 'oem';
