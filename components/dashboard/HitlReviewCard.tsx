@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { Bot, CheckCircle2, ChevronDown, ChevronRight, Loader2, ScanLine, ShieldAlert, XCircle } from 'lucide-react';
 import { approveDataRequest, approveHitl, getAiExtractions, rejectHitl, type AiExtraction } from '@/lib/api';
+import AiParsingReviewModal from './AiParsingReviewModal';
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   submission_approved: { label: '승인됨', cls: 'border-ok-border bg-ok-bg text-ok-text' },
@@ -16,11 +17,13 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 };
 const ATTENTION = 0.8; // 신뢰도 0.8 미만 = 사람 검토 필요(그 이상은 AI 자동통과)
 
-export default function HitlReviewCard({ onReview }: { onReview?: (supplierId: string, supplierName: string) => void }) {
+// 자기완결형 모듈 — 대시보드·My Task 협력사 승인에서 동일하게 사용(검토→AI 파싱 뷰 내장).
+export default function HitlReviewCard() {
   const [items, setItems] = useState<AiExtraction[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [review, setReview] = useState<{ supplierId: string; supplierName: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -52,6 +55,7 @@ export default function HitlReviewCard({ onReview }: { onReview?: (supplierId: s
     Object.entries(x.confidenceMap).filter(([, c]) => c < ATTENTION).length + x.unparsedFields.length;
 
   return (
+    <>
     <section className="rounded-sm border border-ink-700 bg-white shadow-control">
       <div className="flex items-center justify-between gap-3 border-b border-ink-700 px-5 py-3">
         <div className="flex items-center gap-2">
@@ -95,8 +99,8 @@ export default function HitlReviewCard({ onReview }: { onReview?: (supplierId: s
                     </div>
                   </button>
                   <div className="flex shrink-0 items-center gap-1.5">
-                    {onReview && x.supplierId && (
-                      <button type="button" onClick={() => onReview(x.supplierId, x.supplierName ?? '협력사')}
+                    {x.supplierId && (
+                      <button type="button" onClick={() => setReview({ supplierId: x.supplierId, supplierName: x.supplierName ?? '협력사' })}
                         className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-ink-700 bg-white px-3 text-xs font-bold text-ink-200 hover:bg-slate-50">
                         <ScanLine className="h-3.5 w-3.5" /> 검토
                       </button>
@@ -159,5 +163,9 @@ export default function HitlReviewCard({ onReview }: { onReview?: (supplierId: s
         </ul>
       )}
     </section>
+    {review && (
+      <AiParsingReviewModal supplierId={review.supplierId} supplierName={review.supplierName} onClose={() => setReview(null)} />
+    )}
+    </>
   );
 }
