@@ -10,6 +10,7 @@ import { ChevronRight, Send } from 'lucide-react';
 import { suppliers as mockSuppliers } from '@/lib/data';
 import { getRemindLogs, getSupplierName, supplierCompleteness } from '@/lib/supplier-detail-data';
 import { getSuppliers, getSupplierCompleteness, type SupplierType } from '@/lib/api';
+import SupplierInfoModal from './SupplierInfoModal';
 
 const providerTypeLabel: Record<SupplierType, string> = {
   manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산',
@@ -69,6 +70,8 @@ function buildMockRows(): BoardRow[] {
 export default function SupplierInputStatusBoard({ embedded = false }: { embedded?: boolean }) {
   const [rows, setRows] = useState<BoardRow[] | null>(null);
   const [isMock, setIsMock] = useState(false);
+  // 협력사 클릭 → 단일 공유 폼을 인라인 모달로(상세 페이지 이탈 X, 닫으면 목록 복귀).
+  const [active, setActive] = useState<{ supplierId: string; supplierName: string; openRequest: boolean } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,12 +123,12 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
       {!embedded && (
         <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-ink-100">협력사 입력 현황</h1>
-            <p className="mt-2 text-sm text-ink-500">작성중이거나 검토가 필요한 협력사를 선택해 상세 수집 현황을 확인합니다.</p>
+            <h1 className="text-lg font-semibold tracking-tight text-ink-100">협력사 입력 현황</h1>
+            <p className="mt-1 text-xs text-ink-500">작성중이거나 검토가 필요한 협력사를 선택해 상세 수집 현황을 확인합니다.</p>
           </div>
           <Link
             href="/supply-chain/map"
-            className="inline-flex h-9 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-sm font-semibold text-ink-500 shadow-control hover:border-accent-200 hover:text-accent-700"
+            className="inline-flex h-8 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-xs font-semibold text-ink-500 shadow-control hover:border-accent-200 hover:text-accent-700"
           >
             <Send className="h-4 w-4" />
             공급망 맵에서 요청
@@ -141,8 +144,8 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
           { label: '보완 지연', value: delayedCount, tone: 'text-alert-text' },
         ].map(item => (
           <div key={item.label} className="rounded-sm border border-ink-700 bg-white px-4 py-3 shadow-control">
-            <div className="text-xs font-semibold text-ink-500">{item.label}</div>
-            <div className={clsx('mt-2 text-2xl font-bold num-mono', item.tone)}>{item.value}</div>
+            <div className="text-[11px] font-semibold text-ink-500">{item.label}</div>
+            <div className={clsx('mt-1 text-xl font-bold num-mono', item.tone)}>{item.value}</div>
           </div>
         ))}
       </section>
@@ -150,12 +153,12 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
       <section className="rounded-sm border border-ink-700 bg-white shadow-control">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-700 bg-slate-50 px-5 py-4">
           <div>
-            <h2 className="text-base font-semibold text-ink-100">작성중인 협력사</h2>
-            <p className="mt-1 text-sm text-ink-500">
+            <h2 className="text-sm font-semibold text-ink-100">작성중인 협력사</h2>
+            <p className="mt-0.5 text-xs text-ink-500">
               평균 입력률 {avgRate}% · 누락 항목이 많은 순으로 정렬{isMock && ' · (데모 데이터)'}
             </p>
           </div>
-          <div className="text-sm font-medium text-ink-500">협력사명 또는 버튼을 누르면 상세 화면으로 이동합니다.</div>
+          <div className="text-xs font-medium text-ink-500">협력사명 또는 버튼을 누르면 정보 창이 열립니다.</div>
         </div>
 
         <div className="overflow-x-auto">
@@ -163,76 +166,78 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
             <thead className="border-b border-ink-700 bg-white">
               <tr>
                 {['협력사', '유형', '입력률', '상태', '누락 항목', '최근 업데이트', '작업'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-sm font-semibold text-ink-500">{h}</th>
+                  <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-ink-500">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-700/60">
               {rows === null && (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-ink-500">불러오는 중…</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-xs text-ink-500">불러오는 중…</td></tr>
               )}
               {rows !== null && data.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-ink-500">표시할 협력사가 없습니다.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-xs text-ink-500">표시할 협력사가 없습니다.</td></tr>
               )}
               {data.map(row => {
                 const visibleMissing = row.missingFields.slice(0, 2);
                 const hiddenCount = Math.max(row.missingFields.length - visibleMissing.length, 0);
                 const tone = row.completionRate >= 90 ? 'bg-ok-solid' : row.completionRate >= 60 ? 'bg-warn-solid' : 'bg-alert-solid';
-                const detailHref = `/suppliers/check-info?supplierId=${row.supplierId}&supplier=${encodeURIComponent(row.name)}`;
+                const open = (openRequest: boolean) => setActive({ supplierId: row.supplierId, supplierName: row.name, openRequest });
                 return (
                   <tr key={row.supplierId} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 align-middle">
-                      <Link href={detailHref} className="group inline-block max-w-[280px]">
-                        <div className="truncate font-semibold text-ink-100 group-hover:text-accent-700 group-hover:underline">{row.name}</div>
-                        <div className="mt-1 truncate text-sm text-ink-500 group-hover:text-accent-600">{row.sub}</div>
-                      </Link>
+                    <td className="px-4 py-2.5 align-middle">
+                      <button type="button" onClick={() => open(false)} className="group inline-block max-w-[280px] text-left">
+                        <div className="truncate text-[13px] font-semibold text-ink-100 group-hover:text-accent-700 group-hover:underline">{row.name}</div>
+                        <div className="mt-0.5 truncate text-xs text-ink-500 group-hover:text-accent-600">{row.sub}</div>
+                      </button>
                     </td>
-                    <td className="px-4 py-3 align-middle text-sm text-ink-500">{row.typeLabel}</td>
-                    <td className="px-4 py-3 align-middle">
+                    <td className="px-4 py-2.5 align-middle text-xs text-ink-500">{row.typeLabel}</td>
+                    <td className="px-4 py-2.5 align-middle">
                       {row.hasData ? (
                         <div className="flex min-w-36 items-center gap-3">
-                          <div className="h-2 flex-1 rounded-full bg-slate-100">
+                          <div className="h-1.5 flex-1 rounded-full bg-slate-100">
                             <div className={clsx('h-full rounded-full', tone)} style={{ width: `${row.completionRate}%` }} />
                           </div>
-                          <span className="w-12 text-right text-sm font-bold text-ink-100 num-mono">{row.completionRate}%</span>
+                          <span className="w-10 text-right text-xs font-bold text-ink-100 num-mono">{row.completionRate}%</span>
                         </div>
                       ) : (
-                        <span className="text-sm text-ink-500">-</span>
+                        <span className="text-xs text-ink-500">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 align-middle">
-                      <span className={clsx('inline-flex rounded-xs border px-2.5 py-1 text-xs font-semibold', row.status.className)}>{row.status.label}</span>
+                    <td className="px-4 py-2.5 align-middle">
+                      <span className={clsx('inline-flex rounded-xs border px-2 py-0.5 text-[11px] font-semibold', row.status.className)}>{row.status.label}</span>
                     </td>
-                    <td className="px-4 py-3 align-middle">
+                    <td className="px-4 py-2.5 align-middle">
                       {row.missingFields.length === 0 ? (
-                        <span className="text-sm text-ink-500">없음</span>
+                        <span className="text-xs text-ink-500">없음</span>
                       ) : (
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-wrap gap-1">
                           {visibleMissing.map(f => (
-                            <span key={f} className="rounded-xs border border-ink-700 bg-slate-50 px-2 py-1 text-xs font-medium text-ink-300">{f}</span>
+                            <span key={f} className="rounded-xs border border-ink-700 bg-slate-50 px-1.5 py-0.5 text-[11px] font-medium text-ink-300">{f}</span>
                           ))}
                           {hiddenCount > 0 && (
-                            <span className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500">외 {hiddenCount}건</span>
+                            <span className="rounded-xs border border-ink-700 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-ink-500">외 {hiddenCount}건</span>
                           )}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 align-middle text-sm text-ink-500 num-mono">{row.lastUpdated}</td>
-                    <td className="px-4 py-3 align-middle">
+                    <td className="px-4 py-2.5 align-middle text-xs text-ink-500 num-mono">{row.lastUpdated}</td>
+                    <td className="px-4 py-2.5 align-middle">
                       {row.missingFields.length > 0 ? (
-                        <Link
-                          href={`${detailHref}&request=1`}
-                          className="inline-flex items-center gap-1.5 rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-sm font-semibold text-accent-700 hover:border-accent-600"
+                        <button
+                          type="button"
+                          onClick={() => open(true)}
+                          className="inline-flex items-center gap-1.5 rounded-xs border border-accent-100 bg-accent-50 px-2.5 py-1 text-xs font-semibold text-accent-700 hover:border-accent-600"
                         >
                           <Send className="h-3.5 w-3.5" /> 자료 요청
-                        </Link>
+                        </button>
                       ) : (
-                        <Link
-                          href={detailHref}
-                          className="inline-flex items-center gap-1 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-sm font-semibold text-ink-500 hover:border-accent-600 hover:text-accent-700"
+                        <button
+                          type="button"
+                          onClick={() => open(false)}
+                          className="inline-flex items-center gap-1 rounded-xs border border-ink-700 bg-white px-2.5 py-1 text-xs font-semibold text-ink-500 hover:border-accent-600 hover:text-accent-700"
                         >
-                          검토 <ChevronRight className="h-4 w-4" />
-                        </Link>
+                          검토 <ChevronRight className="h-3.5 w-3.5" />
+                        </button>
                       )}
                     </td>
                   </tr>
@@ -242,6 +247,15 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
           </table>
         </div>
       </section>
+
+      {active && (
+        <SupplierInfoModal
+          supplierId={active.supplierId}
+          supplierName={active.supplierName}
+          openRequest={active.openRequest}
+          onClose={() => setActive(null)}
+        />
+      )}
     </>
   );
 
