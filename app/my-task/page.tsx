@@ -357,7 +357,7 @@ export default function MyTaskPage() {
         {view === 'hitl' && (
           <div className="space-y-5">
             {/* AI 파싱 결과 = 데이터 추출 검토 + 규제 검증 결과. 검토 클릭 → AI 파싱 뷰 모달. */}
-            <HitlReviewCard onReview={openReview} />
+            <HitlReviewCard />
             <RegulationResultsCard onReview={setRegReview} />
           </div>
         )}
