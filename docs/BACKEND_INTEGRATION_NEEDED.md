@@ -80,8 +80,8 @@
 
 | 프론트 구간 | 파일 | 상태 | 조치 |
 |---|---|---|---|
-| BOM `kind` 파생 | `lib/api.ts:917` | 🌱🆕 | 백엔드 미제공 → `/products/{id}/bom` 응답에 `kind` 추가(현재 tier_level/leaf로 파생) |
-| BOM `functionPurpose` 빈값 | `lib/api.ts:952` | 🆕 | `function_purpose` 필드 추가 |
+| BOM `function_purpose`(용도/기능) | `lib/api.ts:952` | ✅ | **완료** — `parts.function_purpose` 컬럼 실존·**시드 14/14**, `/products/{id}/bom` SELECT·직렬화 추가, 프론트 매핑 연결. (UI 표시는 아래 계획) |
+| BOM `kind` 파생 | `lib/api.ts:938` | ✅ | DB 컬럼 아님 — `tier_level`+leaf로 프론트 파생(component/material/mineral). 정상, 조치 불요 |
 
 ---
 
@@ -112,7 +112,20 @@
 # 우선순위 요약
 - **즉시(배선만, 엔드포인트 실존)** 🔌: 협력사 목록/포털 **연락처**(supplier), My Task **업무큐**(audit), 8단계 **submissions/batches**, 완료증빙(audit), 문서업로드(files·프로덕션).
 - **데이터 시드** 🌱: supplier `country` **(완료)**. (~~hop_level~~은 이미 실존·시드됨 — 시드 불요.)
-- **필드 추가** 🆕: product BOM `kind`·`function_purpose`(백엔드 응답 필드 신설).
+- **데이터 경로 완료(UI만 남음)**: BOM `function_purpose` — 시드·백엔드·프론트 매핑 완료, **UI 표시 추가만 남음**(아래 계획).
+
+---
+
+# UI 추가 계획 — BOM `function_purpose`(용도/기능)
+
+데이터는 `ApiBomPart.functionPurpose`로 이미 흐름(트리 노드별 용도). 표시할 자리:
+
+1. **공급망 맵 노드 상세 드로어** — 노드(부품) 클릭 시 부품명·차수 아래에 **"용도: {functionPurpose}"** 한 줄 추가.
+   - 위치: `app/supply-chain/SupplyChainHub.tsx`(또는 그 노드 상세 컴포넌트). ⚠️ **동시 세션 편집 중인 파일** — 충돌 주의, 그 세션과 조율 후 추가.
+2. **BOM 트리/부품 목록** — 부품 행에 용도 보조 텍스트(`partName` 밑 또는 툴팁). `kind`(component/material/mineral) 배지와 함께 노출하면 트리 가독성↑.
+3. **규제 검증 근거 맥락**(선택) — 규제 모달에서 해당 부품의 용도를 함께 보여주면 "왜 이 자재가 규제 대상인지" 이해를 도움.
+
+> 매핑(`functionPurpose`)·시드는 완료라, 위 자리에 `part.functionPurpose`를 렌더하면 바로 보임. (SupplyChainHub가 동시 세션 소유라 이번엔 데이터 경로까지만 연결.)
 - **엔드포인트 신설** 🆕: **알림(notifications)**, **PO(purchase-order)**, 현재 공급원 GET.
 - **외부/라이브러리** 🧩: react-pdf 뷰어, S3 파일저장(프로덕션 자격증명).
 

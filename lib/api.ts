@@ -949,7 +949,7 @@ export function normalizeProductBom(resp: BomTreeResponse, overrideBomVersionId?
       tierLevel,
       parentPartId: (pick<string | null>(n, "parentPartId", "parent_part_id") ?? null),
       materialType: pick<string>(n, "materialType", "material_type") ?? "",
-      functionPurpose: "", // 백엔드 미제공
+      functionPurpose: pick<string>(n, "functionPurpose", "function_purpose") ?? "", // BOM 트리 노드의 용도/기능
       purchaseUnit: requiredQuantityUnit,
       kind,
     });
