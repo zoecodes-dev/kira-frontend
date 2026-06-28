@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { createDataRequest, getActions, getDataRequests, getSuppliers, type ActionItem, type ApiDataRequest, type SupplierBrief } from '@/lib/api';
-import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
 import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
@@ -201,7 +200,7 @@ function deriveRequestStatus(r: ApiDataRequest): RequestStatus {
   return 'progress';
 }
 
-function RequestArea() {
+function RequestArea({ onReview }: { onReview?: (supplierId: string, supplierName: string) => void }) {
   // 실 백엔드 GET /data-requests + 협력사명(getSuppliers). 공급망 맵의 자료 요청 추가(POST)를 여기로 끌어옴.
   const [apiRows, setApiRows] = useState<DataRequest[] | null>(null);
   const [stored, setStored] = useState<DataRequestRecord[]>([]);
@@ -294,8 +293,7 @@ function RequestArea() {
           const reviewMode = req.status === 'submitted';
           // 협력사명은 정식 명칭(master)에서 끌어와 mock/저장본 드리프트 방지.
           const supplierLabel = getSupplierName(req.supplierId)?.nameKo ?? req.supplier;
-          // submission-review 페이지 폐기 → 검토도 표준 협력사 정보 페이지(check-info)로.
-          const href = `/suppliers/check-info?supplierId=${req.supplierId}&supplier=${encodeURIComponent(supplierLabel)}${reviewMode ? '' : '&request=1'}`;
+          // 협력사 관리 페이지로 이탈하지 않고 보드에서 인라인 검토(닫으면 보드로 복귀).
           return (
             <div key={req.supplierId} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50">
               <span className={clsx('h-2 w-2 shrink-0 rounded-full', meta.dot)} />
@@ -310,13 +308,14 @@ function RequestArea() {
                 <div className="text-[11px] text-ink-500">마감 {req.due}</div>
                 {req.missing >= 0 && <div className="text-[11px] text-ink-500">누락 {req.missing}건</div>}
               </div>
-              <Link
-                href={href}
+              <button
+                type="button"
+                onClick={() => onReview?.(req.supplierId, supplierLabel)}
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
               >
                 {reviewMode ? '검토' : '재요청·확인'}
                 <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+              </button>
             </div>
           );
         })}
@@ -354,7 +353,7 @@ export default function MyTaskPage() {
         ]}
       />
       <div className="p-8 pt-4">
-        {view === 'request' && <RequestArea />}
+        {view === 'request' && <RequestArea onReview={openReview} />}
         {view === 'hitl' && (
           <div className="space-y-5">
             {/* AI 파싱 결과 = 데이터 추출 검토 + 규제 검증 결과. 검토 클릭 → AI 파싱 뷰 모달. */}

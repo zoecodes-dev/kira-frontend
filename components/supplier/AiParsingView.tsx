@@ -63,7 +63,7 @@ const MOCK_PARSED_DOCS: ParsedDoc[] = [
         { fieldId: 'material_name',  label: '자재명',          aiValue: 'NORI-NCL-RAW', confidence: 0.95, requiresAttention: false, unit: '' },
         { fieldId: 'hs_code',        label: 'HS Code',         aiValue: '2604.00',  confidence: 0.76, requiresAttention: true,  unit: '' },
         { fieldId: 'issue_date',     label: '발급일',          aiValue: '2026-05-10', confidence: 0.91, requiresAttention: false, unit: '' },
-        { fieldId: 'feoc_status',    label: 'FEOC 해당 여부',  aiValue: '해당 없음', confidence: 0.61, requiresAttention: true,  unit: '', warning: 'FEOC 판정 근거 서류를 추가로 확인해 주세요.' },
+        { fieldId: 'recycled_content', label: '재활용 원료 함량', aiValue: '16',     confidence: 0.63, requiresAttention: true,  unit: '%', warning: '재활용 함량 증빙 근거를 추가로 확인해 주세요.' },
       ],
       unparsedFields: ['광산 GPS 폴리곤 좌표'],
     },
