@@ -23,10 +23,10 @@
 |---|---|---|---|
 | 협력사 목록 연락처 "미등록" | `app/suppliers/page.tsx:181-182,359-360` | 🔌 | `getSupplierContacts` 배선(엔드포인트 존재). 주석 `연락처 API 미제공`은 **stale** |
 | 협력사 포털 연락처·사업자정보·제조공정 빈값 | `components/supplier-pages/SupplierInfoPage.tsx:196-198` | 🔌 | contacts=existing, 사업자/제조공정=`/{id}/detail`(CTI provider별) 배선 |
-| check-info 요약(국가·담당자 등) | `app/suppliers/check-info/SupplierGeneralReview.tsx:93-108,672-682` | ✅🌱 | 실 UUID면 API 우선(완료). `country` **null 시드 공백** → 시드 필요 |
+| check-info 요약(국가·담당자 등) | `app/suppliers/check-info/SupplierGeneralReview.tsx:93-108,672-682` | ✅ | 실 UUID면 API 우선(완료). `country` **시드 완료**(13건 KR/CN/AU/CL) |
 | check-info 6개 표(회사/연락처/공장/인증/품목/원산지) | 동 `:153-190` | ✅ | 실 협력사면 detail·contacts·factories·esg·supplied-items·origin-certificates로 채움(폴백 데모표) |
 | 입력현황 보드 | `components/suppliers/SupplierInputStatusBoard.tsx:44-68` | ✅ | `/suppliers`+`/{id}/completeness` 폴백 |
-| 헤더 tier "—" | check-info `:674` | 🆕 | `SupplierDetail`에 tier 필드 없음(공급망 관계 개념) → supplychain hop_level 활용 or 필드 추가 |
+| 헤더 tier "—" | check-info `:674` | 🔌 | `SupplierDetail`엔 tier 없지만 **supplychain `hop_level` 실존**(0~5차 시드됨) → check-info에 hop_level 배선하면 차수 표시 |
 
 ## 🟩 submission 도메인 — `/data-requests`, `/submissions`
 실존: `GET/POST /data-requests`, `/data-requests/ai-extractions`, `/{id}`, `/{id}/submit|approve|reject|rework`, `/{id}/completeness`, `/send-reminders`, `GET /submissions`, `/{id}` + approve/rework/reject.
@@ -73,7 +73,7 @@
 |---|---|---|---|
 | 공급망 맵/허브 데모 dataset | `app/supply-chain/page.tsx`, `SupplyChainHub.tsx`, `SupplyChainMapPageContent.tsx` | ✅ | `mockDataset`(`lib/supply-chain-mock.ts`) 폴백. graceful(미배포 부분만 skip) |
 | 자가신고 현재 공급원(`MOCK_CURRENT_SUPPLIER`) | `components/supplier/SelfReportModal.tsx:44-49` | 🔌🆕 | 변경 등록은 `POST /declarations/source-change`(존재). **현재 공급원 조회 GET은 없음** → supplied-items 활용 or 신설 |
-| hop_level/tier 폴백 | `SupplyChainHub.tsx` | 🌱 | `hop_level` 미배포 시 tierLevel 폴백 → 배포 확인 |
+| hop_level(차수 SSOT) | `SupplyChainHub.tsx:312-318` | ✅ | **실존·시드됨** — schema `supply_chain_map.hop_level`(+인덱스), 데이터 0~5차, 백엔드 `get_by_hop`/CTE 반환, 프론트 `hopLevel` 사용. 코드의 "미배포 폴백"은 방어 가드일 뿐 |
 
 ## 🟩 product 도메인 — `/products`
 실존: `GET /products`, `/{id}`, `/{id}/bom-versions`, `/{id}/bom`, 활성/폐기.
@@ -111,7 +111,8 @@
 
 # 우선순위 요약
 - **즉시(배선만, 엔드포인트 실존)** 🔌: 협력사 목록/포털 **연락처**(supplier), My Task **업무큐**(audit), 8단계 **submissions/batches**, 완료증빙(audit), 문서업로드(files·프로덕션).
-- **데이터 시드** 🌱: supplier `country`, supplychain `hop_level`, product BOM `kind/function_purpose`.
+- **데이터 시드** 🌱: supplier `country` **(완료)**. (~~hop_level~~은 이미 실존·시드됨 — 시드 불요.)
+- **필드 추가** 🆕: product BOM `kind`·`function_purpose`(백엔드 응답 필드 신설).
 - **엔드포인트 신설** 🆕: **알림(notifications)**, **PO(purchase-order)**, 현재 공급원 GET.
 - **외부/라이브러리** 🧩: react-pdf 뷰어, S3 파일저장(프로덕션 자격증명).
 
