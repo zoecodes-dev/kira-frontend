@@ -64,7 +64,7 @@ export interface MockSupplier {
   supplier_id: string;
   company_name: string;
   company_name_en: string;
-  provider_type: 'manufacturer' | 'recycler' | 'trader' | 'miner';
+  provider_type: 'manufacturer' | 'recycler' | 'trader' | 'miner' | 'smelter';
   tier: number;
   parent_supplier_id: string | null;
   status: string;

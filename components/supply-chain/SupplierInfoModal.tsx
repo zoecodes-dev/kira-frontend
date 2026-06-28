@@ -20,14 +20,14 @@ import {
   type SupplierReliabilityResponse,
   type SupplierRiskLevel,
   type SupplierStatusCode,
-  type SupplierType,
+  type ProviderType,
 } from '@/lib/api';
 
-const typeLabel: Record<SupplierType, string> = {
+const typeLabel: Record<ProviderType, string> = {
   manufacturer: '제조사',
   recycler: '재활용',
   trader: '트레이더',
-  miner: '광산',
+  miner: '광산', smelter: '제련소',
 };
 const statusLabel: Record<SupplierStatusCode, string> = {
   supplier_pending: '검토 대기',

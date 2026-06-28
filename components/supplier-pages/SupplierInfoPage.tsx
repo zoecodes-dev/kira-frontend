@@ -17,7 +17,7 @@ import {
   type SupplierFactoriesResponse,
   type SupplierReliabilityResponse,
   type SupplierRiskProfileResponse,
-  type SupplierType,
+  type ProviderType,
 } from '@/lib/api';
 import { SUPPLIER_NOW } from './utils/supplierNow';
 import { InfoSummary } from './sections/info/InfoSummary';
@@ -27,11 +27,11 @@ import { InfoFactoriesSection } from './sections/info/InfoFactoriesSection';
 import { InfoCertsSection } from './sections/info/InfoCertsSection';
 import { InfoCompletenessSection } from './sections/info/InfoCompletenessSection';
 
-const providerTypeLabel: Record<SupplierType, string> = {
+const providerTypeLabel: Record<ProviderType, string> = {
   manufacturer: '제조사',
   recycler: '재활용',
   trader: '트레이더',
-  miner: '광산',
+  miner: '광산', smelter: '제련소',
 };
 
 // API 상태코드(7종) → 기존 화면 모델의 4종 상태로 매핑

@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import Badge from '@/components/Badge';
 import PageHeader from '@/components/PageHeader';
-import SupplierInfoModal from '@/components/suppliers/SupplierInfoModal';
 import TopStatCard from '@/components/TopStatCard';
 import {
   ApiError,
@@ -29,7 +28,7 @@ import {
   type SupplierReliabilityResponse,
   type SupplierRiskLevel,
   type SupplierStatusCode,
-  type SupplierType,
+  type ProviderType,
 } from '@/lib/api';
 
 // §4.2 — 요청 노드(KIRA, OEM/tier0)는 협력사 목록에서 제외
@@ -59,11 +58,11 @@ const statusMeta: Record<SupplierStatusCode, { label: string; tone: 'ok' | 'warn
   supplier_suspended: { label: '거래 중지', tone: 'alert', dot: 'bg-signal-alert' },
 };
 
-const providerTypeLabel: Record<SupplierType, string> = {
+const providerTypeLabel: Record<ProviderType, string> = {
   manufacturer: '제조사',
   recycler: '재활용',
   trader: '트레이더',
-  miner: '광산',
+  miner: '광산', smelter: '제련소',
 };
 
 const riskMeta: Record<SupplierRiskLevel, { label: string; className: string }> = {
@@ -98,7 +97,7 @@ function isSlaOverdue(rel: SupplierReliabilityResponse | null): boolean {
   return false;
 }
 
-function SupplierRow({ row, onOpen }: { row: SupplierRowData; onOpen: (supplierId: string, supplierName: string) => void }) {
+function SupplierRow({ row }: { row: SupplierRowData }) {
   const { brief, reliability } = row;
   const status = statusMeta[brief.status] ?? statusMeta.supplier_pending;
   const riskLevel = riskMeta[brief.riskLevel] ?? riskMeta.low;
@@ -106,8 +105,8 @@ function SupplierRow({ row, onOpen }: { row: SupplierRowData; onOpen: (supplierI
   const rate = reliability?.completenessScore ?? 0;
   const progress = completenessMeta(rate);
   const slaOver = isSlaOverdue(reliability);
-  // 별도 상세 페이지 대신 단일 공유 폼 모달로(이탈 없이 목록 복귀).
-  const open = () => onOpen(brief.supplierId, brief.companyName);
+  // 협력사 관리는 단일 공유 폼 '페이지'로 이동(check-info, mode=oem). 불필요한 [id]/info 상세 미사용.
+  const detailHref = `/suppliers/check-info?supplierId=${brief.supplierId}&supplier=${encodeURIComponent(brief.companyName)}`;
 
   return (
     <tr className="group border-b border-ink-700 bg-white transition-colors hover:bg-ink-800">
@@ -115,13 +114,12 @@ function SupplierRow({ row, onOpen }: { row: SupplierRowData; onOpen: (supplierI
         <div className="flex items-start gap-3">
           <span className={clsx('mt-1.5 h-2 w-2 shrink-0 rounded-full', status.dot)} />
           <div className="min-w-0">
-            <button
-              type="button"
-              onClick={open}
-              className="block truncate text-left text-sm font-bold text-ink-100 transition-colors group-hover:text-accent-700"
+            <Link
+              href={detailHref}
+              className="block truncate text-sm font-bold text-ink-100 transition-colors group-hover:text-accent-700"
             >
               {brief.companyName}
-            </button>
+            </Link>
             <div className="mt-1 flex items-center gap-2 text-[11px] text-ink-500">
               <span className="num-mono">{brief.supplierId}</span>
               <span className="text-ink-600">·</span>
@@ -185,14 +183,13 @@ function SupplierRow({ row, onOpen }: { row: SupplierRowData; onOpen: (supplierI
       </td>
 
       <td className="px-5 py-4 align-top text-right">
-        <button
-          type="button"
-          onClick={open}
+        <Link
+          href={detailHref}
           className="inline-flex items-center gap-1 whitespace-nowrap rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:text-accent-700"
         >
           상세
           <ChevronRight className="h-3.5 w-3.5" />
-        </button>
+        </Link>
       </td>
     </tr>
   );
@@ -284,8 +281,6 @@ export default function SuppliersPage() {
   const [rows, setRows] = useState<SupplierRowData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // 협력사 행 클릭 → 단일 공유 폼 모달(상세 페이지 이탈 X).
-  const [active, setActive] = useState<{ supplierId: string; supplierName: string } | null>(null);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -612,21 +607,13 @@ export default function SuppliersPage() {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map(row => <SupplierRow key={row.brief.supplierId} row={row} onOpen={(id, name) => setActive({ supplierId: id, supplierName: name })} />)
+                  filtered.map(row => <SupplierRow key={row.brief.supplierId} row={row} />)
                 )}
               </tbody>
             </table>
           </div>
         </section>
       </div>
-
-      {active && (
-        <SupplierInfoModal
-          supplierId={active.supplierId}
-          supplierName={active.supplierName}
-          onClose={() => setActive(null)}
-        />
-      )}
     </>
   );
 }
