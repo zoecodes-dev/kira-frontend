@@ -1,117 +1,118 @@
-# 백엔드 연동 필요 구간 (프론트 mock 인벤토리)
+# 백엔드 연동 필요 구간 — 도메인별 매핑
 
-프론트에서 **mock/하드코딩/플레이스홀더**로 대체되어 있어 실 백엔드 연동이 필요한 구간 목록.
-각 항목: `파일:라인` · mock 출처 · 유형 · 필요한 엔드포인트/필드.
+프론트의 mock/플레이스홀더 구간을 **실제 백엔드 도메인**(`kira-backend/backend/domains/*`)과 대조해 정리.
+"어느 도메인에서 연결해야 하는지" + "한 페이지가 여러 도메인에 걸치는지(혼합)" 표기.
 
-**유형 구분**
-- **FALLBACK** — 실 API를 먼저 호출하고, 실패(인증/네트워크/미배포) 시에만 mock으로 폴백. 백엔드가 정상이면 실데이터가 뜸. → *데이터/스키마 정합성 확인* 위주.
-- **PRIMARY** — API 호출 자체가 없고 mock만 렌더. → *엔드포인트 신설 + 배선* 필요.
-- **PLACEHOLDER** — 기능 미구현 자리표시(다운로드/뷰어/업로드 등).
+## 상태 범례
+- ✅ **연동됨(폴백)** — 엔드포인트 존재 + 이 화면이 호출함. mock은 실패 시 폴백일 뿐. (백엔드 정상이면 실데이터)
+- 🔌 **배선 필요** — 엔드포인트는 **존재**하나 이 화면이 호출 안 함 → 프론트 배선만 하면 됨.
+- 🌱 **데이터 시드** — 엔드포인트·배선 OK인데 백엔드 데이터가 비어(null) mock/“미입력”으로 보임.
+- 🆕 **엔드포인트 신설** — 해당 도메인/엔드포인트 자체가 없음.
+- 🧩 **자리표시/외부** — react-pdf·S3 등 백엔드 도메인 외 작업.
 
-스캔 기준일: 작업 마무리 시점. 라인 번호는 이후 편집으로 달라질 수 있음.
-
----
-
-## CRITICAL — API 자체가 없음(PRIMARY)
-
-### 1. 협력사 연락처 API 부재
-- `app/suppliers/page.tsx:181-182` — 연락처 컬럼이 항상 "미등록" 하드코딩. 주석: `연락처 API 미제공 (md §2) — 백엔드 추가 전까지 미등록 표시`.
-- `app/suppliers/page.tsx:359-360` — 연락처 필터가 항상 false(등록됨 분류 불가).
-- `components/supplier-pages/SupplierInfoPage.tsx:196-198` — `연락처·사업자정보·제조공정 API 미제공 → 빈 값` (`contacts: never[] = []`, `ext = undefined`).
-- **필요:** `GET /suppliers/{id}/contacts` (+ 확장: 사업자정보/제조공정). 신설 시 위 3곳 동시 해소.
-
-> 참고: check-info(`SupplierGeneralReview`)는 `getSupplierContacts`를 이미 호출함 — 연락처 엔드포인트가 **일부만** 연동된 상태. 목록/포털 뷰까지 일관되게 노출 필요.
+> 핵심 정정: 원문서가 “미제공”이라던 **연락처 API는 실존**(`supplier` 도메인 `GET /suppliers/{id}/contacts`)하며 check-info는 이미 호출 중. 목록/포털 뷰만 배선하면 됨.
 
 ---
 
-## HIGH — 실 API 폴백(FALLBACK) · 스키마/데이터 정합성 확인
+# 도메인별
 
-### 2. My Task — 자료 요청
-- `app/my-task/page.tsx` — `RequestArea`가 `getDataRequests()` 호출, 실패 시 로컬 `dataRequests` 배열로 폴백(`base = apiRows ?? dataRequests`).
-- **필요:** `GET /data-requests` 가 `target_supplier_id · requested_data_type · due_date · missing_count` 포함 반환 보장. (`missing_count` 미집계면 누락 표시 생략됨.)
+## 🟩 supplier 도메인 — `/suppliers`
+실존 엔드포인트: `GET /suppliers`, `/{id}`, `/{id}/detail`, `/{id}/contacts`, `/{id}/factories`, `/{id}/completeness`, `/{id}/origin-certificates`, `/{id}/supplied-items`, `/{id}/esg`, `/{id}/reliability`, `/{id}/risk-profile`, `/{id}/carbon-declarations`, `/{id}/training`, `POST /{id}/master-form`.
 
-### 3. My Task — 내 업무 목록(잔존 상수)
-- `app/my-task/page.tsx` — `_MOCK_TASKS` / `getActions`/`adaptAction` 상수가 남아있음(현재 탭에서 렌더 안 함, 정리 대상).
-- **필요:** 업무 큐를 쓸 경우 `/actions` 가 `ActionItem[]` 반환 확인. 안 쓸 거면 상수 제거.
-
-### 4. 협력사 입력현황 보드
-- `components/suppliers/SupplierInputStatusBoard.tsx:44-68` `buildMockRows()` — `getSuppliers()`+`getSupplierCompleteness()` 실패 시 `@/lib/data`·`supplier-detail-data` mock으로 폴백.
-- **필요:** `/suppliers`, `/suppliers/{id}/completeness` 실데이터 스키마 일치 확인.
-
-### 5. 협력사 정보 단일 폼(check-info) — 하드코딩 요약/표
-- `app/suppliers/check-info/SupplierGeneralReview.tsx:93-108` `supplierSummary`(한양제조 데모 객체) — 실 협력사(UUID)면 API 우선, 비면 `미입력/—/미등록`으로 대체(수정 완료). mock S-ID 데모에서만 노출.
-- `:153-190` — `companyRows·contactRows·factoryRows·certificateRows·supplyItemRows·originRows` 6개 하드코딩 표(데모 UI 템플릿). 실 협력사면 API 데이터로 덮어씀.
-- **필요:** 상세/연락처/공장/인증/공급품목/원산지 6개 엔드포인트 데이터 완전성. (백엔드 `country` 등 **null** 인 협력사는 화면에 '미입력'으로 정직 표기 중 → 실값 원하면 시드/입력 필요.)
-- **관련 데이터 공백:** 백엔드 `supplier.country` 미시드 협력사 다수 / `SupplierDetail`에 **tier 필드 없음**(공급망 관계 개념이라 헤더 tier는 '—').
-
-### 6. AI 추출(데이터 파싱)
-- `components/supplier/AiParsingView.tsx:37-71` `MOCK_PARSED_DOCS` — `realOnly=false`(협력사 데모)면 mock, `realOnly=true`(원청 검토)면 실 추출만(없으면 빈 상태). `getAiExtractions()` 폴백.
-- `components/dashboard/HitlReviewCard.tsx` — `getAiExtractions()` 실패 시 빈 배열.
-- **필요:** `GET /data-requests/ai-extractions` 가 `parsed_fields · confidence_map · unparsed_fields · submission_status · batch_id · hitl_review_id` 반환(연동됨, 데이터 커버리지 확인).
-
-### 7. AI 규제 검증 결과
-- `components/dashboard/RegulationResultsCard.tsx:21-24` `MOCK` — `getRegulationResults()` 초기/폴백.
-- **필요:** `GET /regulation/materials/regulation-results` (연동 완료) — `verdict · confidence · cited_clauses · reasoning_text · needs_human_review · material(제품명)` 반환.
-
----
-
-## MEDIUM — 신설 또는 데모 기본값(PRIMARY/FALLBACK)
-
-### 8. 협력사 알림 벨
-- `components/supplier/SupplierNotificationBell.tsx:29-57` `MOCK_NOTIFICATIONS`(기본 state) — 외부 prop으로 주입 가능하나 기본은 mock.
-- **필요:** `GET /notifications` (또는 `/supplier/notifications`).
-
-### 9. 제출 8단계 트래커
-- `components/supplier/EightStageStepper.tsx:64-99` `mockSubmissions`, `:108` `MOCK_BATCH_STATUS`(시나리오 전환용 상수).
-- **필요:** `GET /batches` 또는 `/submissions` — 단계/반려 사유 포함.
-
-### 10. 공급망 입력(온보딩) — PO 목록
-- `components/supplier/supply-chain-entry/StepContext.tsx:19-23` `MOCK_POS` — 주석: `백엔드 PO 엔드포인트 없어 mock`.
-- **필요:** `GET /supplier/{id}/purchase-orders`.
-
-### 11. 공급망 맵/허브 — 데모 dataset 폴백
-- `app/supply-chain/page.tsx`, `app/supply-chain/SupplyChainHub.tsx`, `SupplyChainMapPageContent.tsx` — `mockDataset`(`lib/supply-chain-mock.ts`) 폴백. 토큰/배포 없으면 데모.
-- 그레이스풀: `BOM 버전 없으면 트리 합성으로 폴백`, `hop_level 미배포면 tierLevel 폴백`.
-- **필요:** `/products`, `/products/{id}/bom-versions`, `/products/{id}/supply-chain-map` (대체로 연동됨) + `hop_level`/BOM 버전 배포 확인.
-
----
-
-## LOW — 자리표시/파생 필드(PLACEHOLDER)
-
-### 12. PDF 뷰어 미연동
-- `components/supplier/AiParsingView.tsx:236` — `실제 PDF 렌더링 영역 (react-pdf 연동 예정)` 텍스트만.
-- **필요:** `react-pdf` 도입 + 원본 문서 URL(`/files` 또는 `submission_documents.file_url`).
-
-### 13. 문서 업로드 데모
-- `app/suppliers/check-info/SupplierGeneralReview.tsx` (DocUploadField 부근) — `데모: 파일명만 doc_url 컬럼에 저장(실 파일 저장은 추후 /files 연동)`.
-- **필요:** `POST /files`(S3 업로드) — 로컬은 자격증명 없어 실패, 프로덕션만 동작.
-
-### 14. 완료 증빙 다운로드
-- `components/supplier/EightStageStepper.tsx:397` — `alert('완료 증빙 다운로드 (API 연동 예정)')`.
-- **필요:** `GET /batches/{id}/proof`.
-
-### 15. 자가신고 모달 — 현재 공급원
-- `components/supplier/SelfReportModal.tsx:44-49` `MOCK_CURRENT_SUPPLIER`(대성정밀 데모).
-- **필요:** `GET /supplier/{id}/current-supply-source`.
-
-### 16. BOM 파생 필드
-- `lib/api.ts:917` — `kind 는 tier_level/leaf 여부로 파생(백엔드 미제공)`.
-- `lib/api.ts:952` — `functionPurpose: "" // 백엔드 미제공`.
-- **필요:** `/products/{id}/bom` 응답에 `kind`·`function_purpose` 추가.
-
----
-
-## 요약
-
-| 우선순위 | 구간 | 유형 | 필요 |
+| 프론트 구간 | 파일 | 상태 | 조치 |
 |---|---|---|---|
-| CRITICAL | 협력사 연락처(목록·포털·필터) | PRIMARY | `GET /suppliers/{id}/contacts` 신설 |
-| HIGH | My Task 자료요청 | FALLBACK | `/data-requests` 스키마 |
-| HIGH | 입력현황 보드 | FALLBACK | `/suppliers`,`/completeness` |
-| HIGH | check-info 6개 표·요약 | FALLBACK/데모 | 상세·연락처·공장·인증·품목·원산지 + `country` 시드 |
-| HIGH | AI 추출(HITL) | FALLBACK | `/data-requests/ai-extractions` 커버리지 |
-| HIGH | 규제 검증 결과 | FALLBACK | `/regulation/materials/regulation-results`(연동됨) |
-| MEDIUM | 알림 / 8단계 / PO / 공급망맵 | PRIMARY/FALLBACK | `/notifications`,`/batches`,`/purchase-orders`, BOM/hop_level |
-| LOW | PDF뷰어 / 파일업로드 / 증빙다운 / 자가신고 / BOM필드 | PLACEHOLDER | `react-pdf`,`/files`,`/batches/{id}/proof` 등 |
+| 협력사 목록 연락처 "미등록" | `app/suppliers/page.tsx:181-182,359-360` | 🔌 | `getSupplierContacts` 배선(엔드포인트 존재). 주석 `연락처 API 미제공`은 **stale** |
+| 협력사 포털 연락처·사업자정보·제조공정 빈값 | `components/supplier-pages/SupplierInfoPage.tsx:196-198` | 🔌 | contacts=existing, 사업자/제조공정=`/{id}/detail`(CTI provider별) 배선 |
+| check-info 요약(국가·담당자 등) | `app/suppliers/check-info/SupplierGeneralReview.tsx:93-108,672-682` | ✅🌱 | 실 UUID면 API 우선(완료). `country` **null 시드 공백** → 시드 필요 |
+| check-info 6개 표(회사/연락처/공장/인증/품목/원산지) | 동 `:153-190` | ✅ | 실 협력사면 detail·contacts·factories·esg·supplied-items·origin-certificates로 채움(폴백 데모표) |
+| 입력현황 보드 | `components/suppliers/SupplierInputStatusBoard.tsx:44-68` | ✅ | `/suppliers`+`/{id}/completeness` 폴백 |
+| 헤더 tier "—" | check-info `:674` | 🆕 | `SupplierDetail`에 tier 필드 없음(공급망 관계 개념) → supplychain hop_level 활용 or 필드 추가 |
 
-> 폴백(FALLBACK) 구간은 백엔드가 정상 배포·시드되면 자동으로 실데이터가 뜬다(스키마만 일치하면 됨). PRIMARY/PLACEHOLDER 구간이 실제 신규 작업 대상이다.
+## 🟩 submission 도메인 — `/data-requests`, `/submissions`
+실존: `GET/POST /data-requests`, `/data-requests/ai-extractions`, `/{id}`, `/{id}/submit|approve|reject|rework`, `/{id}/completeness`, `/send-reminders`, `GET /submissions`, `/{id}` + approve/rework/reject.
+
+| 프론트 구간 | 파일 | 상태 | 조치 |
+|---|---|---|---|
+| My Task 자료요청 | `app/my-task/page.tsx` RequestArea | ✅ | `/data-requests` 폴백. `missing_count` 미집계 시 누락표시 생략 |
+| AI 추출 검토(HITL) | `components/supplier/AiParsingView.tsx:37-71`, `components/dashboard/HitlReviewCard.tsx` | ✅ | `/data-requests/ai-extractions` 폴백/빈. 데이터 커버리지 확인 |
+| 제출 8단계 트래커(문서 단위) | `components/supplier/EightStageStepper.tsx:64-99,108` | 🔌 | `GET /submissions` 또는 batches로 배선(현재 `mockSubmissions`+`MOCK_BATCH_STATUS` 데모) |
+
+## 🟩 regulation 도메인 — `/regulation`
+| 프론트 구간 | 파일 | 상태 | 조치 |
+|---|---|---|---|
+| AI 규제 검증 결과 | `components/dashboard/RegulationResultsCard.tsx:21-24` | ✅ | `/regulation/materials/regulation-results` 폴백(이번에 연동) |
+
+## 🟩 audit 도메인 — `/audit`, `/audit-packages`
+실존: `GET /actions`, `/actions/mine`, `/trail/{batch_id}`, `/gap-analysis/{regulation_id}`, `/audit-packages`, `POST /audit-packages/{id}/export`.
+
+| 프론트 구간 | 파일 | 상태 | 조치 |
+|---|---|---|---|
+| My Task 업무 큐(`_MOCK_TASKS`) | `app/my-task/page.tsx` | 🔌 | `getActions`→`/actions(/mine)` 존재. 현재 탭에서 미렌더(잔존 상수) → 쓰면 배선, 안 쓰면 제거 |
+| 완료 증빙 다운로드(alert) | `components/supplier/EightStageStepper.tsx:397` | 🔌 | `POST /audit-packages/{id}/export` 로 배선 |
+
+## 🟩 batches 도메인 — `/batches`, `/dashboard`
+실존: `GET /batches?status=`, `/batches/{id}`, `/kpis`, `/dashboard`.
+
+| 프론트 구간 | 파일 | 상태 | 조치 |
+|---|---|---|---|
+| 대시보드 KPI/배치 현황 | `app/dashboard/page.tsx` | ✅/🔌 | `/dashboard`·`/kpis`·`/batches` 확인 |
+| 8단계 배치 상태(`MOCK_BATCH_STATUS`) | `components/supplier/EightStageStepper.tsx:108` | 🔌 | `/batches/{id}` 상태로 교체 |
+
+## 🟩 files 도메인 — `/files`
+실존: `POST /files`, `GET /files`, `/{id}`, `DELETE /{id}`.
+
+| 프론트 구간 | 파일 | 상태 | 조치 |
+|---|---|---|---|
+| 문서 업로드(파일명만 저장) | `app/suppliers/check-info/SupplierGeneralReview.tsx` DocUploadField | 🔌🧩 | `POST /files`(존재). 로컬은 S3 자격증명 없어 실패 → **프로덕션만 동작** |
+| PDF 뷰어 자리표시 | `components/supplier/AiParsingView.tsx:236` | 🧩 | `react-pdf` 도입 + 원본 URL(`/files` 또는 `submission_documents.file_url`) |
+
+## 🟩 supplychain 도메인 — `/supply-chain`, `/products`
+실존: `/tree`, `/by-hop/{n}`, `/gaps`, `/alternatives`, `/geo-risks`, `POST /notifications/correction`, `POST /declarations/source-change`, `/verify`, `/trigger-data-requests`, `/{product_id}/supply-chain-map`, `/maps...`.
+
+| 프론트 구간 | 파일 | 상태 | 조치 |
+|---|---|---|---|
+| 공급망 맵/허브 데모 dataset | `app/supply-chain/page.tsx`, `SupplyChainHub.tsx`, `SupplyChainMapPageContent.tsx` | ✅ | `mockDataset`(`lib/supply-chain-mock.ts`) 폴백. graceful(미배포 부분만 skip) |
+| 자가신고 현재 공급원(`MOCK_CURRENT_SUPPLIER`) | `components/supplier/SelfReportModal.tsx:44-49` | 🔌🆕 | 변경 등록은 `POST /declarations/source-change`(존재). **현재 공급원 조회 GET은 없음** → supplied-items 활용 or 신설 |
+| hop_level/tier 폴백 | `SupplyChainHub.tsx` | 🌱 | `hop_level` 미배포 시 tierLevel 폴백 → 배포 확인 |
+
+## 🟩 product 도메인 — `/products`
+실존: `GET /products`, `/{id}`, `/{id}/bom-versions`, `/{id}/bom`, 활성/폐기.
+
+| 프론트 구간 | 파일 | 상태 | 조치 |
+|---|---|---|---|
+| BOM `kind` 파생 | `lib/api.ts:917` | 🌱🆕 | 백엔드 미제공 → `/products/{id}/bom` 응답에 `kind` 추가(현재 tier_level/leaf로 파생) |
+| BOM `functionPurpose` 빈값 | `lib/api.ts:952` | 🆕 | `function_purpose` 필드 추가 |
+
+---
+
+# 🆕 신설 필요 — 해당 도메인/엔드포인트 자체가 없음
+
+| 프론트 구간 | 파일 | 제안 위치 |
+|---|---|---|
+| 협력사 알림 벨(`MOCK_NOTIFICATIONS`) | `components/supplier/SupplierNotificationBell.tsx:29-57` | **notifications 도메인 신설**(또는 users/audit에 `GET /notifications`) |
+| 공급망 입력 PO 목록(`MOCK_POS`) | `components/supplier/supply-chain-entry/StepContext.tsx:19-23` | **purchase-order 엔드포인트 신설**(supplychain 또는 신규 도메인) — 주석 `백엔드 PO 엔드포인트 없어 mock` |
+| 자가신고 현재 공급원 GET | `SelfReportModal.tsx` | supplychain에 `GET /current-supply-source` 추가 |
+| 완료 증빙 파일 | `EightStageStepper.tsx:397` | audit `/audit-packages/{id}/export` 재사용 가능(신설 불요) |
+
+---
+
+# 🧩 멀티 도메인 페이지 — 한 화면에서 여러 도메인을 손봐야 함
+
+| 페이지 | 걸치는 도메인 | 무엇을 어디서 |
+|---|---|---|
+| **협력사 정보 단일 폼** `app/suppliers/check-info/SupplierGeneralReview.tsx` | **supplier** + **files** + **submission** | 회사/연락처/공장/인증/품목/원산지·완성도 = supplier · 문서 업로드 = files · "추가 자료 요청"(createDataRequest) = submission |
+| **My Task** `app/my-task/page.tsx` | **submission** + **audit** + **regulation** + **supplier** + **files** | 자료요청·AI추출 = submission · 업무큐(actions) = audit · 규제검증 카드 = regulation · 입력현황 보드(suppliers/completeness) = supplier · 파싱뷰 업로드 = files |
+| **대시보드** `app/dashboard/page.tsx` | **batches** + **submission** + **regulation** | KPI/배치 = batches · HITL AI추출 = submission · 규제검증 = regulation |
+| **공급망 맵/허브** `app/supply-chain/*` | **supplychain** + **product** + **submission** | 맵/트리/gaps/alternatives = supplychain · 제품/BOM = product · 노드 자료요청(trigger-data-requests) = submission |
+| **협력사 목록** `app/suppliers/page.tsx` | **supplier** (+ contacts 배선) | 목록=supplier brief · 연락처=supplier contacts(배선) |
+| **8단계 트래커** `components/supplier/EightStageStepper.tsx` | **submission** + **batches** + **audit** | 제출 단계 = submission/batches · 완료증빙 = audit |
+
+---
+
+# 우선순위 요약
+- **즉시(배선만, 엔드포인트 실존)** 🔌: 협력사 목록/포털 **연락처**(supplier), My Task **업무큐**(audit), 8단계 **submissions/batches**, 완료증빙(audit), 문서업로드(files·프로덕션).
+- **데이터 시드** 🌱: supplier `country`, supplychain `hop_level`, product BOM `kind/function_purpose`.
+- **엔드포인트 신설** 🆕: **알림(notifications)**, **PO(purchase-order)**, 현재 공급원 GET.
+- **외부/라이브러리** 🧩: react-pdf 뷰어, S3 파일저장(프로덕션 자격증명).
+
+> 폴백(✅) 구간은 백엔드 배포·시드만 되면 자동 실데이터. 실제 작업 대상은 🔌(배선)·🌱(시드)·🆕(신설)·🧩(외부).
