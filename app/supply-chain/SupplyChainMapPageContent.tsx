@@ -1,7 +1,7 @@
 'use client';
 
 // 공급망 맵과 M-BOM 형성 화면이 공유하는 원본 화면 컴포넌트입니다.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ExcelJS from 'exceljs';
 import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
 import {
@@ -128,6 +128,23 @@ export function SupplyChainMapPageContent({
     onProductChange?.(productId);
   }
 
+  // 맵 화면에서도 게이트와 동일 기준(제품·고객사·단위기간)을 노출.
+  // 고객사 목록 = 제품의 customer_name 고유값.
+  const customerOptions = useMemo(
+    () => Array.from(new Map(dataset.products.filter(p => p.customer_name).map(p => [p.customer_name, p.customer_name])).keys()),
+    [dataset.products],
+  );
+  // 제품 드롭다운은 선택 고객사의 제품만(게이트와 동일 cascading).
+  const productOptions = useMemo(
+    () => dataset.products.filter(p => !selectedProduct?.customer_name || p.customer_name === selectedProduct.customer_name),
+    [dataset.products, selectedProduct?.customer_name],
+  );
+  // 고객사 변경 → 그 고객사의 첫 제품으로 전환.
+  function handleCustomerChange(name: string) {
+    const prod = dataset.products.find(p => p.customer_name === name);
+    if (prod) handleProductChange(prod.product_id);
+  }
+
   // 제품 목록이 로드되면(또는 데이터셋 교체 시) 유효한 제품을 자동 선택.
   // 목록에서 넘어온 initialProductId 가 현재 목록에 있으면 그 제품을 우선 선택한다.
   useEffect(() => {
@@ -139,12 +156,21 @@ export function SupplyChainMapPageContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset.products]);
 
-  // 선택 제품의 BOM이 도착하면 BOM 버전을 자동 선택.
-  // 목록에서 넘어온 initialBomVersionId 가 목록에 있으면 그 버전(생산 Lot)을 우선 선택한다.
+  // 선택 제품의 BOM이 도착하면 BOM 버전(단위기간 Lot)을 선택.
+  // 게이트/목록에서 넘어온 initialBomVersionId 는 1회 '강제 적용'해 고정한다 — 기본 첫 버전으로
+  // 덮이면(예: GLC 2024가 첫 버전) 게이트에서 고른 2025 Lot이 사라지는 문제를 막는다.
+  const appliedInitialBom = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (availableBomVersions.length > 0 && !availableBomVersions.some(v => v.bom_version_id === selectedBomVersionId)) {
-      const preferred = initialBomVersionId && availableBomVersions.find(v => v.bom_version_id === initialBomVersionId);
-      setSelectedBomVersionId((preferred || availableBomVersions[0]).bom_version_id);
+    if (availableBomVersions.length === 0) return;
+    const validInitial =
+      initialBomVersionId && availableBomVersions.some(v => v.bom_version_id === initialBomVersionId);
+    if (validInitial && initialBomVersionId !== appliedInitialBom.current) {
+      appliedInitialBom.current = initialBomVersionId;
+      setSelectedBomVersionId(initialBomVersionId!);
+      return;
+    }
+    if (!availableBomVersions.some(v => v.bom_version_id === selectedBomVersionId)) {
+      setSelectedBomVersionId(availableBomVersions[0].bom_version_id);
     }
   }, [availableBomVersions, selectedBomVersionId, initialBomVersionId]);
 
@@ -293,25 +319,33 @@ export function SupplyChainMapPageContent({
 
       <section className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
+          <FilterSelect label="고객사">
+            <select value={selectedProduct?.customer_name ?? ''} onChange={event => handleCustomerChange(event.target.value)} className="h-11 min-w-[180px] rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-ink-100 shadow-sm outline-none focus:border-ok-border">
+              {customerOptions.length === 0 && <option value="">-</option>}
+              {customerOptions.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </FilterSelect>
           <FilterSelect label="제품">
             <select value={selectedProductId} onChange={event => handleProductChange(event.target.value)} className="h-11 min-w-[210px] rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-ink-100 shadow-sm outline-none focus:border-ok-border">
-              {dataset.products.map(product => (
+              {productOptions.map(product => (
                 <option key={product.product_id} value={product.product_id}>
                   {product.product_name}
                 </option>
               ))}
             </select>
           </FilterSelect>
-          <FilterSelect label="BOM 정보">
-            <select value={selectedBomVersionId} onChange={event => setSelectedBomVersionId(event.target.value)} className="h-11 min-w-[170px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border">
+          <FilterSelect label="단위기간 (생산 Lot)">
+            <select value={selectedBomVersionId} onChange={event => setSelectedBomVersionId(event.target.value)} className="h-11 min-w-[230px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border">
               {availableBomVersions.map(version => (
                 <option key={version.bom_version_id} value={version.bom_version_id}>
-                  BOM {version.version_number} · {version.status}
+                  {version.effective_from ? `${version.effective_from} ~ ${version.effective_to ?? '진행중'}` : '전체'} (v{version.version_number})
                 </option>
               ))}
             </select>
           </FilterSelect>
-          <FilterSelect label="단위기간">
+          <FilterSelect label="조회 기간">
             <div className="flex h-11 min-w-[300px] items-center gap-2 rounded-md border border-slate-200 bg-white px-3 shadow-sm focus-within:border-ok-border">
               <input
                 type="date"
