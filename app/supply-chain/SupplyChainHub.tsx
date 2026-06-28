@@ -18,6 +18,18 @@ import MapManageModal from '@/components/supply-chain/MapManageModal';
 
 export type HubModal = null | 'pool' | 'suppliers' | 'dataRequest' | 'invite' | 'mapManage';
 
+// 진입 게이트 통합 목록의 한 행 = (제품 × 고객사 × 단위기간[BOM Lot]).
+interface EntryChainRow {
+  productId: string;
+  productName: string;
+  productCode: string;
+  customerName: string;
+  bomVersionId?: string;
+  versionNumber: string;
+  periodFrom: string | null;
+  periodTo: string | null;
+}
+
 export default function SupplyChainHub() {
   // 공급망 목록에서 특정 공급망을 누르고 들어오면 productId(+bomVersionId)로 해당 Lot을 선택해 연다.
   const searchParams = useSearchParams();
@@ -105,9 +117,14 @@ export default function SupplyChainHub() {
     setRequesting(false);
   }
 
-  // ④ 진입 게이트 — 첫 진입 시 빈 상태에서 '맵 생성하기'로 제품을 고르고 맵을 연다. URL 제품 진입·데모는 게이트 스킵.
+  // ④ 진입 게이트 — 첫 진입 시 빈 상태에서 (제품×고객사×단위기간) 통합 목록에서 한 줄을 골라 맵을 연다.
+  // URL 제품 진입·데모는 게이트 스킵.
   const [mapStarted, setMapStarted] = useState(Boolean(initialProductId));
   const [entryProductId, setEntryProductId] = useState(initialProductId ?? '');
+  const [entryBomVersionId, setEntryBomVersionId] = useState<string | undefined>(undefined);
+  // 통합 목록 행 = (제품 × 고객사 × 단위기간[BOM Lot]). 제품마다 BOM 버전을 조회해 구성.
+  const [entryRows, setEntryRows] = useState<EntryChainRow[]>([]);
+  const [entryRowsLoading, setEntryRowsLoading] = useState(false);
 
   // 진입 시 제품 목록 조회. 토큰 없음/401·403은 알림으로 표면화(조용한 빈 화면 방지).
   useEffect(() => {
@@ -139,9 +156,77 @@ export default function SupplyChainHub() {
     };
   }, []);
 
+  // 진입 게이트 통합 목록 — 제품마다 BOM 버전(단위기간 Lot)을 조회해 (제품×고객사×기간) 행으로 펼친다.
+  // 게이트가 떠 있을 때만(맵 미시작·실데이터) 1회 구성.
+  useEffect(() => {
+    if (isDemo || mapStarted) return;
+    const products = dataset.products;
+    if (!products.length) return;
+    let cancelled = false;
+    (async () => {
+      setEntryRowsLoading(true);
+      const rows: EntryChainRow[] = [];
+      for (const p of products) {
+        let versions: Awaited<ReturnType<typeof getProductBomVersions>> = [];
+        try {
+          versions = await getProductBomVersions(p.product_id);
+        } catch {
+          // 구버전 백엔드 — 버전 없이 제품 1행만
+        }
+        if (versions.length) {
+          for (const v of versions) {
+            rows.push({
+              productId: p.product_id,
+              productName: p.product_name,
+              productCode: p.product_code,
+              customerName: p.customer_name,
+              bomVersionId: v.bomVersionId,
+              versionNumber: v.versionNumber,
+              periodFrom: v.productionFrom ?? null,
+              periodTo: v.productionTo ?? null,
+            });
+          }
+        } else {
+          rows.push({
+            productId: p.product_id,
+            productName: p.product_name,
+            productCode: p.product_code,
+            customerName: p.customer_name,
+            bomVersionId: undefined,
+            versionNumber: '',
+            periodFrom: null,
+            periodTo: null,
+          });
+        }
+      }
+      if (!cancelled) {
+        // 고객사 → 제품 → 기간 순으로 정렬해 통합 목록을 읽기 쉽게.
+        rows.sort(
+          (a, b) =>
+            a.customerName.localeCompare(b.customerName) ||
+            a.productName.localeCompare(b.productName) ||
+            (a.periodFrom ?? '').localeCompare(b.periodFrom ?? ''),
+        );
+        setEntryRows(rows);
+        setEntryRowsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dataset.products, isDemo, mapStarted]);
+
+  // 통합 목록에서 한 행(제품×고객사×Lot) 선택 → 그 제품·버전으로 맵 생성/진입.
+  function startMapFromRow(row: EntryChainRow) {
+    setEntryProductId(row.productId);
+    setEntryBomVersionId(row.bomVersionId);
+    setMapStarted(true);
+    handleProductChange(row.productId, row.bomVersionId);
+  }
+
   // 제품 선택 시: BOM(버전·트리) + §10.2a 공급망 맵을 조회해 데이터셋에 병합.
   // 각 호출은 graceful — 미구현/미배포 백엔드면 해당 부분만 건너뛴다(데모 모드면 mock 유지).
-  async function handleProductChange(productId: string) {
+  async function handleProductChange(productId: string, explicitVersionId?: string) {
     if (isDemo) return;
 
     // STEP 1 완료 표시. 제품이 바뀌면 이전 제품 기준 Pool 후보·확정 선택은 무효이므로 초기화.
@@ -163,8 +248,11 @@ export default function SupplyChainHub() {
       initialBomVersionId && versions.some(v => v.bomVersionId === initialBomVersionId)
         ? initialBomVersionId
         : undefined;
+    // 통합 목록에서 특정 Lot(단위기간)을 골라 진입하면 그 버전을 최우선으로 사용.
+    const chosenVersionId =
+      explicitVersionId && versions.some(v => v.bomVersionId === explicitVersionId) ? explicitVersionId : undefined;
     const activeVersionId =
-      preferredVersionId ?? versions.find(v => v.isCurrent)?.bomVersionId ?? versions[0]?.bomVersionId;
+      chosenVersionId ?? preferredVersionId ?? versions.find(v => v.isCurrent)?.bomVersionId ?? versions[0]?.bomVersionId;
 
     // 2) BOM 버전 목록(드롭다운)은 트리 조회 성공 여부와 무관하게 먼저 등록.
     //    백엔드 /bom 트리가 404("active BOM 없음")여도 /bom-versions는 버전을 주므로 BOM 정보는 떠야 한다.
@@ -364,40 +452,64 @@ export default function SupplyChainHub() {
         </button>
       </div>
 
-      {/* ④ 진입 게이트: 첫 진입 시 빈 상태 → 제품 선택 + '맵 생성하기' */}
+      {/* ④ 진입 게이트: 첫 진입 시 (제품×고객사×단위기간) 통합 목록에서 한 줄을 골라 맵 생성. */}
       {!mapStarted && loadStatus === null && !productsLoading && dataset.products.length > 0 && (
-        <div className="mx-6 mt-6 rounded-md border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-ok-bg text-ok-text">
-            <Network className="h-6 w-6" />
-          </span>
-          <h2 className="mt-4 text-lg font-bold text-ink-100">공급망 맵 생성</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            대표 제품을 선택하고 맵을 생성하면, 해당 제품의 1차 협력사부터 자동 맵핑됩니다.
-          </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-            <select
-              value={entryProductId || dataset.products[0]?.product_id || ''}
-              onChange={e => setEntryProductId(e.target.value)}
-              className="min-w-[260px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none"
-            >
-              {dataset.products.map(prod => (
-                <option key={prod.product_id} value={prod.product_id}>{prod.product_name}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => {
-                const chosen = entryProductId || dataset.products[0]?.product_id || '';
-                setEntryProductId(chosen);
-                setMapStarted(true);
-                if (chosen) handleProductChange(chosen); // Hub 상태(STEP1 완료) + BOM/맵 로드 즉시 보장
-              }}
-              className="inline-flex items-center gap-1.5 rounded-md bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-hover"
-            >
-              <ArrowRight className="h-4 w-4" />
-              맵 생성하기
-            </button>
+        <div className="mx-6 mt-6 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-6 py-4">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-ok-bg text-ok-text">
+              <Network className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-base font-bold text-ink-100">공급망 맵 생성</h2>
+              <p className="mt-0.5 text-sm text-slate-500">
+                생성할 공급망을 <b>제품 · 고객사 · 단위기간(생산 Lot)</b> 단위로 선택하면, 1차 협력사부터 자동 맵핑됩니다.
+              </p>
+            </div>
           </div>
+
+          {entryRowsLoading ? (
+            <div className="flex items-center justify-center gap-2 px-6 py-16 text-sm font-semibold text-slate-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              생성 가능한 공급망 불러오는 중…
+            </div>
+          ) : entryRows.length === 0 ? (
+            <div className="px-6 py-16 text-center text-sm text-slate-500">선택할 수 있는 제품·기간이 없습니다.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-white">
+                    {['고객사', '제품', '제품코드', '단위기간 (생산 Lot)', ''].map(h => (
+                      <th key={h} className="whitespace-nowrap px-6 py-3 text-left text-xs font-bold text-slate-500">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {entryRows.map(row => (
+                    <tr
+                      key={`${row.productId}:${row.bomVersionId ?? 'na'}`}
+                      onClick={() => startMapFromRow(row)}
+                      className="cursor-pointer transition hover:bg-slate-50"
+                    >
+                      <td className="whitespace-nowrap px-6 py-3 font-semibold text-ink-300">{row.customerName || '-'}</td>
+                      <td className="px-6 py-3 font-bold text-ink-100">{row.productName}</td>
+                      <td className="whitespace-nowrap px-6 py-3 font-mono text-xs text-slate-500">{row.productCode}</td>
+                      <td className="whitespace-nowrap px-6 py-3 text-ink-400">
+                        {row.periodFrom ? `${row.periodFrom} ~ ${row.periodTo ?? '진행중'}` : '전체'}
+                        {row.versionNumber && <span className="ml-2 text-xs text-slate-400">v{row.versionNumber}</span>}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-3 text-right">
+                        <span className="inline-flex items-center gap-1.5 rounded-md bg-brand px-4 py-1.5 text-xs font-bold text-white">
+                          <ArrowRight className="h-3.5 w-3.5" />
+                          맵 생성
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -406,7 +518,7 @@ export default function SupplyChainHub() {
           dataset={dataset}
           embedded
           initialProductId={initialProductId ?? entryProductId}
-          initialBomVersionId={initialBomVersionId}
+          initialBomVersionId={initialBomVersionId ?? entryBomVersionId}
           highlightSupplierIds={new Set(pool.map(s => s.supplierId))}
           onNodeSelect={setSelectedNode}
           onConnectClick={() => setActiveModal('invite')}
