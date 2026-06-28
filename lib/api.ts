@@ -1128,3 +1128,23 @@ export const getProductSupplyChainMap = (productId: string, params?: SupplyChain
 /** §10.2b 공급망 맵 확인 → link_status = supplychain_confirmed. */
 export const confirmSupplyChainMap = (mapId: string) =>
   api.post<{ mapId: string; status: string }>(`/supply-chain/maps/${mapId}/confirm`, { confirmed: true });
+
+// ── 공급망 맵 헤더(맵 그 자체) — 목록/단건/상태 ──────────────────────────────
+export interface SupplyChainMapHeader {
+  mapId: string;
+  bomVersionId: string;
+  productId: string;
+  productName: string;
+  status: "building" | "completed";
+  completedAt?: string | null;
+  edgeCount: number;
+}
+/** 내 테넌트의 공급망 맵 목록(맵 1개 = map_id 1개). */
+export const getSupplyChainMaps = () =>
+  api.get<SupplyChainMapHeader[]>("/supply-chain/maps");
+/** 공급망 맵 단건(map_id). */
+export const getSupplyChainMapHeader = (mapId: string) =>
+  api.get<SupplyChainMapHeader>(`/supply-chain/maps/${mapId}`);
+/** 공급망 맵 완료/전송 상태 변경(building/completed). */
+export const updateSupplyChainMapStatus = (mapId: string, status: "building" | "completed") =>
+  api.patch<{ mapId: string; status: string; completedAt?: string | null }>(`/supply-chain/maps/${mapId}`, { status });
