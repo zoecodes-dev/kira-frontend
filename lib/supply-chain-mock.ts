@@ -669,14 +669,27 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
     .sort(byTier);
   // 실 공급망은 차수를 건너뛰어(예: Module/t1 누락) 트리가 여러 forest-root로 끊긴다.
   // 차수 오름차순으로 단일 체인 연결 → product → tier0 → … → 광산 으로 쭉 내려간다.
-  // depth=i+1 로 빌드하면 root[i]를 root[i-1]의 자식으로 중첩해도 깊이가 일관된다.
-  const rootNodes = rootRows.map((row, i) => buildPartNode(row, i + 1));
-  for (let i = rootNodes.length - 1; i > 0; i--) {
-    rootNodes[i - 1].children = [...rootNodes[i - 1].children, rootNodes[i]];
+  // depth는 인덱스가 아니라 '실제 트리 위치'로 마지막에 재계산한다(아래 fixDepth).
+  const rootNodes = rootRows.map(row => buildPartNode(row, 0));
+  // 끊긴 다음 루트는 '이전 루트 서브트리의 가장 깊은 노드' 아래에 잇는다.
+  // (이전 루트의 루트 노드에 바로 붙이면, 이전 서브트리가 깊을 때 다음 구간이
+  //  상위로 튀어 올라 차수 순서가 어긋난다 — iX3의 Refined Nickel Sulfate 사례.)
+  const deepestNode = (n: ExplorerNode): ExplorerNode => {
+    let best = n;
+    const walk = (x: ExplorerNode) => {
+      if (x.depth > best.depth) best = x;
+      x.children.forEach(walk);
+    };
+    walk(n);
+    return best;
+  };
+  for (let i = 1; i < rootNodes.length; i++) {
+    const anchor = deepestNode(rootNodes[i - 1]);
+    anchor.children = [...anchor.children, rootNodes[i]];
   }
   const children = rootNodes.length ? [rootNodes[0]] : [];
 
-  return {
+  const result: ExplorerNode = {
     key: `product:${product.product_id}`,
     label: product.product_name,
     meta: `${product.product_code} / BOM ${bomVersion.version_number}`,
@@ -692,6 +705,16 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
     verificationProgress: `${Math.round((rows.filter(row => row.risk_status === 'verified').length / Math.max(rows.length, 1)) * 100)}%`,
     children,
   };
+
+  // depth 재계산 — 들여쓰기/연결선이 전적으로 node.depth로 그려지므로, 실제 중첩
+  // 위치(부모 depth+1)로 다시 매겨야 끊겨 이어 붙인 구간도 순차적으로 보인다.
+  const fixDepth = (n: ExplorerNode, d: number) => {
+    n.depth = d;
+    n.children.forEach(c => fixDepth(c, d + 1));
+  };
+  fixDepth(result, 0);
+
+  return result;
 }
 
 // ── 공급망 목록(랜딩) ──
