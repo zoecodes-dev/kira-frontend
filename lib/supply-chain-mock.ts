@@ -568,9 +568,14 @@ export function buildTraceRows(ds: SupplyChainDataset, bomVersionId: string, per
           }];
         });
     })
+    // 차수(tier) 오름차순 — "제출 데이터 확인" 표·CSV가 Pack(0)→…→광산 순으로 보이게.
+    // tier는 "Tier N"(hop_level 기반) 문자열이라 숫자만 추출해 정렬(없으면 뒤로).
     .sort((a, b) => {
-      const stageOrder = { bom: 1, material: 2, supplier: 3 };
-      return stageOrder[a.stage] - stageOrder[b.stage] || a.depth - b.depth || a.part_name.localeCompare(b.part_name);
+      const tierNum = (r: TraceRow) => {
+        const n = parseInt(String(r.tier).replace(/[^0-9]/g, ''), 10);
+        return Number.isNaN(n) ? 99 : n;
+      };
+      return tierNum(a) - tierNum(b) || a.depth - b.depth || a.part_name.localeCompare(b.part_name);
     });
 }
 
@@ -650,11 +655,15 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
     };
   }
 
-  // 제품 직속 = 최상위 부품. parent_part_id가 null이거나, 부모가 이 부품집합에 없는 경우(forest 루트)도 포함.
-  // (BOM이 forest면 최상위 부품의 parent가 BOM 밖을 가리켜 non-null이라, null만 보면 제품 1노드만 남는다.)
+  // 제품 직속 = 최상위 부품. forest 루트 판정:
+  //  - parent_part_id가 null이거나
+  //  - 부모가 이 부품집합에 없거나(BOM 밖)
+  //  - 부모가 부품집합엔 있어도 맵 엣지가 없어 row가 없는 경우(렌더 불가 → 자식이 매달릴 곳이 없음).
+  // 마지막 조건이 없으면, 맵에 없는 중간 부품(예: Module)을 부모로 둔 노드(Cell)와 그 이하
+  // (CAM→스멜터→광산)가 통째로 누락돼 트리가 끝까지 안 내려간다.
   const partIdSet = new Set(ds.parts.map(p => p.part_id));
   const rootRows = ds.parts
-    .filter(part => !part.parent_part_id || !partIdSet.has(part.parent_part_id))
+    .filter(part => !part.parent_part_id || !partIdSet.has(part.parent_part_id) || !rowsByPartId.has(part.parent_part_id))
     .map(part => rowsByPartId.get(part.part_id))
     .filter((item): item is TraceRow => Boolean(item))
     .sort(byTier);
