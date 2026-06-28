@@ -121,6 +121,7 @@ export default function SupplyChainHub() {
   // URL 제품 진입·데모는 게이트 스킵.
   const [mapStarted, setMapStarted] = useState(Boolean(initialProductId));
   const [entryProductId, setEntryProductId] = useState(initialProductId ?? '');
+  const [entryCustomer, setEntryCustomer] = useState('');
   const [entryBomVersionId, setEntryBomVersionId] = useState<string | undefined>(undefined);
   // 통합 목록 행 = (제품 × 고객사 × 단위기간[BOM Lot]). 제품마다 BOM 버전을 조회해 구성.
   const [entryRows, setEntryRows] = useState<EntryChainRow[]>([]);
@@ -209,6 +210,11 @@ export default function SupplyChainHub() {
         );
         setEntryRows(rows);
         setEntryRowsLoading(false);
+        // 기본 선택값 — 첫 행(고객사→제품→기간 정렬 기준). 이미 고른 값은 유지.
+        const first = rows[0];
+        setEntryCustomer(c => c || first?.customerName || '');
+        setEntryProductId(p => p || first?.productId || '');
+        setEntryBomVersionId(b => b ?? first?.bomVersionId);
       }
     })();
     return () => {
@@ -216,12 +222,43 @@ export default function SupplyChainHub() {
     };
   }, [dataset.products, isDemo, mapStarted]);
 
-  // 통합 목록에서 한 행(제품×고객사×Lot) 선택 → 그 제품·버전으로 맵 생성/진입.
-  function startMapFromRow(row: EntryChainRow) {
-    setEntryProductId(row.productId);
-    setEntryBomVersionId(row.bomVersionId);
+  // 진입 게이트 3개 드롭다운 파생 목록 — 고객사 → (그 고객사) 제품 → (그 제품) 단위기간(Lot).
+  const entryCustomers = Array.from(
+    new Map(entryRows.filter(r => r.customerName).map(r => [r.customerName, r.customerName])).keys(),
+  );
+  const entryProducts = Array.from(
+    new Map(
+      entryRows
+        .filter(r => !entryCustomer || r.customerName === entryCustomer)
+        .map(r => [r.productId, r]),
+    ).values(),
+  );
+  const entryPeriods = entryRows.filter(r => r.productId === entryProductId);
+
+  // 고객사 변경 → 그 고객사의 첫 제품·첫 기간으로 리셋.
+  function onEntryCustomerChange(name: string) {
+    setEntryCustomer(name);
+    const firstProd = entryRows.find(r => !name || r.customerName === name);
+    setEntryProductId(firstProd?.productId ?? '');
+    const firstPeriod = entryRows.find(r => r.productId === firstProd?.productId);
+    setEntryBomVersionId(firstPeriod?.bomVersionId);
+  }
+  // 제품 변경 → 그 제품의 고객사 자동 반영 + 첫 기간으로 리셋.
+  function onEntryProductChange(productId: string) {
+    setEntryProductId(productId);
+    const row = entryRows.find(r => r.productId === productId);
+    if (row?.customerName) setEntryCustomer(row.customerName);
+    const firstPeriod = entryRows.find(r => r.productId === productId);
+    setEntryBomVersionId(firstPeriod?.bomVersionId);
+  }
+
+  // '맵 생성' → 선택한 제품·단위기간(Lot)으로 맵 생성/진입(페이지 전환).
+  function startMapFromSelection() {
+    if (!entryProductId) return;
+    const versionId = entryBomVersionId ?? entryPeriods[0]?.bomVersionId;
+    setEntryBomVersionId(versionId);
     setMapStarted(true);
-    handleProductChange(row.productId, row.bomVersionId);
+    handleProductChange(entryProductId, versionId);
   }
 
   // 제품 선택 시: BOM(버전·트리) + §10.2a 공급망 맵을 조회해 데이터셋에 병합.
@@ -452,62 +489,73 @@ export default function SupplyChainHub() {
         </button>
       </div>
 
-      {/* ④ 진입 게이트: 첫 진입 시 (제품×고객사×단위기간) 통합 목록에서 한 줄을 골라 맵 생성. */}
+      {/* ④ 진입 게이트: 제품·고객사·단위기간 리스트를 골라 '맵 생성'으로 진입. */}
       {!mapStarted && loadStatus === null && !productsLoading && dataset.products.length > 0 && (
-        <div className="mx-6 mt-6 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-6 py-4">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-ok-bg text-ok-text">
-              <Network className="h-5 w-5" />
-            </span>
-            <div>
-              <h2 className="text-base font-bold text-ink-100">공급망 맵 생성</h2>
-              <p className="mt-0.5 text-sm text-slate-500">
-                생성할 공급망을 <b>제품 · 고객사 · 단위기간(생산 Lot)</b> 단위로 선택하면, 1차 협력사부터 자동 맵핑됩니다.
-              </p>
-            </div>
-          </div>
+        <div className="mx-6 mt-6 rounded-md border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-ok-bg text-ok-text">
+            <Network className="h-6 w-6" />
+          </span>
+          <h2 className="mt-4 text-lg font-bold text-ink-100">공급망 맵 생성</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            제품 · 고객사 · 단위기간(생산 Lot)을 선택하고 맵을 생성하면, 해당 공급망의 1차 협력사부터 자동 맵핑됩니다.
+          </p>
 
           {entryRowsLoading ? (
-            <div className="flex items-center justify-center gap-2 px-6 py-16 text-sm font-semibold text-slate-400">
+            <div className="mt-6 flex items-center justify-center gap-2 text-sm font-semibold text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin" />
-              생성 가능한 공급망 불러오는 중…
+              불러오는 중…
             </div>
-          ) : entryRows.length === 0 ? (
-            <div className="px-6 py-16 text-center text-sm text-slate-500">선택할 수 있는 제품·기간이 없습니다.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-white">
-                    {['고객사', '제품', '제품코드', '단위기간 (생산 Lot)', ''].map(h => (
-                      <th key={h} className="whitespace-nowrap px-6 py-3 text-left text-xs font-bold text-slate-500">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {entryRows.map(row => (
-                    <tr
-                      key={`${row.productId}:${row.bomVersionId ?? 'na'}`}
-                      onClick={() => startMapFromRow(row)}
-                      className="cursor-pointer transition hover:bg-slate-50"
-                    >
-                      <td className="whitespace-nowrap px-6 py-3 font-semibold text-ink-300">{row.customerName || '-'}</td>
-                      <td className="px-6 py-3 font-bold text-ink-100">{row.productName}</td>
-                      <td className="whitespace-nowrap px-6 py-3 font-mono text-xs text-slate-500">{row.productCode}</td>
-                      <td className="whitespace-nowrap px-6 py-3 text-ink-400">
-                        {row.periodFrom ? `${row.periodFrom} ~ ${row.periodTo ?? '진행중'}` : '전체'}
-                        {row.versionNumber && <span className="ml-2 text-xs text-slate-400">v{row.versionNumber}</span>}
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-3 text-right">
-                        <span className="inline-flex items-center gap-1.5 rounded-md bg-brand px-4 py-1.5 text-xs font-bold text-white">
-                          <ArrowRight className="h-3.5 w-3.5" />
-                          맵 생성
-                        </span>
-                      </td>
-                    </tr>
+            <div className="mt-6 flex flex-wrap items-end justify-center gap-3">
+              <label className="flex flex-col gap-1.5 text-left">
+                <span className="text-[11px] font-bold text-slate-500">고객사</span>
+                <select
+                  value={entryCustomer}
+                  onChange={e => onEntryCustomerChange(e.target.value)}
+                  className="min-w-[180px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none"
+                >
+                  {entryCustomers.map(c => (
+                    <option key={c} value={c}>{c}</option>
                   ))}
-                </tbody>
-              </table>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5 text-left">
+                <span className="text-[11px] font-bold text-slate-500">제품</span>
+                <select
+                  value={entryProductId}
+                  onChange={e => onEntryProductChange(e.target.value)}
+                  className="min-w-[240px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none"
+                >
+                  {entryProducts.map(p => (
+                    <option key={p.productId} value={p.productId}>{p.productName}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5 text-left">
+                <span className="text-[11px] font-bold text-slate-500">단위기간 (생산 Lot)</span>
+                <select
+                  value={entryBomVersionId ?? ''}
+                  onChange={e => setEntryBomVersionId(e.target.value || undefined)}
+                  className="min-w-[220px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none"
+                >
+                  {entryPeriods.length === 0 && <option value="">전체</option>}
+                  {entryPeriods.map(r => (
+                    <option key={r.bomVersionId ?? 'na'} value={r.bomVersionId ?? ''}>
+                      {r.periodFrom ? `${r.periodFrom} ~ ${r.periodTo ?? '진행중'}` : '전체'}
+                      {r.versionNumber ? ` (v${r.versionNumber})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={startMapFromSelection}
+                disabled={!entryProductId}
+                className="inline-flex items-center gap-1.5 rounded-md bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-hover disabled:opacity-50"
+              >
+                <ArrowRight className="h-4 w-4" />
+                맵 생성하기
+              </button>
             </div>
           )}
         </div>
