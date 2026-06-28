@@ -62,6 +62,8 @@ interface ExtractionTableProps {
    * true → 버튼 텍스트를 "원청사로 제출"로 변경 (submission-review → review 상태로 전송)
    */
   isLastDoc?: boolean;
+  /** 'supplier'(협력사 제출) | 'oem'(원청 검토). 버튼·문구를 보는 주체에 맞게 분리. */
+  mode?: 'supplier' | 'oem';
 }
 
 // ─── 토스트 컴포넌트 ────────────────────────────────────────────────────────
@@ -139,7 +141,8 @@ function DraftBanner({
   );
 }
 
-export default function ExtractionTable({ doc, supplierId, onConfirmComplete, isLastDoc = false }: ExtractionTableProps) {
+export default function ExtractionTable({ doc, supplierId, onConfirmComplete, isLastDoc = false, mode = 'supplier' }: ExtractionTableProps) {
+  const oem = mode === 'oem';
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
   const [unparsedInputs, setUnparsedInputs] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
@@ -333,10 +336,10 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
             }`}
           >
             {confirming ? '처리 중...' : isLastDoc ? (
-              /* 마지막 문서 — submission-review의 review 상태로 원청사 Queue에 전송 */
-              <><Send className="h-3.5 w-3.5" /> 원청사로 제출</>
+              /* 마지막 문서 — 협력사: 원청사로 제출 / 원청: 검토 완료 */
+              <><Send className="h-3.5 w-3.5" /> {oem ? '검토 완료' : '원청사로 제출'}</>
             ) : (
-              <>저장 및 다음으로 <ChevronRight className="h-3.5 w-3.5" /></>
+              <>{oem ? '확인 및 다음으로' : '저장 및 다음으로'} <ChevronRight className="h-3.5 w-3.5" /></>
             )}
           </button>
         </div>

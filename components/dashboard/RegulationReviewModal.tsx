@@ -71,7 +71,7 @@ export default function RegulationReviewModal({ row, onClose }: { row: RegReview
 
         {/* 근거 자료 — AI 파싱 뷰(협력사 제출 자료의 추출 결과) */}
         <div className="min-h-0 flex-1">
-          {row.supplierId && <AiParsingView supplierId={row.supplierId} onConfirmComplete={onClose} realOnly />}
+          {row.supplierId && <AiParsingView supplierId={row.supplierId} onConfirmComplete={onClose} realOnly mode="oem" />}
         </div>
       </div>
     </div>

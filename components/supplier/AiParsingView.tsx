@@ -96,13 +96,17 @@ export default function AiParsingView({
   supplierId,
   onConfirmComplete,
   realOnly = false,
+  mode = 'supplier',
 }: {
   supplierId: string;
   onConfirmComplete: () => void;
   // realOnly: 실 AI 추출만 표시(없으면 빈 상태). 원청 검토 모달용 — 무관한 mock 금지.
   // false(기본)면 협력사 데모처럼 실데이터 없을 때 mock 폴백.
   realOnly?: boolean;
+  // mode: 'supplier'(협력사 제출 화면) | 'oem'(원청 검토 화면). 같은 페이지 공용 — 문구만 분리.
+  mode?: 'supplier' | 'oem';
 }) {
+  const oem = mode === 'oem';
   // 공통 모듈 — 실 AI 추출(getAiExtractions)을 이 협력사 기준으로 가져와 표시.
   // (원청 대시보드 HitlReviewCard와 동일 데이터 소스 = 협력사/원청 동일 데이터.)
   const [docs, setDocs] = useState<ParsedDoc[]>(realOnly ? [] : MOCK_PARSED_DOCS);
@@ -167,9 +171,11 @@ export default function AiParsingView({
             <ScanLine className="h-4 w-4 text-accent-700" />
           </div>
           <div>
-            <div className="text-xs font-bold text-ink-100">AI 파싱 확인 및 수정</div>
+            <div className="text-xs font-bold text-ink-100">{oem ? 'AI 파싱 검토' : 'AI 파싱 확인 및 수정'}</div>
             <div className="mt-0.5 text-[10px] text-ink-500">
-              AI가 추출한 데이터를 검토하고 수정한 뒤, 문서별로 제출해 주세요.
+              {oem
+                ? '협력사 제출 자료의 AI 추출 결과입니다. 항목별로 검토·확인하세요.'
+                : 'AI가 추출한 데이터를 검토하고 수정한 뒤, 문서별로 제출해 주세요.'}
             </div>
           </div>
         </div>
@@ -237,6 +243,7 @@ export default function AiParsingView({
           key={activeDoc.docId}
           doc={activeDoc}
           supplierId={supplierId}
+          mode={mode}
           onConfirmComplete={handleDocComplete}
           isLastDoc={
             // 현재 탭이 마지막 미완료 문서인지 판단
