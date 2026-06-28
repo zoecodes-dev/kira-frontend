@@ -178,11 +178,6 @@ export default function SupplyChainListPage() {
       />
 
       <div className="p-6">
-        {/* 공급망 맵 헤더(맵 그 자체) — 완료/작성중 상태를 map_id 단위로 관리 */}
-        <div className="mb-5">
-          <SupplyChainMapsPanel />
-        </div>
-
         {loadStatus === 'auth' && (
           <div className="mb-4 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -272,6 +267,11 @@ export default function SupplyChainListPage() {
           totalCount={chains.length}
           onOpen={openChain}
         />
+
+        {/* 공급망 맵 헤더(맵 그 자체) — 완료/작성중 상태를 map_id 단위로 관리 */}
+        <div className="mt-6">
+          <SupplyChainMapsPanel />
+        </div>
       </div>
     </div>
   );
