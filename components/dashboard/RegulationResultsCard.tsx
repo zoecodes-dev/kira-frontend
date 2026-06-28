@@ -105,7 +105,7 @@ export default function RegulationResultsCard({ onReview }: { onReview?: (row: R
           </tbody>
         </table>
       </div>
-      <p className="border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-500">신뢰도 85% 미만 · 증빙-입력 불일치 · FEOC/원산지 회색지대는 사람이 최종 판단(HITL).</p>
+      <p className="border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-500">신뢰도 85% 미만 · 증빙-입력 불일치 · 탄소발자국/원산지 회색지대는 사람이 최종 판단(HITL).</p>
     </section>
   );
 }
