@@ -381,6 +381,7 @@ export interface SupplierDetail extends SupplierBrief {
   coreMinerals?: Record<string, number> | null;  // 소재 구성: 핵심광물 함량(%) {"Li":..}
   businessRegDocUrl?: string | null;        // 사업자등록증 업로드 URL
   environmentalReportUrl?: string | null;   // 환경성적서 업로드 URL
+  selfAssessmentDocUrl?: string | null;     // 실사 자가진단 보고서 업로드 URL
   manufacturerDetail: SupplierManufacturerDetail | null;
   recyclerDetail: SupplierRecyclerDetail | null;
   traderDetail: SupplierTraderDetail | null;
