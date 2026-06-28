@@ -307,7 +307,7 @@ export const getActions = (status?: string) =>
 // ═══════════════════════════════════════════════════════════
 
 // ── Enum 사전 (§3) ──────────────────────────────────────────
-export type SupplierType = "manufacturer" | "recycler" | "trader" | "miner";
+export type ProviderType = "manufacturer" | "recycler" | "trader" | "miner" | "smelter";
 export type SupplierStatusCode =
   | "supplier_pending"
   | "supplier_requested"
@@ -327,7 +327,7 @@ export type SupplierFeocStatus =
 export interface SupplierBrief {
   supplierId: string;
   companyName: string;
-  providerType: SupplierType;
+  providerType: ProviderType;
   status: SupplierStatusCode;
   riskLevel: SupplierRiskLevel;
 }
@@ -1062,7 +1062,7 @@ export interface ApiSupplyChainRatio {
 export interface ApiSupplyChainSupplier {
   supplierId: string;
   companyName: string;
-  providerType: SupplierType;
+  providerType: ProviderType;
   status: string;
   riskLevel: SupplierRiskLevel | null;
   feocStatus: SupplierFeocStatus | null;

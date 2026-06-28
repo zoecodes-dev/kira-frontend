@@ -9,7 +9,7 @@ import StepMaterials from './StepMaterials';
 import StepRegulations from './StepRegulations';
 import StepReview from './StepReview';
 
-export type ProviderType = 'manufacturer' | 'recycler' | 'trader' | 'miner';
+export type ProviderType = 'manufacturer' | 'recycler' | 'trader' | 'miner' | 'smelter';
 export type EntryStep = 'context' | 'materials' | 'regulations' | 'review';
 
 export interface DocItem {

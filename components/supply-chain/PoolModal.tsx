@@ -7,16 +7,16 @@ import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { CheckCircle2, PackageSearch, Plus, Search } from 'lucide-react';
 import ModalShell from './ModalShell';
-import { type SupplierBrief, type SupplierType } from '@/lib/api';
+import { type SupplierBrief, type ProviderType } from '@/lib/api';
 
 // §4.2 — 요청 노드(KIRA, OEM/tier0)는 Pool 후보에서 제외 (tier 필터로 대부분 걸러지나 안전망)
 const REQUEST_NODE_ID = 'a0000000-0000-4000-8000-000000000000';
 
-const providerTypeLabel: Record<SupplierType, string> = {
+const providerTypeLabel: Record<ProviderType, string> = {
   manufacturer: '제조사',
   recycler: '재활용',
   trader: '트레이더',
-  miner: '광산',
+  miner: '광산', smelter: '제련소',
 };
 
 export default function PoolModal({

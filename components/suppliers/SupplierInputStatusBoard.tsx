@@ -9,11 +9,11 @@ import clsx from 'clsx';
 import { ChevronRight, Send } from 'lucide-react';
 import { suppliers as mockSuppliers } from '@/lib/data';
 import { getRemindLogs, getSupplierName, supplierCompleteness } from '@/lib/supplier-detail-data';
-import { getSuppliers, getSupplierCompleteness, type SupplierType } from '@/lib/api';
+import { getSuppliers, getSupplierCompleteness, type ProviderType } from '@/lib/api';
 import SupplierInfoModal from './SupplierInfoModal';
 
-const providerTypeLabel: Record<SupplierType, string> = {
-  manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산',
+const providerTypeLabel: Record<ProviderType, string> = {
+  manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산', smelter: '제련소',
 };
 
 interface BoardRow {
