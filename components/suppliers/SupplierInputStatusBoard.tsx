@@ -225,7 +225,7 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
                       {row.missingFields.length > 0 ? (
                         <button
                           type="button"
-                          onClick={() => open(true)}
+                          onClick={() => open(false)}
                           className="inline-flex items-center gap-1.5 rounded-xs border border-accent-100 bg-accent-50 px-2.5 py-1 text-xs font-semibold text-accent-700 hover:border-accent-600"
                         >
                           <Send className="h-3.5 w-3.5" /> 자료 요청

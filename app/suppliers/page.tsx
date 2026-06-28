@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import Badge from '@/components/Badge';
 import PageHeader from '@/components/PageHeader';
+import SupplierInfoModal from '@/components/suppliers/SupplierInfoModal';
 import TopStatCard from '@/components/TopStatCard';
 import {
   ApiError,
@@ -97,7 +98,7 @@ function isSlaOverdue(rel: SupplierReliabilityResponse | null): boolean {
   return false;
 }
 
-function SupplierRow({ row }: { row: SupplierRowData }) {
+function SupplierRow({ row, onOpen }: { row: SupplierRowData; onOpen: (supplierId: string, supplierName: string) => void }) {
   const { brief, reliability } = row;
   const status = statusMeta[brief.status] ?? statusMeta.supplier_pending;
   const riskLevel = riskMeta[brief.riskLevel] ?? riskMeta.low;
@@ -105,7 +106,8 @@ function SupplierRow({ row }: { row: SupplierRowData }) {
   const rate = reliability?.completenessScore ?? 0;
   const progress = completenessMeta(rate);
   const slaOver = isSlaOverdue(reliability);
-  const detailHref = `/suppliers/${brief.supplierId}/info`;
+  // 별도 상세 페이지 대신 단일 공유 폼 모달로(이탈 없이 목록 복귀).
+  const open = () => onOpen(brief.supplierId, brief.companyName);
 
   return (
     <tr className="group border-b border-ink-700 bg-white transition-colors hover:bg-ink-800">
@@ -113,12 +115,13 @@ function SupplierRow({ row }: { row: SupplierRowData }) {
         <div className="flex items-start gap-3">
           <span className={clsx('mt-1.5 h-2 w-2 shrink-0 rounded-full', status.dot)} />
           <div className="min-w-0">
-            <Link
-              href={detailHref}
-              className="block truncate text-sm font-bold text-ink-100 transition-colors group-hover:text-accent-700"
+            <button
+              type="button"
+              onClick={open}
+              className="block truncate text-left text-sm font-bold text-ink-100 transition-colors group-hover:text-accent-700"
             >
               {brief.companyName}
-            </Link>
+            </button>
             <div className="mt-1 flex items-center gap-2 text-[11px] text-ink-500">
               <span className="num-mono">{brief.supplierId}</span>
               <span className="text-ink-600">·</span>
@@ -182,13 +185,14 @@ function SupplierRow({ row }: { row: SupplierRowData }) {
       </td>
 
       <td className="px-5 py-4 align-top text-right">
-        <Link
-          href={detailHref}
+        <button
+          type="button"
+          onClick={open}
           className="inline-flex items-center gap-1 whitespace-nowrap rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:text-accent-700"
         >
           상세
           <ChevronRight className="h-3.5 w-3.5" />
-        </Link>
+        </button>
       </td>
     </tr>
   );
@@ -280,6 +284,8 @@ export default function SuppliersPage() {
   const [rows, setRows] = useState<SupplierRowData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // 협력사 행 클릭 → 단일 공유 폼 모달(상세 페이지 이탈 X).
+  const [active, setActive] = useState<{ supplierId: string; supplierName: string } | null>(null);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -606,13 +612,21 @@ export default function SuppliersPage() {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map(row => <SupplierRow key={row.brief.supplierId} row={row} />)
+                  filtered.map(row => <SupplierRow key={row.brief.supplierId} row={row} onOpen={(id, name) => setActive({ supplierId: id, supplierName: name })} />)
                 )}
               </tbody>
             </table>
           </div>
         </section>
       </div>
+
+      {active && (
+        <SupplierInfoModal
+          supplierId={active.supplierId}
+          supplierName={active.supplierName}
+          onClose={() => setActive(null)}
+        />
+      )}
     </>
   );
 }
