@@ -44,7 +44,7 @@ interface RealData {
   riskProfile: ApiRiskProfile | null;   // 규제 — 실사 자가진단(self_reported_risk_level)
 }
 import type { ReactNode } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { suppliers } from '@/lib/data';
@@ -432,6 +432,46 @@ function EmptyData() {
   return <div className="rounded-sm border border-dashed border-ink-700 bg-slate-50 px-4 py-8 text-center text-sm text-ink-500">등록된 데이터가 없습니다.</div>;
 }
 
+// 필요문서 업로드 행 — '어떤 문서를 올렸는지' 확인 가능하게 파일명을 표시·영속화한다.
+// 데모: 선택한 파일의 '파일명'을 doc_url 컬럼에 저장(실 파일 저장은 추후 /files 연동으로 교체).
+// 영속화는 hidden input(data-field=섹션.필드)을 persistForm이 읽어 처리.
+function DocUploadField({ label, field, initialUrl, editable }: { label: string; field: string; initialUrl?: string | null; editable?: boolean }) {
+  const [name, setName] = useState(initialUrl ?? '');
+  const uploaded = Boolean(name);
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-ink-100">{label}</div>
+        <div className={`mt-0.5 truncate text-xs ${uploaded ? 'text-ink-400' : 'text-ink-500'}`}>
+          {uploaded ? `업로드됨 · ${name}` : '미업로드'}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {uploaded && (
+          <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-[11px] font-bold text-ok-text">완료</span>
+        )}
+        {editable && (
+          <>
+            <label className="cursor-pointer rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">
+              {uploaded ? '파일 변경' : '파일 업로드'}
+              <input
+                type="file"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) setName(f.name); }}
+              />
+            </label>
+            {uploaded && (
+              <button type="button" onClick={() => setName('')} className="rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-500 hover:bg-ink-800">삭제</button>
+            )}
+          </>
+        )}
+      </div>
+      {/* persistForm이 읽는 영속화 캐리어 — 파일명(또는 기존 URL)을 doc_url로 저장 */}
+      <input type="hidden" data-field={field} value={name} readOnly />
+    </div>
+  );
+}
+
 // 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
 // editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isOem)만 노출.
 function SectionContent({ section, real, editable = false, isOem = false }: { section: CollectionSection; real?: RealData | null; editable?: boolean; isOem?: boolean }) {
@@ -487,21 +527,19 @@ function SectionContent({ section, real, editable = false, isOem = false }: { se
       // DD 보고서는 원청 전용 — 협력사 폼에는 표시하지 않는다.
       ...(isOem ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
     ];
-    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isOem ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} />;
+    content = (
+      <div className="space-y-3">
+        <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isOem ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} />
+        {/* 실사 자가진단 보고서 — 실사관리 페이지 대체. 내 기업 정보에서 업로드·확인. */}
+        <DocUploadField label="실사 자가진단 보고서" field="regulation.selfAssessmentDocUrl" initialUrl={d?.selfAssessmentDocUrl} editable={editable} />
+      </div>
+    );
   } else {
-    // documents — 사업자등록증·환경성적서 업로드 여부.
-    const docRow = (label: string, url?: string | null): string[] =>
-      [label, url ? '업로드됨' : '미업로드', url ? '완료' : '미입력'];
-    const rows = [
-      docRow('사업자등록증', d?.businessRegDocUrl),
-      docRow('환경성적서', d?.environmentalReportUrl),
-    ];
+    // documents — 사업자등록증·환경성적서 업로드(파일명 표시·영속화).
     content = (
       <div className="space-y-2">
-        <DataTable headers={['문서', '상태', '확인']} rows={rows} />
-        {editable && (
-          <div className="text-[11px] text-ink-500">※ 업로드 칸은 파일 첨부 연동 후 활성화됩니다. (현재 업로드 여부만 표시)</div>
-        )}
+        <DocUploadField label="사업자등록증" field="documents.businessRegDocUrl" initialUrl={d?.businessRegDocUrl} editable={editable} />
+        <DocUploadField label="환경성적서" field="documents.environmentalReportUrl" initialUrl={d?.environmentalReportUrl} editable={editable} />
       </div>
     );
   }
@@ -586,6 +624,7 @@ export function SupplierGeneralReviewContent({
   const [saved, setSaved] = useState(false);   // 저장하기 직후 '저장됨' 피드백
   const editable = isSupplier && editing;
   const formRef = useRef<HTMLElement>(null);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const supplierId = supplierIdProp ?? searchParams.get('supplierId') ?? '';
   const supplierName = supplierNameProp ?? searchParams.get('supplier') ?? supplierSummary.name;
@@ -631,15 +670,16 @@ export function SupplierGeneralReviewContent({
 
   const displayName = api?.detail?.companyName ?? selectedName?.nameKo ?? supplierName;
   const displayRole = (api?.detail && providerTypeLabel[api.detail.providerType]) ?? selectedSupplier?.role ?? supplierSummary.role;
-  const displayCountry = selectedSupplier?.country ?? supplierSummary.country;
-  const displayTier = selectedSupplier ? `T${selectedSupplier.tier}` : supplierSummary.tier;
+  // 실 협력사인데 백엔드 값이 비면 다른 회사 mock(supplierSummary=한양제조)이 아니라 '미입력/—'으로.
+  const displayCountry = api?.detail?.country ?? selectedSupplier?.country ?? (isRealSupplier ? '미입력' : supplierSummary.country);
+  const displayTier = selectedSupplier ? `T${selectedSupplier.tier}` : (isRealSupplier ? '—' : supplierSummary.tier);
   const displayRate = api?.comp?.completionRate ?? selectedCompleteness?.completionRate ?? supplierSummary.collectionRate;
   const displayCompleted = api?.comp?.filledFieldCount ?? selectedCompleteness?.filledFieldCount ?? supplierSummary.completed;
   const displayTotal = api?.comp?.requiredFieldCount ?? selectedCompleteness?.requiredFieldCount ?? supplierSummary.total;
   const displayLastUpdated = (api?.comp?.lastUpdatedAt ?? selectedCompleteness?.lastUpdatedAt ?? supplierSummary.lastSubmittedAt)?.slice(0, 16).replace('T', ' ');
-  const displayManager = apiPrimary?.name ?? mockPrimary?.name ?? supplierSummary.manager;
-  const displayEmail = apiPrimary?.email ?? mockPrimary?.email ?? supplierSummary.email;
-  const displayPhone = apiPrimary?.mobile ?? apiPrimary?.phone ?? mockPrimary?.mobile ?? mockPrimary?.phone ?? supplierSummary.phone;
+  const displayManager = apiPrimary?.name ?? mockPrimary?.name ?? (isRealSupplier ? '미등록' : supplierSummary.manager);
+  const displayEmail = apiPrimary?.email ?? mockPrimary?.email ?? (isRealSupplier ? '—' : supplierSummary.email);
+  const displayPhone = apiPrimary?.mobile ?? apiPrimary?.phone ?? mockPrimary?.mobile ?? mockPrimary?.phone ?? (isRealSupplier ? '—' : supplierSummary.phone);
   // 입력 현황에서 '자료 요청'으로 넘어오면(request=1) 요청 모달을 바로 연다 — 자연스러운 흐름 연결.
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(openRequestProp ?? (searchParams.get('request') === '1'));
   const [requestSent, setRequestSent] = useState(false);
@@ -700,6 +740,10 @@ export function SupplierGeneralReviewContent({
     setNum('carbon_intensity', read('regulation.carbonIntensity'));
     setStr('energy_source', read('regulation.energySource'));
     const srl = read('regulation.selfReportedRiskLevel'); if (srl) payload.self_reported_risk_level = srl;
+    // 필요문서 업로드(파일명/URL) — suppliers 컬럼으로 영속화.
+    setStr('self_assessment_doc_url', read('regulation.selfAssessmentDocUrl'));
+    setStr('business_reg_doc_url', read('documents.businessRegDocUrl'));
+    setStr('environmental_report_url', read('documents.environmentalReportUrl'));
 
     if (isRealSupplier && Object.keys(payload).length > 0) {
       await updateSupplierDetail(supplierId, payload);
@@ -792,7 +836,7 @@ export function SupplierGeneralReviewContent({
               : '협력사 정보 확인 · 자료 요청'}
           </span>
         ) : (
-          <button type="button" className="inline-flex items-center gap-2 text-sm font-medium text-ink-500 hover:text-accent-700">
+          <button type="button" onClick={() => router.push('/suppliers')} className="inline-flex items-center gap-2 text-sm font-medium text-ink-500 hover:text-accent-700">
             <ArrowLeft className="h-4 w-4" />
             협력사 목록으로 돌아가기
           </button>

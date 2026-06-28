@@ -11,7 +11,6 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  ClipboardCheck,
   ClipboardList,
   Factory,
   ScanLine,
@@ -35,7 +34,6 @@ import EightStageStepper from '@/components/supplier/EightStageStepper';
 import SupplyChainMap from '@/components/supplier/SupplyChainMap';
 import ViolationReportModal from '@/components/supplier/ViolationReportModal';
 import SelfReportModal from '@/components/supplier/SelfReportModal';
-import AuditView from '@/components/supplier/AuditView';
 import SupplierNotificationBell from '@/components/supplier/SupplierNotificationBell';
 import AiParsingView from '@/components/supplier/AiParsingView';
 import { suppliers, supplyEdges } from '@/lib/data';
@@ -191,7 +189,6 @@ type SupplierView =
   | 'submission-status'
   | 'supply-chain'
   | 'data-collection'
-  | 'audit'
   | 'notifications'
   | 'edit-info';
 
@@ -256,7 +253,6 @@ function SupplierSidebar({
     { id: 'submission-status' as const, label: '검증 현황',   subtitle: '검토 결과 · 재요청',     icon: ClipboardList },
     { id: 'supply-chain'      as const, label: '공급망 연결',        subtitle: '직접 연결 업체',          icon: Network },
     { id: 'data-collection'   as const, label: '내 공급망 데이터 수집', subtitle: '하위 협력사 자료 요청',   icon: ClipboardList },
-    { id: 'audit'             as const, label: '실사 관리',   subtitle: '현장 실사 이력 · 승인',  icon: ClipboardCheck },
     { id: 'notifications'     as const, label: '원청사 알림', subtitle: '요청 · 기한',            icon: Bell },
     { id: 'edit-info'         as const, label: '계정 설정',   subtitle: '비밀번호 · 담당자 정보', icon: KeyRound },
   ];
@@ -1434,10 +1430,6 @@ export default function SupplierPage() {
         </div>
         )}
 
-        {activeView === 'audit' && (
-        <AuditView supplierId={supplierId} />
-        )}
-
         {activeView === 'supply-chain' && (() => {
           // 선택된 노드 상태 — supply-chain 뷰 내부에서 관리
           const selectedNodeSupplier = selectedSupplyNodeId
@@ -1678,7 +1670,6 @@ export default function SupplierPage() {
             'submission-status': '검증 현황',
             'ai-parsing':        'AI 파싱 확인',
             'supply-chain':      '공급망 연결',
-            'audit':             '실사 관리',
           };
 
           return (
