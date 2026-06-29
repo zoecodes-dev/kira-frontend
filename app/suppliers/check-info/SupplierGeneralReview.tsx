@@ -10,6 +10,7 @@ import {
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type EsgCertification as ApiCert, type OriginCert as ApiOriginCert, type SuppliedItem as ApiItem,
+  ApiError,
 } from '@/lib/api';
 
 const providerTypeLabel: Record<string, string> = {
@@ -432,51 +433,45 @@ function EmptyData() {
   return <div className="rounded-sm border border-dashed border-ink-700 bg-slate-50 px-4 py-8 text-center text-sm text-ink-500">등록된 데이터가 없습니다.</div>;
 }
 
-// 필요문서 업로드 행 — '어떤 문서를 올렸는지' 확인 가능하게 표시·영속화한다.
-// 동작: 선택한 파일을 POST /files(S3) 로 업로드 → 반환 url 을 doc_url 로 영속화.
-//   · 업로드 성공: hidden input 에 실제 파일 url 저장(프로덕션 — S3 자격증명 있음).
-//   · 업로드 실패(로컬 = S3 미구성으로 500 등): 파일명으로 폴백 저장(기존 데모 동작 유지).
-// 영속화는 hidden input(data-field=섹션.필드)을 persistForm이 읽어 처리.
-function DocUploadField({ label, field, initialUrl, editable }: { label: string; field: string; initialUrl?: string | null; editable?: boolean }) {
-  // name=표시용 파일명, persistedUrl=영속화 값(성공 시 실 url, 실패 시 파일명)
-  const [name, setName] = useState(initialUrl ?? '');
-  const [persistedUrl, setPersistedUrl] = useState(initialUrl ?? '');
+// 필요문서 업로드 행 — 실제로 S3에 올리고(POST /files) 받은 'S3 키'를 doc_url 컬럼에 저장한다.
+// 키는 영구값이라(presigned url과 달리 만료 X) 백엔드 파싱(data_gateway)이 그대로 읽어 쓴다.
+// 영속화는 hidden input(data-field=섹션.필드)에 S3 키를 실어 persistForm이 읽어 처리.
+// 표시는 사람이 알아볼 파일명(키 경로의 마지막 조각)으로 보여준다.
+function DocUploadField({ label, field, initialUrl, editable, supplierId }: { label: string; field: string; initialUrl?: string | null; editable?: boolean; supplierId: string }) {
+  // docValue = 영속화할 값(S3 키). displayName = 화면 표시용 파일명.
+  const [docValue, setDocValue] = useState(initialUrl ?? '');
+  const [displayName, setDisplayName] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [fallback, setFallback] = useState(false); // S3 미구성 등으로 파일명만 기록됐는지
-  const uploaded = Boolean(persistedUrl);
+  const [error, setError] = useState('');
+  const uploaded = Boolean(docValue);
+  // 표시명: 방금 올린 파일명 우선, 없으면 S3 키 경로의 마지막 조각.
+  const shownName = displayName || (docValue ? docValue.split('/').pop() : '');
 
-  async function handleSelect(file: File) {
-    setName(file.name);
-    setFallback(false);
+  async function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = ''; // 같은 파일 재선택 허용
+    if (!f) return;
     setUploading(true);
+    setError('');
     try {
-      const res = await uploadFile(file, `supplier-doc:${field}`);
-      setPersistedUrl(res.url || file.name);
-    } catch {
-      // 로컬은 S3 자격증명이 없어 업로드가 실패한다 → 파일명만 기록(기존 데모 동작).
-      setPersistedUrl(file.name);
-      setFallback(true);
+      // context: 어떤 협력사의 어떤 문서인지 태깅(나중에 GET /files?context= 로 조회 가능).
+      const meta = await uploadFile(f, `supplier-doc:${supplierId}:${field}`);
+      setDocValue(meta.s3Key);   // ← 컬럼에 저장될 값은 S3 키
+      setDisplayName(f.name);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '업로드에 실패했습니다.');
     } finally {
       setUploading(false);
     }
-  }
-
-  function handleClear() {
-    setName('');
-    setPersistedUrl('');
-    setFallback(false);
   }
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
       <div className="min-w-0">
         <div className="text-sm font-semibold text-ink-100">{label}</div>
-        <div className={`mt-0.5 truncate text-xs ${uploaded ? 'text-ink-400' : 'text-ink-500'}`}>
-          {uploading ? '업로드 중…' : uploaded ? `업로드됨 · ${name}` : '미업로드'}
+        <div className={`mt-0.5 truncate text-xs ${error ? 'text-alert-text' : uploaded ? 'text-ink-400' : 'text-ink-500'}`}>
+          {error ? error : uploading ? '업로드 중…' : uploaded ? `업로드됨 · ${shownName}` : '미업로드'}
         </div>
-        {fallback && (
-          <div className="mt-0.5 truncate text-[10px] text-warn-text">파일 저장소 미연결 — 파일명만 기록됨</div>
-        )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {uploaded && !uploading && (
@@ -484,30 +479,30 @@ function DocUploadField({ label, field, initialUrl, editable }: { label: string;
         )}
         {editable && (
           <>
-            <label className={`rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100 ${uploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+            <label className={`rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 ${uploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent-100'}`}>
               {uploaded ? '파일 변경' : '파일 업로드'}
               <input
                 type="file"
                 className="hidden"
                 disabled={uploading}
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleSelect(f); }}
+                onChange={handleSelect}
               />
             </label>
             {uploaded && !uploading && (
-              <button type="button" onClick={handleClear} className="rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-500 hover:bg-ink-800">삭제</button>
+              <button type="button" onClick={() => { setDocValue(''); setDisplayName(''); setError(''); }} className="rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-500 hover:bg-ink-800">삭제</button>
             )}
           </>
         )}
       </div>
-      {/* persistForm이 읽는 영속화 캐리어 — 실 파일 url(성공) 또는 파일명(폴백)을 doc_url로 저장 */}
-      <input type="hidden" data-field={field} value={persistedUrl} readOnly />
+      {/* persistForm이 읽는 영속화 캐리어 — S3 키(또는 기존 값)를 doc_url로 저장 */}
+      <input type="hidden" data-field={field} value={docValue} readOnly />
     </div>
   );
 }
 
 // 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
 // editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isOem)만 노출.
-function SectionContent({ section, real, editable = false, isOem = false }: { section: CollectionSection; real?: RealData | null; editable?: boolean; isOem?: boolean }) {
+function SectionContent({ section, real, editable = false, isOem = false, supplierId }: { section: CollectionSection; real?: RealData | null; editable?: boolean; isOem?: boolean; supplierId: string }) {
   let content: ReactNode;
   const d = real?.detail ?? null;
 
@@ -564,15 +559,15 @@ function SectionContent({ section, real, editable = false, isOem = false }: { se
       <div className="space-y-3">
         <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isOem ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} />
         {/* 실사 자가진단 보고서 — 실사관리 페이지 대체. 내 기업 정보에서 업로드·확인. */}
-        <DocUploadField label="실사 자가진단 보고서" field="regulation.selfAssessmentDocUrl" initialUrl={d?.selfAssessmentDocUrl} editable={editable} />
+        <DocUploadField label="실사 자가진단 보고서" field="regulation.selfAssessmentDocUrl" initialUrl={d?.selfAssessmentDocUrl} editable={editable} supplierId={supplierId} />
       </div>
     );
   } else {
     // documents — 사업자등록증·환경성적서 업로드(파일명 표시·영속화).
     content = (
       <div className="space-y-2">
-        <DocUploadField label="사업자등록증" field="documents.businessRegDocUrl" initialUrl={d?.businessRegDocUrl} editable={editable} />
-        <DocUploadField label="환경성적서" field="documents.environmentalReportUrl" initialUrl={d?.environmentalReportUrl} editable={editable} />
+        <DocUploadField label="사업자등록증" field="documents.businessRegDocUrl" initialUrl={d?.businessRegDocUrl} editable={editable} supplierId={supplierId} />
+        <DocUploadField label="환경성적서" field="documents.environmentalReportUrl" initialUrl={d?.environmentalReportUrl} editable={editable} supplierId={supplierId} />
       </div>
     );
   }
@@ -591,6 +586,7 @@ function AccordionSection({
   editable = false,
   showRequest = true,
   isOem = false,
+  supplierId,
 }: {
   section: CollectionSection;
   onRequestSection: (section: CollectionSection) => void;
@@ -598,6 +594,7 @@ function AccordionSection({
   editable?: boolean;       // 입력 모드(자료 제출) — 값 셀을 입력칸으로
   showRequest?: boolean;    // 원청 전용 '미입력 N건 요청' 버튼 노출 여부
   isOem?: boolean;          // 원청 모드 — DD 보고서 등 원청 전용 항목 노출
+  supplierId: string;       // 필요문서 업로드 context 태깅용
 }) {
   // 섹션은 항상 펼쳐서 고정 표시(드롭다운 제거). 미입력/확인 필요면 그 자리에서 보완 요청.
   const needsRequest = showRequest && (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
@@ -626,7 +623,7 @@ function AccordionSection({
           )}
         </div>
       </div>
-      <SectionContent section={section} real={real} editable={editable} isOem={isOem} />
+      <SectionContent section={section} real={real} editable={editable} isOem={isOem} supplierId={supplierId} />
     </section>
   );
 }
@@ -1008,6 +1005,7 @@ export function SupplierGeneralReviewContent({
             editable={editable}
             showRequest={isOem}
             isOem={isOem}
+            supplierId={supplierId}
           />
         ))}
       </section>

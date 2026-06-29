@@ -698,7 +698,9 @@ export const updateDataConsent = (consentId: string, body: {
   });
 
 /** 파일 업로드(multipart POST /files). 환경성적서 PDF 등. JSON이 아니라 FormData라 별도 fetch. */
-export async function uploadFile(file: File, context: string): Promise<{ fileId: string; fileName: string; url: string }> {
+// s3Key: 버킷 내 영구 키(presigned url과 달리 만료 안 됨). *_doc_url 컬럼에 저장해두면
+//   백엔드 파싱(data_gateway)이 그 키로 원본을 읽는다. url은 미리보기용 임시 URL.
+export async function uploadFile(file: File, context: string): Promise<{ fileId: string; fileName: string; url: string; s3Key: string }> {
   const form = new FormData();
   form.append('file', file);
   form.append('context', context);
