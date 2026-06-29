@@ -290,6 +290,26 @@ export const getBatches = (
   status: "processing" | "hitl_wait" | "completed" | "rejected"
 ) => api.get<BatchesResponse>(`/batches?status=${status}`);
 
+/** 배치 상태 코드 — EightStageStepper 의 batch_completed/rejected/hitl 분기 SSOT. */
+export type BatchStatusCode =
+  | "batch_processing" | "batch_hitl_wait" | "batch_completed" | "batch_rejected";
+
+/** 배치 상세(BE-3 GET /batches/{id}). 5종 판정 결과는 화면에서 안 쓰면 생략 가능(unknown). */
+export interface BatchDetail {
+  batchId: string;
+  productId: string | null;
+  destination: string | null;
+  currentStage: string;
+  status: BatchStatusCode | string;
+  confidenceScore: number | null;
+  readinessScore: number | null;
+  receivedAt: string | null;
+}
+
+/** 배치 1건 상세 조회. 8단계 트래커의 완료/반려/HITL 분기를 실 상태로 구동. */
+export const getBatch = (batchId: string) =>
+  api.get<BatchDetail>(`/batches/${batchId}`);
+
 export const getDashboardKpis = () => api.get<DashboardKpis>("/dashboard/kpis");
 
 export const getAuditTrail = (batchId: string) =>
@@ -730,6 +750,19 @@ export const getDataRequests = (params?: { supplierId?: string }) => {
   return api.get<ApiDataRequest[]>(`/data-requests${q}`);
 };
 
+/** GET /submissions — 원청 제출 검토 목록 (§4.1a) */
+export interface SubmissionBrief {
+  submissionId: string;
+  supplierId: string | null;
+  supplierName: string | null;
+  type: string | null;
+  status: string | null;
+  dueDate: string | null;
+  submittedAt: string | null;
+  fileCount: number;
+}
+export const getSubmissions = () => api.get<SubmissionBrief[]>(`/submissions`);
+
 /** HITL 협력사 승인 — 자료요청 AI 파싱 결과(입력+AI분석+신뢰도). */
 export interface AiExtraction {
   requestId: string;
@@ -799,6 +832,31 @@ export const verifySupplier = (body: { bomVersionId: string; supplierId: string;
     supplier_id: body.supplierId,
     verified: body.verified,
   });
+
+/**
+ * 공급원 변경 자진신고(기획서 E-3) — POST /supply-chain/declarations/source-change.
+ * 백엔드 declare_new_source 는 parent→new_child 링크를 BOM 버전·부품 단위로 생성하므로
+ * new_child_supplier_id 는 **이미 등록된 협력사 UUID** 여야 한다(자유 텍스트 신규 회사 불가).
+ * 따라서 SelfReportModal 은 '기존 등록 협력사 선택' 방식으로 이 값을 채운다.
+ * 성공 시 상위 BOM 재검증 파이프라인이 트리거된다.
+ */
+export const declareSourceChange = (body: {
+  bomVersionId: string;
+  parentSupplierId: string;
+  newChildSupplierId: string;
+  partId: string;
+  reason: string;
+}) =>
+  api.post<{ status: string; message: string; data: Record<string, unknown> }>(
+    `/supply-chain/declarations/source-change`,
+    {
+      bom_version_id: body.bomVersionId,
+      parent_supplier_id: body.parentSupplierId,
+      new_child_supplier_id: body.newChildSupplierId,
+      part_id: body.partId,
+      reason: body.reason,
+    },
+  );
 
 /** CTI 상세 (provider type별 detail 1종). 없으면 404. */
 export const getSupplierDetail = (id: string) =>
@@ -1151,3 +1209,7 @@ export const getSupplyChainMapHeader = (mapId: string) =>
 /** 공급망 맵 완료/전송 상태 변경(building/completed). */
 export const updateSupplyChainMapStatus = (mapId: string, status: "building" | "completed") =>
   api.patch<{ mapId: string; status: string; completedAt?: string | null }>(`/supply-chain/maps/${mapId}`, { status });
+
+/** POST /audit-packages/{packageId}/export — 완료 증빙 다운로드 URL 발급 (§2.5d) */
+export const exportAuditPackage = (packageId: string) =>
+  api.post<{ exportUrl: string | null }>(`/audit-packages/${packageId}/export`, {});

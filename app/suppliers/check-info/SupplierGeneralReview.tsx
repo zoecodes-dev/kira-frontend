@@ -6,11 +6,11 @@ import {
   createDataRequest,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierEsg, getSupplierOriginCertificates, getSupplierSuppliedItems, updateSupplierDetail,
-  getSupplierRiskProfile, type SupplierRiskProfileResponse as ApiRiskProfile,
+  getSupplierRiskProfile, uploadFile, type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type EsgCertification as ApiCert, type OriginCert as ApiOriginCert, type SuppliedItem as ApiItem,
-  uploadFile, ApiError,
+  ApiError,
 } from '@/lib/api';
 
 const providerTypeLabel: Record<string, string> = {
