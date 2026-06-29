@@ -16,12 +16,24 @@ import {
   X,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { getSuppliers, declareSourceChange, getTokenSupplierId, type SupplierBrief } from '@/lib/api';
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────────
 
 export interface SelfReportModalProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * 공급원 변경 대상 컨텍스트(기획서 E-3). 백엔드 POST /supply-chain/declarations/source-change 는
+   * BOM 버전·부품 단위로 parent→new_child 링크를 만들므로 아래 3종이 모두 있어야 실호출 가능.
+   *  · bomVersionId / partId      : 변경 대상 BOM 버전·부품 (원청 BOM 식별자)
+   *  · parentSupplierId           : 신고 주체(상위 협력사). 미지정 시 토큰 supplier_id 사용.
+   * 미지정(특히 bomVersionId 부재) 시 → 데모 접수 모드로 동작(실호출 생략, 콘솔 경고).
+   * ⚠️ 협력사 포털은 현재 원청 bomVersionId 출처가 없음 → docs 핸드오프 참조.
+   */
+  bomVersionId?: string;
+  partId?: string;
+  parentSupplierId?: string;
 }
 
 type ChangeType = 'new' | 'replace' | 'add';
@@ -40,7 +52,9 @@ const CHANGE_TYPE_OPTIONS: ChangeTypeOption[] = [
   { value: 'add',     label: '추가 병행',  desc: '기존 공급사를 유지하면서 추가 공급사를 등록합니다.' },
 ];
 
-// 기존 공급사 Mock (읽기 전용 표시용) — 실제 API 연동 시 교체
+// 기존(현재) 공급사 — 읽기 전용 표시용 Mock.
+// ⚠️ 별개 갭: '현재 공급원 조회 GET' 엔드포인트가 백엔드에 없어(🆕) 실데이터로 못 채운다.
+//    source-change(제출) 배선과 무관한 항목 — docs/HANDOFF_supplychain_self_report.md 참조.
 const MOCK_CURRENT_SUPPLIER = {
   name: 'S-PRE-001 · 대성정밀(주)',
   country: '대한민국',
@@ -64,31 +78,32 @@ function FieldLabel({ label, sub, required }: { label: string; sub?: string; req
 
 // ─── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 
-export default function SelfReportModal({ open, onClose }: SelfReportModalProps) {
+export default function SelfReportModal({ open, onClose, bomVersionId, partId, parentSupplierId }: SelfReportModalProps) {
   // 폼 상태
-  const [changeType, setChangeType]     = useState<ChangeType | ''>('');
-  const [newName, setNewName]           = useState('');
-  const [newCountry, setNewCountry]     = useState('');
-  const [newContact, setNewContact]     = useState('');
-  const [reason, setReason]             = useState('');
-  const [submitting, setSubmitting]     = useState(false);
-  const [submitted, setSubmitted]       = useState(false);
-  const [errors, setErrors]             = useState<Record<string, string>>({});
-  const [typeOpen, setTypeOpen]         = useState(false);
+  const [changeType, setChangeType]       = useState<ChangeType | ''>('');
+  const [newSupplierId, setNewSupplierId] = useState('');   // new_child_supplier_id = 기존 등록 협력사
+  const [suppliers, setSuppliers]         = useState<SupplierBrief[]>([]);
+  const [reason, setReason]               = useState('');
+  const [submitting, setSubmitting]       = useState(false);
+  const [submitted, setSubmitted]         = useState(false);
+  const [errors, setErrors]               = useState<Record<string, string>>({});
+  const [typeOpen, setTypeOpen]           = useState(false);
+  const [supplierOpen, setSupplierOpen]   = useState(false);
+  const [submitError, setSubmitError]     = useState('');
 
-  // 모달 열릴 때마다 초기화
+  // 모달 열릴 때마다 초기화 + 기존 등록 협력사 목록 로드(new_child 선택지).
   useEffect(() => {
-    if (open) {
-      setChangeType('');
-      setNewName('');
-      setNewCountry('');
-      setNewContact('');
-      setReason('');
-      setSubmitting(false);
-      setSubmitted(false);
-      setErrors({});
-      setTypeOpen(false);
-    }
+    if (!open) return;
+    setChangeType('');
+    setNewSupplierId('');
+    setReason('');
+    setSubmitting(false);
+    setSubmitted(false);
+    setErrors({});
+    setTypeOpen(false);
+    setSupplierOpen(false);
+    setSubmitError('');
+    getSuppliers().then(setSuppliers).catch(() => setSuppliers([]));
   }, [open]);
 
   // ESC 닫기
@@ -104,10 +119,9 @@ export default function SelfReportModal({ open, onClose }: SelfReportModalProps)
   // 유효성 검사
   function validate(): boolean {
     const next: Record<string, string> = {};
-    if (!changeType)        next.changeType  = '변경 유형을 선택해 주세요.';
-    if (!newName.trim())    next.newName     = '신규 공급사 회사명을 입력해 주세요.';
-    if (!newCountry.trim()) next.newCountry  = '국가를 입력해 주세요.';
-    if (!reason.trim())     next.reason      = '변경 사유를 입력해 주세요.';
+    if (!changeType)    next.changeType    = '변경 유형을 선택해 주세요.';
+    if (!newSupplierId) next.newSupplierId = '변경할 공급사(기존 등록 협력사)를 선택해 주세요.';
+    if (!reason.trim()) next.reason        = '변경 사유를 입력해 주세요.';
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -115,12 +129,38 @@ export default function SelfReportModal({ open, onClose }: SelfReportModalProps)
   async function handleSubmit() {
     if (!validate()) return;
     setSubmitting(true);
-    await new Promise(res => setTimeout(res, 1200));
-    setSubmitting(false);
-    setSubmitted(true);
+    setSubmitError('');
+
+    // 실호출 계약: 백엔드는 BOM 버전·부품 단위로 parent→new_child 링크를 만든다.
+    // 4종(bomVersionId·partId·parentSupplierId·newSupplierId)이 모두 있어야 실호출 가능.
+    const parent = parentSupplierId ?? getTokenSupplierId() ?? '';
+    const canDeclare = Boolean(bomVersionId && partId && parent && newSupplierId);
+
+    try {
+      if (canDeclare) {
+        await declareSourceChange({
+          bomVersionId: bomVersionId!,
+          parentSupplierId: parent,
+          newChildSupplierId: newSupplierId,
+          partId: partId!,
+          reason: reason.trim(),
+        });
+      } else {
+        // 데모 접수 모드 — 협력사 포털에 원청 bomVersionId 출처가 없어 컨텍스트가 부족할 때.
+        // (docs/HANDOFF_supplychain_self_report.md 참조: bomVersionId/partId 배선이 남은 작업)
+        console.warn('[SelfReportModal] source-change 컨텍스트 부족(bomVersionId/partId) → 데모 접수로 처리');
+        await new Promise(res => setTimeout(res, 900));
+      }
+      setSubmitted(true);
+    } catch {
+      setSubmitError('자진신고 제출에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const selectedOption = CHANGE_TYPE_OPTIONS.find(o => o.value === changeType);
+  const selectedSupplier = suppliers.find(s => s.supplierId === newSupplierId);
 
   if (!open) return null;
 
@@ -243,56 +283,52 @@ export default function SelfReportModal({ open, onClose }: SelfReportModalProps)
                 </div>
               )}
 
-              {/* ③ 신규 공급사 입력 */}
+              {/* ③ 변경할 공급사 선택 — new_child_supplier_id(기존 등록 협력사) */}
               <div className="space-y-3">
                 <div className="text-[11px] font-bold text-ink-400 border-b border-ink-700 pb-1.5">
-                  신규 공급사 정보
+                  변경할 공급사 (기존 등록 협력사에서 선택)
                 </div>
                 <div>
-                  <FieldLabel label="회사명" required />
-                  <input
-                    type="text"
-                    value={newName}
-                    placeholder="예: ㈜신규정련"
-                    onChange={e => { setNewName(e.target.value); if (errors.newName) setErrors(p => ({ ...p, newName: '' })); }}
-                    className={clsx(
-                      'w-full rounded-xs border px-3 py-2.5 text-xs font-semibold outline-none transition-colors',
-                      errors.newName ? 'border-alert-border bg-alert-bg' : 'border-ink-600 bg-white focus:border-accent-600'
+                  <FieldLabel label="공급사" required />
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setSupplierOpen(v => !v)}
+                      className={clsx(
+                        'flex w-full items-center justify-between rounded-xs border px-3 py-2.5 text-xs transition-colors',
+                        errors.newSupplierId ? 'border-alert-border bg-alert-bg' : 'border-ink-600 bg-white hover:border-accent-600',
+                        selectedSupplier ? 'text-ink-100 font-semibold' : 'text-ink-500'
+                      )}
+                    >
+                      {selectedSupplier
+                        ? selectedSupplier.companyName
+                        : (suppliers.length ? '공급사를 선택해 주세요' : '협력사 목록 불러오는 중…')}
+                      <ChevronDown className={`h-4 w-4 text-ink-500 transition-transform ${supplierOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {supplierOpen && suppliers.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-xs border border-ink-600 bg-white shadow-lg">
+                        {suppliers.map(s => (
+                          <button
+                            key={s.supplierId}
+                            type="button"
+                            onClick={() => { setNewSupplierId(s.supplierId); setSupplierOpen(false); if (errors.newSupplierId) setErrors(p => ({ ...p, newSupplierId: '' })); }}
+                            className="flex w-full flex-col px-3 py-2.5 text-left hover:bg-accent-50 transition-colors"
+                          >
+                            <span className="text-xs font-bold text-ink-100">{s.companyName}</span>
+                            <span className="mt-0.5 text-[10px] text-ink-500">{s.providerType} · {s.status}</span>
+                          </button>
+                        ))}
+                      </div>
                     )}
-                  />
-                  {errors.newName && (
+                  </div>
+                  {errors.newSupplierId && (
                     <p className="mt-1 flex items-center gap-1 text-[10px] text-alert-text">
-                      <AlertTriangle className="h-3 w-3" /> {errors.newName}
+                      <AlertTriangle className="h-3 w-3" /> {errors.newSupplierId}
                     </p>
                   )}
-                </div>
-                <div>
-                  <FieldLabel label="국가" required />
-                  <input
-                    type="text"
-                    value={newCountry}
-                    placeholder="예: 대한민국"
-                    onChange={e => { setNewCountry(e.target.value); if (errors.newCountry) setErrors(p => ({ ...p, newCountry: '' })); }}
-                    className={clsx(
-                      'w-full rounded-xs border px-3 py-2.5 text-xs font-semibold outline-none transition-colors',
-                      errors.newCountry ? 'border-alert-border bg-alert-bg' : 'border-ink-600 bg-white focus:border-accent-600'
-                    )}
-                  />
-                  {errors.newCountry && (
-                    <p className="mt-1 flex items-center gap-1 text-[10px] text-alert-text">
-                      <AlertTriangle className="h-3 w-3" /> {errors.newCountry}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <FieldLabel label="연락처" sub="이메일 또는 전화번호" />
-                  <input
-                    type="text"
-                    value={newContact}
-                    placeholder="예: contact@newsupplier.com"
-                    onChange={e => setNewContact(e.target.value)}
-                    className="w-full rounded-xs border border-ink-600 bg-white px-3 py-2.5 text-xs font-semibold outline-none transition-colors focus:border-accent-600"
-                  />
+                  <p className="mt-1 text-[10px] text-ink-600">
+                    미등록 신규 공급사는 먼저 협력사로 등록한 뒤 선택할 수 있습니다.
+                  </p>
                 </div>
               </div>
 
@@ -315,6 +351,13 @@ export default function SelfReportModal({ open, onClose }: SelfReportModalProps)
                   </p>
                 )}
               </div>
+
+              {/* 제출 실패 안내 */}
+              {submitError && (
+                <div className="flex items-center gap-2 rounded-xs border border-alert-border bg-alert-bg px-3 py-2.5 text-[11px] text-alert-text">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {submitError}
+                </div>
+              )}
 
             </div>
           )}

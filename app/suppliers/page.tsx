@@ -24,7 +24,9 @@ import {
   ApiError,
   getSuppliers,
   getSupplierReliability,
+  getSupplierContacts,
   type SupplierBrief,
+  type SupplierContact,
   type SupplierReliabilityResponse,
   type SupplierRiskLevel,
   type SupplierStatusCode,
@@ -42,10 +44,11 @@ type ContactFilter = 'all' | 'registered' | 'missing';
 type SummaryFilter = 'all' | 'verified' | 'high-risk' | 'sla-overdue';
 type SupplierFilter = 'all' | string;
 
-/** 목록 행 = brief(필수) + reliability(보강, 실패 시 null) */
+/** 목록 행 = brief(필수) + reliability(보강) + primaryContact(보강) */
 interface SupplierRowData {
   brief: SupplierBrief;
   reliability: SupplierReliabilityResponse | null;
+  primaryContact: SupplierContact | null;
 }
 
 const statusMeta: Record<SupplierStatusCode, { label: string; tone: 'ok' | 'warn' | 'alert' | 'info' | 'neutral'; dot: string }> = {
@@ -98,7 +101,7 @@ function isSlaOverdue(rel: SupplierReliabilityResponse | null): boolean {
 }
 
 function SupplierRow({ row }: { row: SupplierRowData }) {
-  const { brief, reliability } = row;
+  const { brief, reliability, primaryContact } = row;
   const status = statusMeta[brief.status] ?? statusMeta.supplier_pending;
   const riskLevel = riskMeta[brief.riskLevel] ?? riskMeta.low;
   const feoc = reliability?.feocStatus ? feocMeta[reliability.feocStatus] : null;
@@ -178,8 +181,14 @@ function SupplierRow({ row }: { row: SupplierRowData }) {
       </td>
 
       <td className="px-5 py-4 align-top">
-        {/* 연락처 API 미제공 (md §2) — 백엔드 추가 전까지 미등록 표시 */}
-        <span className="text-xs text-ink-500">미등록</span>
+        {primaryContact ? (
+          <div>
+            <div className="text-xs font-semibold text-ink-200">{primaryContact.name ?? primaryContact.nameEn ?? '—'}</div>
+            {primaryContact.email && <div className="mt-0.5 text-[11px] text-ink-500">{primaryContact.email}</div>}
+          </div>
+        ) : (
+          <span className="text-xs text-ink-500">미등록</span>
+        )}
       </td>
 
       <td className="px-5 py-4 align-top text-right">
@@ -302,12 +311,19 @@ export default function SuppliersPage() {
         const visible = briefs.filter(s => s.supplierId !== REQUEST_NODE_ID);
         const enriched = await Promise.all(
           visible.map(async (brief): Promise<SupplierRowData> => {
-            try {
-              const reliability = await getSupplierReliability(brief.supplierId);
-              return { brief, reliability };
-            } catch {
-              return { brief, reliability: null };
-            }
+            const [reliability, contactRes] = await Promise.allSettled([
+              getSupplierReliability(brief.supplierId),
+              getSupplierContacts(brief.supplierId),
+            ]);
+            const primaryContact =
+              contactRes.status === 'fulfilled'
+                ? (contactRes.value.contacts.find(c => c.isPrimary) ?? contactRes.value.contacts[0] ?? null)
+                : null;
+            return {
+              brief,
+              reliability: reliability.status === 'fulfilled' ? reliability.value : null,
+              primaryContact,
+            };
           }),
         );
         if (!cancelled) setRows(enriched);
