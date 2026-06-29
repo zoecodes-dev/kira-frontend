@@ -53,8 +53,52 @@ import {
   getSupplierEsg,
   getSupplierFactories,
   getTokenSupplierId,
+  getSubmissions,
   type SupplierFactory,
+  type SubmissionBrief,
 } from '@/lib/api';
+import { type Submission } from '@/components/supplier/EightStageStepper';
+
+/** 백엔드 status → 8단계 스테이지 배열로 변환 */
+function mapToSubmission(s: SubmissionBrief): Submission {
+  const STATUS_STAGE: Record<string, number> = {
+    submission_requested: 1,
+    submission_in_progress: 1,
+    submission_submitted: 4,
+    submission_review: 5,
+    submission_rework: 7,
+    submission_approved: 8,
+    submission_rejected: 6,
+  };
+  const STAGE_LABELS = [
+    { label: '제출 완료',   sublabel: '협력사 최초 업로드 완료' },
+    { label: 'AI 파싱 중',  sublabel: 'LLM 문서 추출 파이프라인 처리' },
+    { label: 'AI 파싱 완료',sublabel: '데이터 추출 결과 생성 완료' },
+    { label: '협력사 확인', sublabel: '협력사 담당자 파싱 결과 검토' },
+    { label: '원청 접수',   sublabel: '원청사 검토 큐 진입' },
+    { label: '원청 검토중', sublabel: '원청사 담당자 내용 검토 중' },
+    { label: '보완 요청',   sublabel: '미비 사항 재제출 요청' },
+    { label: '최종 승인',   sublabel: '규제 적합성 최종 승인 완료' },
+  ];
+  const activeStage = STATUS_STAGE[s.status ?? ''] ?? 1;
+  const isRejected = s.status === 'submission_rejected';
+  const isApproved = s.status === 'submission_approved';
+  return {
+    id: s.submissionId,
+    documentName: s.type ?? '문서',
+    submittedAt: s.submittedAt ?? s.dueDate ?? '',
+    rejectedStageNo: isRejected ? activeStage : undefined,
+    stages: STAGE_LABELS.map((meta, i) => {
+      const stageNo = i + 1;
+      let status: 'done' | 'active' | 'pending' | 'rejected' = 'pending';
+      if (isApproved) status = 'done';
+      else if (isRejected && stageNo === activeStage) status = 'rejected';
+      else if (stageNo < activeStage) status = 'done';
+      else if (stageNo === activeStage) status = 'active';
+      return { no: stageNo, ...meta, status };
+    }),
+  };
+}
 interface MockSupplier {
   id: string; name?: string; region?: string; country?: string; 
   status?: string; role?: string; 
@@ -576,6 +620,13 @@ function SupplierInfoPreview({
 export default function SupplierPage() {
   const [activeView, setActiveView] = useState<SupplierView>('dashboard');
   const [selectedRelatedId, setSelectedRelatedId] = useState('S-CAM-001');
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+
+  useEffect(() => {
+    getSubmissions()
+      .then(list => setSubmissions(list.map(mapToSubmission)))
+      .catch(() => { /* mock 유지 */ });
+  }, []);
   // ── 자료 제출 모달 상태 ──────────────────────────────────────────────────────
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialItems, setWizardInitialItems] = useState<string[]>([]);
@@ -1364,6 +1415,7 @@ export default function SupplierPage() {
           {/* ── EightStageStepper — 전체 가로 폭 사용 ── */}
           <section className="rounded-sm border border-ink-700 bg-white p-5 shadow-control">
             <EightStageStepper
+              submissions={submissions.length > 0 ? submissions : undefined}
               onResubmit={(_, requestLabel, reason) =>
                 openWizardRework(requestLabel, reason)
               }

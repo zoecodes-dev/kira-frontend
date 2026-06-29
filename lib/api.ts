@@ -728,6 +728,19 @@ export const getDataRequests = (params?: { supplierId?: string }) => {
   return api.get<ApiDataRequest[]>(`/data-requests${q}`);
 };
 
+/** GET /submissions — 원청 제출 검토 목록 (§4.1a) */
+export interface SubmissionBrief {
+  submissionId: string;
+  supplierId: string | null;
+  supplierName: string | null;
+  type: string | null;
+  status: string | null;
+  dueDate: string | null;
+  submittedAt: string | null;
+  fileCount: number;
+}
+export const getSubmissions = () => api.get<SubmissionBrief[]>(`/submissions`);
+
 /** HITL 협력사 승인 — 자료요청 AI 파싱 결과(입력+AI분석+신뢰도). */
 export interface AiExtraction {
   requestId: string;
@@ -1149,3 +1162,7 @@ export const getSupplyChainMapHeader = (mapId: string) =>
 /** 공급망 맵 완료/전송 상태 변경(building/completed). */
 export const updateSupplyChainMapStatus = (mapId: string, status: "building" | "completed") =>
   api.patch<{ mapId: string; status: string; completedAt?: string | null }>(`/supply-chain/maps/${mapId}`, { status });
+
+/** POST /audit-packages/{packageId}/export — 완료 증빙 다운로드 URL 발급 (§2.5d) */
+export const exportAuditPackage = (packageId: string) =>
+  api.post<{ exportUrl: string | null }>(`/audit-packages/${packageId}/export`, {});

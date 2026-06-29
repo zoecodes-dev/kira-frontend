@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { exportAuditPackage } from '@/lib/api';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -394,7 +395,18 @@ function SubmissionStepperCard({
                 {/* 완료 증빙 다운로드 버튼 — 기획서 E-3: stage_issuance + batch_completed 시 표시 */}
                 <button
                   type="button"
-                  onClick={() => alert('완료 증빙 다운로드 (API 연동 예정)')}
+                  onClick={async () => {
+                    try {
+                      const res = await exportAuditPackage(submission.id);
+                      if (res.exportUrl) {
+                        window.open(res.exportUrl, '_blank');
+                      } else {
+                        alert('완료 증빙 파일이 아직 준비되지 않았습니다.');
+                      }
+                    } catch {
+                      alert('완료 증빙 다운로드 중 오류가 발생했습니다.');
+                    }
+                  }}
                   className="inline-flex shrink-0 items-center gap-2 rounded-xs border border-signal-ok bg-white px-3 py-2 text-xs font-bold text-signal-ok shadow-control hover:bg-signal-ok hover:text-white transition-colors"
                 >
                   <QrCode className="h-3.5 w-3.5" />
