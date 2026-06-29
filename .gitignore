@@ -21,3 +21,6 @@ next-env.d.ts
 
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo
+
+# 기타 추가
+claude.md

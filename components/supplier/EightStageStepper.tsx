@@ -99,14 +99,22 @@ export const mockSubmissions: Submission[] = [
   },
 ];
 
-// batch.status 분기용 Mock — 기획서 E-3 스펙
+// batch.status 분기 — 기획서 E-3 스펙
 // · batch_completed  → 완료 증빙 다운로드 버튼 표시
 // · batch_rejected   → 시정 완료 회신 버튼 (page.tsx에서 ViolationReportModal 연결)
 // · batch_processing → 조회만 가능
 // · batch_hitl_wait  → 보완 제출 딥링크
+// 실 데이터원: api.ts getBatch(batchId).status (BatchStatusCode 와 동일 코드). 소비처에서
+// getBatch 로 받아 <EightStageStepper batchStatus={...} /> 로 주입한다. 미주입 시 표시 생략.
 export type BatchStatus = 'batch_processing' | 'batch_hitl_wait' | 'batch_completed' | 'batch_rejected';
 
-export const MOCK_BATCH_STATUS: BatchStatus = 'batch_processing'; // 시나리오 전환용
+// 상태 칩 표기 — 요약 바에 현재 배치 상태를 부가 표시(주입된 경우만).
+const BATCH_STATUS_META: Record<BatchStatus, { label: string; cls: string }> = {
+  batch_processing: { label: '처리 중',   cls: 'border-ink-700 bg-ink-800 text-ink-400' },
+  batch_hitl_wait:  { label: 'HITL 대기',  cls: 'border-warn-border bg-warn-bg text-warn-text' },
+  batch_completed:  { label: '배치 완료',  cls: 'border-signal-ok/30 bg-signal-ok/10 text-signal-ok' },
+  batch_rejected:   { label: '배치 반려',  cls: 'border-alert-border bg-alert-bg text-alert-text' },
+};
 
 // ─── 단계 노드 ──────────────────────────────────────────────────────────────────
 
@@ -449,11 +457,14 @@ interface EightStageStepperProps {
   submissions?: Submission[];
   /** submissionId, requestItems 라벨(매핑 완료), 반려 사유 */
   onResubmit?: (submissionId: string, requestLabel: string, reason?: string) => void;
+  /** 실 배치 상태(api.ts getBatch(batchId).status). 주입 시 요약 바에 상태 칩 표시. */
+  batchStatus?: BatchStatus;
 }
 
 export default function EightStageStepper({
   submissions = mockSubmissions,
   onResubmit,
+  batchStatus,
 }: EightStageStepperProps) {
   const rejectedCount = submissions.filter(s => s.stages.some(st => st.status === 'rejected')).length;
   const activeCount   = submissions.filter(s => s.stages.some(st => st.status === 'active')).length;
@@ -466,6 +477,11 @@ export default function EightStageStepper({
         <span className="text-xs font-bold text-ink-400">
           {submissions.length}건 추적 중
         </span>
+        {batchStatus && (
+          <span className={`inline-flex items-center gap-1 rounded-xs border px-2 py-0.5 text-[10px] font-semibold ${BATCH_STATUS_META[batchStatus].cls}`}>
+            배치 {BATCH_STATUS_META[batchStatus].label}
+          </span>
+        )}
         <span className="h-3 w-px bg-ink-700" />
         {doneCount > 0 && (
           <span className="inline-flex items-center gap-1 rounded-xs border border-signal-ok/30 bg-signal-ok/10 px-2 py-0.5 text-[10px] font-semibold text-signal-ok">

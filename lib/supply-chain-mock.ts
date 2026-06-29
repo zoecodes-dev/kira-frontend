@@ -121,6 +121,7 @@ export interface TraceRow {
   part_id: string;
   part_name: string;
   part_code: string;
+  function_purpose: string; // 부품 용도/기능 (BOM 트리 노드, parts.function_purpose)
   material_or_mineral: string;
   bom_percentage: number;
   mineral_ratio: number;
@@ -538,6 +539,7 @@ export function buildTraceRows(ds: SupplyChainDataset, bomVersionId: string, per
             part_id: part.part_id,
             part_name: part.part_name,
             part_code: part.part_code,
+            function_purpose: part.function_purpose ?? '',
             material_or_mineral: getMaterialLabel(part),
             bom_percentage: bomItem.percentage,
             mineral_ratio: part.kind === 'component' ? 0 : bomItem.percentage,

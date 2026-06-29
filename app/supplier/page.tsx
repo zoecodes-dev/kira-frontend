@@ -1904,10 +1904,13 @@ export default function SupplierPage() {
         }}
         {...(violationId !== null && { violationId })}
       />
-      {/* 자진 신고 모달 — 기획서 E-3 */}
+      {/* 자진 신고 모달 — 기획서 E-3.
+          parentSupplierId=로그인 협력사 본인. bomVersionId/partId 는 협력사 포털에 출처가 없어
+          미전달 → 모달이 데모 접수 모드로 폴백(docs/HANDOFF_supplychain_self_report.md). */}
       <SelfReportModal
         open={selfReportOpen}
         onClose={() => setSelfReportOpen(false)}
+        parentSupplierId={supplierId}
       />
     </main>
   );
