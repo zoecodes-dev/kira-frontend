@@ -16,7 +16,10 @@ import {
   X,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { getSuppliers, declareSourceChange, getTokenSupplierId, type SupplierBrief } from '@/lib/api';
+import {
+  getSuppliers, getSupplierSuppliedItems, declareSourceChange, getTokenSupplierId,
+  type SupplierBrief, type SuppliedItem,
+} from '@/lib/api';
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────────
 
@@ -83,6 +86,11 @@ export default function SelfReportModal({ open, onClose, bomVersionId, partId, p
   const [changeType, setChangeType]       = useState<ChangeType | ''>('');
   const [newSupplierId, setNewSupplierId] = useState('');   // new_child_supplier_id = 기존 등록 협력사
   const [suppliers, setSuppliers]         = useState<SupplierBrief[]>([]);
+  // 공급 품목(= 변경 대상 part·bom_version). 내가 공급하는 품목 목록에서 선택해
+  // declareSourceChange 의 partId/bomVersionId 를 채운다. key = `${partId}::${bomVersionId}`.
+  const [items, setItems]                 = useState<SuppliedItem[]>([]);
+  const [selectedItemKey, setSelectedItemKey] = useState('');
+  const [itemOpen, setItemOpen]           = useState(false);
   const [reason, setReason]               = useState('');
   const [submitting, setSubmitting]       = useState(false);
   const [submitted, setSubmitted]         = useState(false);
@@ -96,15 +104,24 @@ export default function SelfReportModal({ open, onClose, bomVersionId, partId, p
     if (!open) return;
     setChangeType('');
     setNewSupplierId('');
+    setSelectedItemKey('');
     setReason('');
     setSubmitting(false);
     setSubmitted(false);
     setErrors({});
     setTypeOpen(false);
     setSupplierOpen(false);
+    setItemOpen(false);
     setSubmitError('');
     getSuppliers().then(setSuppliers).catch(() => setSuppliers([]));
-  }, [open]);
+    // 내가 공급하는 품목(part·bom_version) 로드 — 변경 대상 선택지. 신고 주체=상위 협력사 본인.
+    const parent = parentSupplierId ?? getTokenSupplierId() ?? '';
+    if (parent) {
+      getSupplierSuppliedItems(parent).then(r => setItems(r.items)).catch(() => setItems([]));
+    } else {
+      setItems([]);
+    }
+  }, [open, parentSupplierId]);
 
   // ESC 닫기
   useEffect(() => {
@@ -120,6 +137,8 @@ export default function SelfReportModal({ open, onClose, bomVersionId, partId, p
   function validate(): boolean {
     const next: Record<string, string> = {};
     if (!changeType)    next.changeType    = '변경 유형을 선택해 주세요.';
+    // 공급 품목이 있을 때만 필수 — 없으면(데이터 미구축) 데모 접수로 폴백한다.
+    if (items.length > 0 && !selectedItemKey) next.item = '변경 대상 공급 품목을 선택해 주세요.';
     if (!newSupplierId) next.newSupplierId = '변경할 공급사(기존 등록 협력사)를 선택해 주세요.';
     if (!reason.trim()) next.reason        = '변경 사유를 입력해 주세요.';
     setErrors(next);
@@ -134,21 +153,25 @@ export default function SelfReportModal({ open, onClose, bomVersionId, partId, p
     // 실호출 계약: 백엔드는 BOM 버전·부품 단위로 parent→new_child 링크를 만든다.
     // 4종(bomVersionId·partId·parentSupplierId·newSupplierId)이 모두 있어야 실호출 가능.
     const parent = parentSupplierId ?? getTokenSupplierId() ?? '';
-    const canDeclare = Boolean(bomVersionId && partId && parent && newSupplierId);
+    // 선택한 공급 품목에서 part·bom_version 컨텍스트를 얻는다(없으면 props 폴백).
+    const selItem = items.find(i => `${i.partId}::${i.bomVersionId}` === selectedItemKey);
+    const effBomVersionId = selItem?.bomVersionId ?? bomVersionId;
+    const effPartId = selItem?.partId ?? partId;
+    const canDeclare = Boolean(effBomVersionId && effPartId && parent && newSupplierId);
 
     try {
       if (canDeclare) {
         await declareSourceChange({
-          bomVersionId: bomVersionId!,
+          bomVersionId: effBomVersionId!,
           parentSupplierId: parent,
           newChildSupplierId: newSupplierId,
-          partId: partId!,
+          partId: effPartId!,
           reason: reason.trim(),
         });
       } else {
-        // 데모 접수 모드 — 협력사 포털에 원청 bomVersionId 출처가 없어 컨텍스트가 부족할 때.
-        // (docs/HANDOFF_supplychain_self_report.md 참조: bomVersionId/partId 배선이 남은 작업)
-        console.warn('[SelfReportModal] source-change 컨텍스트 부족(bomVersionId/partId) → 데모 접수로 처리');
+        // 데모 접수 모드 — 공급 품목 데이터가 없어 part·bom_version 컨텍스트를 못 얻을 때만.
+        // (docs/HANDOFF_supplychain_self_report.md 참조)
+        console.warn('[SelfReportModal] source-change 컨텍스트 부족(공급 품목 없음) → 데모 접수로 처리');
         await new Promise(res => setTimeout(res, 900));
       }
       setSubmitted(true);
@@ -161,6 +184,9 @@ export default function SelfReportModal({ open, onClose, bomVersionId, partId, p
 
   const selectedOption = CHANGE_TYPE_OPTIONS.find(o => o.value === changeType);
   const selectedSupplier = suppliers.find(s => s.supplierId === newSupplierId);
+  const selectedItem = items.find(i => `${i.partId}::${i.bomVersionId}` === selectedItemKey);
+  const itemLabel = (it: SuppliedItem) =>
+    `${it.partName ?? it.partCode ?? it.partId}${it.bomVersionNumber ? ` · BOM ${it.bomVersionNumber}` : ''}`;
 
   if (!open) return null;
 
@@ -259,6 +285,54 @@ export default function SelfReportModal({ open, onClose, bomVersionId, partId, p
                 {errors.changeType && (
                   <p className="mt-1 flex items-center gap-1 text-[10px] text-alert-text">
                     <AlertTriangle className="h-3 w-3" /> {errors.changeType}
+                  </p>
+                )}
+              </div>
+
+              {/* ①.5 변경 대상 공급 품목 — partId·bomVersionId 출처(실호출 컨텍스트) */}
+              <div>
+                <FieldLabel label="변경 대상 공급 품목" sub="내가 공급하는 품목" required={items.length > 0} />
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setItemOpen(v => !v)}
+                    disabled={items.length === 0}
+                    className={clsx(
+                      'flex w-full items-center justify-between rounded-xs border px-3 py-2.5 text-xs transition-colors',
+                      errors.item ? 'border-alert-border bg-alert-bg' : 'border-ink-600 bg-white hover:border-accent-600',
+                      selectedItem ? 'text-ink-100 font-semibold' : 'text-ink-500',
+                      items.length === 0 && 'cursor-not-allowed opacity-60',
+                    )}
+                  >
+                    {selectedItem
+                      ? itemLabel(selectedItem)
+                      : (items.length ? '공급 품목을 선택해 주세요' : '공급 품목 없음 — 데모 접수로 처리됩니다')}
+                    <ChevronDown className={`h-4 w-4 text-ink-500 transition-transform ${itemOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {itemOpen && items.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-xs border border-ink-600 bg-white shadow-lg">
+                      {items.map(it => {
+                        const key = `${it.partId}::${it.bomVersionId}`;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => { setSelectedItemKey(key); setItemOpen(false); if (errors.item) setErrors(p => ({ ...p, item: '' })); }}
+                            className="flex w-full flex-col px-3 py-2.5 text-left hover:bg-accent-50 transition-colors"
+                          >
+                            <span className="text-xs font-bold text-ink-100">{it.partName ?? it.partCode ?? it.partId}</span>
+                            <span className="mt-0.5 text-[10px] text-ink-500">
+                              {it.partCode ?? '—'}{it.bomVersionNumber ? ` · BOM ${it.bomVersionNumber}` : ''}{it.materialType ? ` · ${it.materialType}` : ''}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {errors.item && (
+                  <p className="mt-1 flex items-center gap-1 text-[10px] text-alert-text">
+                    <AlertTriangle className="h-3 w-3" /> {errors.item}
                   </p>
                 )}
               </div>
