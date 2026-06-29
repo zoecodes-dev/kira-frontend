@@ -7,24 +7,20 @@ import {
   ApiError,
   getSupplier,
   getSupplierDetail,
-  getSupplierEsg,
   getSupplierFactories,
   getSupplierReliability,
   getSupplierRiskProfile,
   type SupplierBrief,
   type SupplierDetail,
-  type SupplierEsgResponse,
   type SupplierFactoriesResponse,
   type SupplierReliabilityResponse,
   type SupplierRiskProfileResponse,
   type ProviderType,
 } from '@/lib/api';
-import { SUPPLIER_NOW } from './utils/supplierNow';
 import { InfoSummary } from './sections/info/InfoSummary';
 import { InfoGeneralSection } from './sections/info/InfoGeneralSection';
 import { InfoContactsSection } from './sections/info/InfoContactsSection';
 import { InfoFactoriesSection } from './sections/info/InfoFactoriesSection';
-import { InfoCertsSection } from './sections/info/InfoCertsSection';
 import { InfoCompletenessSection } from './sections/info/InfoCompletenessSection';
 
 const providerTypeLabel: Record<ProviderType, string> = {
@@ -43,15 +39,6 @@ function toShortStatus(status: SupplierBrief['status']): 'verified' | 'pending' 
     case 'supplier_suspended': return 'violation';
     default: return 'pending';
   }
-}
-
-function deriveCertStatus(expiresAt: string): 'active' | 'expiring_soon' | 'expired' {
-  const exp = new Date(expiresAt).getTime();
-  if (Number.isNaN(exp)) return 'active';
-  const days = Math.ceil((exp - SUPPLIER_NOW.getTime()) / 86400000);
-  if (days < 0) return 'expired';
-  if (days < 60) return 'expiring_soon';
-  return 'active';
 }
 
 // API 분리 응답(detail.*Detail) → 화면 CTI 모델로 합성
@@ -108,7 +95,6 @@ interface InfoData {
   detail: SupplierDetail | null;
   factories: SupplierFactoriesResponse | null;
   reliability: SupplierReliabilityResponse | null;
-  esg: SupplierEsgResponse | null;
   riskProfile: SupplierRiskProfileResponse | null;
 }
 
@@ -130,14 +116,13 @@ export default function SupplierInfoPage() {
         const brief = await getSupplier(id);
         if (cancelled) return;
         // 나머지는 보조 — 실패해도 화면은 표시(빈 항목)
-        const [detail, factories, reliability, esg, riskProfile] = await Promise.all([
+        const [detail, factories, reliability, riskProfile] = await Promise.all([
           getSupplierDetail(id).catch(() => null),
           getSupplierFactories(id).catch(() => null),
           getSupplierReliability(id).catch(() => null),
-          getSupplierEsg(id).catch(() => null),
           getSupplierRiskProfile(id).catch(() => null),
         ]);
-        if (!cancelled) setData({ brief, detail, factories, reliability, esg, riskProfile });
+        if (!cancelled) setData({ brief, detail, factories, reliability, riskProfile });
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -166,7 +151,7 @@ export default function SupplierInfoPage() {
     return <div className="p-8 text-xs text-ink-500">{error ?? '협력사를 찾을 수 없습니다'}</div>;
   }
 
-  const { brief, detail, factories: facRes, reliability, esg } = data;
+  const { brief, detail, factories: facRes, reliability } = data;
   const feocStatus = detail?.feocStatus ?? reliability?.feocStatus ?? 'unknown';
 
   // ── 화면 모델 합성 (API에 없는 필드는 빈 값) ──
@@ -219,18 +204,6 @@ export default function SupplierInfoPage() {
     supplyQuantity: f.supplyQuantity ?? undefined,
   }));
 
-  const certs = (esg?.certifications ?? []).map(c => ({
-    certId: c.certId,
-    supplierId: brief.supplierId,
-    certName: c.certificationType,
-    issuingBody: c.issuingBody,
-    certNumber: c.certificationNo,
-    issuedAt: c.issuedAt,
-    expiresAt: c.expiresAt,
-    status: deriveCertStatus(c.expiresAt),
-    documentUrl: c.documentUrl ?? undefined,
-  }));
-
   // 완성도: reliability.completeness_score만 제공(세부 필드 카운트·누락항목은 API 없음)
   const completeness = {
     supplierId: brief.supplierId,
@@ -267,7 +240,7 @@ export default function SupplierInfoPage() {
           name={name}
           contacts={contacts}
           factories={factories}
-          certs={certs}
+          certs={[]}
           completeness={completeness}
           risk={risk}
         />
@@ -276,7 +249,6 @@ export default function SupplierInfoPage() {
           <InfoGeneralSection supplier={supplier} name={name} ext={ext} ctiDetails={ctiDetails} />
           <InfoContactsSection contacts={contacts} factories={factories} />
           <InfoFactoriesSection factories={factories} hq={hq} production={production} />
-          <InfoCertsSection certs={certs} />
           <InfoCompletenessSection completeness={completeness} />
         </>
       )}

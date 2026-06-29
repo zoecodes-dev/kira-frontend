@@ -5,11 +5,11 @@ import { useEffect, useRef, useState } from 'react';
 import {
   createDataRequest,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
-  getSupplierEsg, getSupplierOriginCertificates, getSupplierSuppliedItems, updateSupplierDetail,
+  getSupplierSuppliedItems, submitMasterForm,
   getSupplierRiskProfile, uploadFile, type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
-  type EsgCertification as ApiCert, type OriginCert as ApiOriginCert, type SuppliedItem as ApiItem,
+  type SuppliedItem as ApiItem,
   ApiError,
 } from '@/lib/api';
 
@@ -39,8 +39,6 @@ interface RealData {
   contacts: ApiSupplierContact[];
   factories: ApiSupplierFactory[];
   comp: ApiCompleteness | null;
-  certs: ApiCert[];
-  originCerts: ApiOriginCert[];
   items: ApiItem[];
   riskProfile: ApiRiskProfile | null;   // 규제 — 실사 자가진단(self_reported_risk_level)
 }
@@ -171,23 +169,10 @@ const factoryRows = [
   ['본사', 'KR', '서울 강남구 테헤란로 152', '-', '-', '해당 없음'],
 ];
 
-const certificateRows = [
-  ['ISO 9001:2015', 'TUV Rheinland', '2024-03-01', '2027-02-28', '완료', '첨부됨'],
-  ['ISO 14001:2015', 'TUV Rheinland', '2024-03-01', '2027-02-28', '확인 필요', '갱신본 요청'],
-  ['IATF 16949:2016', 'Bureau Veritas', '2023-07-15', '2026-07-14', '입력 중', '미첨부'],
-  ['RMI 인증', '-', '-', '-', '미입력', '미첨부'],
-];
-
 const supplyItemRows = [
   ['BAT-NCM811-100Ah', 'Premium NCM811 100Ah', 'Pack', 'EU', '완료'],
   ['BAT-LFP-120Ah', 'LFP Power 120Ah', 'Pack', 'EU', '입력 중'],
   ['BAT-NCM622-90Ah', 'NCM622 90Ah', 'Pack', 'US', '미입력'],
-];
-
-const originRows = [
-  ['EU Battery', 'EU', '원산지 증명서', '확인 필요'],
-  ['IRA/FEOC', 'US', 'FEOC 자기선언', '미입력'],
-  ['CSDDD', 'EU', '공급망 실사 응답', '입력 중'],
 ];
 
 function statusClasses(status: ReviewStatus) {
@@ -368,6 +353,147 @@ function DataTable({ headers, rows, editable = false }: { headers: string[]; row
   );
 }
 
+// ── 협력사 입력 모드 전용 편집 가능한 행 draft (master-form REPLACE-ALL 라운드트립용) ──
+// GET(SupplierFactory/SupplierContact)에서 시드해 전체 현재 집합을 들고 있다가 그대로 다시 보낸다.
+interface FactoryDraft {
+  factoryName: string;
+  country: string;
+  region: string;
+  address: string;
+  factoryRole: string;
+  destination: string;
+  supplyRatioPercent: string;
+  latitude: string;
+  longitude: string;
+}
+interface ContactDraft {
+  name: string;
+  role: string;
+  department: string;
+  email: string;
+  phone: string;
+  mobile: string;
+  isPrimary: boolean;
+}
+const emptyFactoryDraft = (): FactoryDraft => ({
+  factoryName: '', country: '', region: '', address: '', factoryRole: '',
+  destination: '', supplyRatioPercent: '', latitude: '', longitude: '',
+});
+const emptyContactDraft = (): ContactDraft => ({
+  name: '', role: '', department: '', email: '', phone: '', mobile: '', isPrimary: false,
+});
+const factoryToDraft = (f: ApiSupplierFactory): FactoryDraft => ({
+  factoryName: f.factoryName ?? '',
+  country: f.country ?? '',
+  region: f.region ?? '',
+  address: f.address ?? '',
+  factoryRole: f.factoryRole ?? '',
+  destination: f.destination ?? '',
+  supplyRatioPercent: f.supplyRatioPercent != null ? String(f.supplyRatioPercent) : '',
+  latitude: f.latitude != null ? String(f.latitude) : '',
+  longitude: f.longitude != null ? String(f.longitude) : '',
+});
+const contactToDraft = (c: ApiSupplierContact): ContactDraft => ({
+  name: c.name ?? '',
+  role: c.role ?? '',
+  department: c.department ?? '',
+  email: c.email ?? '',
+  phone: c.phone ?? '',
+  mobile: c.mobile ?? '',
+  isPrimary: Boolean(c.isPrimary),
+});
+
+const editCellCls = 'w-full min-w-24 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20';
+
+// 공장 정보 편집 테이블 — 행 추가/삭제. 좌표는 latitude/longitude 입력(있으면 coordinates로 매핑).
+function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (rows: FactoryDraft[]) => void }) {
+  const update = (i: number, patch: Partial<FactoryDraft>) =>
+    onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const remove = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
+  const add = () => onChange([...rows, emptyFactoryDraft()]);
+  return (
+    <div className="space-y-2">
+      <div className="overflow-x-auto rounded-sm border border-ink-700">
+        <table className="min-w-full border-collapse text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              {['공장명', '국가', '지역', '주소', '역할', '납품처', '공급비율(%)', '위도', '경도', ''].map((h, i) => (
+                <th key={`${h}-${i}`} className="whitespace-nowrap border-b border-ink-700 px-3 py-2.5 text-left text-xs font-semibold text-ink-500">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-b border-ink-700 last:border-b-0">
+                <td className="px-2 py-1.5"><input value={r.factoryName} onChange={e => update(i, { factoryName: e.target.value })} placeholder="공장명" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.country} onChange={e => update(i, { country: e.target.value })} placeholder="국가" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.region} onChange={e => update(i, { region: e.target.value })} placeholder="지역" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.address} onChange={e => update(i, { address: e.target.value })} placeholder="주소" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.factoryRole} onChange={e => update(i, { factoryRole: e.target.value })} placeholder="역할" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.latitude} onChange={e => update(i, { latitude: e.target.value })} placeholder="위도" inputMode="decimal" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.longitude} onChange={e => update(i, { longitude: e.target.value })} placeholder="경도" inputMode="decimal" className={editCellCls} /></td>
+                <td className="px-2 py-1.5 text-center">
+                  <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={10} className="px-3 py-6 text-center text-sm text-ink-500">등록된 공장이 없습니다. 행을 추가하세요.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">행 추가</button>
+    </div>
+  );
+}
+
+// 담당자(연락처) 편집 테이블 — 행 추가/삭제. is_primary 는 단일 선택(라디오 형태).
+function ContactEditor({ rows, onChange }: { rows: ContactDraft[]; onChange: (rows: ContactDraft[]) => void }) {
+  const update = (i: number, patch: Partial<ContactDraft>) =>
+    onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const setPrimary = (i: number) => onChange(rows.map((r, idx) => ({ ...r, isPrimary: idx === i })));
+  const remove = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
+  const add = () => onChange([...rows, emptyContactDraft()]);
+  return (
+    <div className="space-y-2">
+      <div className="overflow-x-auto rounded-sm border border-ink-700">
+        <table className="min-w-full border-collapse text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              {['이름', '직책', '부서', '이메일', '전화', '휴대폰', '대표', ''].map((h, i) => (
+                <th key={`${h}-${i}`} className="whitespace-nowrap border-b border-ink-700 px-3 py-2.5 text-left text-xs font-semibold text-ink-500">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-b border-ink-700 last:border-b-0">
+                <td className="px-2 py-1.5"><input value={r.name} onChange={e => update(i, { name: e.target.value })} placeholder="이름" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.role} onChange={e => update(i, { role: e.target.value })} placeholder="직책" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.department} onChange={e => update(i, { department: e.target.value })} placeholder="부서" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.email} onChange={e => update(i, { email: e.target.value })} placeholder="이메일" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.phone} onChange={e => update(i, { phone: e.target.value })} placeholder="전화" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.mobile} onChange={e => update(i, { mobile: e.target.value })} placeholder="휴대폰" className={editCellCls} /></td>
+                <td className="px-2 py-1.5 text-center"><input type="radio" name="contact-primary" checked={r.isPrimary} onChange={() => setPrimary(i)} className="h-3.5 w-3.5 accent-brand" aria-label="대표 담당자" /></td>
+                <td className="px-2 py-1.5 text-center">
+                  <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={8} className="px-3 py-6 text-center text-sm text-ink-500">등록된 담당자가 없습니다. 행을 추가하세요.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">행 추가</button>
+    </div>
+  );
+}
+
 const fieldFilled = (v: unknown): ReviewStatus => (v !== null && v !== undefined && v !== '' ? '완료' : '미입력');
 
 function sectionStatusFrom(completed: number, total: number): ReviewStatus {
@@ -424,11 +550,6 @@ function deriveSectionMeta(
     ? { completed: count, total: count, status: '완료', missing: [] }
     : { completed: 0, total: 1, status: '미입력', missing: ['공장 정보'] };
 }
-const certStatus = (expiresAt: string | null): ReviewStatus =>
-  (expiresAt && new Date(expiresAt).getTime() < Date.now() ? '확인 필요' : '완료');
-const originStatus = (s: string | null): ReviewStatus =>
-  ({ valid: '완료', expiring_soon: '확인 필요', expired: '미입력', under_review: '입력 중' } as Record<string, ReviewStatus>)[s ?? ''] ?? '완료';
-
 function EmptyData() {
   return <div className="rounded-sm border border-dashed border-ink-700 bg-slate-50 px-4 py-8 text-center text-sm text-ink-500">등록된 데이터가 없습니다.</div>;
 }
@@ -502,7 +623,17 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId }: { la
 
 // 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
 // editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isOem)만 노출.
-function SectionContent({ section, real, editable = false, isOem = false, supplierId }: { section: CollectionSection; real?: RealData | null; editable?: boolean; isOem?: boolean; supplierId: string }) {
+function SectionContent({ section, real, editable = false, isOem = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft }: {
+  section: CollectionSection;
+  real?: RealData | null;
+  editable?: boolean;
+  isOem?: boolean;
+  supplierId: string;
+  factoriesDraft?: FactoryDraft[];
+  setFactoriesDraft?: (rows: FactoryDraft[]) => void;
+  contactsDraft?: ContactDraft[];
+  setContactsDraft?: (rows: ContactDraft[]) => void;
+}) {
   let content: ReactNode;
   const d = real?.detail ?? null;
 
@@ -528,20 +659,54 @@ function SectionContent({ section, real, editable = false, isOem = false, suppli
     ];
     content = <CompanyGrid rows={rows} editable={editable} fieldKeys={['Li', 'Co', 'Ni']} fieldPrefix="materials" />;
   } else if (section.key === 'factories') {
-    // 공급비율(supplychain 산출)·위치(원산지)·공장 담당자만. 공장당 대표 담당자는 contacts에서 매칭.
-    const contactFor = (factoryId?: string | null) => real?.contacts.find(c => c.factoryId === factoryId);
-    const rows = (real?.factories ?? []).map(f => {
-      const c = contactFor(f.factoryId);
-      const loc = [f.country, f.region].filter(Boolean).join(' · ') || '-';
-      return [
-        f.factoryName ?? '-',
-        loc,
-        f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-',
-        c ? `${c.name ?? '-'}${c.email ? ` (${c.email})` : ''}` : '-',
-        fieldFilled(f.factoryName),
-      ];
-    });
-    content = rows.length ? <DataTable headers={['공장명', '위치(원산지)', '공급비율', '공장 담당자', '상태']} rows={rows} /> : <EmptyData />;
+    // 입력 모드: 공장·담당자를 모두 편집(master-form REPLACE-ALL 라운드트립). 보기 모드: 읽기 전용 테이블.
+    if (editable && factoriesDraft && setFactoriesDraft) {
+      content = (
+        <div className="space-y-5">
+          <div>
+            <div className="mb-2 text-xs font-bold text-ink-500">공장 정보 (공급비율·위치(원산지)·역할)</div>
+            <FactoryEditor rows={factoriesDraft} onChange={setFactoriesDraft} />
+          </div>
+          {contactsDraft && setContactsDraft && (
+            <div>
+              <div className="mb-2 text-xs font-bold text-ink-500">공장 담당자 (연락처)</div>
+              <ContactEditor rows={contactsDraft} onChange={setContactsDraft} />
+            </div>
+          )}
+        </div>
+      );
+    } else {
+      // 공급비율(supplychain 산출)·위치(원산지)·공장 담당자만. 공장당 대표 담당자는 contacts에서 매칭.
+      const contactFor = (factoryId?: string | null) => real?.contacts.find(c => c.factoryId === factoryId);
+      const factoryRows = (real?.factories ?? []).map(f => {
+        const c = contactFor(f.factoryId);
+        const loc = [f.country, f.region].filter(Boolean).join(' · ') || '-';
+        return [
+          f.factoryName ?? '-',
+          loc,
+          f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-',
+          c ? `${c.name ?? '-'}${c.email ? ` (${c.email})` : ''}` : '-',
+          fieldFilled(f.factoryName),
+        ];
+      });
+      const contactRowsView = (real?.contacts ?? []).map(c => [
+        c.name ?? '-',
+        c.role ?? '-',
+        c.email ?? '-',
+        c.mobile ?? c.phone ?? '-',
+        c.isPrimary ? '대표' : '-',
+        fieldFilled(c.name),
+      ]);
+      content = (
+        <div className="space-y-4">
+          {factoryRows.length ? <DataTable headers={['공장명', '위치(원산지)', '공급비율', '공장 담당자', '상태']} rows={factoryRows} /> : <EmptyData />}
+          <div>
+            <div className="mb-2 text-xs font-bold text-ink-500">담당자 (연락처)</div>
+            {contactRowsView.length ? <DataTable headers={['이름', '직책', '이메일', '연락처', '대표', '상태']} rows={contactRowsView} /> : <EmptyData />}
+          </div>
+        </div>
+      );
+    }
   } else if (section.key === 'regulation') {
     const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
     const ci = m.carbonIntensity;
@@ -587,6 +752,10 @@ function AccordionSection({
   showRequest = true,
   isOem = false,
   supplierId,
+  factoriesDraft,
+  setFactoriesDraft,
+  contactsDraft,
+  setContactsDraft,
 }: {
   section: CollectionSection;
   onRequestSection: (section: CollectionSection) => void;
@@ -595,6 +764,10 @@ function AccordionSection({
   showRequest?: boolean;    // 원청 전용 '미입력 N건 요청' 버튼 노출 여부
   isOem?: boolean;          // 원청 모드 — DD 보고서 등 원청 전용 항목 노출
   supplierId: string;       // 필요문서 업로드 context 태깅용
+  factoriesDraft?: FactoryDraft[];
+  setFactoriesDraft?: (rows: FactoryDraft[]) => void;
+  contactsDraft?: ContactDraft[];
+  setContactsDraft?: (rows: ContactDraft[]) => void;
 }) {
   // 섹션은 항상 펼쳐서 고정 표시(드롭다운 제거). 미입력/확인 필요면 그 자리에서 보완 요청.
   const needsRequest = showRequest && (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
@@ -623,7 +796,17 @@ function AccordionSection({
           )}
         </div>
       </div>
-      <SectionContent section={section} real={real} editable={editable} isOem={isOem} supplierId={supplierId} />
+      <SectionContent
+        section={section}
+        real={real}
+        editable={editable}
+        isOem={isOem}
+        supplierId={supplierId}
+        factoriesDraft={factoriesDraft}
+        setFactoriesDraft={setFactoriesDraft}
+        contactsDraft={contactsDraft}
+        setContactsDraft={setContactsDraft}
+      />
     </section>
   );
 }
@@ -661,17 +844,18 @@ export function SupplierGeneralReviewContent({
   // supplierId가 UUID면 실 백엔드(detail·contacts·completeness)에서 채우고, mock S-ID면 기존 mock 폴백.
   const isRealSupplier = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId);
   const [api, setApi] = useState<RealData | null>(null);
+  // 입력 모드 편집용 draft — 로드된 GET 데이터에서 시드(전체 현재 집합). master-form REPLACE-ALL 라운드트립.
+  const [factoriesDraft, setFactoriesDraft] = useState<FactoryDraft[]>([]);
+  const [contactsDraft, setContactsDraft] = useState<ContactDraft[]>([]);
   useEffect(() => {
     if (!isRealSupplier) { setApi(null); return; }
     let cancelled = false;
     (async () => {
-      const [detail, contactsRes, factoriesRes, comp, esgRes, originRes, itemsRes, riskRes] = await Promise.all([
+      const [detail, contactsRes, factoriesRes, comp, itemsRes, riskRes] = await Promise.all([
         getSupplierDetail(supplierId).catch(() => null),
         getSupplierContacts(supplierId).catch(() => null),
         getSupplierFactories(supplierId).catch(() => null),
         getSupplierCompleteness(supplierId).catch(() => null),
-        getSupplierEsg(supplierId).catch(() => null),
-        getSupplierOriginCertificates(supplierId).catch(() => null),
         getSupplierSuppliedItems(supplierId).catch(() => null),
         getSupplierRiskProfile(supplierId).catch(() => null),
       ]);
@@ -681,14 +865,18 @@ export function SupplierGeneralReviewContent({
         contacts: contactsRes?.contacts ?? [],
         factories: factoriesRes?.factories ?? [],
         comp,
-        certs: esgRes?.certifications ?? [],
-        originCerts: originRes?.originCertificates ?? [],
         items: itemsRes?.items ?? [],
         riskProfile: riskRes,
       });
     })();
     return () => { cancelled = true; };
   }, [isRealSupplier, supplierId]);
+
+  // api 로드 시 draft 시드(전체 현재 집합). 편집 진입 시에도 최신 서버 값으로 재시드(아래 setEditing 핸들러).
+  useEffect(() => {
+    setFactoriesDraft((api?.factories ?? []).map(factoryToDraft));
+    setContactsDraft((api?.contacts ?? []).map(contactToDraft));
+  }, [api]);
 
   const apiPrimary = api?.contacts.find(c => c.isPrimary) ?? api?.contacts[0];
   const selectedSupplier = suppliers.find(supplier => supplier.id === supplierId);
@@ -738,52 +926,120 @@ export function SupplierGeneralReviewContent({
   const urgentCount = liveSections.reduce((sum, section) =>
     section.status === '미입력' || section.status === '확인 필요' ? sum + section.missing.length : sum, 0);
 
-  // 협력사 '자료 제출' — 입력칸 값을 수집해 백엔드에 영속화(저장·제출 공통).
-  // 기업 기본정보(company) 섹션은 supplier detail 단건 업데이트로 저장한다.
+  // 협력사 '자료 제출' — 입력값을 수집해 master-form 으로 일괄 영속화(저장·제출 공통).
+  // company 는 authoritative-overwrite(생략=NULL) → 로드된 detail 에서 round-trip 후 편집값으로 override.
+  // factories·contacts 는 REPLACE-ALL → draft(전체 현재 집합)를 그대로 보낸다.
   async function persistForm() {
-    // 입력칸/셀렉트는 data-field="섹션.필드" 로 식별. 전 섹션 값을 모아 snake_case 로 PATCH.
+    if (!isRealSupplier) return;
+    // company/materials/regulation/documents 스칼라 입력칸은 data-field="섹션.필드" 로 식별(전과 동일).
     const root = formRef.current;
     const read = (field: string): string | undefined => {
       const el = root?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-field="${field}"]`);
       return el ? el.value.trim() : undefined;
     };
-    const payload: Record<string, unknown> = {};
-    const setStr = (k: string, v: string | undefined) => { if (v !== undefined) payload[k] = v === '' ? null : v; };
-    const setNum = (k: string, v: string | undefined) => { if (v !== undefined) payload[k] = v === '' ? null : Number(v); };
-    // 기업 기본정보
-    setStr('company_name', read('company.companyName'));
-    setStr('country', read('company.country'));
-    setStr('business_reg_no', read('company.businessRegNo'));
-    setStr('duns_number', read('company.dunsNumber'));
-    const pt = read('company.providerType'); if (pt) payload.provider_type = pt;        // NOT NULL — 빈값은 보내지 않음
-    const st = read('company.smelterType'); if (st !== undefined) payload.smelter_type = st || null;
-    // 소재 구성 → core_minerals
+    const d = api?.detail ?? null;
+    // detail 에 타입 미선언 필드(corporate_reg_no/tax_number 등) round-trip 접근용.
+    const dRec = (d ?? {}) as unknown as Record<string, unknown>;
+    // 빈 문자열은 omit(undefined로 두어 round-trip 값 유지), 그 외엔 그대로.
+    const orNull = (v: string | undefined): string | undefined => (v === undefined ? undefined : v === '' ? undefined : v);
+
+    // ── company: 로드된 detail 라운드트립(생략=NULL 방어) + 편집 입력값 override ──
+    const company: Record<string, unknown> = {
+      // round-trip(편집 UI 없는 필드) — 누락 시 NULL 화 방지.
+      company_name_en: d?.companyNameEn ?? undefined,
+      company_name_ko: d?.companyNameKo ?? undefined,
+      ceo_name: d?.ceoName ?? undefined,
+      corporate_reg_no: dRec.corporateRegNo ?? undefined,
+      tax_number: dRec.taxNumber ?? undefined,
+      website: d?.website ?? undefined,
+      established_year: d?.establishedYear ?? undefined,
+      employee_count: d?.employeeCount ?? undefined,
+    };
+    // 편집 입력값 override.
+    const companyName = orNull(read('company.companyName'));
+    company.company_name = companyName ?? d?.companyName ?? '';                          // REQUIRED
+    const pt = read('company.providerType');
+    company.provider_type = (pt && pt !== '') ? pt : (d?.providerType ?? '');            // REQUIRED — 빈값이면 detail 폴백
+    const country = read('company.country'); if (country !== undefined) company.country = country || null;
+    const businessRegNo = read('company.businessRegNo'); if (businessRegNo !== undefined) company.business_reg_no = businessRegNo || null;
+    const dunsNumber = read('company.dunsNumber'); if (dunsNumber !== undefined) company.duns_number = dunsNumber || null;
+    const st = read('company.smelterType'); if (st !== undefined) company.smelter_type = st || null;
+    // 소재 구성 → core_minerals.
     const li = read('materials.Li'), co = read('materials.Co'), ni = read('materials.Ni');
     if (li !== undefined || co !== undefined || ni !== undefined) {
       const cm: Record<string, number> = {};
       if (li) cm.Li = Number(li);
       if (co) cm.Co = Number(co);
       if (ni) cm.Ni = Number(ni);
-      payload.core_minerals = Object.keys(cm).length ? cm : null;
+      company.core_minerals = Object.keys(cm).length ? cm : null;
+    } else if (d?.coreMinerals) {
+      company.core_minerals = d.coreMinerals;   // round-trip
     }
-    // 규제 — 탄소발자국 / 실사 자가진단
-    setNum('carbon_intensity', read('regulation.carbonIntensity'));
-    setStr('energy_source', read('regulation.energySource'));
-    const srl = read('regulation.selfReportedRiskLevel'); if (srl) payload.self_reported_risk_level = srl;
-    // 필요문서 업로드(파일명/URL) — suppliers 컬럼으로 영속화.
-    setStr('self_assessment_doc_url', read('regulation.selfAssessmentDocUrl'));
-    setStr('business_reg_doc_url', read('documents.businessRegDocUrl'));
-    setStr('environmental_report_url', read('documents.environmentalReportUrl'));
+    // 필요문서 업로드(S3 키) — company 컬럼으로 영속화.
+    const braUrl = read('documents.businessRegDocUrl'); if (braUrl !== undefined) company.business_reg_doc_url = braUrl || null;
+    const envUrl = read('documents.environmentalReportUrl'); if (envUrl !== undefined) company.environmental_report_url = envUrl || null;
+    const saUrl = read('regulation.selfAssessmentDocUrl'); if (saUrl !== undefined) company.self_assessment_doc_url = saUrl || null;
 
-    if (isRealSupplier && Object.keys(payload).length > 0) {
-      await updateSupplierDetail(supplierId, payload);
-      // 입력값 반영 — detail·risk-profile 재조회(정확한 서버 값으로).
-      const [fresh, rp] = await Promise.all([
-        getSupplierDetail(supplierId).catch(() => null),
-        getSupplierRiskProfile(supplierId).catch(() => null),
-      ]);
-      setApi(prev => (prev ? { ...prev, ...(fresh ? { detail: fresh } : {}), ...(rp ? { riskProfile: rp } : {}) } : prev));
-    }
+    // ── factories: draft(전체 현재 집합) → snake_case (REPLACE-ALL) ──
+    const factories = factoriesDraft.map(f => {
+      const out: Record<string, unknown> = {};
+      if (f.factoryName) out.factory_name = f.factoryName;
+      if (f.country) out.country = f.country;
+      if (f.region) out.region = f.region;
+      if (f.address) out.address = f.address;
+      if (f.factoryRole) out.factory_role = f.factoryRole;
+      if (f.destination) out.destination = f.destination;
+      if (f.supplyRatioPercent !== '') out.supply_ratio_percent = Number(f.supplyRatioPercent);
+      // 좌표: lat/lng 둘 다 있으면 coordinates 로 매핑, 아니면 omit.
+      if (f.latitude !== '' && f.longitude !== '') {
+        out.coordinates = { latitude: Number(f.latitude), longitude: Number(f.longitude) };
+      }
+      return out;
+    });
+
+    // ── contacts: draft(전체 현재 집합) → snake_case (REPLACE-ALL) ──
+    const contacts = contactsDraft.map(c => {
+      const out: Record<string, unknown> = {};
+      if (c.name) out.name = c.name;
+      if (c.role) out.role = c.role;
+      if (c.department) out.department = c.department;
+      if (c.email) out.email = c.email;
+      if (c.phone) out.phone = c.phone;
+      if (c.mobile) out.mobile = c.mobile;
+      out.is_primary = c.isPrimary;
+      return out;
+    });
+
+    // ── manufacturing: 규제 입력값 + detail round-trip. factory_declarations 는 항상 []. ──
+    const ciRaw = read('regulation.carbonIntensity');
+    const esRaw = read('regulation.energySource');
+    const md = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
+    const manufacturing: Record<string, unknown> = {
+      carbon_intensity: ciRaw === undefined || ciRaw === '' ? null : Number(ciRaw),
+      energy_source: esRaw === undefined || esRaw === '' ? null : esRaw,
+      manufacturing_process: (md.manufacturingProcess as string | undefined) ?? null,
+      capacity: (md.capacity as string | undefined) ?? null,
+      factory_declarations: [],
+    };
+
+    const body: Record<string, unknown> = { company, factories, contacts, manufacturing };
+    const srl = read('regulation.selfReportedRiskLevel'); if (srl) body.self_reported_risk_level = srl;
+
+    await submitMasterForm(supplierId, body);
+    // 입력값 반영 — detail·contacts·factories·risk-profile 재조회(정확한 서버 값으로).
+    const [fresh, contactsRes, factoriesRes, rp] = await Promise.all([
+      getSupplierDetail(supplierId).catch(() => null),
+      getSupplierContacts(supplierId).catch(() => null),
+      getSupplierFactories(supplierId).catch(() => null),
+      getSupplierRiskProfile(supplierId).catch(() => null),
+    ]);
+    setApi(prev => (prev ? {
+      ...prev,
+      ...(fresh ? { detail: fresh } : {}),
+      ...(contactsRes ? { contacts: contactsRes.contacts ?? [] } : {}),
+      ...(factoriesRes ? { factories: factoriesRes.factories ?? [] } : {}),
+      ...(rp ? { riskProfile: rp } : {}),
+    } : prev));
   }
 
   // 저장하기 — DB 영속화 후 계속 입력(편집 유지).
@@ -894,7 +1150,12 @@ export function SupplierGeneralReviewContent({
           {isSupplier && !editing && (
             <button
               type="button"
-              onClick={() => { setSaved(false); setEditing(true); }}
+              onClick={() => {
+                setSaved(false);
+                setFactoriesDraft((api?.factories ?? []).map(factoryToDraft));
+                setContactsDraft((api?.contacts ?? []).map(contactToDraft));
+                setEditing(true);
+              }}
               className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
             >
               <Pencil className="h-4 w-4" />
@@ -1006,6 +1267,10 @@ export function SupplierGeneralReviewContent({
             showRequest={isOem}
             isOem={isOem}
             supplierId={supplierId}
+            factoriesDraft={factoriesDraft}
+            setFactoriesDraft={setFactoriesDraft}
+            contactsDraft={contactsDraft}
+            setContactsDraft={setContactsDraft}
           />
         ))}
       </section>

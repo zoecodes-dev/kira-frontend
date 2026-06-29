@@ -1,20 +1,16 @@
 'use client';
 
-// 단계4 — 선택 노드의 1차 협력사 정보 확인 팝업 (getSupplierDetail/Reliability/Factories/Esg 실 API)
+// 단계4 — 선택 노드의 1차 협력사 정보 확인 팝업 (getSupplierDetail/Reliability/Factories 실 API)
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import clsx from 'clsx';
 import { AlertTriangle, ClipboardCheck, ExternalLink, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
 import ModalShell from './ModalShell';
 import {
   ApiError,
   getSupplierDetail,
-  getSupplierEsg,
   getSupplierFactories,
   getSupplierReliability,
-  type EsgCertification,
   type SupplierDetail,
-  type SupplierEsgResponse,
   type SupplierFactoriesResponse,
   type SupplierFeocStatus,
   type SupplierReliabilityResponse,
@@ -55,17 +51,6 @@ interface InfoData {
   detail: SupplierDetail;
   reliability: SupplierReliabilityResponse | null;
   factories: SupplierFactoriesResponse | null;
-  esg: SupplierEsgResponse | null;
-}
-
-/** 만료일 판정: 경과=expired, 90일 이내=soon, 그 외=valid */
-function certExpiry(expiresAt: string): 'expired' | 'soon' | 'valid' {
-  const due = new Date(expiresAt).getTime();
-  if (Number.isNaN(due)) return 'valid';
-  const now = Date.now();
-  if (due < now) return 'expired';
-  if (due < now + 90 * 24 * 60 * 60 * 1000) return 'soon';
-  return 'valid';
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -102,13 +87,12 @@ export default function SupplierInfoModal({
       setLoading(true);
       setError(null);
       try {
-        const [detail, reliability, factories, esg] = await Promise.all([
+        const [detail, reliability, factories] = await Promise.all([
           getSupplierDetail(supplierId),
           getSupplierReliability(supplierId).catch(() => null),
           getSupplierFactories(supplierId).catch(() => null),
-          getSupplierEsg(supplierId).catch(() => null),
         ]);
-        if (!cancelled) setData({ detail, reliability, factories, esg });
+        if (!cancelled) setData({ detail, reliability, factories });
       } catch (err) {
         if (!cancelled) setError(err instanceof ApiError ? err.message : '협력사 정보를 불러오지 못했습니다.');
       } finally {
@@ -122,8 +106,6 @@ export default function SupplierInfoModal({
 
   const subtitle = supplierId ? `${nodeLabel} · ${supplierId}` : nodeLabel;
   const completeness = data?.reliability?.completenessScore ?? null;
-  const certs: EsgCertification[] = data?.esg?.certifications ?? [];
-  const expiringCerts = certs.filter(c => certExpiry(c.expiresAt) !== 'valid');
 
   return (
     <ModalShell
@@ -218,49 +200,6 @@ export default function SupplierInfoModal({
               </div>
             </section>
           )}
-
-          {/* 인증서 만료 */}
-          <section>
-            <div className="mb-2 flex items-center gap-2 text-sm font-bold text-ink-100">
-              인증서 / 원산지 만료
-              {expiringCerts.length > 0 && (
-                <span className="rounded-full border border-warn-border bg-warn-bg px-2 py-0.5 text-[11px] font-bold text-warn-text">
-                  {expiringCerts.length}건 확인 필요
-                </span>
-              )}
-            </div>
-            {certs.length === 0 ? (
-              <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
-                등록된 인증서가 없습니다.
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {certs.map(cert => {
-                  const exp = certExpiry(cert.expiresAt);
-                  return (
-                    <div key={cert.certId} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-ink-100">{cert.certificationType}</div>
-                        <div className="mt-0.5 text-[11px] text-slate-500">{cert.issuingBody} · 만료 {cert.expiresAt}</div>
-                      </div>
-                      <span
-                        className={clsx(
-                          'shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold',
-                          exp === 'expired'
-                            ? 'border-alert-border bg-alert-bg text-alert-text'
-                            : exp === 'soon'
-                              ? 'border-warn-border bg-warn-bg text-warn-text'
-                              : 'border-ok-border bg-ok-bg text-ok-text',
-                        )}
-                      >
-                        {exp === 'expired' ? '만료' : exp === 'soon' ? '만료 임박' : '유효'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
 
           {/* 공장 */}
           {data.factories && data.factories.factories.length > 0 && (

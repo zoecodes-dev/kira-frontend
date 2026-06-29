@@ -50,7 +50,6 @@ import {
 } from '@/lib/supplier-detail-data';
 // '내 기업 정보'(company-info) 탭 전용 — 공장/인증서를 실제 API로 연동
 import {
-  getSupplierEsg,
   getSupplierFactories,
   getTokenSupplierId,
   getSubmissions,
