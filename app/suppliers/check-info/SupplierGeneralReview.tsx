@@ -6,7 +6,7 @@ import {
   createDataRequest,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierEsg, getSupplierOriginCertificates, getSupplierSuppliedItems, updateSupplierDetail,
-  getSupplierRiskProfile, type SupplierRiskProfileResponse as ApiRiskProfile,
+  getSupplierRiskProfile, uploadFile, type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type EsgCertification as ApiCert, type OriginCert as ApiOriginCert, type SuppliedItem as ApiItem,
@@ -432,42 +432,75 @@ function EmptyData() {
   return <div className="rounded-sm border border-dashed border-ink-700 bg-slate-50 px-4 py-8 text-center text-sm text-ink-500">등록된 데이터가 없습니다.</div>;
 }
 
-// 필요문서 업로드 행 — '어떤 문서를 올렸는지' 확인 가능하게 파일명을 표시·영속화한다.
-// 데모: 선택한 파일의 '파일명'을 doc_url 컬럼에 저장(실 파일 저장은 추후 /files 연동으로 교체).
+// 필요문서 업로드 행 — '어떤 문서를 올렸는지' 확인 가능하게 표시·영속화한다.
+// 동작: 선택한 파일을 POST /files(S3) 로 업로드 → 반환 url 을 doc_url 로 영속화.
+//   · 업로드 성공: hidden input 에 실제 파일 url 저장(프로덕션 — S3 자격증명 있음).
+//   · 업로드 실패(로컬 = S3 미구성으로 500 등): 파일명으로 폴백 저장(기존 데모 동작 유지).
 // 영속화는 hidden input(data-field=섹션.필드)을 persistForm이 읽어 처리.
 function DocUploadField({ label, field, initialUrl, editable }: { label: string; field: string; initialUrl?: string | null; editable?: boolean }) {
+  // name=표시용 파일명, persistedUrl=영속화 값(성공 시 실 url, 실패 시 파일명)
   const [name, setName] = useState(initialUrl ?? '');
-  const uploaded = Boolean(name);
+  const [persistedUrl, setPersistedUrl] = useState(initialUrl ?? '');
+  const [uploading, setUploading] = useState(false);
+  const [fallback, setFallback] = useState(false); // S3 미구성 등으로 파일명만 기록됐는지
+  const uploaded = Boolean(persistedUrl);
+
+  async function handleSelect(file: File) {
+    setName(file.name);
+    setFallback(false);
+    setUploading(true);
+    try {
+      const res = await uploadFile(file, `supplier-doc:${field}`);
+      setPersistedUrl(res.url || file.name);
+    } catch {
+      // 로컬은 S3 자격증명이 없어 업로드가 실패한다 → 파일명만 기록(기존 데모 동작).
+      setPersistedUrl(file.name);
+      setFallback(true);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleClear() {
+    setName('');
+    setPersistedUrl('');
+    setFallback(false);
+  }
+
   return (
     <div className="flex items-center justify-between gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
       <div className="min-w-0">
         <div className="text-sm font-semibold text-ink-100">{label}</div>
         <div className={`mt-0.5 truncate text-xs ${uploaded ? 'text-ink-400' : 'text-ink-500'}`}>
-          {uploaded ? `업로드됨 · ${name}` : '미업로드'}
+          {uploading ? '업로드 중…' : uploaded ? `업로드됨 · ${name}` : '미업로드'}
         </div>
+        {fallback && (
+          <div className="mt-0.5 truncate text-[10px] text-warn-text">파일 저장소 미연결 — 파일명만 기록됨</div>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {uploaded && (
+        {uploaded && !uploading && (
           <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-[11px] font-bold text-ok-text">완료</span>
         )}
         {editable && (
           <>
-            <label className="cursor-pointer rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">
+            <label className={`rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100 ${uploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
               {uploaded ? '파일 변경' : '파일 업로드'}
               <input
                 type="file"
                 className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) setName(f.name); }}
+                disabled={uploading}
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleSelect(f); }}
               />
             </label>
-            {uploaded && (
-              <button type="button" onClick={() => setName('')} className="rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-500 hover:bg-ink-800">삭제</button>
+            {uploaded && !uploading && (
+              <button type="button" onClick={handleClear} className="rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-500 hover:bg-ink-800">삭제</button>
             )}
           </>
         )}
       </div>
-      {/* persistForm이 읽는 영속화 캐리어 — 파일명(또는 기존 URL)을 doc_url로 저장 */}
-      <input type="hidden" data-field={field} value={name} readOnly />
+      {/* persistForm이 읽는 영속화 캐리어 — 실 파일 url(성공) 또는 파일명(폴백)을 doc_url로 저장 */}
+      <input type="hidden" data-field={field} value={persistedUrl} readOnly />
     </div>
   );
 }
