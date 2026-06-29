@@ -520,7 +520,14 @@ export function SupplyChainMapPageContent({
                     onClick={() => setSelectedNodeKey(row.node_key)}
                   >
                     <td className="whitespace-nowrap px-4 py-3 text-xs font-bold text-ink-400">{row.tier}</td>
-                    <td className="whitespace-nowrap px-4 py-3 font-bold text-ink-100">{row.part_name}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-bold text-ink-100">
+                      {row.part_name}
+                      {row.function_purpose && (
+                        <span className="mt-0.5 block text-xs font-normal text-ink-500" title={row.function_purpose}>
+                          용도: {row.function_purpose}
+                        </span>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 text-ink-400">{row.material_or_mineral}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-ink-300">{formationMode ? '-' : row.supplier_name}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-ink-400">{formationMode ? '-' : row.factory_name}</td>
