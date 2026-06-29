@@ -29,23 +29,27 @@ const MOCK: ResultRow[] = [
 ];
 
 export default function RegulationResultsCard({ onReview }: { onReview?: (row: RegReviewRow) => void }) {
-  const [rows, setRows] = useState<ResultRow[]>(MOCK);
+  const [rows, setRows] = useState<ResultRow[]>([]);
   useEffect(() => {
     getRegulationResults().then(list => {
-      if (list && list.length) setRows(list.map((x, i) => ({
-        id: `RR-${String(i + 1).padStart(3, '0')}`,
-        material: x.material ?? '자재',
-        supplier: x.supplierName ?? '협력사',
-        supplierId: x.supplierId,
-        regulation: x.regulation ?? '-',
-        verdict: x.verdict,
-        confidence: x.confidence ?? 0,
-        clause: x.needsHumanReview ? 'HITL 후보 · 사람 검토 필요' : '자동 판정',
-        evidence: (x.evidence && x.evidence[0]) || '-',
-        citedClauses: x.citedClauses ?? [],
-        reasoning: x.reasoningText ?? '',
-      })));
-    }).catch(() => { /* mock 유지 */ });
+      if (list && list.length) {
+        setRows(list.map((x, i) => ({
+          id: `RR-${String(i + 1).padStart(3, '0')}`,
+          material: x.material ?? '자재',
+          supplier: x.supplierName ?? '협력사',
+          supplierId: x.supplierId,
+          regulation: x.regulation ?? '-',
+          verdict: x.verdict,
+          confidence: x.confidence ?? 0,
+          clause: x.needsHumanReview ? 'HITL 후보 · 사람 검토 필요' : '자동 판정',
+          evidence: (x.evidence && x.evidence[0]) || '-',
+          citedClauses: x.citedClauses ?? [],
+          reasoning: x.reasoningText ?? '',
+        })));
+      } else {
+        setRows(MOCK); // 실제 데이터 없을 때만 mock 사용
+      }
+    }).catch(() => setRows(MOCK));
   }, []);
 
   const hitl = rows.filter(r => r.confidence < 0.85).length;
