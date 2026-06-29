@@ -23,33 +23,25 @@ const VERDICT_CLS: Record<string, string> = {
   reject: 'border-alert-border bg-alert-bg text-alert-text',
 };
 
-const MOCK: ResultRow[] = [
-  { id: 'RR-001', material: 'BMW iX3 Cylindrical NCM811 108Ah', supplier: '한양셀 제조(주)', supplierId: null, regulation: 'EU_BATTERY_ART7', verdict: 'passed', confidence: 0.96, clause: '자동 판정', evidence: '-', citedClauses: ['EU 2023/1542 Art.7'], reasoning: '탄소발자국 신고 정상' },
-  { id: 'RR-002', material: 'BMW i4 Prismatic NCM 81Ah', supplier: '대성정밀(주)', supplierId: null, regulation: 'EU_BATTERY', verdict: 'warning', confidence: 0.70, clause: 'HITL 후보 · 사람 검토 필요', evidence: '-', citedClauses: ['EU 2023/1542'], reasoning: '전구체 원산지 미확인 — 사람 검토 필요' },
-];
 
 export default function RegulationResultsCard({ onReview }: { onReview?: (row: RegReviewRow) => void }) {
   const [rows, setRows] = useState<ResultRow[]>([]);
   useEffect(() => {
     getRegulationResults().then(list => {
-      if (list && list.length) {
-        setRows(list.map((x, i) => ({
-          id: `RR-${String(i + 1).padStart(3, '0')}`,
-          material: x.material ?? '자재',
-          supplier: x.supplierName ?? '협력사',
-          supplierId: x.supplierId,
-          regulation: x.regulation ?? '-',
-          verdict: x.verdict,
-          confidence: x.confidence ?? 0,
-          clause: x.needsHumanReview ? 'HITL 후보 · 사람 검토 필요' : '자동 판정',
-          evidence: (x.evidence && x.evidence[0]) || '-',
-          citedClauses: x.citedClauses ?? [],
-          reasoning: x.reasoningText ?? '',
-        })));
-      } else {
-        setRows(MOCK); // 실제 데이터 없을 때만 mock 사용
-      }
-    }).catch(() => setRows(MOCK));
+      setRows((list ?? []).map((x, i) => ({
+        id: `RR-${String(i + 1).padStart(3, '0')}`,
+        material: x.material ?? '자재',
+        supplier: x.supplierName ?? '협력사',
+        supplierId: x.supplierId,
+        regulation: x.regulation ?? '-',
+        verdict: x.verdict,
+        confidence: x.confidence ?? 0,
+        clause: x.needsHumanReview ? 'HITL 후보 · 사람 검토 필요' : '자동 판정',
+        evidence: (x.evidence && x.evidence[0]) || '-',
+        citedClauses: x.citedClauses ?? [],
+        reasoning: x.reasoningText ?? '',
+      })));
+    }).catch(() => setRows([]));
   }, []);
 
   const hitl = rows.filter(r => r.confidence < 0.85).length;
