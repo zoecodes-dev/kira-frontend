@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createDataRequest, getActions, getDataRequests, getSuppliers, type ActionItem, type ApiDataRequest, type SupplierBrief } from '@/lib/api';
+import { createDataRequest, getDataRequests, getSuppliers, type ActionItem, type ApiDataRequest, type SupplierBrief } from '@/lib/api';
 import PageHeader from '@/components/PageHeader';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
 import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
@@ -34,73 +34,6 @@ type Task = {
   description: string;
 };
 
-const _MOCK_TASKS: Task[] = [
-  {
-    id: 'TASK-001',
-    title: 'FEOC 지분 공시 제출자료 보완 요청',
-    type: 'submission_review',
-    status: 'overdue',
-    priority: 'critical',
-    owner: '컴플라이언스 이서윤',
-    due: '2026-05-30',
-    source: '제출 자료 검토',
-    targetHref: '/submission-review',
-    targetLabel: '제출 자료 검토로 이동',
-    description: 'Ganzhou Rare Metals의 직접 지분 41.2% 검증 결과가 규제 적합성 판정을 막고 있습니다.',
-  },
-  {
-    id: 'TASK-002',
-    title: '아동노동 감사 보고서 원본 재요청',
-    type: 'risk_action',
-    status: 'today',
-    priority: 'high',
-    owner: '구매실사 최하린',
-    due: '2026-06-10',
-    source: '공급망 실사 관리',
-    targetHref: '/submission-review?tab=dd',
-    targetLabel: '실사 관리로 이동',
-    description: 'Katanga Cobalt Mining의 공급망 인권 실사 CAPA가 요청 발송 상태입니다.',
-  },
-  {
-    id: 'TASK-003',
-    title: 'Conflict Minerals 원산지 HITL 판단',
-    type: 'hitl',
-    status: 'waiting',
-    priority: 'medium',
-    owner: 'ESG팀 김민재',
-    due: '2026-06-03',
-    source: 'HITL 검토',
-    targetHref: '/submission-review',
-    targetLabel: 'HITL 검토로 이동',
-    description: 'NCM811 양극재의 코발트 원산지 증빙과 OCR 추출값 검토가 필요합니다.',
-  },
-  {
-    id: 'TASK-004',
-    title: '광산 좌표 폴리곤 업로드 리마인드',
-    type: 'reminder',
-    status: 'today',
-    priority: 'high',
-    owner: '공급망 데이터팀',
-    due: '2026-06-07',
-    source: '입력 현황',
-    targetHref: '/submission-status',
-    targetLabel: '입력 현황으로 이동',
-    description: 'Sulawesi Nickel Mine의 EUDR 검증에 필요한 광산 경계 좌표가 누락되어 있습니다.',
-  },
-  {
-    id: 'TASK-006',
-    title: 'POS Cathode 제3자 감사 CAPA 완료 승인',
-    type: 'due_diligence',
-    status: 'done',
-    priority: 'low',
-    owner: 'ESG팀 박지훈',
-    due: '2026-05-15',
-    source: '공급망 실사 관리',
-    targetHref: '/submission-review?tab=dd',
-    targetLabel: '실사 관리로 이동',
-    description: '공정도 4단계 문서 최신화가 완료되어 CAPA 종료 승인이 필요합니다.',
-  },
-];
 
 const typeMeta = {
   submission_review: { label: '제출 검토', icon: FileCheck2, tone: 'info' as const },
