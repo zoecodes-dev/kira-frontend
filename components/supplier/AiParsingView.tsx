@@ -1,10 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { getAiExtractions, type AiExtraction } from '@/lib/api';
 import { CheckCircle2, FileText, ScanLine } from 'lucide-react';
 import Badge from '@/components/Badge';
 import ExtractionTable from './ExtractionTable';
+
+// PDF 뷰어는 pdfjs(브라우저 전용)에 의존 → SSR 금지. 클라이언트에서만 로드한다.
+const PdfViewer = dynamic(() => import('./PdfViewer'), {
+  ssr: false,
+  loading: () => <div className="flex h-full items-center justify-center text-xs text-ink-400">뷰어 로딩 중…</div>,
+});
 
 // ─── HITL 규격 스키마 타입 (submission-review/page.tsx statusMeta와 동기화) ──
 // submission-review: review | approved | rework | rejected
@@ -22,6 +29,7 @@ interface ExtractionField {
 interface ParsedDoc {
   docId: string;
   fileName: string;
+  fileUrl: string | null;   // 원본 문서 PDF presigned URL (없으면 placeholder)
   requestType: string;
   uploadedAt: string;
   // submission-review의 statusMeta 상태값으로 전송될 초기값
@@ -38,6 +46,7 @@ const MOCK_PARSED_DOCS: ParsedDoc[] = [
   {
     docId: 'doc-001',
     fileName: '환경영향평가_보고서_최종.pdf',
+    fileUrl: null,
     requestType: '탄소 배출 보고서',
     uploadedAt: '2026-05-19',
     submissionStatus: 'review',  // 원청사 Queue로 전송될 초기 상태
@@ -54,6 +63,7 @@ const MOCK_PARSED_DOCS: ParsedDoc[] = [
   {
     docId: 'doc-002',
     fileName: '원산지_증명서_NORI-NCL-RAW.pdf',
+    fileUrl: null,
     requestType: '원산지 증명서',
     uploadedAt: '2026-05-20',
     submissionStatus: 'review',
@@ -84,7 +94,8 @@ function extractionToDoc(x: AiExtraction): ParsedDoc {
   });
   return {
     docId: x.requestId,
-    fileName: `${x.requestedDataType ?? '자료'}.pdf`,
+    fileName: x.documentFileName ?? `${x.requestedDataType ?? '자료'}.pdf`,
+    fileUrl: x.documentUrl ?? null,
     requestType: x.requestedDataType ?? '자료',
     uploadedAt: '',
     submissionStatus: STATUS_TO_REVIEW[x.submissionStatus ?? ''] ?? 'review',
@@ -219,23 +230,24 @@ export default function AiParsingView({
       {/* ── 3. 스플릿 뷰 컨테이너 ── */}
       <div className="flex min-h-0 flex-1 gap-1 p-1">
 
-        {/* 좌측: PDF 뷰어 */}
+        {/* 좌측: PDF 뷰어 — 원본 문서 URL이 있으면 react-pdf로 렌더, 없으면 안내 */}
         <div className="flex flex-1 flex-col overflow-hidden rounded-sm border border-ink-700 bg-white">
-          <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-ink-800/30 px-4 py-2.5">
-            <span className="text-[11px] font-bold text-ink-500">원본 문서 뷰어</span>
-            <div className="flex gap-2 text-[10px] text-ink-400">
-              <button className="hover:text-ink-100">축소</button>
-              <span>1 / 14</span>
-              <button className="hover:text-ink-100">확대</button>
-            </div>
-          </div>
-          <div className="flex flex-1 items-center justify-center bg-[#E5E7EB]">
-            <div className="text-center text-ink-400">
-              <FileText className="mx-auto mb-2 h-10 w-10 opacity-30" />
-              <p className="text-xs">{activeDoc.fileName}</p>
-              <p className="mt-1 text-[11px] opacity-60">실제 PDF 렌더링 영역 (react-pdf 연동 예정)</p>
-            </div>
-          </div>
+          {activeDoc.fileUrl ? (
+            <PdfViewer fileUrl={activeDoc.fileUrl} fileName={activeDoc.fileName} />
+          ) : (
+            <>
+              <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-ink-800/30 px-4 py-2.5">
+                <span className="text-[11px] font-bold text-ink-500">원본 문서 뷰어</span>
+              </div>
+              <div className="flex flex-1 items-center justify-center bg-[#E5E7EB]">
+                <div className="text-center text-ink-400">
+                  <FileText className="mx-auto mb-2 h-10 w-10 opacity-30" />
+                  <p className="text-xs">{activeDoc.fileName}</p>
+                  <p className="mt-1 text-[11px] opacity-60">원본 문서 URL이 없습니다 (S3 미구성 또는 미업로드)</p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* 우측: ExtractionTable — key로 문서 전환 시 상태 초기화 */}

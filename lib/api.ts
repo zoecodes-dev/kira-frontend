@@ -724,6 +724,9 @@ export interface SuppliedItem {
   partName: string | null;
   tierLevel: number | null;
   materialType: string | null;
+  // 공급원 변경 자진신고(declareSourceChange) 실호출용 BOM 컨텍스트.
+  bomVersionId: string | null;
+  bomVersionNumber: string | null;
 }
 export const getSupplierSuppliedItems = (id: string) =>
   api.get<{ supplierId: string; items: SuppliedItem[] }>(`/suppliers/${id}/supplied-items`);
@@ -773,6 +776,9 @@ export interface AiExtraction {
   parsedFields: Record<string, string | number>;
   confidenceMap: Record<string, number>;
   unparsedFields: string[];
+  // 원본 문서(PDF 뷰어) — 임시 다운로드 URL + 파일명. 없으면 null(로컬 S3 미구성 등).
+  documentUrl?: string | null;
+  documentFileName?: string | null;
   // hitl_reviews 연결(있으면) — 승인/반려가 백엔드 HITL 큐도 갱신.
   batchId?: string | null;
   hitlReviewId?: string | null;
