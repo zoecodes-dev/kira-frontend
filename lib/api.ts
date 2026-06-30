@@ -1241,7 +1241,7 @@ export const updateSupplyChainMapStatus = (mapId: string, status: "building" | "
 
 /** POST /audit-packages/{packageId}/export — 완료 증빙 다운로드 URL 발급 (§2.5d) */
 export const exportAuditPackage = (packageId: string) =>
-  api.post<{ exportUrl: string | null }>(`/audit-packages/${packageId}/export`, {});
+  api.post<{ exportUrl: string | null; error?: string | null }>(`/audit-packages/${packageId}/export`, {});
 
 // ───────────────────────────────────────────────────────────
 // 알림 (Notifications) — §notifications

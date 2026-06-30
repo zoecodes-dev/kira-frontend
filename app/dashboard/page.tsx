@@ -979,7 +979,7 @@ export default function DashboardPage() {
                     <tr key={item.resultId} className="hover:bg-slate-50">
                       <td className={`${tableCellClass} font-semibold num-mono text-alert-text`}>{item.resultId.slice(0, 16)}</td>
                       <td className={`${tableCellClass} font-semibold text-ink-100`}>{item.supplierName ?? item.supplierId ?? '-'}</td>
-                      <td className={tableCellClass}>{item.regulation ?? item.citedClauses.join(', ') || '-'}</td>
+                      <td className={tableCellClass}>{item.regulation ?? (item.citedClauses.join(', ') || '-')}</td>
                       <td className={tableCellClass}>
                         <span className={clsx('inline-flex items-center rounded-xs border px-2 py-1 text-[13px] font-semibold', regionColor[region] || 'border-ink-600 text-ink-400')}>{region}</span>
                       </td>
