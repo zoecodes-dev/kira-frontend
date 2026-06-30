@@ -71,7 +71,7 @@ interface ExtractionTableProps {
   onConfirmComplete: () => void;
   /**
    * 현재 탭이 마지막 미완료 문서인지 여부
-   * true → 버튼 텍스트를 "원청사로 제출"로 변경 (submission-review → review 상태로 전송)
+   * true → 버튼 텍스트를 "원청사로 제출"로 변경 (review 상태로 전송)
    */
   isLastDoc?: boolean;
   /** 'supplier'(협력사 제출) | 'oem'(원청 검토). 버튼·문구를 보는 주체에 맞게 분리. */

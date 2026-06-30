@@ -13,8 +13,8 @@ const PdfViewer = dynamic(() => import('./PdfViewer'), {
   loading: () => <div className="flex h-full items-center justify-center text-xs text-ink-400">뷰어 로딩 중…</div>,
 });
 
-// ─── HITL 규격 스키마 타입 (submission-review/page.tsx statusMeta와 동기화) ──
-// submission-review: review | approved | rework | rejected
+// ─── HITL 규격 스키마 타입 ──
+// 제출 상태값: review | approved | rework | rejected
 // 협력사 AI 파싱 → review(검토 중)로 전송 → 원청사가 approved/rework/rejected 판정
 interface ExtractionField {
   fieldId: string;     // 원청사 Queue JSON key와 동일
@@ -32,7 +32,7 @@ interface ParsedDoc {
   fileUrl: string | null;   // 원본 문서 PDF presigned URL (없으면 placeholder)
   requestType: string;
   uploadedAt: string;
-  // submission-review의 statusMeta 상태값으로 전송될 초기값
+  // 원청사 검토 상태값으로 전송될 초기값
   submissionStatus: 'review' | 'approved' | 'rework' | 'rejected';
   extractionResult: {
     fields: ExtractionField[];

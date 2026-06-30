@@ -22,7 +22,6 @@ Next.js 14, TypeScript, Tailwind CSS 기반으로 구성되어 있습니다.
 | `/suppliers/[id]/info` | 협력사 상세 | 기업 정보, 담당자, 사업장, 인증서, 데이터 완성도 |
 | `/supply-chain/product-map` | 제품별 공급망 맵 | 제품/협력사 기준 공급망 탐색, 선택 상세 패널 |
 | `/supply-chain/request-map` | 입력 요청 맵 | 협력사별 요청 상태와 완성도 확인 |
-| `/submission-review` | 제출 자료 검토 | 승인, 반려, 재요청 업무 |
 | `/supplier` | 협력사 업무공간 | 내 기업 정보, 자료 제출, 검토 현황, 직접 연결 공급망 |
 
 ## 화면 구성
