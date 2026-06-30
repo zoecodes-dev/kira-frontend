@@ -312,11 +312,22 @@ export const getBatch = (batchId: string) =>
 
 export const getDashboardKpis = () => api.get<DashboardKpis>("/dashboard/kpis");
 
+export interface DashboardSupplierStats {
+  totalCount: number;
+  verifiedCount: number;
+  highRiskCount: number;
+  incompleteCount: number;
+  averageCompleteness: number;
+}
+export const getDashboardSupplierStats = () => api.get<DashboardSupplierStats>("/dashboard/supplier-stats");
+
 export const getAuditTrail = (batchId: string) =>
   api.get<AuditTrailItem[]>(`/audit/trail/${batchId}`);
 
 export const getActions = (status?: string) =>
   api.get<ActionItem[]>(status ? `/actions?status=${status}` : "/actions");
+
+export const getMyActions = () => api.get<ActionItem[]>("/actions/mine");
 
 // ═══════════════════════════════════════════════════════════
 // 협력사(Suppliers) 도메인  — W5-#18
@@ -711,6 +722,40 @@ export interface RegulationResult {
   reasoningText: string | null; // AI 판단 근거(근거 자료↔조항 대조 결과)
 }
 export const getRegulationResults = () => api.get<RegulationResult[]>(`/regulation/materials/regulation-results`);
+
+export interface SupplyChainGapField {
+  field_name: string;
+  field_label: string;
+  regulation_code: string;
+}
+
+export interface SupplyChainGapNode {
+  supplier_id: string;
+  company_name: string;
+  provider_type: string;
+  depth: number;
+  missing_fields: SupplyChainGapField[];
+  gap_count: number;
+}
+
+export interface SupplyChainGapsResult {
+  product_id: string;
+  nodes: SupplyChainGapNode[];
+}
+
+export interface SupplyChainAlternative {
+  supplier_id: string;
+  company_name: string;
+  provider_type: string;
+  hop_level: number;
+  ratio_percentage: number | null;
+}
+
+export const getSupplyChainGaps = (productId: string) =>
+  api.get<SupplyChainGapsResult>(`/supply-chain/gaps?product_id=${productId}`);
+
+export const getSupplyChainAlternatives = (productId: string, partId: string) =>
+  api.get<SupplyChainAlternative[]>(`/supply-chain/alternatives?product_id=${productId}&part_id=${partId}`);
 
 /** HITL 리뷰 승인/반려(batch 단위) — hitl_reviews 갱신 + 파이프라인 재개/차단. */
 export const approveHitl = (batchId: string, decisionText: string) =>
@@ -1126,4 +1171,45 @@ export const updateSupplyChainMapStatus = (mapId: string, status: "building" | "
 
 /** POST /audit-packages/{packageId}/export — 완료 증빙 다운로드 URL 발급 (§2.5d) */
 export const exportAuditPackage = (packageId: string) =>
-  api.post<{ exportUrl: string | null; error?: string | null }>(`/audit-packages/${packageId}/export`, {});
+  api.post<{ exportUrl: string | null }>(`/audit-packages/${packageId}/export`, {});
+
+// ───────────────────────────────────────────────────────────
+// 알림 (Notifications) — §notifications
+// ───────────────────────────────────────────────────────────
+export interface NotificationItem {
+  notification_id: string;
+  notification_type: 'sla_warning' | 'violation' | 'approval_needed' | 'info';
+  subject: string;
+  body: string;
+  status: 'pending' | 'read';
+  created_at: string;
+  deep_link?: string;
+}
+
+/** GET /notifications — 로그인 사용자의 in-app 알림 목록 */
+export const getNotifications = () =>
+  api.get<NotificationItem[]>('/notifications', { raw: true });
+
+/** PATCH /notifications/{id}/read — 알림 한 건 읽음 처리 */
+export const markNotificationRead = (notificationId: string) =>
+  api.patch<void>(`/notifications/${notificationId}/read`, undefined, { raw: true });
+
+// ───────────────────────────────────────────────────────────
+// 자가신고 — 현재 공급원 조회
+// ───────────────────────────────────────────────────────────
+export interface CurrentSupplySource {
+  name: string;
+  country: string;
+  material: string;
+  contact: string;
+}
+
+/** GET /supply-chain/current-supply-source — 자가신고 폼 '기존 공급사' 조회 */
+export const getCurrentSupplySource = (
+  bomVersionId: string,
+  partId: string,
+  parentSupplierId: string,
+) =>
+  api.get<CurrentSupplySource>(
+    `/supply-chain/current-supply-source?bom_version_id=${bomVersionId}&part_id=${partId}&parent_supplier_id=${parentSupplierId}`,
+  );

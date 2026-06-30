@@ -3,13 +3,13 @@
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
 import { useEffect, useRef, useState } from 'react';
 import {
-  createDataRequest,
+  createDataRequest, getDataRequests,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierSuppliedItems, submitMasterForm,
   getSupplierRiskProfile, uploadFile, type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
-  type SuppliedItem as ApiItem,
+  type SuppliedItem as ApiItem, type ApiDataRequest,
   ApiError,
 } from '@/lib/api';
 
@@ -844,20 +844,23 @@ export function SupplierGeneralReviewContent({
   // supplierId가 UUID면 실 백엔드(detail·contacts·completeness)에서 채우고, mock S-ID면 기존 mock 폴백.
   const isRealSupplier = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId);
   const [api, setApi] = useState<RealData | null>(null);
+  // 최신 자료요청 — 원청 검토 상태(submissionStatus)·다음 제출 예정일(dueDate) 표시용.
+  const [latestRequest, setLatestRequest] = useState<ApiDataRequest | null>(null);
   // 입력 모드 편집용 draft — 로드된 GET 데이터에서 시드(전체 현재 집합). master-form REPLACE-ALL 라운드트립.
   const [factoriesDraft, setFactoriesDraft] = useState<FactoryDraft[]>([]);
   const [contactsDraft, setContactsDraft] = useState<ContactDraft[]>([]);
   useEffect(() => {
-    if (!isRealSupplier) { setApi(null); return; }
+    if (!isRealSupplier) { setApi(null); setLatestRequest(null); return; }
     let cancelled = false;
     (async () => {
-      const [detail, contactsRes, factoriesRes, comp, itemsRes, riskRes] = await Promise.all([
+      const [detail, contactsRes, factoriesRes, comp, itemsRes, riskRes, requestsRes] = await Promise.all([
         getSupplierDetail(supplierId).catch(() => null),
         getSupplierContacts(supplierId).catch(() => null),
         getSupplierFactories(supplierId).catch(() => null),
         getSupplierCompleteness(supplierId).catch(() => null),
         getSupplierSuppliedItems(supplierId).catch(() => null),
         getSupplierRiskProfile(supplierId).catch(() => null),
+        getDataRequests({ supplierId }).catch(() => null),
       ]);
       if (cancelled) return;
       setApi({
@@ -868,6 +871,11 @@ export function SupplierGeneralReviewContent({
         items: itemsRes?.items ?? [],
         riskProfile: riskRes,
       });
+      // 가장 최신 요청(requestedAt 기준 내림차순 첫 번째)
+      const sorted = (requestsRes ?? []).sort((a: ApiDataRequest, b: ApiDataRequest) =>
+        (b.requestedAt ?? '').localeCompare(a.requestedAt ?? '')
+      );
+      setLatestRequest(sorted[0] ?? null);
     })();
     return () => { cancelled = true; };
   }, [isRealSupplier, supplierId]);
@@ -898,6 +906,17 @@ export function SupplierGeneralReviewContent({
   const displayManager = apiPrimary?.name ?? mockPrimary?.name ?? (isRealSupplier ? '미등록' : supplierSummary.manager);
   const displayEmail = apiPrimary?.email ?? mockPrimary?.email ?? (isRealSupplier ? '—' : supplierSummary.email);
   const displayPhone = apiPrimary?.mobile ?? apiPrimary?.phone ?? mockPrimary?.mobile ?? mockPrimary?.phone ?? (isRealSupplier ? '—' : supplierSummary.phone);
+  // submission 도메인 — 최신 자료요청에서 원청 검토 상태·다음 제출 예정일 추출.
+  const displayNextDue = latestRequest?.dueDate?.slice(0, 10) ?? (isRealSupplier ? '—' : supplierSummary.nextDueDate);
+  const displayReviewStatus: ReviewStatus = (() => {
+    if (!latestRequest) return isRealSupplier ? '미입력' : supplierSummary.reviewStatus;
+    switch (latestRequest.submissionStatus) {
+      case 'submission_approved': return '완료';
+      case 'submission_review': return '확인 필요';
+      case 'submission_submitted': case 'submission_in_progress': return '입력 중';
+      default: return '미입력';
+    }
+  })();
   // 입력 현황에서 '자료 요청'으로 넘어오면(request=1) 요청 모달을 바로 연다 — 자연스러운 흐름 연결.
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(openRequestProp ?? (searchParams.get('request') === '1'));
   const [requestSent, setRequestSent] = useState(false);
@@ -1234,7 +1253,7 @@ export function SupplierGeneralReviewContent({
             </div>
             <div className="min-w-0 border-l border-ink-700 pl-4">
               <div className="text-xs font-medium text-ink-500">원청 검토 상태</div>
-              <div className="mt-1.5"><StatusBadge status={supplierSummary.reviewStatus} /></div>
+              <div className="mt-1.5"><StatusBadge status={displayReviewStatus} /></div>
             </div>
           </div>
         </div>
@@ -1278,7 +1297,7 @@ export function SupplierGeneralReviewContent({
       <section className="mt-4 grid rounded-sm border border-ink-700 bg-white shadow-control md:grid-cols-3">
         <MetaItem label="데이터 출처" value={supplierSummary.dataSource} />
         <MetaItem label="마지막 업데이트" value={displayLastUpdated} />
-        <MetaItem label="다음 제출 예정일" value={supplierSummary.nextDueDate} />
+        <MetaItem label="다음 제출 예정일" value={displayNextDue} />
       </section>
 
       {isOem && isRequestModalOpen && (
