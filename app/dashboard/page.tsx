@@ -503,6 +503,12 @@ export default function DashboardPage() {
   // 규제검증 결과 — regulation 도메인. null=미로드, []=결과 없음.
   const [regResults, setRegResults] = useState<RegulationResult[] | null>(null);
   const [supplierStats, setSupplierStats] = useState<DashboardSupplierStats | null>(null);
+  // 헤더 오늘 날짜 — 마운트 후 클라에서 세팅(정적 프리렌더와 하이드레이션 불일치 방지).
+  const [today, setToday] = useState('');
+  useEffect(() => {
+    const d = new Date();
+    setToday(`${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`);
+  }, []);
 
   useEffect(() => {
     getDashboardKpis().then(setApiKpis).catch(() => {});
@@ -566,7 +572,7 @@ export default function DashboardPage() {
         actions={
           <>
             <div className="flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-medium text-ink-400">
-              <span className="num-mono">2026.05.27</span>
+              <span className="num-mono">{today}</span>
               <CalendarDays className="h-3.5 w-3.5" />
             </div>
             <button className="relative flex h-8 w-8 items-center justify-center rounded-xs border border-ink-700 bg-white text-ink-400">
