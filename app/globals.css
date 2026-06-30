@@ -1,0 +1,124 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background-color: #F3F6F8;
+  background-image: none;
+  color: #0F172A;
+  font-feature-settings: "ss01", "ss02";
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-width: 1180px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.num-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-feature-settings: "tnum";
+}
+
+.divider-dot::before {
+  content: '·';
+  margin: 0 0.5rem;
+  color: #94A3B8;
+}
+
+.card-hover {
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card-hover:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.supplier-detail-scope {
+  font-size: 15px;
+}
+
+.supplier-detail-scope .max-w-5xl {
+  max-width: 1180px;
+}
+
+.supplier-detail-scope [class*="bg-ink-900/"],
+.supplier-detail-scope [class*="bg-ink-800/"],
+.supplier-detail-scope [class~="bg-ink-800"] {
+  background-color: #FFFFFF;
+}
+
+.supplier-detail-scope [class~="text-[8px]"],
+.supplier-detail-scope [class~="text-[9px]"],
+.supplier-detail-scope [class~="text-[10px]"] {
+  font-size: 12px;
+  line-height: 1rem;
+}
+
+.supplier-detail-scope [class~="text-[11px]"],
+.supplier-detail-scope [class~="text-[12px]"],
+.supplier-detail-scope .text-xs {
+  font-size: 14px;
+  line-height: 1.25rem;
+}
+
+.supplier-detail-scope .text-sm {
+  font-size: 15px;
+  line-height: 1.375rem;
+}
+
+.supplier-detail-scope .text-base {
+  font-size: 18px;
+  line-height: 1.5rem;
+}
+
+.supplier-detail-scope .text-lg {
+  font-size: 21px;
+  line-height: 1.75rem;
+}
+
+.supplier-detail-scope .text-xl {
+  font-size: 25px;
+  line-height: 2rem;
+}
+
+.supplier-detail-scope h1[class] {
+  font-size: 22px;
+  line-height: 1.75rem;
+}
+
+.supplier-detail-scope h2[class],
+.supplier-detail-scope h3[class] {
+  font-size: 18px;
+  line-height: 1.5rem;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #F1F5F9; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 6px; border: 2px solid #F1F5F9; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
