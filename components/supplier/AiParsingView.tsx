@@ -13,8 +13,8 @@ const PdfViewer = dynamic(() => import('./PdfViewer'), {
   loading: () => <div className="flex h-full items-center justify-center text-xs text-ink-400">뷰어 로딩 중…</div>,
 });
 
-// ─── HITL 규격 스키마 타입 (submission-review/page.tsx statusMeta와 동기화) ──
-// submission-review: review | approved | rework | rejected
+// ─── HITL 규격 스키마 타입 ──
+// 제출 상태값: review | approved | rework | rejected
 // 협력사 AI 파싱 → review(검토 중)로 전송 → 원청사가 approved/rework/rejected 판정
 interface ExtractionField {
   fieldId: string;     // 원청사 Queue JSON key와 동일
@@ -32,7 +32,7 @@ interface ParsedDoc {
   fileUrl: string | null;   // 원본 문서 PDF presigned URL (없으면 placeholder)
   requestType: string;
   uploadedAt: string;
-  // submission-review의 statusMeta 상태값으로 전송될 초기값
+  // 원청사 검토 상태값으로 전송될 초기값
   submissionStatus: 'review' | 'approved' | 'rework' | 'rejected';
   extractionResult: {
     fields: ExtractionField[];
@@ -123,6 +123,8 @@ export default function AiParsingView({
   const [docs, setDocs] = useState<ParsedDoc[]>(realOnly ? [] : MOCK_PARSED_DOCS);
   const [activeDocId, setActiveDocId] = useState(realOnly ? '' : MOCK_PARSED_DOCS[0].docId);
   const [loaded, setLoaded] = useState(false);
+  // 실 AI 추출 로드 실패 여부 — 실패를 조용히 mock으로 가리지 않기 위함(#5).
+  const [loadError, setLoadError] = useState(false);
   // 문서별 제출 완료 여부 — { [docId]: true }
   const [completedDocs, setCompletedDocs] = useState<CompletedMap>({});
 
@@ -135,7 +137,7 @@ export default function AiParsingView({
         if (mine.length) { setDocs(mine); setActiveDocId(mine[0].docId); }
         else if (realOnly) { setDocs([]); setActiveDocId(''); } // 실데이터 없음 → 빈 상태(mock 금지)
       })
-      .catch(() => { /* 실패: realOnly면 빈 상태 유지, 아니면 mock 유지 */ })
+      .catch(() => { if (!cancelled) setLoadError(true); /* 실데이터 로드 실패 — 빈/배너로 표시 */ })
       .finally(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
   }, [supplierId, realOnly]);
@@ -146,8 +148,8 @@ export default function AiParsingView({
       <div className="flex h-full w-full items-center justify-center bg-ink-800 text-center text-ink-400">
         <div>
           <ScanLine className="mx-auto mb-2 h-8 w-8 opacity-30" />
-          <p className="text-sm font-semibold">{loaded ? '이 협력사의 추출된 근거 자료가 없습니다.' : 'AI 추출 결과 불러오는 중…'}</p>
-          {loaded && <p className="mt-1 text-[11px] opacity-70">협력사가 자료를 제출하면 AI 파싱 결과가 여기에 표시됩니다.</p>}
+          <p className="text-sm font-semibold">{!loaded ? 'AI 추출 결과 불러오는 중…' : loadError ? 'AI 추출 결과를 불러오지 못했습니다.' : '이 협력사의 추출된 근거 자료가 없습니다.'}</p>
+          {loaded && <p className="mt-1 text-[11px] opacity-70">{loadError ? '잠시 후 다시 시도해 주세요.' : '협력사가 자료를 제출하면 AI 파싱 결과가 여기에 표시됩니다.'}</p>}
         </div>
       </div>
     );
@@ -174,6 +176,13 @@ export default function AiParsingView({
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-ink-800">
+
+      {/* 실데이터 로드 실패 — 데모(mock)가 표시될 수 있으므로 명시(조용한 마스킹 방지, #5) */}
+      {loadError && (
+        <div className="shrink-0 border-b border-alert-border bg-alert-bg px-6 py-2 text-[11px] font-semibold text-alert-text">
+          실 AI 추출 데이터를 불러오지 못했습니다 — 아래 항목은 데모 예시일 수 있습니다.
+        </div>
+      )}
 
       {/* ── 1. 상단 헤더 ── */}
       <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-white px-6 py-3 shadow-sm z-10">

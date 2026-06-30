@@ -11,7 +11,6 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  ClipboardList,
   Factory,
   ScanLine,
   FileCheck,
@@ -232,9 +231,7 @@ type SupplierView =
   | 'company-info'
   | 'submit-documents'
   | 'ai-parsing'
-  | 'submission-status'
   | 'supply-chain'
-  | 'data-collection'
   | 'notifications'
   | 'edit-info';
 
@@ -296,9 +293,7 @@ function SupplierSidebar({
     { id: 'dashboard'         as const, label: '홈',         subtitle: '요약 · 우선 조치',      icon: LayoutDashboard },
     { id: 'company-info'      as const, label: '내 기업 정보', subtitle: '정보 확인 · 자료 제출(입력)', icon: Building2 },
     { id: 'ai-parsing'        as const, label: 'AI 파싱 확인', subtitle: '추출 결과 검토 · 수정',  icon: ScanLine },
-    { id: 'submission-status' as const, label: '검증 현황',   subtitle: '검토 결과 · 재요청',     icon: ClipboardList },
     { id: 'supply-chain'      as const, label: '공급망 연결',        subtitle: '직접 연결 업체',          icon: Network },
-    { id: 'data-collection'   as const, label: '내 공급망 데이터 수집', subtitle: '하위 협력사 자료 요청',   icon: ClipboardList },
     { id: 'notifications'     as const, label: '원청사 알림', subtitle: '요청 · 기한',            icon: Bell },
     { id: 'edit-info'         as const, label: '계정 설정',   subtitle: '비밀번호 · 담당자 정보', icon: KeyRound },
   ];
@@ -928,7 +923,7 @@ export default function SupplierPage() {
             {activeView === 'ai-parsing' && (
               <AiParsingView
                 supplierId={supplierId}
-                onConfirmComplete={() => setActiveView('submission-status')} 
+                onConfirmComplete={() => setActiveView('dashboard')} 
               />
             )}
 
@@ -968,10 +963,7 @@ export default function SupplierPage() {
             </div>
           </div>
 
-          <div
-            onClick={() => setActiveView('submission-status')}
-            className="cursor-pointer rounded-sm border border-ink-700 bg-white p-5 shadow-control transition-shadow hover:shadow-md"
-          >
+          <div className="rounded-sm border border-ink-700 bg-white p-5 shadow-control">
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="text-[11px] font-bold text-ink-500">보완 요청</span>
               <AlertCircle className={`h-4 w-4 ${pendingRequests > 0 ? 'text-warn-text' : 'text-signal-ok'}`} />
@@ -1111,13 +1103,6 @@ export default function SupplierPage() {
                   <div className="text-sm font-bold text-ink-100">검토 결과</div>
                   <div className="mt-0.5 text-[10px] text-ink-500">원청사 검토 결과 · 내 자료 기준</div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveView('submission-status')}
-                  className="text-[10px] font-semibold text-accent-700 hover:underline"
-                >
-                  전체 보기 →
-                </button>
               </div>
               <div className="divide-y divide-ink-800">
                 {reviewResults.map(item => (
@@ -1385,92 +1370,6 @@ export default function SupplierPage() {
         </div>
         )}
 
-        {activeView === 'submission-status' && (
-        <div className="space-y-4">
-
-          {/* ── 원청사 파이프라인 동기화 안내 ── */}
-          <div className="flex items-center justify-between rounded-xs border border-ink-700 bg-white px-4 py-3 shadow-control">
-            <div className="flex items-center gap-3">
-              <div className="text-xs font-bold text-ink-100">자료 검토 상태 타임라인</div>
-              <div className="text-[10px] text-ink-500">
-                제출됨 → 검토 중 → 보완 요청 → 최종 승인 흐름
-              </div>
-              <span className="inline-flex items-center gap-1 rounded-xs border border-accent-100 bg-accent-50 px-2 py-0.5 text-[9px] font-bold text-accent-700">
-                원청사 파이프라인 8단계 동기화
-              </span>
-            </div>
-          </div>
-
-          {/* ── EightStageStepper — 전체 가로 폭 사용 ── */}
-          <section className="rounded-sm border border-ink-700 bg-white p-5 shadow-control">
-            <EightStageStepper
-              submissions={submissions.length > 0 ? submissions : undefined}
-              onResubmit={(_, requestLabel, reason) =>
-                openWizardRework(requestLabel, reason)
-              }
-            />
-          </section>
-
-          {/* ── 하단 상세 정보 2단 ── */}
-          <section className="grid grid-cols-[1.1fr_0.9fr] gap-4">
-
-            {/* 내 제출 요청 (PO 기반) */}
-            <Card title="내 제출 요청" subtitle="내 회사가 원청사에 제출해야 하는 PO 기반 자료">
-              <div className="space-y-2">
-                {myPOs.map(po => {
-                  const part = parts.find(item => item.id === po.partId);
-                  return (
-                    <div key={po.poId} className="rounded-xs border border-ink-700 bg-white p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="num-mono text-xs font-bold text-ink-100">{po.originalPoNumber}</div>
-                          <div className="mt-1 text-xs font-semibold">{part?.partName ?? po.partId}</div>
-                          <div className="mt-1 text-[11px] text-ink-500">납기 {po.deliveryDate} · 원산지 {po.originCountry}</div>
-                        </div>
-                        <Badge tone={po.status === 'verified' ? 'ok' : po.status === 'delivered' ? 'neutral' : 'warn'}>
-                          {po.status === 'verified' ? '검증 완료' : po.status === 'delivered' ? '납품 완료' : '제출 필요'}
-                        </Badge>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-
-            {/* 검토 결과 및 재요청 사유 */}
-            <Card title="검토 결과 및 재요청 사유" subtitle="원청사 검토 결과 중 내 자료에 대한 결과만 표시합니다">
-              <div className="space-y-3">
-                {reviewResults.map(item => (
-                  <div key={item.label} className="flex items-center justify-between gap-3 rounded-xs border border-ink-700 bg-ink-800 px-3 py-3">
-                    <div>
-                      <div className="text-xs font-semibold text-ink-100">{item.label}</div>
-                      <div className="mt-0.5 text-[11px] text-ink-500">{item.reason}</div>
-                    </div>
-                    <Badge tone={item.tone}>{item.result}</Badge>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </section>
-
-          {/* ── 자진 신고 배너 — SelfReportModal 연결 유지 ── */}
-          <div className="flex items-center justify-between rounded-xs border border-accent-100 bg-accent-50 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <div className="text-xs font-bold text-accent-800">공급원 변경 사항이 있나요?</div>
-              <div className="text-[11px] text-accent-700">사후 적발 전에 자진 신고하면 리스크를 줄일 수 있습니다.</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelfReportOpen(true)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-accent-600 bg-white px-3 py-2 text-xs font-bold text-accent-700 shadow-control hover:bg-accent-700 hover:text-white transition-colors"
-            >
-              공급원 변경 자진 신고
-            </button>
-          </div>
-
-        </div>
-        )}
-
         {activeView === 'supply-chain' && (() => {
           // 선택된 노드 상태 — supply-chain 뷰 내부에서 관리
           const selectedNodeSupplier = selectedSupplyNodeId
@@ -1515,167 +1414,13 @@ export default function SupplierPage() {
                       isDownstream
                         ? () => {
                             // ③ 퀵액션 고도화: 발송 확인 → 데이터 수집 탭 자동 전환
-                            alert('하위 협력사 양식 요청이 접수되었습니다. 수집 현황 관리 및 독촉을 위해 [내 공급망 데이터 수집] 화면으로 이동합니다.');
-                            setActiveView('data-collection');
+                            alert('하위 협력사 양식 요청이 접수되었습니다.');
                           }
                         : undefined
                     }
                   />
                 </div>
               )}
-            </div>
-          );
-        })()}
-
-        {activeView === 'data-collection' && (() => {
-          // ── 더미 데이터 — 하위 협력사 표준 양식 요청 현황 ──────────────────
-          const dataCollectionRows = [
-            {
-              id: 'dc-001',
-              company: 'Quzhou Precursor Co., Ltd.',
-              companyKo: '취저우 전구체 유한공사',
-              requestDate: '2026-06-10',
-              status: '제출 완료' as const,
-              material: '니켈 원광',
-            },
-            {
-              id: 'dc-002',
-              company: 'Ganzhou Rare Metals Co., Ltd.',
-              companyKo: '간저우 희귀금속 유한공사',
-              requestDate: '2026-06-12',
-              status: '작성 중' as const,
-              material: '니켈 원광',
-            },
-            {
-              id: 'dc-003',
-              company: 'PT Vale Indonesia',
-              companyKo: 'PT Vale 인도네시아',
-              requestDate: '2026-06-14',
-              status: '요청 완료' as const,
-              material: '니켈 슬래그',
-            },
-            {
-              id: 'dc-004',
-              company: 'Sulawesi Mining Corp.',
-              companyKo: '술라웨시 마이닝 코퍼레이션',
-              requestDate: '2026-06-15',
-              status: '요청 완료' as const,
-              material: '혼합 니켈',
-            },
-          ];
-
-          const STATUS_META = {
-            '요청 완료': { tone: 'info'    as const, label: '요청 완료' },
-            '작성 중':   { tone: 'warn'    as const, label: '작성 중'   },
-            '제출 완료': { tone: 'ok'      as const, label: '제출 완료' },
-          };
-
-          return (
-            <div className="space-y-4">
-              {/* 헤더 */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-bold text-ink-100">내 공급망 데이터 수집</h2>
-                  <p className="mt-1 text-xs text-ink-500">
-                    하위 협력사(2차사)에게 표준 양식 작성을 요청하고 제출 현황을 관리합니다.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => alert('선택된 미제출 하위 협력사에게 일괄 독촉 알림이 발송됩니다.')}
-                  className="inline-flex items-center gap-1.5 rounded-xs border border-accent-600 bg-white px-3 py-2 text-xs font-bold text-accent-700 shadow-control hover:bg-accent-50 transition-colors"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  미제출 일괄 독촉
-                </button>
-              </div>
-
-              {/* KPI 요약 */}
-              <section className="grid grid-cols-3 gap-3">
-                {[
-                  { label: '전체 요청',  count: dataCollectionRows.length,                                    tone: 'neutral' as const },
-                  { label: '미제출',     count: dataCollectionRows.filter(r => r.status !== '제출 완료').length, tone: 'warn'    as const },
-                  { label: '제출 완료',  count: dataCollectionRows.filter(r => r.status === '제출 완료').length, tone: 'ok'      as const },
-                ].map(kpi => (
-                  <div key={kpi.label} className="rounded-sm border border-ink-700 bg-white px-4 py-3 shadow-control">
-                    <div className="text-[10px] font-bold text-ink-500">{kpi.label}</div>
-                    <div className={`num-mono mt-1 text-2xl font-bold ${
-                      kpi.tone === 'ok' ? 'text-signal-ok' :
-                      kpi.tone === 'warn' ? 'text-warn-text' : 'text-ink-100'
-                    }`}>{kpi.count}</div>
-                  </div>
-                ))}
-              </section>
-
-              {/* 테이블 */}
-              <section className="rounded-sm border border-ink-700 bg-white shadow-control overflow-hidden">
-                {/* 컬럼 헤더 */}
-                <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] border-b border-ink-700 bg-ink-800 px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-ink-500">
-                  <div>발송 대상</div>
-                  <div>요청 자재</div>
-                  <div>요청 일자</div>
-                  <div>진행 상태</div>
-                  <div className="w-32 text-right">액션</div>
-                </div>
-
-                {/* 데이터 행 */}
-                {dataCollectionRows.map(row => {
-                  const meta = STATUS_META[row.status];
-                  const isSubmitted = row.status === '제출 완료';
-                  return (
-                    <div
-                      key={row.id}
-                      className={`grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center border-b border-ink-700 px-5 py-4 last:border-b-0 transition-colors hover:bg-ink-800/20 ${
-                        isSubmitted ? 'bg-ok-bg' : ''
-                      }`}
-                    >
-                      {/* 발송 대상 */}
-                      <div>
-                        <div className="text-xs font-bold text-ink-100">{row.company}</div>
-                        <div className="mt-0.5 text-[10px] text-ink-500">{row.companyKo}</div>
-                      </div>
-
-                      {/* 요청 자재 */}
-                      <div className="text-[11px] text-ink-400">{row.material}</div>
-
-                      {/* 요청 일자 */}
-                      <div className="num-mono text-[11px] text-ink-400">{row.requestDate}</div>
-
-                      {/* 진행 상태 */}
-                      <div>
-                        <Badge tone={meta.tone}>{meta.label}</Badge>
-                      </div>
-
-                      {/* 액션 */}
-                      <div className="w-32 text-right">
-                        {isSubmitted ? (
-                          <button
-                            type="button"
-                            onClick={() => alert(`${row.company}의 제출 내용을 확인합니다.`)}
-                            className="rounded-xs border border-accent-200 bg-accent-50 px-2.5 py-1.5 text-[10px] font-bold text-accent-700 hover:bg-accent-700 hover:text-white transition-colors"
-                          >
-                            내용 보기
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => alert(`${row.company}에 독촉 알림톡이 재발송되었습니다.`)}
-                            className="rounded-xs border border-warn-border bg-warn-bg px-2.5 py-1.5 text-[10px] font-bold text-warn-text hover:bg-warn-solid hover:text-white transition-colors"
-                          >
-                            독촉 알림 재발송
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </section>
-
-              {/* 안내 */}
-              <p className="text-[10px] text-ink-500 leading-5">
-                이 화면은 직접 연결된 하위 협력사(1-Tier Downstream)에 대한 데이터 수집 현황만 표시합니다.
-                2차사 이하의 정보는 보안 정책에 따라 표시되지 않습니다.
-              </p>
             </div>
           );
         })()}
@@ -1708,7 +1453,6 @@ export default function SupplierPage() {
           const deepLinkLabel: Record<string, string> = {
             'company-info':      '내 기업 정보',
             'submit-documents':  '내 기업 정보',
-            'submission-status': '검증 현황',
             'ai-parsing':        'AI 파싱 확인',
             'supply-chain':      '공급망 연결',
           };

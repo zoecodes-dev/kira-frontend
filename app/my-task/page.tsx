@@ -8,7 +8,6 @@ import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
 import RegulationResultsCard, { type RegReviewRow } from '@/components/dashboard/RegulationResultsCard';
 import AiParsingReviewModal from '@/components/dashboard/AiParsingReviewModal';
 import RegulationReviewModal from '@/components/dashboard/RegulationReviewModal';
-import DueDiligenceBoard from '@/components/DueDiligenceBoard';
 import { getStoredRequests, type DataRequestRecord } from '@/lib/data-request-store';
 import { getSupplierName } from '@/lib/supplier-detail-data';
 import {
@@ -74,9 +73,9 @@ const _TYPE_FROM_API: Record<string, TaskType> = {
   SUB: 'submission_review', DD: 'due_diligence', HITL: 'hitl',
 };
 const _HREF_FROM_TYPE: Record<TaskType, string> = {
-  submission_review: '/submission-review', risk_action: '/submission-review?tab=dd',
-  hitl: '/submission-review', reminder: '/submission-status',
-  due_diligence: '/submission-review?tab=dd',
+  submission_review: '/suppliers/check-info', risk_action: '/suppliers/check-info',
+  hitl: '/my-task?tab=hitl', reminder: '/submission-status',
+  due_diligence: '/suppliers/check-info',
 };
 
 function adaptAction(item: ActionItem): Task {
@@ -257,10 +256,10 @@ function RequestArea({ onReview }: { onReview?: (supplierId: string, supplierNam
   );
 }
 
-type MyTaskView = 'request' | 'hitl' | 'dd' | 'inputStatus';
+type MyTaskView = 'request' | 'hitl' | 'inputStatus';
 
 export default function MyTaskPage() {
-  // 업무 분장 단위 허브 — 실제 쓰이는 기능만: 자료 요청(+추가), 협력사 승인(HITL), 공급망 실사, 입력 현황.
+  // 업무 분장 단위 허브 — 실제 쓰이는 기능만: 자료 요청(+추가), 협력사 승인(HITL), 입력 현황.
   const [view, setView] = useState<MyTaskView>('request');
   // 검토 클릭 시 AI 파싱 뷰를 띄울 대상 협력사(데이터 추출 검토).
   const [review, setReview] = useState<{ supplierId: string; supplierName: string } | null>(null);
@@ -269,10 +268,10 @@ export default function MyTaskPage() {
   // audit 업무 큐 — GET /actions(audit 도메인)에서 내 담당 액션 아이템.
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskFilter, setTaskFilter] = useState<'all' | TaskStatus>('all');
-  // 딥링크 ?tab=hitl|dd|inputStatus|request (규제 검증 결과 등 편입 화면 진입용).
+  // 딥링크 ?tab=hitl|inputStatus|request (규제 검증 결과 등 편입 화면 진입용).
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
-    if (t === 'hitl' || t === 'dd' || t === 'inputStatus' || t === 'request') setView(t);
+    if (t === 'hitl' || t === 'inputStatus' || t === 'request') setView(t);
   }, []);
   useEffect(() => {
     getMyActions().then(items => setTasks(sortByPriority(items.map(adaptAction)))).catch(() => {});
@@ -283,12 +282,11 @@ export default function MyTaskPage() {
     <>
       <PageHeader
         title="My Task"
-        description="담당자 업무 분장 — 협력사 자료 요청, 제출 자료 AI 검증(HITL) 승인, 공급망 실사, 입력 현황을 한 곳에서"
+        description="담당자 업무 분장 — 협력사 자료 요청, 제출 자료 AI 검증(HITL) 승인, 입력 현황을 한 곳에서"
         badge="P1"
         tabs={[
           { label: '자료 요청', active: view === 'request', onClick: () => setView('request') },
           { label: '협력사 승인 (HITL)', active: view === 'hitl', onClick: () => setView('hitl') },
-          { label: '공급망 실사', active: view === 'dd', onClick: () => setView('dd') },
           { label: '협력사 입력 현황', active: view === 'inputStatus', onClick: () => setView('inputStatus') },
         ]}
       />
@@ -362,7 +360,6 @@ export default function MyTaskPage() {
             )}
           </div>
         )}
-        {view === 'dd' && <DueDiligenceBoard />}
         {view === 'inputStatus' && <SupplierInputStatusBoard embedded />}
       </div>
       {review && (

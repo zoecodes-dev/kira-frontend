@@ -103,9 +103,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <div className="text-xs text-white/80">정상 운영 중</div>
           </div>
           <div className="text-[10px] text-white/40 mt-2 num-mono">v0.6.0 · 2026.05.21</div>
-          <div className="mt-2.5 text-[10px] text-white/40 num-mono">
-            마지막 업데이트 2026-06-17 14:57
-          </div>
         </div>
       </aside>
 
