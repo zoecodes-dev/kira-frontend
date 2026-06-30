@@ -93,14 +93,11 @@ export default function LoginPage() {
     setPassword(demoAccounts[nextRole].password);
   };
 
-  // 회원가입 진입 — 초대 링크의 supplierId를 온보딩으로 전달(클릭 시점 URL에서 읽음).
-  // useSearchParams 훅 대신 window.location 사용 → Suspense/빌드 이슈 회피.
+  // 회원가입 진입 — 현재 URL의 쿼리스트링(?supplierId=... 등)을 그대로 온보딩으로 전달.
+  // useSearchParams 훅 대신 클릭 시점 window.location 사용 → Suspense/빌드 이슈 회피.
   const goSignup = () => {
-    const sid =
-      typeof window !== 'undefined'
-        ? new URLSearchParams(window.location.search).get('supplierId')
-        : null;
-    router.push(sid ? `/supplier/onboarding?supplierId=${encodeURIComponent(sid)}` : '/supplier/onboarding');
+    const qs = typeof window !== 'undefined' ? window.location.search : '';
+    router.push(`/supplier/onboarding${qs}`);
   };
 
   return (
