@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Check, ShieldCheck } from 'lucide-react';
-import type { SupplierDetail } from '@/lib/api';
+import { ApiError, submitSupplierOnboarding, type OnboardingPrefill, type OnboardingSubmitInput } from '@/lib/api';
 import OnboardingEntry from './OnboardingEntry';
 import SignupForm from './SignupForm';
 import PicRegister from './PicRegister';
@@ -27,8 +27,11 @@ export interface SignupData {
   dunsNumber: string;
   address: string;
   department: string;
-  registrationDoc: string; // 사업자 등록증 / 해외 기업 정보 서류 (파일명 stub)
+  registrationDocName: string; // 업로드된 사업자등록증 파일명 (표시용)
+  registrationDocS3Key: string; // 업로드 결과 s3 key (제출 payload)
   unverified: boolean; // 미확인 상태로 등록 (문서 미보유 예외)
+  accountEmail: string; // 로그인 계정 이메일
+  password: string; // 로그인 계정 비밀번호
 }
 
 const emptySignup: SignupData = {
@@ -38,8 +41,11 @@ const emptySignup: SignupData = {
   dunsNumber: '',
   address: '',
   department: '',
-  registrationDoc: '',
+  registrationDocName: '',
+  registrationDocS3Key: '',
   unverified: false,
+  accountEmail: '',
+  password: '',
 };
 
 function emptyPic(): PicContact {
@@ -69,10 +75,12 @@ export default function SupplierOnboarding() {
   const [signup, setSignup] = useState<SignupData>({ ...emptySignup, companyName: invitedCompany ?? '' });
   const [pics, setPics] = useState<PicContact[]>([emptyPic()]);
   const [consentChecked, setConsentChecked] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const currentIndex = steps.indexOf(step);
 
-  function handlePrefill(detail: SupplierDetail) {
+  function handlePrefill(detail: OnboardingPrefill) {
     setSignup(prev => ({ ...prev, companyName: prev.companyName || detail.companyName }));
   }
 
@@ -83,6 +91,49 @@ export default function SupplierOnboarding() {
   function goBack() {
     const prev = steps[currentIndex - 1];
     if (prev) setStep(prev);
+  }
+
+  // PIC 단계 '제출하기' — n차는 실제 회원가입 제출(공개 submit), 1차는 하위 PIC 등록(캐스케이드는 Phase 2라 로컬 진행).
+  async function handleSubmit() {
+    if (type === 'firstTier') {
+      goNext();
+      return;
+    }
+    if (!supplierId) {
+      setSubmitError('초대 링크가 올바르지 않습니다. (supplierId 없음)');
+      return;
+    }
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      const input: OnboardingSubmitInput = {
+        account: { email: signup.accountEmail, password: signup.password },
+        company: {
+          companyName: signup.companyName,
+          country: signup.country,
+          businessRegNo: signup.businessRegNo,
+          dunsNumber: signup.dunsNumber,
+          address: signup.address,
+          department: signup.department,
+        },
+        businessRegDoc: signup.registrationDocS3Key
+          ? { s3Key: signup.registrationDocS3Key, fileName: signup.registrationDocName }
+          : null,
+        unverified: signup.unverified,
+        // 첫 번째 담당자를 대표(is_primary)로. department는 백엔드가 회사 부서로 보강.
+        contacts: pics.map((p, i) => ({ name: p.name, email: p.email, phone: p.phone, isPrimary: i === 0 })),
+      };
+      await submitSupplierOnboarding(supplierId, input);
+      setStep('complete');
+    } catch (err) {
+      setSubmitError(
+        err instanceof ApiError && err.status === 409
+          ? err.message || '이미 가입이 완료된 협력사입니다.'
+          : '제출에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -137,7 +188,7 @@ export default function SupplierOnboarding() {
         )}
 
         {step === 'form' && (
-          <SignupForm data={signup} onChange={setSignup} onBack={goBack} onNext={goNext} />
+          <SignupForm data={signup} onChange={setSignup} supplierId={supplierId} onBack={goBack} onNext={goNext} />
         )}
 
         {step === 'pic' && (
@@ -146,7 +197,9 @@ export default function SupplierOnboarding() {
             pics={pics}
             onChange={setPics}
             onBack={goBack}
-            onSubmit={goNext}
+            onSubmit={handleSubmit}
+            submitting={submitting}
+            submitError={submitError}
           />
         )}
 
