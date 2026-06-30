@@ -18,7 +18,8 @@ import {
 import clsx from 'clsx';
 import {
   getSuppliers, getSupplierSuppliedItems, declareSourceChange, getTokenSupplierId,
-  type SupplierBrief, type SuppliedItem,
+  getCurrentSupplySource,
+  type SupplierBrief, type SuppliedItem, type CurrentSupplySource,
 } from '@/lib/api';
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────────
@@ -55,15 +56,6 @@ const CHANGE_TYPE_OPTIONS: ChangeTypeOption[] = [
   { value: 'add',     label: '추가 병행',  desc: '기존 공급사를 유지하면서 추가 공급사를 등록합니다.' },
 ];
 
-// 기존(현재) 공급사 — 읽기 전용 표시용 Mock.
-// ⚠️ 별개 갭: '현재 공급원 조회 GET' 엔드포인트가 백엔드에 없어(🆕) 실데이터로 못 채운다.
-//    source-change(제출) 배선과 무관한 항목 — docs/HANDOFF_supplychain_self_report.md 참조.
-const MOCK_CURRENT_SUPPLIER = {
-  name: 'S-PRE-001 · 대성정밀(주)',
-  country: '대한민국',
-  material: '니켈 원광 (NORI-NCL-RAW)',
-  contact: 'lee.ceo@daesung.kr',
-};
 
 // ─── 라벨 컴포넌트 ─────────────────────────────────────────────────────────────
 
@@ -84,6 +76,7 @@ function FieldLabel({ label, sub, required }: { label: string; sub?: string; req
 export default function SelfReportModal({ open, onClose, bomVersionId, partId, parentSupplierId }: SelfReportModalProps) {
   // 폼 상태
   const [changeType, setChangeType]       = useState<ChangeType | ''>('');
+  const [currentSource, setCurrentSource] = useState<CurrentSupplySource | null>(null);
   const [newSupplierId, setNewSupplierId] = useState('');   // new_child_supplier_id = 기존 등록 협력사
   const [suppliers, setSuppliers]         = useState<SupplierBrief[]>([]);
   // 공급 품목(= 변경 대상 part·bom_version). 내가 공급하는 품목 목록에서 선택해
@@ -103,6 +96,7 @@ export default function SelfReportModal({ open, onClose, bomVersionId, partId, p
   useEffect(() => {
     if (!open) return;
     setChangeType('');
+    setCurrentSource(null);
     setNewSupplierId('');
     setSelectedItemKey('');
     setReason('');
@@ -122,6 +116,20 @@ export default function SelfReportModal({ open, onClose, bomVersionId, partId, p
       setItems([]);
     }
   }, [open, parentSupplierId]);
+
+  // 교체 선택 시 현재 공급원 조회
+  useEffect(() => {
+    if (changeType !== 'replace') return;
+    const parent = parentSupplierId ?? getTokenSupplierId() ?? '';
+    const selItem = items.find(i => `${i.partId}::${i.bomVersionId}` === selectedItemKey);
+    const bv = selItem?.bomVersionId ?? bomVersionId;
+    const pt = selItem?.partId ?? partId;
+    if (bv && pt && parent) {
+      getCurrentSupplySource(bv, pt, parent)
+        .then(data => setCurrentSource(data))
+        .catch(() => setCurrentSource(null));
+    }
+  }, [changeType, selectedItemKey, bomVersionId, partId, parentSupplierId, items]);
 
   // ESC 닫기
   useEffect(() => {
@@ -342,17 +350,21 @@ export default function SelfReportModal({ open, onClose, bomVersionId, partId, p
                 <div>
                   <FieldLabel label="기존 공급사" sub="읽기 전용" />
                   <div className="space-y-1.5 rounded-xs border border-ink-700 bg-ink-800 px-3 py-3">
-                    {[
-                      ['공급사', MOCK_CURRENT_SUPPLIER.name],
-                      ['국가', MOCK_CURRENT_SUPPLIER.country],
-                      ['자재', MOCK_CURRENT_SUPPLIER.material],
-                      ['연락처', MOCK_CURRENT_SUPPLIER.contact],
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex items-center gap-2 text-[11px]">
-                        <span className="w-12 shrink-0 font-bold text-ink-500">{k}</span>
-                        <span className="text-ink-300">{v}</span>
-                      </div>
-                    ))}
+                    {currentSource ? (
+                      [
+                        ['공급사', currentSource.name],
+                        ['국가', currentSource.country],
+                        ['자재', currentSource.material],
+                        ['연락처', currentSource.contact],
+                      ].map(([k, v]) => (
+                        <div key={k} className="flex items-center gap-2 text-[11px]">
+                          <span className="w-12 shrink-0 font-bold text-ink-500">{k}</span>
+                          <span className="text-ink-300">{v || '—'}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[11px] text-ink-500">공급 품목을 먼저 선택해 주세요.</p>
+                    )}
                   </div>
                 </div>
               )}

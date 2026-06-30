@@ -408,6 +408,8 @@ function SubmissionStepperCard({
                       const res = await exportAuditPackage(submission.id);
                       if (res.exportUrl) {
                         window.open(res.exportUrl, '_blank');
+                      } else if (res.error) {
+                        alert(res.error);
                       } else {
                         alert('완료 증빙 파일이 아직 준비되지 않았습니다.');
                       }

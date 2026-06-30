@@ -19,12 +19,16 @@ export default function PicRegister({
   onChange,
   onBack,
   onSubmit,
+  submitting = false,
+  submitError = null,
 }: {
   type: OnboardingType;
   pics: PicContact[];
   onChange: (pics: PicContact[]) => void;
   onBack: () => void;
   onSubmit: () => void;
+  submitting?: boolean;
+  submitError?: string | null;
 }) {
   const isFirstTier = type === 'firstTier';
 
@@ -113,7 +117,18 @@ export default function PicRegister({
         </button>
       )}
 
-      <StepFooter onBack={onBack} onNext={onSubmit} nextDisabled={!allValid} nextLabel="제출하기" />
+      {submitError && (
+        <div className="mt-4 rounded-md border border-alert-border bg-alert-bg px-3 py-2 text-xs font-semibold text-alert-text">
+          {submitError}
+        </div>
+      )}
+
+      <StepFooter
+        onBack={onBack}
+        onNext={onSubmit}
+        nextDisabled={!allValid || submitting}
+        nextLabel={submitting ? '제출 중…' : '제출하기'}
+      />
     </div>
   );
 }

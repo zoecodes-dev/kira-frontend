@@ -3,7 +3,7 @@
 // STEP 0 — 메일 URL 진입/동의 확인. 기존 등록 회사면 getSupplierDetail로 pre-fill(SRM I/F).
 import { useEffect, useState } from 'react';
 import { FileCheck2, Info, Loader2, Mail } from 'lucide-react';
-import { ApiError, getSupplierDetail, type SupplierDetail } from '@/lib/api';
+import { getOnboardingPrefill, type OnboardingPrefill } from '@/lib/api';
 import type { OnboardingType } from './SupplierOnboarding';
 import StepFooter from './StepFooter';
 
@@ -28,10 +28,10 @@ export default function OnboardingEntry({
   invitedCompany?: string;
   consentChecked: boolean;
   onConsentChange: (v: boolean) => void;
-  onPrefill: (detail: SupplierDetail) => void;
+  onPrefill: (detail: OnboardingPrefill) => void;
   onNext: () => void;
 }) {
-  const [detail, setDetail] = useState<SupplierDetail | null>(null);
+  const [detail, setDetail] = useState<OnboardingPrefill | null>(null);
   const [loading, setLoading] = useState(Boolean(supplierId));
   const [prefillFailed, setPrefillFailed] = useState(false);
 
@@ -42,14 +42,14 @@ export default function OnboardingEntry({
       setLoading(true);
       setPrefillFailed(false);
       try {
-        const d = await getSupplierDetail(supplierId);
+        const d = await getOnboardingPrefill(supplierId);
         if (!cancelled) {
           setDetail(d);
           onPrefill(d);
         }
-      } catch (err) {
-        // 백엔드/토큰 없으면 graceful — 빈 폼으로 진행 (에러 박스 없음)
-        if (!cancelled) setPrefillFailed(err instanceof ApiError ? true : true);
+      } catch {
+        // 백엔드 없거나 supplierId 미존재면 graceful — 빈 폼으로 진행 (에러 박스 없음)
+        if (!cancelled) setPrefillFailed(true);
       } finally {
         if (!cancelled) setLoading(false);
       }

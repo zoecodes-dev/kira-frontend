@@ -1,10 +1,11 @@
 'use client';
 
-// 단계5 — 데이터 검증 후 협력사에 자료 업데이트를 요청하는 팝업 (발송은 mock)
+// 단계5 — 데이터 검증 후 협력사에 자료 업데이트를 요청하는 팝업
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { ArrowLeft, CheckCircle2, Send } from 'lucide-react';
 import ModalShell from './ModalShell';
+import { createDataRequest } from '@/lib/api';
 
 // 공급망 맵 문서 표준 요청 카테고리 (협력사가 입력/갱신해야 하는 항목)
 const REQUEST_CATEGORIES: { key: string; title: string; items: string[] }[] = [
@@ -16,15 +17,16 @@ const REQUEST_CATEGORIES: { key: string; title: string; items: string[] }[] = [
 
 export default function DataRequestModal({
   supplierLabel,
+  supplierId,
   onClose,
   onBack,
 }: {
   supplierLabel: string;
+  supplierId?: string;
   onClose: () => void;
   onBack?: () => void;
 }) {
   const [checked, setChecked] = useState<Set<string>>(() => {
-    // 기본값: 전 항목 선택 (검증 결과 보완 요청 흐름)
     const all = new Set<string>();
     REQUEST_CATEGORIES.forEach(cat => cat.items.forEach(item => all.add(`${cat.key}:${item}`)));
     return all;
@@ -43,8 +45,19 @@ export default function DataRequestModal({
     });
   }
 
-  function send() {
+  const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
+
+  async function send() {
     setSent(true);
+    if (supplierId && isUuid(supplierId)) {
+      const due = new Date(Date.now() + 7 * 86400000).toISOString();
+      const items = Array.from(checked).map(k => k.split(':')[1]).join(', ');
+      await createDataRequest({
+        targetSupplierId: supplierId,
+        requestedDataType: items || '자료 업데이트 요청',
+        dueDate: due,
+      }).catch(() => {});
+    }
     window.setTimeout(onClose, 1400);
   }
 
