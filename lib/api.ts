@@ -197,6 +197,8 @@ export interface LoginResponse {
   tenantId: string;
   supplierId: string | null; // 백엔드 매핑 도입 전까지 null (회신 §2)
   displayName: string;
+  // 회원가입 게이팅 — 계정의 온보딩 완료 여부. (Phase1: 계정 존재 ⇒ 항상 true)
+  onboardingComplete?: boolean;
 }
 
 // 협력사 역할 판별 — 로그인 후 화면 분기/권한에 쓴다.
@@ -821,6 +823,74 @@ export const declareSourceChange = (body: {
 /** CTI 상세 (provider type별 detail 1종). 없으면 404. */
 export const getSupplierDetail = (id: string) =>
   api.get<SupplierDetail>(`/suppliers/${id}/detail`);
+
+// ───────────────────────────────────────────────────────────
+// 협력사 회원가입(공개 온보딩) — 무토큰 공개 엔드포인트
+//   초대 링크 ?supplierId= 키잉. 토큰이 있어도/없어도 동작(백엔드가 공개).
+//   요청 래퍼는 camel→snake 변환을 안 하므로 body는 snake_case로 직접 조립한다.
+// ───────────────────────────────────────────────────────────
+export interface OnboardingPrefill {
+  companyName: string;
+  providerType: string;
+  country: string | null;
+}
+/** 공개 prefill — 비민감 필드(회사명/유형/국가). 없으면 404. */
+export const getOnboardingPrefill = (supplierId: string) =>
+  api.get<OnboardingPrefill>(`/suppliers/${supplierId}/onboarding/prefill`);
+
+export interface OnboardingSubmitInput {
+  account: { email: string; password: string };
+  company: {
+    companyName: string;
+    country: string;
+    businessRegNo: string;
+    dunsNumber: string;
+    address: string;
+    department: string;
+  };
+  /** 사업자등록증 업로드 결과(uploadFile 반환). 미보유(미확인 등록)면 null. */
+  businessRegDoc: { s3Key: string; fileName: string } | null;
+  unverified: boolean;
+  contacts: Array<{
+    name: string;
+    email: string;
+    phone: string;
+    isPrimary: boolean;
+    role?: string;
+    department?: string;
+  }>;
+}
+export interface OnboardingSubmitResult {
+  supplierId: string;
+  status: string;            // 'supplier_review'
+  onboardingComplete: boolean;
+}
+/** 공개 submit — 회사정보+문서+PIC+동의+계정 생성을 한 번에. 재제출/이메일중복 409. */
+export const submitSupplierOnboarding = (supplierId: string, input: OnboardingSubmitInput) =>
+  api.post<OnboardingSubmitResult>(`/suppliers/${supplierId}/onboarding/submit`, {
+    account: { email: input.account.email, password: input.account.password },
+    company: {
+      company_name: input.company.companyName,
+      country: input.company.country,
+      business_reg_no: input.company.businessRegNo,
+      duns_number: input.company.dunsNumber,
+      address: input.company.address,
+      department: input.company.department,
+    },
+    business_reg_doc: input.businessRegDoc
+      ? { s3_key: input.businessRegDoc.s3Key, file_name: input.businessRegDoc.fileName }
+      : null,
+    unverified: input.unverified,
+    consent_agreed: true,
+    contacts: input.contacts.map((c) => ({
+      name: c.name,
+      email: c.email,
+      phone: c.phone,
+      is_primary: c.isPrimary,
+      role: c.role,
+      department: c.department,
+    })),
+  });
 
 /** 협력사 '자료 제출' 영속화(PATCH /detail). 협력사 본인(supplier_id=id)만 허용.
  *  body는 백엔드 snake_case 키 그대로(요청 래퍼가 camel→snake 변환을 하지 않음).

@@ -72,7 +72,12 @@ export default function LoginPage() {
       const res = await login(email, password);
       setToken(res.token);
       // 백엔드 role 은 supplier_ceo/supplier_esg 등 세분화 값 → 접두사로 협력사 판별.
-      router.push(isSupplierRole(res.role) ? '/supplier' : '/dashboard');
+      // 온보딩 미완료(onboardingComplete===false)면 회원가입 경로로(전방호환; Phase1은 항상 완료).
+      if (isSupplierRole(res.role)) {
+        router.push(res.onboardingComplete === false ? '/supplier/onboarding' : '/supplier');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 401
