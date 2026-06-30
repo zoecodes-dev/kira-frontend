@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 import Badge from '@/components/Badge';
 import {
   violationsByRegulation,
-  suppliers, productInstances,
+  suppliers,
 } from '@/lib/data';
 import {
   getDashboardKpis, getBatches, getRegulationResults, getDashboardSupplierStats,
@@ -377,23 +377,6 @@ function DashboardSupplyChainMap() {
       };
     });
 
-  const productMap = new Map<string, { modelName: string; count: number }>();
-  productInstances.forEach(p => {
-    if (!productMap.has(p.productId)) productMap.set(p.productId, { modelName: p.modelName, count: 0 });
-    productMap.get(p.productId)!.count++;
-  });
-  const products = Array.from(productMap.values()).map(data => {
-    return { name: data.modelName, type: `총 ${data.count}건`, supply: `${data.count}건`, href: '/my-task?tab=hitl' };
-  });
-
-  const changes = [
-    { time: '09:21', title: '공급망 경로 변경', desc: 'Battery Pack A > 핵심광물 경로 변경', tag: '공급망', tone: 'success', href: '/supply-chain/map' },
-    { time: '08:30', title: '신규 공급사 등록', desc: 'Eco Materials Co., Ltd.', tag: '공급사', tone: 'info', href: '/suppliers/check-info' },
-    { time: '07:12', title: '인증서 갱신', desc: 'ISO 14001 한양 제조(주)', tag: '인증서', tone: 'success', href: '/suppliers/check-info' },
-    { time: '06:45', title: 'BOM 변경', desc: 'Battery Cell Module v2.1', tag: '제품', tone: 'warning', href: '/my-task?tab=hitl' },
-    { time: '06:10', title: '실사 완료', desc: 'XYZ Metals Co., Ltd.', tag: '실사', tone: 'purple', href: '/submission-review?tab=dd' },
-  ];
-
   const alertDot: Record<string, string> = { critical: 'bg-alert-solid', high: 'bg-alert-solid', medium: 'bg-warn-solid', low: 'bg-ok-solid' };
   const alertBadge: Record<string, string> = {
     critical: 'border-alert-border bg-alert-bg text-alert-text',
@@ -457,21 +440,6 @@ function DashboardSupplyChainMap() {
         </DashboardPanel>
       </div>
 
-      {/* Row 2: 제품 현황 | 최근 변경사항 */}
-      <div className="grid grid-cols-2 items-stretch gap-2">
-        <DashboardPanel title="제품 현황" action="전체 보기" actionHref="/my-task?tab=hitl">
-          {products.slice(0, 4).map(product => (
-            <ProductStatusRow key={product.name} product={product} />
-          ))}
-        </DashboardPanel>
-
-        <DashboardPanel title="최근 변경사항" action="전체 보기" actionHref="/supply-chain/map">
-          {changes.slice(0, 4).map(change => (
-            <ChangeRow key={`${change.time}-${change.title}`} change={change} />
-          ))}
-        </DashboardPanel>
-      </div>
-
     </section>
   );
 }
@@ -526,38 +494,6 @@ function TaskRow({ task }: { task: { rank: number; title: string; desc: string; 
   );
 }
 
-function ProductStatusRow({ product }: { product: { name: string; type: string; supply: string; href: string } }) {
-  return (
-    <Link href={product.href} className="flex items-center gap-3 border-b border-[#F1F5F9] last:border-0 rounded-none px-[13px] py-[9px] hover:bg-slate-50 transition-colors">
-      <div className="flex-1 min-w-0">
-        <div className="truncate text-sm font-semibold text-ink-100">{product.name}</div>
-        <div className="mt-0.5 text-xs text-ink-500">{product.type}</div>
-      </div>
-      <span className="shrink-0 text-xs text-ink-400 num-mono">{product.supply}</span>
-      <ChevronDown className="h-4 w-4 shrink-0 -rotate-90 text-ink-500" />
-    </Link>
-  );
-}
-
-function ChangeRow({ change }: { change: { time: string; title: string; desc: string; tag: string; tone: string; href: string } }) {
-  const dot = {
-    success: 'bg-ok-solid',
-    info: 'bg-info-solid',
-    warning: 'bg-warn-solid',
-    purple: 'bg-purple-500',
-  }[change.tone] ?? 'bg-slate-400';
-
-  return (
-    <Link href={change.href} className="flex items-start gap-2 border-b border-[#F1F5F9] last:border-0 rounded-none px-[13px] py-[9px] hover:bg-slate-50 transition-colors">
-      <span className={clsx('mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full', dot)} />
-      <span className="shrink-0 text-xs text-ink-500 num-mono w-10">{change.time}</span>
-      <div className="flex-1 min-w-0">
-        <div className="truncate text-sm font-semibold text-ink-100">{change.title}</div>
-        <div className="mt-0.5 truncate text-xs text-ink-500">{change.desc}</div>
-      </div>
-    </Link>
-  );
-}
 
 // ── 메인 페이지 ────────────────────────────────────────────────────
 export default function DashboardPage() {
