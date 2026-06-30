@@ -10,7 +10,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Badge from '@/components/Badge';
 import {
   violationsByRegulation,
   suppliers,
@@ -20,10 +19,10 @@ import {
   type DashboardKpis, type BatchItem, type BatchesResponse, type RegulationResult, type DashboardSupplierStats,
 } from '@/lib/api';
 import {
-  supplierRiskProfiles, supplierCompleteness, getRemindLogs, getSupplierName,
+  supplierRiskProfiles, supplierCompleteness, getSupplierName,
 } from '@/lib/supplier-detail-data';
 import {
-  AlertTriangle, CheckCircle2, Clock, ShieldAlert,
+  AlertTriangle, CheckCircle2, ShieldAlert,
   ArrowRight, Activity, AlertCircle, Bot, FileText, Bell, CalendarDays, ChevronDown,
 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
@@ -31,12 +30,6 @@ import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
 import Link from 'next/link';
 import clsx from 'clsx';
 
-// ── 공통 상수 ────────────────────────────────────────────────────
-const regionColor: Record<string, string> = {
-  EU: 'border-info-border bg-info-bg text-info-text',
-  US: 'border-warn-border bg-warn-bg text-warn-text',
-  DE: 'border-slate-700/30 bg-slate-500/8 text-slate-400',
-};
 
 const stageMeta: Record<string, { label: string; color: string }> = {
   queued:         { label: '대기',         color: 'text-ink-400' },
@@ -58,15 +51,6 @@ const destMeta: Record<string, { label: string; tone: any }> = {
   KR: { label: 'KR', tone: 'neutral' },
 };
 
-const riskLevelLabel: Record<string, string> = {
-  low: '저위험', medium: '중위험', high: '고위험', critical: '최고위험',
-};
-const riskLevelColor: Record<string, string> = {
-  low:      'border-ok-border bg-ok-bg text-ok-text',
-  medium:   'border-warn-border bg-warn-bg text-warn-text',
-  high:     'border-alert-border bg-alert-bg text-alert-text',
-  critical: 'border-alert-border bg-alert-bg text-alert-text font-semibold',
-};
 
 const supplierStatusMeta = {
   verified: { label: '검증 완료', className: 'border-ok-border bg-ok-bg text-ok-text' },
@@ -118,126 +102,7 @@ function flattenBatchesResponse(res: BatchesResponse): UiBatch[] {
 
 // ── 탭 정의 ──────────────────────────────────────────────────────
 type TabKey = 'overview';
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'overview',    label: 'Overview' },
-];
 
-const violationCases = [
-  {
-    id: 'VIO-2026-0514-001',
-    batchId: 'LOT-MIN-240514-D',
-    supplier: 'Xinjiang Mineral Resources',
-    regulation: 'UFLPA',
-    region: 'US',
-    severity: 'critical',
-    status: '반려',
-    detectedAt: '2026-05-14 10:44',
-    summary: '신장 지역 원산지 리스크가 확인되어 UFLPA 통관 제한 대상으로 분류됨',
-  },
-  {
-    id: 'VIO-2026-0514-002',
-    batchId: 'LOT-COB-240514-E',
-    supplier: 'Ganzhou Rare Metals',
-    regulation: 'IRA/FEOC',
-    region: 'US',
-    severity: 'high',
-    status: 'HITL 필요',
-    detectedAt: '2026-05-14 11:08',
-    summary: '중국 국영기업 직접 지분 41.2%로 FEOC 부적격 가능성 감지',
-  },
-  {
-    id: 'VIO-2026-0514-003',
-    batchId: 'LOT-PRE-240514-C',
-    supplier: 'Quzhou Precursor Co.',
-    regulation: 'EU 배터리법 Art.47',
-    region: 'EU',
-    severity: 'medium',
-    status: '증빙 요청',
-    detectedAt: '2026-05-14 10:18',
-    summary: '공급망 실사 문서와 원산지 증빙 일부 누락',
-  },
-];
-
-// ── 서브 컴포넌트 ─────────────────────────────────────────────────
-function BatchRow({ batch }: { batch: any }) {
-  const stage = stageMeta[batch.currentStage];
-  const dest  = destMeta[batch.destination];
-  return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-ink-700/40 last:border-0">
-      <div className="text-xs num-mono text-ink-400 w-24 shrink-0 truncate">{batch.batchId}</div>
-      <div className="flex-1 min-w-0">
-        <div className="text-xs text-ink-200 truncate">{batch.supplier}</div>
-        <div className="text-xs text-ink-500">{batch.receivedAt}</div>
-      </div>
-      <span className={clsx('text-xs font-medium shrink-0', stage?.color)}>{stage?.label}</span>
-      <Badge tone={dest?.tone} size="sm">{dest?.label}</Badge>
-    </div>
-  );
-}
-
-function EmptyState({ label }: { label: string }) {
-  return (
-    <div className="flex items-center justify-center rounded-xs border border-dashed border-ink-700/40 py-12 text-[13px] text-ink-500">
-      {label}
-    </div>
-  );
-}
-
-function TabTableShell({
-  title,
-  subtitle,
-  action,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-sm border border-ink-700 bg-white shadow-control">
-      <div className="flex items-start justify-between gap-4 border-b border-ink-700 bg-slate-50 px-5 py-4">
-        <div className="min-w-0">
-          <h3 className="text-[15px] font-semibold text-ink-100">{title}</h3>
-          {subtitle && <p className="mt-1 text-[13px] leading-5 text-ink-500">{subtitle}</p>}
-        </div>
-        {action && <div className="shrink-0">{action}</div>}
-      </div>
-      <div className="overflow-x-auto">{children}</div>
-    </section>
-  );
-}
-
-const tableHeadClass = 'whitespace-nowrap px-4 py-3 text-left text-[13px] font-semibold text-ink-500';
-const tableCellClass = 'px-4 py-3 align-middle text-[13px] text-ink-200';
-const tableMutedCellClass = 'px-4 py-3 align-middle text-[13px] text-ink-500';
-
-const stageDisplayLabel: Record<string, string> = {
-  queued: '대기',
-  supervisor: '조율',
-  extraction: '추출',
-  verification: '검증',
-  'geo-analysis': '지역 분석',
-  compliance: '규제 검토',
-  readiness: '준비도',
-  'hitl-wait': 'HITL 대기',
-  action: '처리',
-  completed: '완료',
-  rejected: '반려',
-};
-
-const severityDisplayLabel: Record<string, string> = {
-  critical: '긴급',
-  high: '높음',
-  medium: '보통',
-};
-
-const feocDisplayLabel: Record<string, string> = {
-  eligible: 'FEOC 적격',
-  ineligible: 'FEOC 부적격',
-  under_review: 'FEOC 검토 중',
-  unknown: 'FEOC 미확인',
-};
 
 function CompactMetric({
   label,
@@ -492,7 +357,7 @@ function TaskRow({ task }: { task: { rank: number; title: string; desc: string; 
 
 // ── 메인 페이지 ────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [activeTab] = useState<TabKey>('overview');
   const [apiKpis, setApiKpis] = useState<DashboardKpis | null>(null);
   const [apiBatches, setApiBatches] = useState<UiBatch[]>([]);
   // 규제검증 결과 — regulation 도메인. null=미로드, []=결과 없음.
@@ -514,27 +379,6 @@ export default function DashboardPage() {
     getDashboardSupplierStats().then(setSupplierStats).catch(() => {});
   }, []);
 
-  const handleTabChange = (tab: TabKey) => {
-    setActiveTab(tab);
-    if (typeof window === 'undefined') return;
-
-    const url = tab === 'overview' ? '/dashboard' : `/dashboard?tab=${tab}`;
-    if (window.location.pathname + window.location.search !== url) {
-      window.history.pushState({ tab }, '', url);
-    }
-  };
-
-  useEffect(() => {
-    const syncTabFromUrl = () => {
-      const tab = new URLSearchParams(window.location.search).get('tab') as TabKey | null;
-      const nextTab = tab && TABS.some(item => item.key === tab) ? tab : 'overview';
-      setActiveTab(nextTab);
-    };
-
-    syncTabFromUrl();
-    window.addEventListener('popstate', syncTabFromUrl);
-    return () => window.removeEventListener('popstate', syncTabFromUrl);
-  }, []);
 
   const hitlWaiting = apiKpis?.hitlWaitBatches ?? apiBatches.filter(b => b.currentStage === 'hitl-wait').length;
   // 규제 위반 케이스 — verdict가 violation/reject인 것만. 미로드 시 mock 폴백.
@@ -580,7 +424,6 @@ export default function DashboardPage() {
             </button>
           </>
         }
-        tabs={TABS.map(t => ({ label: t.label, active: activeTab === t.key, onClick: () => handleTabChange(t.key) }))}
       />
 
       {/* ══════════════════════════════════════════════════════════
