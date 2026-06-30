@@ -53,8 +53,11 @@ import {
   getSupplierFactories,
   getTokenSupplierId,
   getSubmissions,
+  getNotifications,
+  markNotificationRead,
   type SupplierFactory,
   type SubmissionBrief,
+  type NotificationItem,
 } from '@/lib/api';
 import { type Submission } from '@/components/supplier/EightStageStepper';
 
@@ -650,32 +653,19 @@ export default function SupplierPage() {
   const supplierUuid = getTokenSupplierId() ?? 'a1111111-1111-4000-8000-000000000001';
 
   // ─── 공유 알림 상태 — GNB 벨 + 수신함 페이지 1:1 동기화 ─────────────────────
-  type NotifType = 'sla_warning' | 'violation' | 'approval_needed' | 'info';
-  const [notifications, setNotifications] = useState<{
-    notification_id: string; notification_type: NotifType;
-    subject: string; body: string; status: 'pending' | 'read';
-    created_at: string; deep_link?: string;
-  }[]>([
-    { notification_id: 'notif-001', notification_type: 'sla_warning',
-      subject: '원산지 증빙 제출 기한 임박',
-      body: '광산 폴리곤 좌표 등록 요청의 마감이 3일 남았습니다. 기한 내 미제출 시 보완 요청으로 전환됩니다.',
-      status: 'pending', created_at: '2026-06-08T09:30:00Z', deep_link: 'company-info' },
-    { notification_id: 'notif-002', notification_type: 'violation',
-      subject: 'EUDR 규정 위반 항목 지적',
-      body: '환경영향평가 갱신본이 기준을 충족하지 않아 반려되었습니다. 시정 완료 회신 폼을 제출해 주세요.',
-      status: 'pending', created_at: '2026-06-07T14:20:00Z', deep_link: 'submission-status' },
-    { notification_id: 'notif-003', notification_type: 'approval_needed',
-      subject: 'AI 파싱 결과 확인 요청',
-      body: '업로드하신 인증서 PDF의 AI 추출 결과에서 신뢰도 낮은 항목 2건이 발견되었습니다. 검토 후 확인해 주세요.',
-      status: 'read', created_at: '2026-06-06T11:05:00Z', deep_link: 'ai-parsing' },
-    { notification_id: 'notif-004', notification_type: 'sla_warning',
-      subject: '커뮤니티 합의서 제출 기한 안내',
-      body: '커뮤니티 합의서의 제출 기한이 2026-06-25로 9일 남았습니다.',
-      status: 'read', created_at: '2026-06-05T10:00:00Z', deep_link: 'company-info' },
-  ]);
-  const [selectedNotifId, setSelectedNotifId] = useState<string | null>('notif-001');
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [selectedNotifId, setSelectedNotifId] = useState<string | null>(null);
+
+  useEffect(() => {
+    getNotifications().then(list => {
+      setNotifications(list ?? []);
+      if (list && list.length > 0) setSelectedNotifId(list[0].notification_id);
+    }).catch(() => setNotifications([]));
+  }, []);
+
   function markNotifRead(id: string) {
     setNotifications(prev => prev.map(n => n.notification_id === id ? { ...n, status: 'read' as const } : n));
+    markNotificationRead(id).catch(() => {});
   }
   function markAllNotifsRead() {
     setNotifications(prev => prev.map(n => ({ ...n, status: 'read' as const })));

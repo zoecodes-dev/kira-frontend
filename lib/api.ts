@@ -197,6 +197,8 @@ export interface LoginResponse {
   tenantId: string;
   supplierId: string | null; // 백엔드 매핑 도입 전까지 null (회신 §2)
   displayName: string;
+  // 회원가입 게이팅 — 계정의 온보딩 완료 여부. (Phase1: 계정 존재 ⇒ 항상 true)
+  onboardingComplete?: boolean;
 }
 
 // 협력사 역할 판별 — 로그인 후 화면 분기/권한에 쓴다.
@@ -312,11 +314,22 @@ export const getBatch = (batchId: string) =>
 
 export const getDashboardKpis = () => api.get<DashboardKpis>("/dashboard/kpis");
 
+export interface DashboardSupplierStats {
+  totalCount: number;
+  verifiedCount: number;
+  highRiskCount: number;
+  incompleteCount: number;
+  averageCompleteness: number;
+}
+export const getDashboardSupplierStats = () => api.get<DashboardSupplierStats>("/dashboard/supplier-stats");
+
 export const getAuditTrail = (batchId: string) =>
   api.get<AuditTrailItem[]>(`/audit/trail/${batchId}`);
 
 export const getActions = (status?: string) =>
   api.get<ActionItem[]>(status ? `/actions?status=${status}` : "/actions");
+
+export const getMyActions = () => api.get<ActionItem[]>("/actions/mine");
 
 // ═══════════════════════════════════════════════════════════
 // 협력사(Suppliers) 도메인  — W5-#18
@@ -712,6 +725,40 @@ export interface RegulationResult {
 }
 export const getRegulationResults = () => api.get<RegulationResult[]>(`/regulation/materials/regulation-results`);
 
+export interface SupplyChainGapField {
+  field_name: string;
+  field_label: string;
+  regulation_code: string;
+}
+
+export interface SupplyChainGapNode {
+  supplier_id: string;
+  company_name: string;
+  provider_type: string;
+  depth: number;
+  missing_fields: SupplyChainGapField[];
+  gap_count: number;
+}
+
+export interface SupplyChainGapsResult {
+  product_id: string;
+  nodes: SupplyChainGapNode[];
+}
+
+export interface SupplyChainAlternative {
+  supplier_id: string;
+  company_name: string;
+  provider_type: string;
+  hop_level: number;
+  ratio_percentage: number | null;
+}
+
+export const getSupplyChainGaps = (productId: string) =>
+  api.get<SupplyChainGapsResult>(`/supply-chain/gaps?product_id=${productId}`);
+
+export const getSupplyChainAlternatives = (productId: string, partId: string) =>
+  api.get<SupplyChainAlternative[]>(`/supply-chain/alternatives?product_id=${productId}&part_id=${partId}`);
+
 /** HITL 리뷰 승인/반려(batch 단위) — hitl_reviews 갱신 + 파이프라인 재개/차단. */
 export const approveHitl = (batchId: string, decisionText: string) =>
   api.post(`/hitl/${batchId}/approve`, { decision_text: decisionText });
@@ -776,6 +823,74 @@ export const declareSourceChange = (body: {
 /** CTI 상세 (provider type별 detail 1종). 없으면 404. */
 export const getSupplierDetail = (id: string) =>
   api.get<SupplierDetail>(`/suppliers/${id}/detail`);
+
+// ───────────────────────────────────────────────────────────
+// 협력사 회원가입(공개 온보딩) — 무토큰 공개 엔드포인트
+//   초대 링크 ?supplierId= 키잉. 토큰이 있어도/없어도 동작(백엔드가 공개).
+//   요청 래퍼는 camel→snake 변환을 안 하므로 body는 snake_case로 직접 조립한다.
+// ───────────────────────────────────────────────────────────
+export interface OnboardingPrefill {
+  companyName: string;
+  providerType: string;
+  country: string | null;
+}
+/** 공개 prefill — 비민감 필드(회사명/유형/국가). 없으면 404. */
+export const getOnboardingPrefill = (supplierId: string) =>
+  api.get<OnboardingPrefill>(`/suppliers/${supplierId}/onboarding/prefill`);
+
+export interface OnboardingSubmitInput {
+  account: { email: string; password: string };
+  company: {
+    companyName: string;
+    country: string;
+    businessRegNo: string;
+    dunsNumber: string;
+    address: string;
+    department: string;
+  };
+  /** 사업자등록증 업로드 결과(uploadFile 반환). 미보유(미확인 등록)면 null. */
+  businessRegDoc: { s3Key: string; fileName: string } | null;
+  unverified: boolean;
+  contacts: Array<{
+    name: string;
+    email: string;
+    phone: string;
+    isPrimary: boolean;
+    role?: string;
+    department?: string;
+  }>;
+}
+export interface OnboardingSubmitResult {
+  supplierId: string;
+  status: string;            // 'supplier_review'
+  onboardingComplete: boolean;
+}
+/** 공개 submit — 회사정보+문서+PIC+동의+계정 생성을 한 번에. 재제출/이메일중복 409. */
+export const submitSupplierOnboarding = (supplierId: string, input: OnboardingSubmitInput) =>
+  api.post<OnboardingSubmitResult>(`/suppliers/${supplierId}/onboarding/submit`, {
+    account: { email: input.account.email, password: input.account.password },
+    company: {
+      company_name: input.company.companyName,
+      country: input.company.country,
+      business_reg_no: input.company.businessRegNo,
+      duns_number: input.company.dunsNumber,
+      address: input.company.address,
+      department: input.company.department,
+    },
+    business_reg_doc: input.businessRegDoc
+      ? { s3_key: input.businessRegDoc.s3Key, file_name: input.businessRegDoc.fileName }
+      : null,
+    unverified: input.unverified,
+    consent_agreed: true,
+    contacts: input.contacts.map((c) => ({
+      name: c.name,
+      email: c.email,
+      phone: c.phone,
+      is_primary: c.isPrimary,
+      role: c.role,
+      department: c.department,
+    })),
+  });
 
 /** 협력사 '자료 제출' 영속화(PATCH /detail). 협력사 본인(supplier_id=id)만 허용.
  *  body는 백엔드 snake_case 키 그대로(요청 래퍼가 camel→snake 변환을 하지 않음).
@@ -1126,4 +1241,45 @@ export const updateSupplyChainMapStatus = (mapId: string, status: "building" | "
 
 /** POST /audit-packages/{packageId}/export — 완료 증빙 다운로드 URL 발급 (§2.5d) */
 export const exportAuditPackage = (packageId: string) =>
-  api.post<{ exportUrl: string | null }>(`/audit-packages/${packageId}/export`, {});
+  api.post<{ exportUrl: string | null; error?: string | null }>(`/audit-packages/${packageId}/export`, {});
+
+// ───────────────────────────────────────────────────────────
+// 알림 (Notifications) — §notifications
+// ───────────────────────────────────────────────────────────
+export interface NotificationItem {
+  notification_id: string;
+  notification_type: 'sla_warning' | 'violation' | 'approval_needed' | 'info';
+  subject: string;
+  body: string;
+  status: 'pending' | 'read';
+  created_at: string;
+  deep_link?: string;
+}
+
+/** GET /notifications — 로그인 사용자의 in-app 알림 목록 */
+export const getNotifications = () =>
+  api.get<NotificationItem[]>('/notifications', { raw: true });
+
+/** PATCH /notifications/{id}/read — 알림 한 건 읽음 처리 */
+export const markNotificationRead = (notificationId: string) =>
+  api.patch<void>(`/notifications/${notificationId}/read`, undefined, { raw: true });
+
+// ───────────────────────────────────────────────────────────
+// 자가신고 — 현재 공급원 조회
+// ───────────────────────────────────────────────────────────
+export interface CurrentSupplySource {
+  name: string;
+  country: string;
+  material: string;
+  contact: string;
+}
+
+/** GET /supply-chain/current-supply-source — 자가신고 폼 '기존 공급사' 조회 */
+export const getCurrentSupplySource = (
+  bomVersionId: string,
+  partId: string,
+  parentSupplierId: string,
+) =>
+  api.get<CurrentSupplySource>(
+    `/supply-chain/current-supply-source?bom_version_id=${bomVersionId}&part_id=${partId}&parent_supplier_id=${parentSupplierId}`,
+  );

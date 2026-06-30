@@ -358,7 +358,7 @@ export default function SuppliersPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return rows.filter(({ brief, reliability }) => {
+    return rows.filter(({ brief, reliability, primaryContact }) => {
       const slaOver = isSlaOverdue(reliability);
 
       if (summaryFilter === 'verified' && brief.status !== 'supplier_verified') return false;
@@ -372,8 +372,8 @@ export default function SuppliersPage() {
       const inputState = completenessMeta(reliability?.completenessScore ?? 0).filter;
       if (inputFilter !== 'all' && inputState !== inputFilter) return false;
 
-      // 연락처 API 미제공 — 모든 행은 '미등록'으로 간주
-      if (contactFilter === 'registered') return false;
+      if (contactFilter === 'registered' && !primaryContact) return false;
+      if (contactFilter === 'missing' && primaryContact) return false;
 
       if (feocFilter !== 'all' && reliability?.feocStatus !== feocFilter) return false;
 

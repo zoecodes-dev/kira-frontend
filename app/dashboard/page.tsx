@@ -16,8 +16,8 @@ import {
   suppliers, productInstances,
 } from '@/lib/data';
 import {
-  getDashboardKpis, getBatches,
-  type DashboardKpis, type BatchItem, type BatchesResponse,
+  getDashboardKpis, getBatches, getRegulationResults, getDashboardSupplierStats,
+  type DashboardKpis, type BatchItem, type BatchesResponse, type RegulationResult, type DashboardSupplierStats,
 } from '@/lib/api';
 import {
   supplierRiskProfiles, supplierCompleteness, getRemindLogs, getSupplierName,
@@ -564,12 +564,17 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [apiKpis, setApiKpis] = useState<DashboardKpis | null>(null);
   const [apiBatches, setApiBatches] = useState<UiBatch[]>([]);
+  // 규제검증 결과 — regulation 도메인. null=미로드, []=결과 없음.
+  const [regResults, setRegResults] = useState<RegulationResult[] | null>(null);
+  const [supplierStats, setSupplierStats] = useState<DashboardSupplierStats | null>(null);
 
   useEffect(() => {
     getDashboardKpis().then(setApiKpis).catch(() => {});
     Promise.all([getBatches('processing'), getBatches('hitl_wait')]).then(([p, h]) => {
       setApiBatches([...flattenBatchesResponse(p), ...flattenBatchesResponse(h)]);
     }).catch(() => {});
+    getRegulationResults().then(setRegResults).catch(() => {});
+    getDashboardSupplierStats().then(setSupplierStats).catch(() => {});
   }, []);
 
   const handleTabChange = (tab: TabKey) => {
@@ -595,8 +600,14 @@ export default function DashboardPage() {
   }, []);
 
   const hitlWaiting = apiKpis?.hitlWaitBatches ?? apiBatches.filter(b => b.currentStage === 'hitl-wait').length;
-  const euViolations = violationsByRegulation.filter(v => v.region === 'EU' || v.region === 'DE').reduce((s, v) => s + v.count, 0);
-  const usViolations = violationsByRegulation.filter(v => v.region === 'US').reduce((s, v) => s + v.count, 0);
+  // 규제 위반 케이스 — verdict가 violation/reject인 것만. 미로드 시 mock 폴백.
+  const apiViolations = regResults?.filter(r => r.verdict === 'violation' || r.verdict === 'reject') ?? null;
+  const euViolations = apiViolations
+    ? apiViolations.filter(r => r.citedClauses.some(c => c.includes('EU') || c.includes('EUDR') || c.includes('배터리'))).length
+    : violationsByRegulation.filter(v => v.region === 'EU' || v.region === 'DE').reduce((s, v) => s + v.count, 0);
+  const usViolations = apiViolations
+    ? apiViolations.filter(r => r.citedClauses.some(c => c.includes('IRA') || c.includes('UFLPA') || c.includes('US'))).length
+    : violationsByRegulation.filter(v => v.region === 'US').reduce((s, v) => s + v.count, 0);
 
   // 탭별 데이터 필터링
   const highRiskList = supplierRiskProfiles.filter(
@@ -604,10 +615,10 @@ export default function DashboardPage() {
   );
   const pendingList = supplierCompleteness.filter(c => c.completionRate < 80);
   const hitlList = apiBatches.filter(b => b.currentStage === 'hitl-wait');
-  const missingFieldCount = supplierCompleteness.reduce((sum, item) => sum + item.missingFields.length, 0);
-  const verifiedSuppliers = suppliers.filter(s => s.status === 'verified').length;
-  const highRiskSuppliers = suppliers.filter(s => s.risk === 'high' || s.risk === 'critical').length;
-  const averageCompleteness = Math.round(
+  const missingFieldCount = supplierStats?.incompleteCount ?? supplierCompleteness.reduce((sum, item) => sum + item.missingFields.length, 0);
+  const verifiedSuppliers = supplierStats?.verifiedCount ?? suppliers.filter(s => s.status === 'verified').length;
+  const highRiskSuppliers = supplierStats?.highRiskCount ?? suppliers.filter(s => s.risk === 'high' || s.risk === 'critical').length;
+  const averageCompleteness = supplierStats?.averageCompleteness ?? Math.round(
     supplierCompleteness.reduce((sum, item) => sum + item.completionRate, 0) / supplierCompleteness.length
   );
 
@@ -946,7 +957,7 @@ export default function DashboardPage() {
         <div className="p-8">
           <TabTableShell
             title="위반 감지"
-            subtitle={`실시간 규제 위반 케이스 ${violationCases.length}건`}
+            subtitle={`실시간 규제 위반 케이스 ${(apiViolations ?? violationCases).length}건`}
           >
             <table className="w-full min-w-[980px]">
               <thead className="border-b border-ink-700 bg-white">
@@ -958,11 +969,32 @@ export default function DashboardPage() {
                   <th className={tableHeadClass}>요약</th>
                   <th className={tableHeadClass}>심각도</th>
                   <th className={tableHeadClass}>상태</th>
-                  <th className={tableHeadClass}>감지 시각</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-700/50">
-                {violationCases.map(item => (
+                {apiViolations !== null ? apiViolations.map(item => {
+                  const region = item.citedClauses.some(c => c.includes('IRA') || c.includes('UFLPA') || c.includes('US')) ? 'US' : 'EU';
+                  const isReject = item.verdict === 'reject';
+                  return (
+                    <tr key={item.resultId} className="hover:bg-slate-50">
+                      <td className={`${tableCellClass} font-semibold num-mono text-alert-text`}>{item.resultId.slice(0, 16)}</td>
+                      <td className={`${tableCellClass} font-semibold text-ink-100`}>{item.supplierName ?? item.supplierId ?? '-'}</td>
+                      <td className={tableCellClass}>{item.regulation ?? (item.citedClauses.join(', ') || '-')}</td>
+                      <td className={tableCellClass}>
+                        <span className={clsx('inline-flex items-center rounded-xs border px-2 py-1 text-[13px] font-semibold', regionColor[region] || 'border-ink-600 text-ink-400')}>{region}</span>
+                      </td>
+                      <td className={`${tableMutedCellClass} max-w-[360px] whitespace-normal break-words`}>{item.reasoningText ?? '-'}</td>
+                      <td className={tableCellClass}>
+                        <span className={clsx('inline-flex rounded-xs border px-2 py-1 text-[13px] font-semibold',
+                          isReject ? 'border-alert-border bg-alert-bg text-alert-text' : 'border-warn-border bg-warn-bg text-warn-text'
+                        )}>
+                          {isReject ? '긴급' : '높음'}
+                        </span>
+                      </td>
+                      <td className={tableCellClass}>{item.needsHumanReview ? 'HITL 필요' : '위반 확정'}</td>
+                    </tr>
+                  );
+                }) : violationCases.map(item => (
                   <tr key={item.id} className="hover:bg-slate-50">
                     <td className={`${tableCellClass} font-semibold num-mono text-alert-text`}>{item.id}</td>
                     <td className={`${tableCellClass} font-semibold text-ink-100`}>{item.supplier}</td>
@@ -972,17 +1004,13 @@ export default function DashboardPage() {
                     </td>
                     <td className={`${tableMutedCellClass} max-w-[360px] whitespace-normal break-words`}>{item.summary}</td>
                     <td className={tableCellClass}>
-                      <span className={clsx(
-                        'inline-flex rounded-xs border px-2 py-1 text-[13px] font-semibold',
-                        item.severity === 'critical' ? 'border-alert-border bg-alert-bg text-alert-text' :
-                        item.severity === 'high' ? 'border-warn-border bg-warn-bg text-warn-text' :
-                        'border-warn-border bg-warn-bg text-warn-text'
+                      <span className={clsx('inline-flex rounded-xs border px-2 py-1 text-[13px] font-semibold',
+                        item.severity === 'critical' ? 'border-alert-border bg-alert-bg text-alert-text' : 'border-warn-border bg-warn-bg text-warn-text'
                       )}>
                         {severityDisplayLabel[item.severity]}
                       </span>
                     </td>
                     <td className={tableCellClass}>{item.status}</td>
-                    <td className={`${tableMutedCellClass} num-mono`}>{item.detectedAt}</td>
                   </tr>
                 ))}
               </tbody>

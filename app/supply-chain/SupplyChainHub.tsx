@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
-import { ApiError, createDataRequest, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, verifySupplier, type SupplierBrief } from '@/lib/api';
+import { ApiError, createDataRequest, getSupplyChainGaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, verifySupplier, type SupplierBrief, type SupplyChainGapsResult } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
 import PageHeader from '@/components/PageHeader';
 import HubStepBar from '@/components/supply-chain/HubStepBar';
@@ -57,6 +57,8 @@ export default function SupplyChainHub() {
   const [isDemo, setIsDemo] = useState(false);
   // 조회 상태 알림: 'auth'=토큰 없음/401·403, 'error'=그 외 실패, null=정상
   const [loadStatus, setLoadStatus] = useState<'auth' | 'error' | null>(null);
+  // 규제 갭 — 제품 선택 시 fetch. null=미로드, nodes=[]이면 갭 없음.
+  const [gaps, setGaps] = useState<SupplyChainGapsResult | null>(null);
 
   // 완료 공급망 = Pool 채워짐 + 연결 협력사 전부 확인(verification_status verified).
   const chainComplete = pool.length > 0 && pool.every(p => confirmedSuppliers.has(p.supplierId));
@@ -156,6 +158,12 @@ export default function SupplyChainHub() {
       cancelled = true;
     };
   }, []);
+
+  // 제품 선택 시 규제 갭 조회 — 어떤 협력사가 어떤 필수 데이터를 빠뜨렸는지.
+  useEffect(() => {
+    if (!selectedProductId || isDemo) { setGaps(null); return; }
+    getSupplyChainGaps(selectedProductId).then(setGaps).catch(() => {});
+  }, [selectedProductId, isDemo]);
 
   // 진입 게이트 통합 목록 — 제품마다 BOM 버전(단위기간 Lot)을 조회해 (제품×고객사×기간) 행으로 펼친다.
   // 게이트가 떠 있을 때만(맵 미시작·실데이터) 1회 구성.
@@ -574,6 +582,35 @@ export default function SupplyChainHub() {
         />
       )}
 
+      {/* 규제 갭 패널 — 제품 선택 후 gap 있는 협력사가 있을 때만 표시 */}
+      {gaps && gaps.nodes.filter(n => n.gap_count > 0).length > 0 && (
+        <div className="mx-6 mt-4 rounded-md border border-warn-border bg-warn-bg p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-warn-text" />
+            <span className="text-sm font-bold text-warn-text">
+              규제 갭 — {gaps.nodes.filter(n => n.gap_count > 0).length}개 협력사에 누락 데이터 있음
+            </span>
+          </div>
+          <div className="space-y-2">
+            {gaps.nodes.filter(n => n.gap_count > 0).map(node => (
+              <div key={node.supplier_id} className="rounded border border-warn-border bg-white px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-ink-300">{node.company_name || node.supplier_id.slice(0, 8)} ({node.provider_type})</span>
+                  <span className="text-xs font-semibold text-warn-text">누락 {node.gap_count}건</span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {node.missing_fields.map(f => (
+                    <span key={f.field_name} className="inline-flex items-center rounded-full bg-warn-bg border border-warn-border px-2 py-0.5 text-[11px] text-warn-text">
+                      {f.field_label || f.field_name} · {f.regulation_code}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {activeModal === 'pool' && (
         <PoolModal
           candidates={tier1Pool}
@@ -603,6 +640,7 @@ export default function SupplyChainHub() {
       {activeModal === 'dataRequest' && (
         <DataRequestModal
           supplierLabel={requestLabel ?? (activeSupplierId ? `${activeNodeLabel} · ${activeSupplierId}` : activeNodeLabel)}
+          supplierId={activeSupplierId}
           onClose={() => {
             setRequestLabel(null);
             close();
