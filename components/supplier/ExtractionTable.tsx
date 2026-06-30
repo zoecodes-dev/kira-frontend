@@ -3,6 +3,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AlertTriangle, Edit2, ChevronRight, Info, Save, CheckCircle2, Send } from 'lucide-react';
 import Badge from '@/components/Badge';
+import { updateSupplierDetail } from '@/lib/api';
+
+// AI 추출 fieldId → PATCH /suppliers/{id}/detail payload 키.
+// 인식하는 필드만 영속화한다(제조사 위주):
+//   carbon_intensity/energy_source → supplier_manufacturer_details
+//   origin_country                 → suppliers.country (협력사 위치 국가 = 원산지, ISO 3166-1 alpha-2)
+// 그 외(scope1/scope2/hs_code 등)는 현재 상세 테이블에 둘 곳이 없어 저장하지 않는다.
+const FIELD_TO_DETAIL: Record<string, 'carbon_intensity' | 'energy_source' | 'country'> = {
+  carbon_intensity: 'carbon_intensity',
+  energy_source: 'energy_source',
+  origin_country: 'country',
+};
 
 // 신뢰도에 따른 색상/톤 반환 함수 (기획서 D-3 스펙)
 // · 0.90 이상 → 초록(#F0FDF4) — 자동 확인 처리, 수동 검토 불필요
@@ -199,14 +211,34 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
     }
   }, [editedValues, unparsedInputs, supplierId, doc.docId]);
 
-  // ── 최종 제출 — localStorage 초안 삭제 후 완료 ────────────────────────────
+  // ── 최종 제출 — 확정값을 백엔드 상세로 영속화 후 완료 ─────────────────────
+  // 인식하는 필드만 PATCH /suppliers/{id}/detail 로 보낸다(편집값 우선, 없으면 AI 추출값).
+  // 실 UUID 협력사일 때만 호출(mock S-ID는 데모 — 저장 생략하고 진행).
   const handleSubmit = async () => {
     setConfirming(true);
-    await new Promise(res => setTimeout(res, 800));
-    // 제출 완료 시 초안 삭제
-    localStorage.removeItem(draftKey(supplierId, doc.docId));
-    setConfirming(false);
-    onConfirmComplete();
+    try {
+      const isRealSupplier = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId);
+      const payload: Record<string, unknown> = {};
+      for (const f of (doc.extractionResult.fields as Array<{ fieldId: string; aiValue: string }>)) {
+        const key = FIELD_TO_DETAIL[f.fieldId];
+        if (!key) continue;
+        const raw = editedValues[f.fieldId] !== undefined ? editedValues[f.fieldId] : f.aiValue;
+        const v = (raw ?? '').toString().trim();
+        if (!v) continue;
+        // 탄소집약도만 숫자(천단위 콤마 제거). 나머지는 문자열 그대로.
+        // country 정규화(국가명→ISO alpha-2)는 백엔드 update_supplier_detail이 담당.
+        payload[key] = key === 'carbon_intensity' ? Number(v.replace(/,/g, '')) : v;
+      }
+      if (isRealSupplier && Object.keys(payload).length > 0) {
+        await updateSupplierDetail(supplierId, payload);
+      }
+      localStorage.removeItem(draftKey(supplierId, doc.docId));
+      onConfirmComplete();
+    } catch {
+      setToast({ message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', tone: 'ok' });
+    } finally {
+      setConfirming(false);
+    }
   };
 
   const handleEdit = (key: string, value: string) => {
@@ -242,11 +274,11 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
           <div className="space-y-4">
             {doc.extractionResult.fields.map((field: any) => {
               const style = getConfidenceStyle(field.confidence);
-              const currentValue = editedValues[field.key] !== undefined ? editedValues[field.key] : field.aiValue;
+              const currentValue = editedValues[field.fieldId] !== undefined ? editedValues[field.fieldId] : field.aiValue;
 
               return (
                 <div
-                  key={field.key}
+                  key={field.fieldId}
                   className={`rounded-xs border px-3 py-3 transition-colors ${
                     style.warningLevel === 'required'
                       ? 'border-alert-border'
@@ -277,7 +309,7 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
                     <input
                       type="text"
                       value={currentValue}
-                      onChange={(e) => handleEdit(field.key, e.target.value)}
+                      onChange={(e) => handleEdit(field.fieldId, e.target.value)}
                       className={`w-full rounded-xs border px-3 py-2 text-xs font-bold outline-none transition-all pr-12 ${style.inputBg} ${style.inputBorder}`}
                     />
                     {field.unit && (
