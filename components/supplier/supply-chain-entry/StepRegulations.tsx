@@ -1,9 +1,7 @@
 'use client';
 
-// STEP 3 — 규제 정보: 탄소발자국 / 지분구조·FEOC / 실사 / 인증(getSupplierEsg pre-fill) / 원산지 + 증빙
-import { useEffect, useState } from 'react';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
-import { getSupplierEsg } from '@/lib/api';
+// STEP 3 — 규제 정보: 탄소발자국 / 지분구조·FEOC / 실사 / 인증(수기 입력) / 원산지 + 증빙
+import { Plus, Trash2 } from 'lucide-react';
 import type { CertRow, DocItem, RegulationsData } from './SupplyChainEntry';
 import DocRow from './DocRow';
 import StepFooter from '@/components/supplier/onboarding/StepFooter';
@@ -43,39 +41,6 @@ export default function StepRegulations({
   onBack: () => void;
   onNext: () => void;
 }) {
-  const [loadingCerts, setLoadingCerts] = useState(false);
-
-  // 인증 pre-fill (getSupplierEsg.certifications) — 기본 빈 1행일 때만
-  useEffect(() => {
-    if (!supplierId) return;
-    const isDefault = data.certifications.length === 1 && !data.certifications[0].type && !data.certifications[0].certNo;
-    if (!isDefault) return;
-    let cancelled = false;
-    (async () => {
-      setLoadingCerts(true);
-      try {
-        const esg = await getSupplierEsg(supplierId);
-        if (!cancelled && esg.certifications.length > 0) {
-          const rows: CertRow[] = esg.certifications.map(c => ({
-            type: c.certificationType,
-            issuingBody: c.issuingBody,
-            certNo: c.certificationNo,
-            expiresAt: c.expiresAt,
-          }));
-          onChange({ ...data, certifications: rows });
-        }
-      } catch {
-        // graceful
-      } finally {
-        if (!cancelled) setLoadingCerts(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supplierId]);
-
   function setCert(i: number, patch: Partial<CertRow>) {
     onChange({ ...data, certifications: data.certifications.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) });
   }
@@ -125,11 +90,6 @@ export default function StepRegulations({
       </Section>
 
       <Section title="인증">
-        {loadingCerts && (
-          <div className="mb-2 flex items-center gap-1.5 text-xs text-slate-400">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> 인증 정보를 불러오는 중…
-          </div>
-        )}
         <div className="space-y-2">
           {data.certifications.map((c, i) => (
             <div key={i} className="rounded-md border border-slate-200 p-3">

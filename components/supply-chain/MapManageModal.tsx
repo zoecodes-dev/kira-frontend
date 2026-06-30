@@ -1,12 +1,12 @@
 'use client';
 
-// STEP 4 — 최종 검증. 환경성적서(탄소발자국, EU 배터리법 Art7)를 핵심으로, 인증서 만료를 보조로
+// STEP 4 — 최종 검증. 환경성적서(탄소발자국, EU 배터리법 Art7)를 핵심으로
 // 연결 협력사의 실데이터를 가져와 검증한다.
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { CheckCircle2, FileSignature, Leaf, Loader2, Paperclip, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
 import ModalShell from './ModalShell';
-import { getDataConsents, getSupplierCarbonDeclarations, getSupplierEsg, listFilesByContext, uploadFile, type CarbonDeclaration, type DataConsent, type SupplierBrief } from '@/lib/api';
+import { getDataConsents, getSupplierCarbonDeclarations, listFilesByContext, uploadFile, type CarbonDeclaration, type DataConsent, type SupplierBrief } from '@/lib/api';
 
 type EpdStatus = 'verified' | 'declared' | 'expired' | 'missing';
 
@@ -20,8 +20,6 @@ interface VerifyRow {
   carbonIntensity: number | null;
   epdDocs: number; // 첨부된 환경성적서 PDF 건수
   consent: ConsentState; // 제3자 정보제공 동의(데이터 계약) 상태
-  expired: number; // 인증서 만료 건수
-  soon: number;    // 인증서 임박 건수
 }
 
 /** 데이터 계약 동의 상태: 동의완료(agreed·유효) / 동의만료 / 발송됨 / 미발송 등 */
@@ -32,16 +30,6 @@ function consentStateOf(consents: DataConsent[]): ConsentState {
   if (latest.status === 'agreed') return expired ? { agreed: false, label: '동의만료' } : { agreed: true, label: '동의완료' };
   const map: Record<string, string> = { requested: '발송됨', returned: '회신', rejected: '거절', revoked: '철회', expired: '만료' };
   return { agreed: false, label: map[latest.status] ?? latest.status };
-}
-
-/** 만료일 판정: 경과=expired, 90일 이내=soon, 그 외=valid */
-function certExpiry(expiresAt: string): 'expired' | 'soon' | 'valid' {
-  const due = new Date(expiresAt).getTime();
-  if (Number.isNaN(due)) return 'valid';
-  const now = Date.now();
-  if (due < now) return 'expired';
-  if (due < now + 90 * 24 * 60 * 60 * 1000) return 'soon';
-  return 'valid';
 }
 
 /** 환경성적서(탄소) 상태: 미제출 / 만료 / 자기선언 / 제3자검증완료 */
@@ -87,23 +75,16 @@ export default function MapManageModal({
       setLoading(true);
       const result = await Promise.all(
         pool.map(async supplier => {
-          // 환경성적서(핵심) + 제3자 동의(핵심) + 인증서 만료(보조) + 환경성적서 첨부 동시 조회.
-          const [carbonRes, esgRes, docs, consents] = await Promise.all([
+          // 환경성적서(핵심) + 제3자 동의(핵심) + 환경성적서 첨부 동시 조회.
+          const [carbonRes, docs, consents] = await Promise.all([
             getSupplierCarbonDeclarations(supplier.supplierId).catch(() => null),
-            getSupplierEsg(supplier.supplierId).catch(() => null),
             listFilesByContext(epdContext(supplier.supplierId)).catch(() => []),
             getDataConsents(supplier.supplierId).catch(() => []),
           ]);
           const decls = carbonRes?.declarations ?? [];
           const epd = epdStatusOf(decls);
           const carbonIntensity = decls[0]?.carbonIntensity ?? null;
-          let expired = 0, soon = 0;
-          (esgRes?.certifications ?? []).forEach(c => {
-            const exp = certExpiry(c.expiresAt);
-            if (exp === 'expired') expired += 1;
-            else if (exp === 'soon') soon += 1;
-          });
-          return { supplier, epd, carbonIntensity, epdDocs: (docs ?? []).length, consent: consentStateOf(consents ?? []), expired, soon } as VerifyRow;
+          return { supplier, epd, carbonIntensity, epdDocs: (docs ?? []).length, consent: consentStateOf(consents ?? []) } as VerifyRow;
         }),
       );
       if (!cancelled) { setRows(result); setLoading(false); }
@@ -133,7 +114,7 @@ export default function MapManageModal({
   return (
     <ModalShell
       title="최종 검증 · 환경성적서(탄소발자국)"
-      subtitle="연결 협력사의 환경성적서(EU 배터리법 Art7 탄소발자국)를 핵심으로, 인증서 만료를 보조로 실데이터를 검증합니다."
+      subtitle="연결 협력사의 환경성적서(EU 배터리법 Art7 탄소발자국)를 핵심으로 실데이터를 검증합니다."
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3">
@@ -185,14 +166,13 @@ export default function MapManageModal({
       ) : loading ? (
         <div className="flex flex-col items-center gap-2 py-10 text-slate-500">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <div className="text-sm font-semibold">실데이터(환경성적서·인증서)를 가져오는 중…</div>
+          <div className="text-sm font-semibold">실데이터(환경성적서)를 가져오는 중…</div>
         </div>
       ) : (
         <div className="space-y-1.5">
           {rows.map(r => {
             const meta = EPD_META[r.epd];
-            const certIssue = r.expired > 0 || r.soon > 0;
-            const needsRequest = !rowPass(r) || certIssue;
+            const needsRequest = !rowPass(r);
             return (
               <div key={r.supplier.supplierId} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2">
                 <div className="min-w-0">
@@ -210,8 +190,6 @@ export default function MapManageModal({
                     {r.carbonIntensity != null && (
                       <span className="text-slate-500">{r.carbonIntensity} kgCO₂e/kWh</span>
                     )}
-                    {r.expired > 0 && <span className="rounded-full border border-alert-border bg-alert-bg px-1.5 py-0.5 font-bold text-alert-text">인증서 만료 {r.expired}</span>}
-                    {r.soon > 0 && <span className="rounded-full border border-warn-border bg-warn-bg px-1.5 py-0.5 font-bold text-warn-text">인증서 임박 {r.soon}</span>}
                     <span className={clsx('inline-flex items-center gap-1', r.epdDocs > 0 ? 'text-ok-text' : 'text-slate-400')}>
                       <Paperclip className="h-3 w-3" />환경성적서 첨부 {r.epdDocs}건
                     </span>

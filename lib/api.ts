@@ -417,82 +417,6 @@ export interface SupplierRiskProfileResponse {
   feocStatus: SupplierFeocStatus;
 }
 
-// ── ESG (§1 배열/중첩 항목 필드) ───────────────────────────
-export interface EsgCertification {
-  certId: string;
-  certificationType: string;
-  certificationNo: string;
-  issuedAt: string;
-  expiresAt: string;
-  issuingBody: string;
-  documentUrl: string | null;
-}
-export interface EsgHumanRightsIssue {
-  issueId: string;
-  factoryId: string | null;
-  issueType: string;
-  severity: "critical" | "major" | "minor";
-  description: string;
-  detectedAt: string;
-  status: "open" | "in_remediation" | "resolved" | "monitoring";
-  source: string;
-  resolvedAt: string | null;
-}
-export interface EsgIndustrialAccident {
-  accidentId: string;
-  factoryId: string | null;
-  accidentDate: string;
-  accidentType: string;
-  description: string;
-  casualties: number;
-  ltifr: number | null;
-  status: "reported" | "investigating" | "closed";
-  correctiveAction: string | null;
-}
-export interface EsgAuditRecord {
-  auditRecordId: string;
-  auditDate: string;
-  auditType: string;
-  auditor: string;
-  auditStatus: string;
-  result: "pass" | "conditional_pass" | "fail" | "pending";
-  nextAuditDue: string;
-  reportUrl: string | null;
-}
-export interface SupplierEsgResponse {
-  supplierId: string;
-  certifications: EsgCertification[];
-  humanRightsIssues: EsgHumanRightsIssue[];
-  industrialAccidents: EsgIndustrialAccident[];
-  auditRecords: EsgAuditRecord[];
-}
-
-// ── 교육(Training) ─────────────────────────────────────────
-export interface TrainingMaterial {
-  materialId: string;
-  title: string;
-  category: string;
-  format: string;
-  durationMinutes: number;
-}
-export interface TrainingRecord {
-  recordId: string;
-  factoryId: string | null;
-  traineeCount: number;
-  totalEligible: number;
-  completionRate: number;
-  completedAt: string | null;
-  dueDate: string | null;
-  status: "completed" | "in_progress" | "overdue" | "not_started";
-  instructor: string | null;
-  notes: string | null;
-  material: TrainingMaterial | null;
-}
-export interface SupplierTrainingResponse {
-  supplierId: string;
-  records: TrainingRecord[];
-}
-
 // ── 신뢰도(Reliability) ────────────────────────────────────
 export interface SupplierReliabilityResponse {
   supplierId: string;
@@ -594,21 +518,6 @@ export interface SupplierCompleteness {
 }
 export const getSupplierCompleteness = (id: string) =>
   api.get<SupplierCompleteness>(`/suppliers/${id}/completeness`);
-
-/** 원산지/규제 증빙(origin_certificates). */
-export interface OriginCert {
-  certId: string;
-  certType: string | null;
-  certNumber: string | null;
-  issuingAuthority: string | null;
-  issuedAt: string | null;
-  expiresAt: string | null;
-  originCountry: string | null;
-  status: string | null;
-  documentUrl: string | null;
-}
-export const getSupplierOriginCertificates = (id: string) =>
-  api.get<{ supplierId: string; originCertificates: OriginCert[] }>(`/suppliers/${id}/origin-certificates`);
 
 /** 환경성적서(탄소발자국, EU 배터리법 Art7) — 공장별 factory_carbon_declarations. STEP4 최종 검증 핵심. */
 export interface CarbonDeclaration {
@@ -875,6 +784,13 @@ export const getSupplierDetail = (id: string) =>
 export const updateSupplierDetail = (id: string, body: Record<string, unknown>) =>
   api.patch<SupplierDetail>(`/suppliers/${id}/detail`, body);
 
+/** 협력사 마스터폼 제출(POST /master-form) — company/factories/contacts/manufacturing/self_reported_risk_level 를
+ *  정규화 테이블에 일괄 영속화. factories·contacts 는 REPLACE-ALL(삭제 후 재삽입), company 는 authoritative-overwrite
+ *  (생략 필드는 NULL). 따라서 호출부는 GET 으로 시드한 전체 현재 집합을 round-trip 해서 보내야 한다.
+ *  body 는 이미 snake_case 그대로(요청 래퍼가 camel→snake 변환을 하지 않음). */
+export const submitMasterForm = (id: string, body: Record<string, unknown>) =>
+  api.post<{ supplierId: string; status: string; sectionsSaved: string[] }>(`/suppliers/${id}/master-form`, body);
+
 /** 리스크 프로필. 없으면 404. */
 export const getSupplierRiskProfile = (id: string) =>
   api.get<SupplierRiskProfileResponse>(`/suppliers/${id}/risk-profile`);
@@ -882,14 +798,6 @@ export const getSupplierRiskProfile = (id: string) =>
 /** 리스크 점수 갱신. 0~100 범위 밖 422, 없으면 404. (§4 note5 — form 금지) */
 export const patchSupplierRiskScore = (id: string, score: number) =>
   api.patch<SupplierRiskProfileResponse>(`/suppliers/${id}/risk-score`, { score });
-
-/** ESG. supplier 존재 시 빈 항목은 200+빈 배열, supplier 자체가 없으면 404. (§4 note3) */
-export const getSupplierEsg = (id: string) =>
-  api.get<SupplierEsgResponse>(`/suppliers/${id}/esg`);
-
-/** 교육 이수 현황. 200+빈 배열 / 404. */
-export const getSupplierTraining = (id: string) =>
-  api.get<SupplierTrainingResponse>(`/suppliers/${id}/training`);
 
 /** 신뢰도. 프로필/온보딩 없으면 해당 필드 null. 200 / 404. */
 export const getSupplierReliability = (id: string) =>
