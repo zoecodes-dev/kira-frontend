@@ -93,6 +93,16 @@ export default function LoginPage() {
     setPassword(demoAccounts[nextRole].password);
   };
 
+  // 회원가입 진입 — 초대 링크의 supplierId를 온보딩으로 전달(클릭 시점 URL에서 읽음).
+  // useSearchParams 훅 대신 window.location 사용 → Suspense/빌드 이슈 회피.
+  const goSignup = () => {
+    const sid =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('supplierId')
+        : null;
+    router.push(sid ? `/supplier/onboarding?supplierId=${encodeURIComponent(sid)}` : '/supplier/onboarding');
+  };
+
   return (
     <main className="min-h-screen bg-[#F4F7F9] text-ink-100">
       <div className="grid min-h-screen grid-cols-[1.05fr_0.95fr]">
@@ -245,6 +255,15 @@ export default function LoginPage() {
                 <ArrowRight className="h-4 w-4" />
               </button>
             </form>
+
+            <button
+              type="button"
+              onClick={goSignup}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xs border border-ink-700 bg-white px-4 py-3 text-sm font-bold text-ink-100 transition-colors hover:border-accent-600 hover:text-accent-700"
+            >
+              회원가입 (초대받은 협력사)
+              <ArrowRight className="h-4 w-4" />
+            </button>
 
             <div className="mt-4 text-center text-[11px] text-ink-500">
               {USE_API
