@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createDataRequest, getDataRequests, getSuppliers, type ActionItem, type ApiDataRequest, type SupplierBrief } from '@/lib/api';
+import { createDataRequest, getMyActions, getDataRequests, getSuppliers, type ActionItem, type ApiDataRequest, type SupplierBrief } from '@/lib/api';
 import PageHeader from '@/components/PageHeader';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
 import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
@@ -266,12 +266,19 @@ export default function MyTaskPage() {
   const [review, setReview] = useState<{ supplierId: string; supplierName: string } | null>(null);
   // 규제 검증 검토 — AI 판정 결과 + 파싱 뷰 함께.
   const [regReview, setRegReview] = useState<RegReviewRow | null>(null);
+  // audit 업무 큐 — GET /actions(audit 도메인)에서 내 담당 액션 아이템.
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskFilter, setTaskFilter] = useState<'all' | TaskStatus>('all');
   // 딥링크 ?tab=hitl|dd|inputStatus|request (규제 검증 결과 등 편입 화면 진입용).
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
     if (t === 'hitl' || t === 'dd' || t === 'inputStatus' || t === 'request') setView(t);
   }, []);
+  useEffect(() => {
+    getMyActions().then(items => setTasks(sortByPriority(items.map(adaptAction)))).catch(() => {});
+  }, []);
   const openReview = (supplierId: string, supplierName: string) => setReview({ supplierId, supplierName });
+  const visibleTasks = taskFilter === 'all' ? tasks : tasks.filter(t => t.status === taskFilter);
   return (
     <>
       <PageHeader
@@ -292,6 +299,67 @@ export default function MyTaskPage() {
             {/* AI 파싱 결과 = 데이터 추출 검토 + 규제 검증 결과. 검토 클릭 → AI 파싱 뷰 모달. */}
             <HitlReviewCard />
             <RegulationResultsCard onReview={setRegReview} />
+            {/* audit 업무 큐 — GET /actions 에서 내 담당 액션 아이템 목록 */}
+            {tasks.length > 0 && (
+              <section className="overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-700 bg-ink-800/60 px-5 py-4">
+                  <div>
+                    <h2 className="text-base font-bold text-ink-100">업무 큐</h2>
+                    <p className="mt-0.5 text-sm text-ink-500">담당자에게 배정된 액션 아이템</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {taskFilters.map(([s, label]) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setTaskFilter(s)}
+                        className={clsx(
+                          'rounded-full border px-2.5 py-1 text-[11px] font-bold',
+                          taskFilter === s
+                            ? 'border-brand bg-brand text-white'
+                            : 'border-ink-700 bg-white text-ink-400 hover:text-ink-100',
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="divide-y divide-ink-700/30">
+                  {visibleTasks.length === 0 && (
+                    <p className="px-5 py-6 text-sm text-ink-500">해당 항목이 없습니다.</p>
+                  )}
+                  {visibleTasks.map(task => {
+                    const tm = typeMeta[task.type];
+                    const sm = statusMeta[task.status];
+                    const Icon = tm.icon;
+                    return (
+                      <div key={task.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50">
+                        <Icon className="h-4 w-4 shrink-0 text-ink-400" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-bold text-ink-100">{task.title}</span>
+                            <span className={clsx('rounded-full border px-2 py-0.5 text-[10px] font-bold',
+                              sm.tone === 'alert' ? 'border-alert-border bg-alert-bg text-alert-text' :
+                              sm.tone === 'warn'  ? 'border-warn-border bg-warn-bg text-warn-text'   :
+                              sm.tone === 'ok'    ? 'border-ok-border bg-ok-bg text-ok-text'         :
+                                                    'border-info-border bg-info-bg text-info-text',
+                            )}>{sm.label}</span>
+                          </div>
+                          <div className="mt-0.5 text-xs text-ink-500">마감 {task.due} · {tm.label}</div>
+                        </div>
+                        <a
+                          href={task.targetHref}
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-bold text-ink-400 hover:border-accent-600 hover:text-accent-700"
+                        >
+                          {task.targetLabel} <ArrowRight className="h-3.5 w-3.5" />
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
           </div>
         )}
         {view === 'dd' && <DueDiligenceBoard />}
