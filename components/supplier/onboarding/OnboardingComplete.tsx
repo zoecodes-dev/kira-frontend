@@ -58,7 +58,7 @@ export default function OnboardingComplete({
             <SummaryRow label="DUNS" value={signup.dunsNumber} />
             <SummaryRow label="주소" value={signup.address} />
             <SummaryRow label="담당자 부서" value={signup.department} />
-            <SummaryRow label="필요 문서" value={signup.unverified ? '미확인 등록' : signup.registrationDoc} />
+            <SummaryRow label="필요 문서" value={signup.unverified ? '미확인 등록' : signup.registrationDocName} />
           </div>
         )}
 
