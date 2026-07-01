@@ -5,7 +5,7 @@
 //   - supplier_contacts        (담당자 다중 — 공장 담당자 포함)
 //   - supplier_factories       (본사/공장 분리, 좌표, 가동기간)
 //   - supplier_certifications  (인증서 + 만료일)
-//   - supplier_risk            (종합 위험도, FEOC, 실사, 인권, 산재, 교육)
+//   - supplier_risk            (종합 위험도, 실사, 인권, 산재, 교육)
 //   - purchase_orders          → supply_chain_map.po_number 매핑
 //   - parts, bom_items         (부품 5계층)
 //   - manufacturing_process    (제조공정도)
@@ -30,7 +30,6 @@ export type Regulation =
   | 'EUDR_FSC'          // EUDR 부속 FSC 인증
   | 'CSDDD'             // EU 공급망 실사지침 (인권)
   | 'UFLPA'             // 미국 위구르 강제노동방지법
-  | 'IRA'               // 미국 인플레이션감축법 (FEOC)
   | 'EU_BATTERY'        // EU 배터리법 2023/1542 (재활용 함량)
   | 'EU_BATTERY_ART7'   // EU 배터리법 Art.7 탄소발자국 신고
   | 'EU_BATTERY_ART47'  // EU 배터리법 Art.47 공급망 실사 (DDP)
@@ -52,7 +51,6 @@ export const regulationMeta: Record<Regulation, {
   EUDR_FSC:          { label: 'FSC',               description: 'EUDR 부속 — FSC 인증',            color: 'emerald', region: 'EU' },
   CSDDD:             { label: 'CSDDD',             description: 'EU 공급망 실사지침 (인권)',        color: 'teal',    region: 'EU' },
   UFLPA:             { label: 'UFLPA',             description: '미국 위구르 강제노동방지법',       color: 'amber',   region: 'US' },
-  IRA:               { label: 'IRA/FEOC',          description: '미국 인플레이션감축법 (FEOC)',     color: 'orange',  region: 'US' },
   EU_BATTERY:        { label: 'EU 배터리법',        description: 'EU 2023/1542 재활용 함량',        color: 'blue',    region: 'EU' },
   EU_BATTERY_ART7:   { label: 'EU 배터리법 Art.7', description: '탄소발자국 신고 의무',            color: 'cyan',    region: 'EU' },
   EU_BATTERY_ART47:  { label: 'EU 배터리법 Art.47',description: '공급망 실사 (DDP 수립)',          color: 'cyan',    region: 'EU' },
@@ -285,7 +283,7 @@ export const factories: Factory[] = [
     coordinates: [127.4914, 36.6424], operatingPeriodFrom: '2018-06-01', operatingPeriodTo: null,
     monthlyCapacity: '2.4 GWh', isActive: true,
     destination: 'BOTH', destinationDetail: 'BMW 폴란드 + GM 테네시',
-    applicableRegulations: ['EUDR', 'UFLPA', 'IRA', 'CSDDD', 'EU_BATTERY', 'EU_BATTERY_ART7', 'EU_BATTERY_ART47', 'CBAM', 'CONFLICT_MINERALS', 'CRMA', 'LKSG'],
+    applicableRegulations: ['EUDR', 'UFLPA', 'CSDDD', 'EU_BATTERY', 'EU_BATTERY_ART7', 'EU_BATTERY_ART47', 'CBAM', 'CONFLICT_MINERALS', 'CRMA', 'LKSG'],
     hiddenRegulations: [], supplyRatioPercent: 60, supplyQuantity: '1.44 GWh/월' },
 
   { factoryId: 'F-003', supplierId: 'S-CELL-001',
@@ -295,7 +293,7 @@ export const factories: Factory[] = [
     coordinates: [127.4920, 36.6418], operatingPeriodFrom: '2020-09-15', operatingPeriodTo: null,
     monthlyCapacity: '1.8 GWh', isActive: true,
     destination: 'BOTH', destinationDetail: 'BMW 폴란드 + GM 테네시',
-    applicableRegulations: ['EUDR', 'UFLPA', 'IRA', 'CSDDD', 'EU_BATTERY', 'EU_BATTERY_ART7', 'EU_BATTERY_ART47', 'CBAM', 'CONFLICT_MINERALS', 'CRMA', 'LKSG'],
+    applicableRegulations: ['EUDR', 'UFLPA', 'CSDDD', 'EU_BATTERY', 'EU_BATTERY_ART7', 'EU_BATTERY_ART47', 'CBAM', 'CONFLICT_MINERALS', 'CRMA', 'LKSG'],
     hiddenRegulations: [], supplyRatioPercent: 40, supplyQuantity: '720 MWh/월' },
 
   // ── POS Cathode Materials ───────────────────────────────
@@ -313,7 +311,7 @@ export const factories: Factory[] = [
     monthlyCapacity: '850 t', isActive: true,
     destination: 'EU', destinationDetail: '한양셀 → BMW 폴란드 (EU)',
     applicableRegulations: ['EUDR', 'EUDR_FSC', 'CSDDD', 'EU_BATTERY', 'EU_BATTERY_ART7', 'EU_BATTERY_ART47', 'CBAM', 'CONFLICT_MINERALS', 'CRMA', 'LKSG'],
-    hiddenRegulations: ['UFLPA', 'IRA'], supplyRatioPercent: 65, supplyQuantity: '550 t/월' },
+    hiddenRegulations: ['UFLPA'], supplyRatioPercent: 65, supplyQuantity: '550 t/월' },
 
   { factoryId: 'F-006', supplierId: 'S-CAM-001',
     factoryName: '광양 양극재 2공장', factoryNameEn: 'Gwangyang Cathode Plant 2',
@@ -322,7 +320,7 @@ export const factories: Factory[] = [
     coordinates: [127.7012, 34.9358], operatingPeriodFrom: '2021-04-05', operatingPeriodTo: null,
     monthlyCapacity: '620 t', isActive: true,
     destination: 'US', destinationDetail: '한양셀 → GM 테네시 (US)',
-    applicableRegulations: ['UFLPA', 'IRA', 'CSDDD', 'CRMA'],
+    applicableRegulations: ['UFLPA', 'CSDDD', 'CRMA'],
     hiddenRegulations: ['EUDR', 'EUDR_FSC'], supplyRatioPercent: 35, supplyQuantity: '300 t/월' },
 
   // ── Yantai Cathode Technology ───────────────────────────
@@ -339,7 +337,7 @@ export const factories: Factory[] = [
     coordinates: [121.4395, 37.4988], operatingPeriodFrom: '2016-03-22', operatingPeriodTo: null,
     monthlyCapacity: '420 t', isActive: true,
     destination: 'US', destinationDetail: '한양셀 → GM 테네시 (US)',
-    applicableRegulations: ['UFLPA', 'IRA', 'CSDDD', 'CRMA'],
+    applicableRegulations: ['UFLPA', 'CSDDD', 'CRMA'],
     hiddenRegulations: ['EUDR'], supplyRatioPercent: 100, supplyQuantity: '420 t/월' },
 
   // ── Mitsui Anode Industries ─────────────────────────────
@@ -356,7 +354,7 @@ export const factories: Factory[] = [
     coordinates: [135.4308, 34.5741], operatingPeriodFrom: '1997-09-01', operatingPeriodTo: null,
     monthlyCapacity: '680 t', isActive: true,
     destination: 'BOTH', destinationDetail: '한양셀 → EU + US',
-    applicableRegulations: ['EUDR', 'CSDDD', 'EU_BATTERY', 'EU_BATTERY_ART7', 'EU_BATTERY_ART47', 'UFLPA', 'IRA', 'CRMA'],
+    applicableRegulations: ['EUDR', 'CSDDD', 'EU_BATTERY', 'EU_BATTERY_ART7', 'EU_BATTERY_ART47', 'UFLPA', 'CRMA'],
     hiddenRegulations: [], supplyRatioPercent: 100, supplyQuantity: '680 t/월' },
 
   // ── Quzhou Precursor ────────────────────────────────────
@@ -374,7 +372,7 @@ export const factories: Factory[] = [
     monthlyCapacity: '520 t NCM-OH', isActive: true,
     destination: 'EU', destinationDetail: 'POS Cathode → 한양셀 → BMW 폴란드',
     applicableRegulations: ['EUDR', 'CSDDD', 'EU_BATTERY', 'EU_BATTERY_ART47', 'CONFLICT_MINERALS', 'CRMA', 'LKSG'],
-    hiddenRegulations: ['UFLPA', 'IRA'], supplyRatioPercent: 100, supplyQuantity: '520 t/월' },
+    hiddenRegulations: ['UFLPA'], supplyRatioPercent: 100, supplyQuantity: '520 t/월' },
 
   // ── Pilbara International Works ─────────────────────────
   { factoryId: 'F-013', supplierId: 'S-REF-001',
@@ -402,7 +400,7 @@ export const factories: Factory[] = [
     monthlyCapacity: '420 t CoSO4', isActive: true,
     destination: 'EU', destinationDetail: '양극재사 → 한양셀 → BMW 폴란드',
     applicableRegulations: ['EUDR', 'CSDDD', 'EU_BATTERY', 'EU_BATTERY_ART47', 'CONFLICT_MINERALS', 'CRMA', 'LKSG'],
-    hiddenRegulations: ['UFLPA', 'IRA'], supplyRatioPercent: 100, supplyQuantity: '420 t/월' },
+    hiddenRegulations: ['UFLPA'], supplyRatioPercent: 100, supplyQuantity: '420 t/월' },
 
   // ── Sulawesi Nickel Mine ────────────────────────────────
   { factoryId: 'F-016', supplierId: 'S-MINE-001',
@@ -413,7 +411,7 @@ export const factories: Factory[] = [
     monthlyCapacity: '850 t Ni', isActive: true,
     destination: 'BOTH', destinationDetail: 'QZ 전구체 → 전 시장',
     applicableRegulations: ['EUDR', 'CSDDD', 'CONFLICT_MINERALS', 'CRMA'],
-    hiddenRegulations: ['UFLPA', 'IRA'], supplyRatioPercent: 100, supplyQuantity: '850 t/월' },
+    hiddenRegulations: ['UFLPA'], supplyRatioPercent: 100, supplyQuantity: '850 t/월' },
 
   // ── Katanga Cobalt Mining ───────────────────────────────
   { factoryId: 'F-017', supplierId: 'S-MINE-002',
@@ -424,7 +422,7 @@ export const factories: Factory[] = [
     monthlyCapacity: '320 t Co', isActive: true,
     destination: 'EU', destinationDetail: 'Ganzhou → 한양셀 → BMW 폴란드',
     applicableRegulations: ['EUDR', 'CSDDD', 'CONFLICT_MINERALS', 'CRMA'],
-    hiddenRegulations: ['UFLPA', 'IRA'], supplyRatioPercent: 100, supplyQuantity: '320 t/월' },
+    hiddenRegulations: ['UFLPA'], supplyRatioPercent: 100, supplyQuantity: '320 t/월' },
 
   // ── Salar de Atacama Lithium ────────────────────────────
   { factoryId: 'F-018', supplierId: 'S-MINE-003',
@@ -435,7 +433,7 @@ export const factories: Factory[] = [
     monthlyCapacity: '180 t LiOH', isActive: true,
     destination: 'BOTH', destinationDetail: 'Pilbara → 전 시장',
     applicableRegulations: ['EUDR', 'CSDDD', 'CBAM', 'CONFLICT_MINERALS', 'CRMA'],
-    hiddenRegulations: ['UFLPA', 'IRA'], supplyRatioPercent: 100, supplyQuantity: '180 t/월' },
+    hiddenRegulations: ['UFLPA'], supplyRatioPercent: 100, supplyQuantity: '180 t/월' },
 ];
 
 export function getFactories(supplierId: string): Factory[] {
@@ -443,10 +441,9 @@ export function getFactories(supplierId: string): Factory[] {
 }
 
 // ============================================================
-// 5. 리스크 프로필 (종합 위험도 + FEOC + 실사)
+// 5. 리스크 프로필 (종합 위험도 + 실사)
 // ============================================================
 export type RiskLevel = 'critical' | 'high' | 'medium' | 'low';
-export type FeocStatus = 'eligible' | 'ineligible' | 'under_review' | 'unknown';
 export type AuditType = 'on_site' | 'remote' | 'document_review' | 'third_party';
 export type AuditResult = 'pass' | 'conditional_pass' | 'fail' | 'pending';
 
@@ -494,11 +491,6 @@ export interface SupplierRiskProfile {
   supplierId: string;
   overallRiskScore: number;     // 0-100 (높을수록 위험)
   riskLevel: RiskLevel;
-  feocStatus: FeocStatus;
-  feocDirectOwnership?: number; // 직접 지분율 %
-  feocIndirectOwnership?: number; // 간접 지분율 %
-  feocLastAssessedAt?: string;
-  feocCertExpiry?: string;
   isHighRiskFlag: boolean;      // 고위험 플래그
   highRiskReasons: string[];    // 고위험 사유
   auditRecords: AuditRecord[];
@@ -512,8 +504,6 @@ export const supplierRiskProfiles: SupplierRiskProfile[] = [
   {
     supplierId: 'S-CELL-001',
     overallRiskScore: 18, riskLevel: 'low',
-    feocStatus: 'eligible', feocDirectOwnership: 0, feocIndirectOwnership: 2.1,
-    feocLastAssessedAt: '2026-03-15', feocCertExpiry: '2027-03-14',
     isHighRiskFlag: false, highRiskReasons: [],
     lastRiskReviewAt: '2026-04-10',
     auditRecords: [
@@ -538,8 +528,6 @@ export const supplierRiskProfiles: SupplierRiskProfile[] = [
   {
     supplierId: 'S-CAM-001',
     overallRiskScore: 22, riskLevel: 'low',
-    feocStatus: 'eligible', feocDirectOwnership: 0, feocIndirectOwnership: 0,
-    feocLastAssessedAt: '2026-02-20', feocCertExpiry: '2027-02-19',
     isHighRiskFlag: false, highRiskReasons: [],
     lastRiskReviewAt: '2026-03-05',
     auditRecords: [
@@ -554,19 +542,17 @@ export const supplierRiskProfiles: SupplierRiskProfile[] = [
     industrialAccidents: [],
   },
 
-  // S-CAM-002 Yantai Cathode — 중위험 (중국, FEOC 검토중)
+  // S-CAM-002 Yantai Cathode — 중위험 (중국)
   {
     supplierId: 'S-CAM-002',
     overallRiskScore: 58, riskLevel: 'medium',
-    feocStatus: 'under_review', feocDirectOwnership: 28.5, feocIndirectOwnership: 12.0,
-    feocLastAssessedAt: '2026-01-15', feocCertExpiry: undefined,
     isHighRiskFlag: true,
-    highRiskReasons: ['FEOC 직접 지분율 25% 초과 (28.5%)', '중국 국영기업 간접 지분 확인 필요', '광물 추적 시스템 미구축'],
+    highRiskReasons: ['중국 국영기업 간접 지분 확인 필요', '광물 추적 시스템 미구축'],
     lastRiskReviewAt: '2026-02-08',
     auditRecords: [
       { auditId: 'AUD-CAM-002', supplierId: 'S-CAM-002', auditDate: '2025-10-20',
         auditType: 'document_review', auditor: 'KPMG China',
-        auditScope: 'FEOC 지분 구조 검토',
+        auditScope: '지분 구조 검토',
         result: 'conditional_pass',
         findings: ['국영기업 간접 출자 경로 불명확', '공급망 원산지 추적 불완전'],
         correctiveActions: ['지분 구조도 제출 (2026-04-30까지)', '광물 추적 시스템 도입 계획 수립'],
@@ -586,8 +572,6 @@ export const supplierRiskProfiles: SupplierRiskProfile[] = [
   {
     supplierId: 'S-ANO-001',
     overallRiskScore: 15, riskLevel: 'low',
-    feocStatus: 'eligible', feocDirectOwnership: 0, feocIndirectOwnership: 0,
-    feocLastAssessedAt: '2026-03-01', feocCertExpiry: '2027-02-28',
     isHighRiskFlag: false, highRiskReasons: [],
     lastRiskReviewAt: '2026-03-15',
     auditRecords: [
@@ -605,10 +589,8 @@ export const supplierRiskProfiles: SupplierRiskProfile[] = [
   {
     supplierId: 'S-PRE-001',
     overallRiskScore: 52, riskLevel: 'medium',
-    feocStatus: 'under_review', feocDirectOwnership: 15.0, feocIndirectOwnership: 8.5,
-    feocLastAssessedAt: '2025-12-10', feocCertExpiry: undefined,
     isHighRiskFlag: false,
-    highRiskReasons: ['FEOC 지분 검토 진행 중', '제3자 검증 보고서 미제출', '코발트 원료 출처 불명확'],
+    highRiskReasons: ['제3자 검증 보고서 미제출', '코발트 원료 출처 불명확'],
     lastRiskReviewAt: '2026-01-20',
     auditRecords: [
       { auditId: 'AUD-PRE-001', supplierId: 'S-PRE-001', auditDate: '2025-11-05',
@@ -627,8 +609,6 @@ export const supplierRiskProfiles: SupplierRiskProfile[] = [
   {
     supplierId: 'S-REF-001',
     overallRiskScore: 20, riskLevel: 'low',
-    feocStatus: 'eligible', feocDirectOwnership: 0, feocIndirectOwnership: 0,
-    feocLastAssessedAt: '2026-02-10', feocCertExpiry: '2027-02-09',
     isHighRiskFlag: false, highRiskReasons: [],
     lastRiskReviewAt: '2026-03-01',
     auditRecords: [
@@ -650,31 +630,27 @@ export const supplierRiskProfiles: SupplierRiskProfile[] = [
     ],
   },
 
-  // S-REF-002 Ganzhou Rare Metals — 고위험 (중국, FEOC, 인권)
+  // S-REF-002 Ganzhou Rare Metals — 고위험 (중국, 인권)
   {
     supplierId: 'S-REF-002',
     overallRiskScore: 78, riskLevel: 'high',
-    feocStatus: 'ineligible', feocDirectOwnership: 41.2, feocIndirectOwnership: 18.5,
-    feocLastAssessedAt: '2025-11-20', feocCertExpiry: undefined,
     isHighRiskFlag: true,
     highRiskReasons: [
-      'FEOC 부적격 — 중국 국영기업 직접 지분 41.2%',
+      '중국 국영기업 직접 지분 41.2%',
       'ISO 14001 인증 만료 (2026-04-09)',
       '데이터 완성도 57.7% (임계치 미달)',
-      'FEOC 지분 공시 미이행',
       '광물 추적 시스템 미구축',
     ],
     lastRiskReviewAt: '2026-01-10',
     auditRecords: [
       { auditId: 'AUD-REF-002', supplierId: 'S-REF-002', auditDate: '2025-09-08',
         auditType: 'document_review', auditor: '한양셀 ESG팀',
-        auditScope: 'FEOC 지분 구조 + 환경 인증 현황',
+        auditScope: '지분 구조 + 환경 인증 현황',
         result: 'fail',
         findings: ['중국 국영기업 지분 41.2% 확인', 'ISO 14001 갱신 미이행', 'CSR 보고서 3년째 미발행'],
         correctiveActions: [
           'ISO 14001 재인증 취득 (2026-09-30까지)',
           'CSR 보고서 발행 (2026-12-31까지)',
-          'FEOC 지분 공시 문서 제출 즉시',
         ],
         nextAuditDue: '2026-06-08' },
     ],
@@ -701,8 +677,6 @@ export const supplierRiskProfiles: SupplierRiskProfile[] = [
   {
     supplierId: 'S-MINE-001',
     overallRiskScore: 44, riskLevel: 'medium',
-    feocStatus: 'eligible', feocDirectOwnership: 0, feocIndirectOwnership: 0,
-    feocLastAssessedAt: '2026-01-08', feocCertExpiry: '2027-01-07',
     isHighRiskFlag: false,
     highRiskReasons: ['광산 폴리곤 좌표 미제출', '환경영향평가 갱신 지연', '지역 커뮤니티 합의서 미확보'],
     lastRiskReviewAt: '2026-02-14',
@@ -734,15 +708,12 @@ export const supplierRiskProfiles: SupplierRiskProfile[] = [
   {
     supplierId: 'S-MINE-002',
     overallRiskScore: 88, riskLevel: 'critical',
-    feocStatus: 'unknown', feocDirectOwnership: undefined, feocIndirectOwnership: undefined,
-    feocLastAssessedAt: '2025-06-10',
     isHighRiskFlag: true,
     highRiskReasons: [
       'DRC 분쟁광물 고위험 지역 (카탕가)',
       '아동노동 감사 미완료',
       'Bettercoal 인증 갱신 지연',
       '데이터 완성도 59.1% (임계치 미달)',
-      'FEOC 지분 구조 미파악',
       'EITI 공시 미이행',
       'NGO 인권 침해 보고서 2건',
     ],
@@ -789,8 +760,6 @@ export const supplierRiskProfiles: SupplierRiskProfile[] = [
   {
     supplierId: 'S-MINE-003',
     overallRiskScore: 28, riskLevel: 'low',
-    feocStatus: 'eligible', feocDirectOwnership: 0, feocIndirectOwnership: 0,
-    feocLastAssessedAt: '2026-02-25', feocCertExpiry: '2027-02-24',
     isHighRiskFlag: false,
     highRiskReasons: ['지하수 사용량 보고 지연 (칠레 환경부 요구)'],
     lastRiskReviewAt: '2026-03-10',
@@ -819,7 +788,6 @@ export type OriginCertType =
   | 'FTA'           // FTA 원산지 증명서
   | 'GSP'           // 일반특혜관세 원산지 증명서
   | 'UFLPA_REBUTTAL'// UFLPA 반증용
-  | 'IRA_ORIGIN'    // IRA 원산지 적격 증명
   | 'CONFLICT_FREE' // 분쟁광물 無분쟁 선언
   | 'GENERAL';      // 일반 원산지 증명
 
@@ -839,17 +807,13 @@ export interface OriginCertificate {
 }
 
 export const originCertificates: OriginCertificate[] = [
-  { certId: 'OC-001', supplierId: 'S-CELL-001', factoryId: 'F-002', certType: 'IRA_ORIGIN', certNumber: 'IRA-KR-2025-001', issuingAuthority: '산업통상자원부', issuedAt: '2025-06-01', expiresAt: '2026-05-31', originCountry: 'KR', status: 'expiring_soon' },
   { certId: 'OC-002', supplierId: 'S-CELL-001', factoryId: 'F-003', certType: 'FTA', certNumber: 'FTA-KR-EU-2025-088', issuingAuthority: '대한상공회의소', issuedAt: '2025-01-15', expiresAt: '2026-01-14', originCountry: 'KR', status: 'expired' },
   { certId: 'OC-003', supplierId: 'S-CAM-001',  factoryId: 'F-005', certType: 'FTA', certNumber: 'FTA-KR-EU-2026-012', issuingAuthority: '포항상공회의소', issuedAt: '2026-01-10', expiresAt: '2027-01-09', originCountry: 'KR', status: 'valid' },
-  { certId: 'OC-004', supplierId: 'S-CAM-001',  factoryId: 'F-006', certType: 'IRA_ORIGIN', certNumber: 'IRA-KR-2025-022', issuingAuthority: '산업통상자원부', issuedAt: '2025-08-01', expiresAt: '2026-07-31', originCountry: 'KR', status: 'valid' },
   { certId: 'OC-005', supplierId: 'S-CAM-002',  factoryId: 'F-008', certType: 'UFLPA_REBUTTAL', certNumber: 'CBP-CN-2025-YT-001', issuingAuthority: 'CBP (US Customs)', issuedAt: '2025-05-15', expiresAt: '2026-05-14', originCountry: 'CN', status: 'expiring_soon', coveredMinerals: ['니켈', '리튬'] },
   { certId: 'OC-006', supplierId: 'S-PRE-001',  factoryId: 'F-012', certType: 'CONFLICT_FREE', certNumber: 'CMRT-QZ-2026-001', issuingAuthority: 'RMI (Responsible Minerals Initiative)', issuedAt: '2026-02-01', expiresAt: '2027-01-31', originCountry: 'CN', status: 'valid', coveredMinerals: ['코발트', '니켈', '망간'] },
-  { certId: 'OC-007', supplierId: 'S-REF-001',  factoryId: 'F-014', certType: 'IRA_ORIGIN', certNumber: 'IRA-AU-2025-008', issuingAuthority: 'Australian DIT', issuedAt: '2025-09-01', expiresAt: '2026-08-31', originCountry: 'AU', status: 'valid', coveredMinerals: ['리튬'] },
   { certId: 'OC-008', supplierId: 'S-REF-002',  factoryId: 'F-015', certType: 'UFLPA_REBUTTAL', certNumber: 'CBP-CN-2024-GZ-003', issuingAuthority: 'CBP (US Customs)', issuedAt: '2024-11-01', expiresAt: '2025-10-31', originCountry: 'CN', status: 'expired', coveredMinerals: ['코발트'] },
   { certId: 'OC-009', supplierId: 'S-MINE-001', factoryId: 'F-016', certType: 'CONFLICT_FREE', certNumber: 'RMAP-ID-2025-NC-011', issuingAuthority: 'RMI RMAP', issuedAt: '2025-11-01', expiresAt: '2026-10-31', originCountry: 'ID', status: 'valid', coveredMinerals: ['니켈'] },
   { certId: 'OC-010', supplierId: 'S-MINE-002', factoryId: 'F-017', certType: 'CONFLICT_FREE', certNumber: 'RMAP-CD-2024-CO-008', issuingAuthority: 'RMI RMAP', issuedAt: '2024-06-15', expiresAt: '2025-06-14', originCountry: 'CD', status: 'expired', coveredMinerals: ['코발트'] },
-  { certId: 'OC-011', supplierId: 'S-MINE-003', factoryId: 'F-018', certType: 'IRA_ORIGIN', certNumber: 'IRA-CL-2025-014', issuingAuthority: 'Servicio Nacional de Aduanas (Chile)', issuedAt: '2025-10-01', expiresAt: '2026-09-30', originCountry: 'CL', status: 'valid', coveredMinerals: ['리튬'] },
 ];
 
 export function getOriginCertificates(supplierId: string): OriginCertificate[] {
@@ -997,9 +961,9 @@ export const supplierCompleteness: DataCompleteness[] = [
   { supplierId: 'S-ANO-001',  requiredFieldCount: 24, filledFieldCount: 24, completionRate: 100,  missingFields: [],                                                                   lastUpdatedAt: '2026-05-05 10:14' },
   { supplierId: 'S-PRE-001',  requiredFieldCount: 24, filledFieldCount: 18, completionRate: 75.0, missingFields: ['제조공정도', '원료 출처 코발트', '단가 (최신)', '제3자 검증 보고서'], lastUpdatedAt: '2026-05-08 13:50' },
   { supplierId: 'S-REF-001',  requiredFieldCount: 26, filledFieldCount: 25, completionRate: 96.2, missingFields: ['Scope 3 배출량'],                                                   lastUpdatedAt: '2026-05-09 11:02' },
-  { supplierId: 'S-REF-002',  requiredFieldCount: 26, filledFieldCount: 15, completionRate: 57.7, missingFields: ['ISO 14001 갱신', '제조공정도', 'FEOC 지분 공시', '광물 추적', '제3자 검증', 'CSR 보고서'], lastUpdatedAt: '2026-04-28 09:40' },
+  { supplierId: 'S-REF-002',  requiredFieldCount: 26, filledFieldCount: 15, completionRate: 57.7, missingFields: ['ISO 14001 갱신', '제조공정도', '광물 추적', '제3자 검증', 'CSR 보고서'], lastUpdatedAt: '2026-04-28 09:40' },
   { supplierId: 'S-MINE-001', requiredFieldCount: 22, filledFieldCount: 18, completionRate: 81.8, missingFields: ['광산 폴리곤 좌표', '환경영향평가 갱신', '커뮤니티 합의서', '광권 갱신'],  lastUpdatedAt: '2026-05-09 11:02' },
-  { supplierId: 'S-MINE-002', requiredFieldCount: 22, filledFieldCount: 13, completionRate: 59.1, missingFields: ['Bettercoal 인증', '아동노동 감사', 'FEOC 지분', '광권 갱신', 'EITI 공시', '커뮤니티 합의서', 'NGO 감사', '광산 폴리곤', 'EIA 보고서'], lastUpdatedAt: '2026-04-28 09:40' },
+  { supplierId: 'S-MINE-002', requiredFieldCount: 22, filledFieldCount: 13, completionRate: 59.1, missingFields: ['Bettercoal 인증', '아동노동 감사', '광권 갱신', 'EITI 공시', '커뮤니티 합의서', 'NGO 감사', '광산 폴리곤', 'EIA 보고서'], lastUpdatedAt: '2026-04-28 09:40' },
   { supplierId: 'S-MINE-003', requiredFieldCount: 22, filledFieldCount: 21, completionRate: 95.5, missingFields: ['지하수 사용량 보고'],                                               lastUpdatedAt: '2026-05-10 08:55' },
 ];
 
@@ -1023,7 +987,7 @@ export const remindLogs: RemindLog[] = [
   { logId: 'RL-001', supplierId: 'S-CAM-002', contactId: 'C-007', requestType: 'initial',  requestedField: 'IRMA 인증서',       sentAt: '2026-03-01 09:00', dueDate: '2026-03-31', status: 'opened' },
   { logId: 'RL-002', supplierId: 'S-CAM-002', contactId: 'C-007', requestType: 'remind_1', requestedField: 'IRMA 인증서',       sentAt: '2026-04-01 09:00', dueDate: '2026-04-15', status: 'overdue' },
   { logId: 'RL-003', supplierId: 'S-PRE-001', contactId: 'C-011', requestType: 'initial',  requestedField: '제조공정도',         sentAt: '2026-03-15 10:00', dueDate: '2026-04-15', status: 'in_progress' },
-  { logId: 'RL-004', supplierId: 'S-REF-002', contactId: 'C-014', requestType: 'final',    requestedField: 'FEOC 지분 공시',    sentAt: '2026-04-20 14:00', dueDate: '2026-05-05', status: 'overdue' },
+  { logId: 'RL-004', supplierId: 'S-REF-002', contactId: 'C-014', requestType: 'final',    requestedField: '제3자 검증 보고서', sentAt: '2026-04-20 14:00', dueDate: '2026-05-05', status: 'overdue' },
   { logId: 'RL-005', supplierId: 'S-MINE-002', contactId: 'C-016', requestType: 'initial', requestedField: '아동노동 감사 보고서', sentAt: '2026-02-10 09:00', dueDate: '2026-04-30', status: 'overdue' },
   { logId: 'RL-006', supplierId: 'S-MINE-002', contactId: 'C-016', requestType: 'remind_2', requestedField: '아동노동 감사 보고서', sentAt: '2026-05-01 09:00', dueDate: '2026-05-20', status: 'sent' },
 ];

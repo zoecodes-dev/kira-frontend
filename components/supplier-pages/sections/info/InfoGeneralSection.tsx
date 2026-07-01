@@ -97,7 +97,7 @@ function ProviderTypeDetails({
         {isLowDisclosure && (
           <div className="mt-3 flex items-center gap-1.5 text-[11px] text-warn-text">
             <AlertCircle className="w-3 h-3 shrink-0" />
-            공개율 75% 미만입니다. FEOC gray-zone 및 규제 대응 보완 항목으로 표시됩니다.
+            공개율 75% 미만입니다. 규제 대응 보완 항목으로 표시됩니다.
           </div>
         )}
       </div>

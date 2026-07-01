@@ -1,9 +1,9 @@
 // 공급망 맵 허브와 협력사 포털이 공유하는 제품/BOM/공급망 mock 데이터·타입·순수 헬퍼 모듈
 // (제품/BOM/맵엣지/비율은 백엔드 엔드포인트가 없어 로컬 mock 으로 유지한다. 협력사 상세는 lib/api 사용.)
-import { AlertTriangle, CheckCircle2, Clock, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import type { ApiProduct, ApiProductBom, ApiBomVersionListItem, ApiProductSupplyChainMap } from '@/lib/api';
 
-export type RiskStatus = 'verified' | 'watch' | 'high' | 'feoc_review' | 'audit_required';
+export type RiskStatus = 'verified' | 'watch' | 'high' | 'audit_required';
 export type PartKind = 'component' | 'material' | 'mineral';
 export type NodeType = 'product' | 'part' | 'material' | 'supplier';
 
@@ -69,7 +69,6 @@ export interface MockSupplier {
   parent_supplier_id: string | null;
   status: string;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
-  feoc_status: 'eligible' | 'ineligible' | 'under_review' | 'unknown';
   latest_audit_result: string;
   // 협력사 입력 완성도(0~100). §10.2a completenessScore. 공급망 진행 상태 판정에 사용.
   completeness_score?: number;
@@ -135,7 +134,6 @@ export interface TraceRow {
   supply_ratio: number;
   risk_status: RiskStatus;
   description: string;
-  feoc_status: MockSupplier['feoc_status'];
   risk_level: MockSupplier['risk_level'];
   latest_audit_result: string;
   provider_type: MockSupplier['provider_type'];
@@ -199,7 +197,7 @@ export const products: Product[] = [
       shipment_info: '2026-05 출고 LOT / F-003 Cell Line / EU 제출 대상',
       mineral_composition: 'Ni 21.6%, Co 12.8%, Li 8.4%',
       hazardous_substances: 'SVHC 기준 초과 없음 / CoSO4 별도 실사 필요',
-      regulation_status: 'feoc_review',
+      regulation_status: 'high',
     },
     source_system: 'ERP_PLM',
     external_id: 'ERP-PROD-2026-04982',
@@ -344,12 +342,12 @@ export const supplierDetailIdMap: Record<string, string> = {
 };
 
 export const suppliers: MockSupplier[] = [
-  { supplier_id: 'sup-hanyang-cell', company_name: 'EcoBattery Co., Ltd.', company_name_en: 'EcoBattery Co., Ltd.', provider_type: 'manufacturer', tier: 1, parent_supplier_id: null, status: 'supplier_verified', risk_level: 'low', feoc_status: 'eligible', latest_audit_result: '2026-05 문서 검토 완료' },
-  { supplier_id: 'sup-pos-cathode', company_name: 'Eco Materials Co., Ltd.', company_name_en: 'Eco Materials Co., Ltd.', provider_type: 'manufacturer', tier: 2, parent_supplier_id: 'sup-hanyang-cell', status: 'supplier_verified', risk_level: 'low', feoc_status: 'eligible', latest_audit_result: '2026-05 현장 실사 적합' },
-  { supplier_id: 'sup-pohang-refining', company_name: 'Livent Corporation', company_name_en: 'Livent Corporation', provider_type: 'manufacturer', tier: 3, parent_supplier_id: 'sup-pos-cathode', status: 'supplier_verified', risk_level: 'low', feoc_status: 'eligible', latest_audit_result: '2026-04 RMI 증빙 확인' },
-  { supplier_id: 'sup-ganzhou-rare', company_name: 'Zhejiang Cobalt Co., Ltd.', company_name_en: 'Zhejiang Cobalt Co., Ltd.', provider_type: 'manufacturer', tier: 3, parent_supplier_id: 'sup-pos-cathode', status: 'supplier_requested', risk_level: 'high', feoc_status: 'under_review', latest_audit_result: 'FEOC 소유구조 보완 요청' },
-  { supplier_id: 'sup-katanga-cobalt', company_name: 'DRC Mining Co.', company_name_en: 'DRC Mining Co.', provider_type: 'miner', tier: 4, parent_supplier_id: 'sup-ganzhou-rare', status: 'supplier_review', risk_level: 'critical', feoc_status: 'unknown', latest_audit_result: '인권 실사 보고서 갱신 필요' },
-  { supplier_id: 'sup-sulawesi-nickel', company_name: 'PT Vale Indonesia', company_name_en: 'PT Vale Indonesia', provider_type: 'miner', tier: 4, parent_supplier_id: 'sup-ganzhou-rare', status: 'supplier_review', risk_level: 'medium', feoc_status: 'eligible', latest_audit_result: '환경 인증 유효기간 확인 필요' },
+  { supplier_id: 'sup-hanyang-cell', company_name: 'EcoBattery Co., Ltd.', company_name_en: 'EcoBattery Co., Ltd.', provider_type: 'manufacturer', tier: 1, parent_supplier_id: null, status: 'supplier_verified', risk_level: 'low', latest_audit_result: '2026-05 문서 검토 완료' },
+  { supplier_id: 'sup-pos-cathode', company_name: 'Eco Materials Co., Ltd.', company_name_en: 'Eco Materials Co., Ltd.', provider_type: 'manufacturer', tier: 2, parent_supplier_id: 'sup-hanyang-cell', status: 'supplier_verified', risk_level: 'low', latest_audit_result: '2026-05 현장 실사 적합' },
+  { supplier_id: 'sup-pohang-refining', company_name: 'Livent Corporation', company_name_en: 'Livent Corporation', provider_type: 'manufacturer', tier: 3, parent_supplier_id: 'sup-pos-cathode', status: 'supplier_verified', risk_level: 'low', latest_audit_result: '2026-04 RMI 증빙 확인' },
+  { supplier_id: 'sup-ganzhou-rare', company_name: 'Zhejiang Cobalt Co., Ltd.', company_name_en: 'Zhejiang Cobalt Co., Ltd.', provider_type: 'manufacturer', tier: 3, parent_supplier_id: 'sup-pos-cathode', status: 'supplier_requested', risk_level: 'high', latest_audit_result: '소유구조 보완 요청' },
+  { supplier_id: 'sup-katanga-cobalt', company_name: 'DRC Mining Co.', company_name_en: 'DRC Mining Co.', provider_type: 'miner', tier: 4, parent_supplier_id: 'sup-ganzhou-rare', status: 'supplier_review', risk_level: 'critical', latest_audit_result: '인권 실사 보고서 갱신 필요' },
+  { supplier_id: 'sup-sulawesi-nickel', company_name: 'PT Vale Indonesia', company_name_en: 'PT Vale Indonesia', provider_type: 'miner', tier: 4, parent_supplier_id: 'sup-ganzhou-rare', status: 'supplier_review', risk_level: 'medium', latest_audit_result: '환경 인증 유효기간 확인 필요' },
 ];
 
 export const supplier_factories: MockSupplierFactory[] = [
@@ -383,12 +381,11 @@ export const statusMeta: Record<RiskStatus, { label: string; className: string; 
   verified: { label: '검증완료', className: 'border-emerald-200 bg-emerald-50 text-emerald-700', Icon: CheckCircle2 },
   watch: { label: '주의', className: 'border-amber-200 bg-amber-50 text-amber-700', Icon: Clock },
   high: { label: '고위험', className: 'border-red-200 bg-red-50 text-red-700', Icon: AlertTriangle },
-  feoc_review: { label: 'FEOC 검토', className: 'border-red-200 bg-red-50 text-red-700', Icon: ShieldAlert },
   audit_required: { label: '실사 필요', className: 'border-red-200 bg-red-50 text-red-700', Icon: AlertTriangle },
 };
 
 export function getRiskTone(status: RiskStatus): 'normal' | 'warning' | 'danger' {
-  if (status === 'high' || status === 'feoc_review' || status === 'audit_required') return 'danger';
+  if (status === 'high' || status === 'audit_required') return 'danger';
   if (status === 'watch') return 'warning';
   return 'normal';
 }
@@ -424,12 +421,7 @@ export function getToneClasses(tone: 'normal' | 'warning' | 'danger') {
   };
 }
 
-export function isFeocUnderReview(value: string) {
-  return value === 'under_review' || value === 'ineligible' || value === 'violation' || value === 'blocked';
-}
-
 export function getRiskStatus(supplier: MockSupplier, mapRow: SupplyChainMapRow): RiskStatus {
-  if (supplier.feoc_status === 'under_review') return 'feoc_review';
   if (supplier.risk_level === 'critical') return 'audit_required';
   if (supplier.risk_level === 'high') return 'high';
   if (supplier.risk_level === 'medium' || mapRow.verification_status === 'unverified') return 'watch';
@@ -460,20 +452,20 @@ export function getMaterialLabel(part: Part) {
 
 export function getApplicableRules(rowStatus: RiskStatus, country: string) {
   const rules = ['EU Battery Regulation'];
-  if (country === 'CN' || rowStatus === 'feoc_review') rules.push('IRA FEOC');
+  if (country === 'CN' || rowStatus === 'audit_required') rules.push('UFLPA');
   if (country === 'CD') rules.push('OECD 광물 실사');
   return rules.join(', ');
 }
 
 export function getMissingDocuments(status: RiskStatus) {
-  if (status === 'feoc_review') return '필수 문서 누락 2건';
+  if (status === 'high') return '필수 문서 누락 2건';
   if (status === 'audit_required') return '실사 보고서 갱신 필요';
   if (status === 'watch') return '증빙 보완 1건';
   return '누락 없음';
 }
 
 export function getCertificateStatus(status: RiskStatus) {
-  if (status === 'feoc_review') return '원산지/소유구조 인증서 검토 중';
+  if (status === 'high') return '원산지/소유구조 인증서 검토 중';
   if (status === 'audit_required') return '인권 실사 인증서 만료 임박';
   if (status === 'watch') return '인증서 보완 요청';
   return '인증서 유효';
@@ -482,7 +474,7 @@ export function getCertificateStatus(status: RiskStatus) {
 export function getVerificationProgress(status: RiskStatus) {
   if (status === 'verified') return '100%';
   if (status === 'watch') return '72%';
-  if (status === 'feoc_review') return '48%';
+  if (status === 'high') return '48%';
   return '35%';
 }
 
@@ -553,7 +545,6 @@ export function buildTraceRows(ds: SupplyChainDataset, bomVersionId: string, per
             supply_ratio: ratio.ratio_percentage,
             risk_status: riskStatus,
             description: `${part.function_purpose} / ${bomItem.required_quantity}${bomItem.required_quantity_unit} / BOM ${bomItem.percentage}%`,
-            feoc_status: supplier.feoc_status,
             risk_level: supplier.risk_level,
             latest_audit_result: supplier.latest_audit_result,
             provider_type: supplier.provider_type,
@@ -1085,7 +1076,6 @@ export function mergeSupplyChainMap(
     parent_supplier_id: null,
     status: s.status ?? '',
     risk_level: (s.riskLevel as MockSupplier['risk_level']) ?? 'low',
-    feoc_status: (s.feocStatus as MockSupplier['feoc_status']) ?? 'unknown',
     latest_audit_result: '',
     completeness_score: s.completenessScore ?? undefined,
   }));
