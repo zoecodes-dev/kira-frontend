@@ -1,14 +1,13 @@
 'use client';
 
 // 협력사 입력 현황 개요 보드 — 협력사별 입력률·누락·상태를 한눈에 본다.
-// 실 백엔드(getSuppliers + getSupplierCompleteness)로 채우고, 인증/네트워크 실패 시 mock 폴백.
+// 실 백엔드(getSuppliers + getSupplierCompleteness)로만 채운다. 실패 시 mock 없이 에러 상태 표시.
+// (과거 mock 폴백은 가짜 ID/가짜 100%로 공통 모달을 깨뜨려 제거함.)
 // /suppliers/check-info(인덱스)와 My Task 탭에서 공용 사용. embedded=true면 페이지 래퍼 생략.
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { ChevronRight, Send } from 'lucide-react';
-import { suppliers as mockSuppliers } from '@/lib/data';
-import { getRemindLogs, getSupplierName, supplierCompleteness } from '@/lib/supplier-detail-data';
 import { getSuppliers, getSupplierCompleteness, type ProviderType } from '@/lib/api';
 import SupplierInfoModal from './SupplierInfoModal';
 
@@ -41,35 +40,9 @@ function fmt(ts: string | null | undefined) {
   return ts ? ts.slice(0, 16).replace('T', ' ') : '-';
 }
 
-// mock 폴백 행 — 기존 mock 데이터 기반.
-function buildMockRows(): BoardRow[] {
-  return supplierCompleteness
-    .map(item => {
-      const supplier = mockSuppliers.find(s => s.id === item.supplierId);
-      const name = getSupplierName(item.supplierId);
-      const reminders = getRemindLogs(item.supplierId);
-      const missingCount = item.missingFields.length;
-      const status = reminders.length >= 2 && missingCount > 0
-        ? { label: '보완 지연', className: 'border-alert-border bg-alert-bg text-alert-text' }
-        : statusMeta(item.completionRate, missingCount);
-      return {
-        supplierId: item.supplierId,
-        name: name?.nameEn ?? supplier?.name ?? item.supplierId,
-        sub: name?.nameKo ?? item.supplierId,
-        typeLabel: supplier ? `T${supplier.tier} · ${supplier.country ?? '-'}` : '-',
-        hasData: true,
-        completionRate: item.completionRate,
-        missingFields: item.missingFields,
-        status,
-        lastUpdated: fmt(item.lastUpdatedAt),
-      };
-    })
-    .sort((a, b) => (b.missingFields.length - a.missingFields.length) || (a.completionRate - b.completionRate));
-}
-
 export default function SupplierInputStatusBoard({ embedded = false }: { embedded?: boolean }) {
   const [rows, setRows] = useState<BoardRow[] | null>(null);
-  const [isMock, setIsMock] = useState(false);
+  const [error, setError] = useState(false);
   // 협력사 클릭 → 단일 공유 폼을 인라인 모달로(상세 페이지 이탈 X, 닫으면 목록 복귀).
   const [active, setActive] = useState<{ supplierId: string; supplierName: string; openRequest: boolean } | null>(null);
 
@@ -103,9 +76,8 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
           (b.missingFields.length - a.missingFields.length) ||
           (a.completionRate - b.completionRate));
         setRows(real);
-        setIsMock(false);
       } catch {
-        if (!cancelled) { setRows(buildMockRows()); setIsMock(true); }
+        if (!cancelled) { setRows([]); setError(true); }
       }
     })();
     return () => { cancelled = true; };
@@ -155,7 +127,7 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
           <div>
             <h2 className="text-sm font-semibold text-ink-100">작성중인 협력사</h2>
             <p className="mt-0.5 text-xs text-ink-500">
-              평균 입력률 {avgRate}% · 누락 항목이 많은 순으로 정렬{isMock && ' · (데모 데이터)'}
+              평균 입력률 {avgRate}% · 누락 항목이 많은 순으로 정렬
             </p>
           </div>
           <div className="text-xs font-medium text-ink-500">협력사명 또는 버튼을 누르면 정보 창이 열립니다.</div>
@@ -175,7 +147,9 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
                 <tr><td colSpan={7} className="px-4 py-12 text-center text-xs text-ink-500">불러오는 중…</td></tr>
               )}
               {rows !== null && data.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-xs text-ink-500">표시할 협력사가 없습니다.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-xs text-ink-500">
+                  {error ? '협력사 정보를 불러오지 못했습니다. 로그인/백엔드 연결을 확인해주세요.' : '표시할 협력사가 없습니다.'}
+                </td></tr>
               )}
               {data.map(row => {
                 const visibleMissing = row.missingFields.slice(0, 2);

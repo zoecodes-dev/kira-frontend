@@ -43,7 +43,7 @@ const MOCK_NOTIFICATIONS: Notification[] = [
     body: '환경영향평가 갱신본이 기준을 충족하지 않아 반려되었습니다. 시정 완료 회신 폼을 제출해 주세요.',
     status: 'pending',
     created_at: '2026-06-07T14:20:00Z',
-    deep_link: 'submission-status',
+    deep_link: 'company-info',
   },
   {
     notification_id: 'notif-003',
