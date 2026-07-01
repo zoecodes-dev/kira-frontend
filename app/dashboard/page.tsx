@@ -63,12 +63,9 @@ const supplierStatusMeta = {
 const DB_STAGE_UI: Record<string, string> = {
   stage_queued: 'queued',
   stage_extraction: 'extraction',
-  stage_verification: 'verification',
   stage_geo: 'geo-analysis',
   stage_compliance: 'compliance',
   stage_risk: 'compliance',
-  stage_readiness: 'readiness',
-  stage_issuance: 'action',
 };
 
 interface UiBatch {
@@ -213,8 +210,8 @@ function DashboardSupplyChainMap() {
 
   const regulationBySupplier: Record<string, string> = {
     'S-MINE-002': 'OECD 광물 실사',
-    'S-REF-002':  'IRA FEOC',
-    'S-CAM-002':  'IRA FEOC',
+    'S-REF-002':  'UFLPA',
+    'S-CAM-002':  'CSDDD 실사',
     'S-PRE-001':  'EU 배터리법 Art.47',
     'S-MINE-001': 'EU Battery Regulation',
   };
@@ -233,7 +230,7 @@ function DashboardSupplyChainMap() {
         country: sup?.country ?? '',
         risk: r.riskLevel,
         issue: r.highRiskReasons[0] ?? '위험 요인 검토 필요',
-        type: regulationBySupplier[r.supplierId] ?? (r.feocStatus !== 'eligible' ? 'IRA FEOC' : 'EU 배터리법'),
+        type: regulationBySupplier[r.supplierId] ?? 'EU 배터리법',
       };
     });
 
@@ -413,7 +410,6 @@ export default function DashboardPage() {
     verdictSeverity(v) >= 2 ? 'text-alert-text' : verdictSeverity(v) === 1 ? 'text-warn-text' : 'text-ink-500';
   // HITL 사유 칩(표시용). 시급도 랭킹 반영은 팀 상의 후 별도 결정 — 여기선 라벨만.
   const hitlReasonKo: Record<string, string> = {
-    feoc_violation: 'FEOC',
     geographical_risk: '지리 리스크',
     low_confidence: '저신뢰',
   };

@@ -304,7 +304,6 @@ export interface BatchDetail {
   currentStage: string;
   status: BatchStatusCode | string;
   confidenceScore: number | null;
-  readinessScore: number | null;
   receivedAt: string | null;
 }
 
@@ -478,7 +477,6 @@ export interface SupplierFactoriesResponse {
 export interface SupplierListParams {
   status?: SupplierStatusCode;
   riskLevel?: SupplierRiskLevel;
-  feocStatus?: SupplierFeocStatus;
   page?: number;
   size?: number;
 }
@@ -487,7 +485,6 @@ function buildSupplierQuery(params: SupplierListParams = {}): string {
   const q = new URLSearchParams();
   if (params.status) q.set("status", params.status);
   if (params.riskLevel) q.set("risk_level", params.riskLevel);
-  if (params.feocStatus) q.set("feoc_status", params.feocStatus);
   if (params.page != null) q.set("page", String(params.page));
   if (params.size != null) q.set("size", String(params.size));
   const s = q.toString();
@@ -719,8 +716,8 @@ export interface RegulationResult {
   verdict: string;            // passed / warning / violation / reject
   confidence: number | null;
   needsHumanReview: boolean;
-  // HITL/에스컬레이션 사유(시급도 랭킹용). feoc_violation·geographical_risk는 신뢰도-저하(low_confidence)보다 위.
-  hitlReason: 'feoc_violation' | 'geographical_risk' | 'low_confidence' | null;
+  // HITL/에스컬레이션 사유(시급도 랭킹용). geographical_risk는 신뢰도-저하(low_confidence)보다 위. (FEOC는 스코프 아웃)
+  hitlReason: 'geographical_risk' | 'low_confidence' | null;
   supplierRiskLevel: 'low' | 'medium' | 'high' | 'critical' | null;  // 협력사 상시 리스크 등급(시급도 신호)
   nearestDueDate: string | null;   // 가장 임박한 미이행 마감(ISO). D-day 배지용(마감은 위험과 별도 축)
   evidence: string[];
