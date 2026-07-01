@@ -867,7 +867,7 @@ export default function SupplierPage() {
   ];
   const guideItems = [
     { title: '광산 좌표 제출 가이드', detail: 'EUDR 검증용 폴리곤 좌표 형식' },
-    { title: 'FEOC 자료 작성법', detail: '원산지·소유구조 증빙 제출 기준' },
+    { title: '원산지 증빙 작성법', detail: '원산지 증명서 제출 기준' },
     { title: '탄소 배출 보고서 기준', detail: 'Scope 1/2/3 산정 근거 예시' },
   ];
   const reviewResults = [
@@ -995,7 +995,7 @@ export default function SupplierPage() {
               {risk ? riskLabel[risk.riskLevel] : '미확인'}
             </div>
             <div className="mt-3 text-[10px] text-ink-500">
-              {risk?.feocStatus === 'eligible' ? 'FEOC 적격' : 'FEOC 검토 필요'}
+              {risk?.isHighRiskFlag ? '고위험 플래그 검토 필요' : '추가 조치 없음'}
             </div>
           </div>
 
@@ -1599,7 +1599,7 @@ export default function SupplierPage() {
         {/* 푸터 — ai-parsing 전체화면 모드일 때 숨김 (작업 몰입도 확보) */}
         {activeView !== 'ai-parsing' && (
           <div className="rounded-sm border border-ink-700 bg-white p-4 text-xs leading-5 text-ink-500 shadow-control">
-            이 협력사 화면은 전체 공급망 구조, 다른 협력사의 상세 연락처, PO 단가 비교, FEOC 세부 판정 근거, 내부 HITL 판단 로그, 감사 추적 로그, 경쟁 협력사 비교 지표를 표시하지 않습니다.
+            이 협력사 화면은 전체 공급망 구조, 다른 협력사의 상세 연락처, PO 단가 비교, 내부 HITL 판단 로그, 감사 추적 로그, 경쟁 협력사 비교 지표를 표시하지 않습니다.
           </div>
         )}
           </div>

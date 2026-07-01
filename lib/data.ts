@@ -185,7 +185,6 @@ export const dailyProcessing = [
 // === 규제별 위반 분포 (v2 — 11개 규제) ===
 export const violationsByRegulation = [
   { regulation: 'UFLPA',              count: 12, percent: 38, region: 'US' },
-  { regulation: 'IRA/FEOC',           count: 8,  percent: 25, region: 'US' },
   { regulation: 'Conflict Minerals',  count: 7,  percent: 22, region: 'EU' },
   { regulation: 'EU 배터리법',         count: 6,  percent: 19, region: 'EU' },
   { regulation: 'CSDDD',              count: 5,  percent: 15, region: 'EU' },

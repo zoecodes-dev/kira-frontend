@@ -67,7 +67,7 @@ export default function StepReview({
     );
   }
 
-  const totalDocs = countDocs(materials.recyclingDocs, regulations.carbonDocs, regulations.feocDocs, regulations.auditDocs, regulations.originDocs);
+  const totalDocs = countDocs(materials.recyclingDocs, regulations.carbonDocs, regulations.auditDocs, regulations.originDocs);
 
   return (
     <div className="space-y-4">
@@ -80,7 +80,6 @@ export default function StepReview({
         <Row label="공장 수" value={materials.factories.length ? `${materials.factories.length}개` : ''} />
         <Row label="하위 자재" value={materials.childMaterials.filter(Boolean).join(', ')} />
         <Row label="탄소집약도" value={regulations.carbonIntensity} />
-        <Row label="지분율 (직접/간접)" value={regulations.directOwnershipPct || regulations.indirectOwnershipPct ? `${regulations.directOwnershipPct || '-'} / ${regulations.indirectOwnershipPct || '-'}` : ''} />
         <Row label="실사 판정" value={regulations.dueDiligenceVerdict} />
         <Row label="교육 이수율" value={regulations.trainingCompletionPct ? `${regulations.trainingCompletionPct}%` : ''} />
         <Row label="인증" value={regulations.certifications.filter(c => c.type).map(c => c.type).join(', ')} />

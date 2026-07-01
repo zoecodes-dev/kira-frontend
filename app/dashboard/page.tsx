@@ -384,7 +384,7 @@ export default function DashboardPage() {
     ? apiViolations.filter(r => r.citedClauses.some(c => c.includes('EU') || c.includes('EUDR') || c.includes('배터리'))).length
     : violationsByRegulation.filter(v => v.region === 'EU' || v.region === 'DE').reduce((s, v) => s + v.count, 0);
   const usViolations = apiViolations
-    ? apiViolations.filter(r => r.citedClauses.some(c => c.includes('IRA') || c.includes('UFLPA') || c.includes('US'))).length
+    ? apiViolations.filter(r => r.citedClauses.some(c => c.includes('UFLPA') || c.includes('US'))).length
     : violationsByRegulation.filter(v => v.region === 'US').reduce((s, v) => s + v.count, 0);
 
   // ── AI 규제 인사이트 집계 (per-건 compliance_results → 대시보드 집계 + 최우선 스포트라이트) ──
@@ -667,7 +667,7 @@ export default function DashboardPage() {
                   { time: '09:30', title: 'FSC 인증 만료 감지', desc: 'Ganzhou Rare Metals 증빙 보완 필요', tone: 'bg-ok-solid', pill: 'Ganzhou Rare' },
                   { time: '10:18', title: 'HITL 검토 대기', desc: 'Quzhou Precursor 원산지 증빙 검토', tone: 'bg-info-solid', pill: 'Quzhou' },
                   { time: '11:05', title: '리튬 정제 자료 추출 완료', desc: 'Pilbara Refining Works 자동 처리', tone: 'bg-purple-500', pill: 'Pilbara' },
-                  { time: '11:20', title: '고위험 지역 Alert 발생', desc: 'FEOC / UFLPA 교차 확인 필요', tone: 'bg-alert-solid', pill: 'Ganzhou' },
+                  { time: '11:20', title: '고위험 지역 Alert 발생', desc: 'UFLPA 교차 확인 필요', tone: 'bg-alert-solid', pill: 'Ganzhou' },
                   { time: '14:05', title: '공급망 변경 감지', desc: '신규 하위 공급업체 추가', tone: 'bg-warn-solid', pill: 'POS Cathode' },
                 ].map(item => (
                   <div key={`${item.time}-${item.title}`} className="flex gap-3 border-b border-ink-700/70 py-2.5 last:border-0">
@@ -703,7 +703,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="divide-y divide-ink-700 text-xs">
                   {[
-                    { country: 'CN', label: '중국·신장/간저우', risk: '고위험', reason: 'FEOC / UFLPA 검토', count: 12, change: '▲ 3', color: 'text-alert-text', dot: 'bg-alert-solid' },
+                    { country: 'CN', label: '중국·신장/간저우', risk: '고위험', reason: 'UFLPA 검토', count: 12, change: '▲ 3', color: 'text-alert-text', dot: 'bg-alert-solid' },
                     { country: 'CD', label: '콩고·카탕가', risk: '고위험', reason: '분쟁광물 실사 필요', count: 8, change: '▲ 1', color: 'text-alert-text', dot: 'bg-alert-solid' },
                     { country: 'ID', label: '인도네시아·술라웨시', risk: '중위험', reason: '니켈 원산지 보완', count: 5, change: '▼ 1', color: 'text-warn-text', dot: 'bg-warn-solid' },
                     { country: 'AU', label: '호주·필바라', risk: '저위험', reason: '리튬 정제 검증 완료', count: 3, change: '0', color: 'text-ok-text', dot: 'bg-ok-solid' },

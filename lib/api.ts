@@ -349,11 +349,6 @@ export type SupplierStatusCode =
   | "supplier_violation"
   | "supplier_suspended";
 export type SupplierRiskLevel = "low" | "medium" | "high" | "critical";
-export type SupplierFeocStatus =
-  | "eligible"
-  | "ineligible"
-  | "under_review"
-  | "unknown";
 
 // ── Brief (목록·단건 공통) ──────────────────────────────────
 export interface SupplierBrief {
@@ -396,7 +391,6 @@ export interface SupplierMinerDetail {
 }
 
 export interface SupplierDetail extends SupplierBrief {
-  feocStatus: SupplierFeocStatus;
   // 기업 기본정보 (suppliers 테이블 — 없으면 null)
   companyNameEn?: string | null;
   companyNameKo?: string | null;
@@ -426,7 +420,6 @@ export interface SupplierRiskProfileResponse {
   overallRiskScore: number;
   riskLevel: SupplierRiskLevel;
   selfReportedRiskLevel?: string | null;   // 실사 자가진단 결과(협력사 자가신고)
-  feocStatus: SupplierFeocStatus;
 }
 
 // ── 신뢰도(Reliability) ────────────────────────────────────
@@ -435,7 +428,6 @@ export interface SupplierReliabilityResponse {
   completenessScore: number | null;
   overallRiskScore: number | null;
   riskLevel: SupplierRiskLevel | null;
-  feocStatus: SupplierFeocStatus | null;
   isHighRiskFlag: boolean | null;
   lastRiskReviewAt: string | null;
   consentStatus: "consent_pending" | "consent_agreed" | "consent_rejected" | null;
@@ -721,7 +713,7 @@ export interface RegulationResult {
   supplierRiskLevel: 'low' | 'medium' | 'high' | 'critical' | null;  // 협력사 상시 리스크 등급(시급도 신호)
   nearestDueDate: string | null;   // 가장 임박한 미이행 마감(ISO). D-day 배지용(마감은 위험과 별도 축)
   evidence: string[];
-  citedClauses: string[];     // AI가 대조한 규제 조항(예: ["IRA FEOC"])
+  citedClauses: string[];     // AI가 대조한 규제 조항(예: ["UFLPA"])
   reasoningText: string | null; // AI 판단 근거(근거 자료↔조항 대조 결과)
 }
 export const getRegulationResults = () => api.get<RegulationResult[]>(`/regulation/materials/regulation-results`);
@@ -1157,7 +1149,6 @@ export interface ApiSupplyChainSupplier {
   providerType: ProviderType;
   status: string;
   riskLevel: SupplierRiskLevel | null;
-  feocStatus: SupplierFeocStatus | null;
   completenessScore: number | null;
 }
 export interface ApiSupplyChainFactory {

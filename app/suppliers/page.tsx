@@ -74,13 +74,6 @@ const riskMeta: Record<SupplierRiskLevel, { label: string; className: string }> 
   critical: { label: '최고위험', className: 'text-alert-text font-bold' },
 };
 
-const feocMeta: Record<string, { label: string; className: string }> = {
-  eligible: { label: 'FEOC 적격', className: 'text-ok-text' },
-  ineligible: { label: 'FEOC 부적격', className: 'text-alert-text' },
-  under_review: { label: 'FEOC 검토중', className: 'text-warn-text' },
-  unknown: { label: 'FEOC 미파악', className: 'text-ink-500' },
-};
-
 function completenessMeta(rate: number) {
   if (rate >= 100) return { label: '제출 완료', tone: 'info' as const, bar: 'bg-info-solid', text: 'text-info-text', filter: 'complete' as const };
   if (rate >= 80) return { label: '입력 중', tone: 'ok' as const, bar: 'bg-ok-solid', text: 'text-ok-text', filter: 'in_progress' as const };
@@ -103,7 +96,6 @@ function SupplierRow({ row }: { row: SupplierRowData }) {
   const { brief, reliability, primaryContact } = row;
   const status = statusMeta[brief.status] ?? statusMeta.supplier_pending;
   const riskLevel = riskMeta[brief.riskLevel] ?? riskMeta.low;
-  const feoc = reliability?.feocStatus ? feocMeta[reliability.feocStatus] : null;
   const rate = reliability?.completenessScore ?? 0;
   const progress = completenessMeta(rate);
   const slaOver = isSlaOverdue(reliability);
@@ -144,7 +136,6 @@ function SupplierRow({ row }: { row: SupplierRowData }) {
         <div className="space-y-1.5">
           <Badge tone={status.tone} dot>{status.label}</Badge>
           <div className={clsx('text-[11px] font-semibold', riskLevel.className)}>{riskLevel.label}</div>
-          {feoc && <div className={clsx('text-[11px]', feoc.className)}>{feoc.label}</div>}
         </div>
       </td>
 
@@ -399,7 +390,7 @@ export default function SuppliersPage() {
     <>
       <PageHeader
         title="협력사 목록"
-        description="제출 지연, 고위험, FEOC 상태를 함께 보며 오늘 조치할 협력사를 빠르게 선별합니다"
+        description="제출 지연, 고위험 상태를 함께 보며 오늘 조치할 협력사를 빠르게 선별합니다"
         badge="운영 관제"
         actions={
           <Link

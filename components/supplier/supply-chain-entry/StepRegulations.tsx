@@ -1,6 +1,6 @@
 'use client';
 
-// STEP 3 — 규제 정보: 탄소발자국 / 지분구조·FEOC / 실사 / 인증(수기 입력) / 원산지 + 증빙
+// STEP 3 — 규제 정보: 탄소발자국 / 실사 / 인증(수기 입력) / 원산지 + 증빙
 import { Plus, Trash2 } from 'lucide-react';
 import type { CertRow, DocItem, RegulationsData } from './SupplyChainEntry';
 import DocRow from './DocRow';
@@ -57,18 +57,6 @@ export default function StepRegulations({
           </label>
         </div>
         <Docs list={data.carbonDocs} onChange={l => onChange({ ...data, carbonDocs: l })} />
-      </Section>
-
-      <Section title="지분 구조 · FEOC">
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm text-slate-600">직접 지분율
-            <input value={data.directOwnershipPct} onChange={e => onChange({ ...data, directOwnershipPct: e.target.value })} placeholder="%" className={`${numInput} ml-2`} />
-          </label>
-          <label className="text-sm text-slate-600">간접 지분율
-            <input value={data.indirectOwnershipPct} onChange={e => onChange({ ...data, indirectOwnershipPct: e.target.value })} placeholder="%" className={`${numInput} ml-2`} />
-          </label>
-        </div>
-        <Docs list={data.feocDocs} onChange={l => onChange({ ...data, feocDocs: l })} />
       </Section>
 
       <Section title="실사">

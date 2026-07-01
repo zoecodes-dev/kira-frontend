@@ -51,9 +51,6 @@ export interface RegulationsData {
   carbonIntensity: string;
   energySource: string;
   carbonDocs: DocItem[];
-  directOwnershipPct: string;
-  indirectOwnershipPct: string;
-  feocDocs: DocItem[];
   dueDiligenceVerdict: string;
   trainingCompletionPct: string;
   auditDocs: DocItem[];
@@ -82,9 +79,6 @@ const initialRegulations: RegulationsData = {
   carbonIntensity: '',
   energySource: '',
   carbonDocs: docs('PCF 보고서 / 탄소발자국 선언서', 'LCA 보고서', '제3자 검증서', 'LCI 데이터시트'),
-  directOwnershipPct: '',
-  indirectOwnershipPct: '',
-  feocDocs: docs('FEOC 진술서 / 자기선언서'),
   dueDiligenceVerdict: '',
   trainingCompletionPct: '',
   auditDocs: docs('실사 감사 보고서'),
