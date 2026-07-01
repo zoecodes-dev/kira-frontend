@@ -900,8 +900,9 @@ export const updateSupplierDetail = (id: string, body: Record<string, unknown>) 
   api.patch<SupplierDetail>(`/suppliers/${id}/detail`, body);
 
 /** 협력사 마스터폼 제출(POST /master-form) — company/factories/contacts/manufacturing/self_reported_risk_level 를
- *  정규화 테이블에 일괄 영속화. factories·contacts 는 REPLACE-ALL(삭제 후 재삽입), company 는 authoritative-overwrite
- *  (생략 필드는 NULL). 따라서 호출부는 GET 으로 시드한 전체 현재 집합을 round-trip 해서 보내야 한다.
+ *  정규화 테이블에 일괄 영속화. factories 는 UPSERT(factory_id 있으면 UPDATE·없으면 INSERT·미포함은 DELETE
+ *  — supply_ratio.factory_id FK 보존), contacts 는 REPLACE-ALL, company 는 authoritative-overwrite
+ *  (생략 필드는 NULL). 따라서 호출부는 GET 으로 시드한 전체 현재 집합(공장은 factory_id 포함)을 round-trip 해서 보내야 한다.
  *  body 는 이미 snake_case 그대로(요청 래퍼가 camel→snake 변환을 하지 않음). */
 export const submitMasterForm = (id: string, body: Record<string, unknown>) =>
   api.post<{ supplierId: string; status: string; sectionsSaved: string[] }>(`/suppliers/${id}/master-form`, body);
