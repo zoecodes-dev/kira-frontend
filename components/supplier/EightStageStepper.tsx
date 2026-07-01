@@ -440,7 +440,7 @@ function SubmissionStepperCard({
 //    <EightStageStepper
 //      submissions={mockSubmissions}        // 기본값으로 내장 mockSubmissions 사용
 //      onResubmit={(id, name) => {
-//        openWizardRework(name);            // SubmitWizardModal의 reWork 진입
+//        setActiveView('company-info');     // master-form(자료 제출) 탭으로 이동
 //      }}
 //    />
 
