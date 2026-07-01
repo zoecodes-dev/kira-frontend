@@ -8,7 +8,7 @@ import Link from 'next/link';
 import clsx from 'clsx';
 import { ChevronRight, Send } from 'lucide-react';
 import { suppliers as mockSuppliers } from '@/lib/data';
-import { getRemindLogs, getSupplierName, supplierCompleteness } from '@/lib/supplier-detail-data';
+import { getRemindLogs, getSupplierName, supplierCompleteness, supplierExtended } from '@/lib/supplier-detail-data';
 import { getSuppliers, getSupplierCompleteness, type ProviderType } from '@/lib/api';
 import SupplierInfoModal from './SupplierInfoModal';
 
@@ -46,6 +46,7 @@ function buildMockRows(): BoardRow[] {
   return supplierCompleteness
     .map(item => {
       const supplier = mockSuppliers.find(s => s.id === item.supplierId);
+      const ext = supplierExtended.find(e => e.supplierId === item.supplierId);
       const name = getSupplierName(item.supplierId);
       const reminders = getRemindLogs(item.supplierId);
       const missingCount = item.missingFields.length;
@@ -56,7 +57,7 @@ function buildMockRows(): BoardRow[] {
         supplierId: item.supplierId,
         name: name?.nameEn ?? supplier?.name ?? item.supplierId,
         sub: name?.nameKo ?? item.supplierId,
-        typeLabel: supplier ? `T${supplier.tier} · ${supplier.country ?? '-'}` : '-',
+        typeLabel: ext ? (providerTypeLabel[ext.providerType] ?? ext.providerType) : '-',
         hasData: true,
         completionRate: item.completionRate,
         missingFields: item.missingFields,
