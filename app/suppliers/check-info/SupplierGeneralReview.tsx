@@ -356,6 +356,7 @@ function DataTable({ headers, rows, editable = false }: { headers: string[]; row
 // ── 협력사 입력 모드 전용 편집 가능한 행 draft (master-form REPLACE-ALL 라운드트립용) ──
 // GET(SupplierFactory/SupplierContact)에서 시드해 전체 현재 집합을 들고 있다가 그대로 다시 보낸다.
 interface FactoryDraft {
+  factoryId?: string;   // 기존 공장 식별자(신규 행은 undefined). upsert용 round-trip — supply_ratio FK 보존.
   factoryName: string;
   country: string;
   region: string;
@@ -383,6 +384,7 @@ const emptyContactDraft = (): ContactDraft => ({
   name: '', role: '', department: '', email: '', phone: '', mobile: '', isPrimary: false,
 });
 const factoryToDraft = (f: ApiSupplierFactory): FactoryDraft => ({
+  factoryId: f.factoryId,
   factoryName: f.factoryName ?? '',
   country: f.country ?? '',
   region: f.region ?? '',
@@ -678,7 +680,7 @@ function SectionContent({ section, real, editable = false, isOem = false, suppli
     } else {
       // 공급비율(supplychain 산출)·위치(원산지)·공장 담당자만. 공장당 대표 담당자는 contacts에서 매칭.
       const contactFor = (factoryId?: string | null) => real?.contacts.find(c => c.factoryId === factoryId);
-      const factoryRows = (real?.factories ?? []).map(f => {
+      const factoryRows = (real?.factories ?? []).filter(f => f.isActive !== false).map(f => {
         const c = contactFor(f.factoryId);
         const loc = [f.country, f.region].filter(Boolean).join(' · ') || '-';
         return [
@@ -881,8 +883,9 @@ export function SupplierGeneralReviewContent({
   }, [isRealSupplier, supplierId]);
 
   // api 로드 시 draft 시드(전체 현재 집합). 편집 진입 시에도 최신 서버 값으로 재시드(아래 setEditing 핸들러).
+  // 비활성(is_active=false, 소프트 삭제) 공장은 편집 대상에서 제외 — 원산지 이력 보존용이라 UI엔 안 뜬다.
   useEffect(() => {
-    setFactoriesDraft((api?.factories ?? []).map(factoryToDraft));
+    setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
     setContactsDraft((api?.contacts ?? []).map(contactToDraft));
   }, [api]);
 
@@ -999,9 +1002,12 @@ export function SupplierGeneralReviewContent({
     const envUrl = read('documents.environmentalReportUrl'); if (envUrl !== undefined) company.environmental_report_url = envUrl || null;
     const saUrl = read('regulation.selfAssessmentDocUrl'); if (saUrl !== undefined) company.self_assessment_doc_url = saUrl || null;
 
-    // ── factories: draft(전체 현재 집합) → snake_case (REPLACE-ALL) ──
+    // ── factories: draft(전체 현재 집합) → snake_case (UPSERT) ──
+    // 기존 공장은 factory_id 를 round-trip 해 백엔드가 UPDATE(id 보존)하도록 한다.
+    // supply_ratio.factory_id FK 가 참조 중이면 DELETE+INSERT 는 FK 위반으로 실패하기 때문.
     const factories = factoriesDraft.map(f => {
       const out: Record<string, unknown> = {};
+      if (f.factoryId) out.factory_id = f.factoryId;
       if (f.factoryName) out.factory_name = f.factoryName;
       if (f.country) out.country = f.country;
       if (f.region) out.region = f.region;
@@ -1171,7 +1177,7 @@ export function SupplierGeneralReviewContent({
               type="button"
               onClick={() => {
                 setSaved(false);
-                setFactoriesDraft((api?.factories ?? []).map(factoryToDraft));
+                setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
                 setContactsDraft((api?.contacts ?? []).map(contactToDraft));
                 setEditing(true);
               }}
