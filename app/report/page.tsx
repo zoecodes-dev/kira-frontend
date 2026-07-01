@@ -40,22 +40,6 @@ interface ReportRecord {
 
 const reports: ReportRecord[] = [
   {
-    id: 'RPT-2026-005',
-    title: 'Ganzhou Refinery FEOC 위반 검토 보고서',
-    type: 'FEOC 위반',
-    relatedBatch: 'BATCH-2026-042',
-    author: '컴플라이언스 이서윤',
-    submittedAt: '2026-06-10',
-    status: 'reviewing',
-    reviewers: [
-      { name: '김법무', role: '법무팀장', status: 'approved' },
-      { name: '박ESG', role: 'ESG 총괄', status: 'pending' },
-      { name: '최대표', role: '최종 결재', status: 'waiting' },
-    ],
-    summary:
-      'Ganzhou Refinery의 FEOC 직접 지분 41.2% 확인. 즉시 조달 중단 및 대체 공급망 검토를 권고합니다. IRA §30D 적격성에 직접 영향을 주는 사안으로 신속 처리가 필요합니다.',
-  },
-  {
     id: 'RPT-2026-004',
     title: 'Katanga Mining 아동노동 CAPA 이행 보고서',
     type: '인권 실사',
@@ -110,7 +94,7 @@ const reports: ReportRecord[] = [
       { name: '최대표', role: '최종 결재', status: 'approved' },
     ],
     summary:
-      'Q1 기준 FEOC 미적격 2건, CAPA 진행 4건, 규제 검증 완료 1건. 전반적 개선 추세로 2분기 목표치 달성 가능할 것으로 판단.',
+      'Q1 기준 규제 위반 2건, CAPA 진행 4건, 규제 검증 완료 1건. 전반적 개선 추세로 2분기 목표치 달성 가능할 것으로 판단.',
   },
 ];
 

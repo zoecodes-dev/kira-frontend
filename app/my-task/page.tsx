@@ -115,7 +115,7 @@ interface DataRequest {
 }
 const dataRequests: DataRequest[] = [
   { supplier: 'DRC Mining Co.', supplierId: 'S-MINE-002', title: '코발트 원광 원산지·인권 실사 자료', status: 'overdue', due: '2026-06-03', missing: 4 },
-  { supplier: 'Ganzhou Rare Metals', supplierId: 'S-REF-002', title: '정제 코발트 FEOC·소유 구조 확인', status: 'dueSoon', due: '2026-06-07', missing: 2 },
+  { supplier: 'Ganzhou Rare Metals', supplierId: 'S-REF-002', title: '정제 코발트 소유 구조 확인', status: 'dueSoon', due: '2026-06-07', missing: 2 },
   { supplier: 'POS Cathode Materials', supplierId: 'S-CAM-001', title: 'NCM811 양극재 공정·탄소 배출 산정서', status: 'submitted', due: '2026-06-12', missing: 3 },
   { supplier: 'QZ Precursor', supplierId: 'S-PRE-001', title: '전구체 배합 데이터·제조 공정도', status: 'progress', due: '2026-06-14', missing: 2 },
 ];

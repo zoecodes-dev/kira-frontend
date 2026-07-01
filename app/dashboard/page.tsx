@@ -63,12 +63,9 @@ const supplierStatusMeta = {
 const DB_STAGE_UI: Record<string, string> = {
   stage_queued: 'queued',
   stage_extraction: 'extraction',
-  stage_verification: 'verification',
   stage_geo: 'geo-analysis',
   stage_compliance: 'compliance',
   stage_risk: 'compliance',
-  stage_readiness: 'readiness',
-  stage_issuance: 'action',
 };
 
 interface UiBatch {
@@ -213,8 +210,8 @@ function DashboardSupplyChainMap() {
 
   const regulationBySupplier: Record<string, string> = {
     'S-MINE-002': 'OECD 광물 실사',
-    'S-REF-002':  'IRA FEOC',
-    'S-CAM-002':  'IRA FEOC',
+    'S-REF-002':  'UFLPA',
+    'S-CAM-002':  'CSDDD 실사',
     'S-PRE-001':  'EU 배터리법 Art.47',
     'S-MINE-001': 'EU Battery Regulation',
   };
@@ -233,7 +230,7 @@ function DashboardSupplyChainMap() {
         country: sup?.country ?? '',
         risk: r.riskLevel,
         issue: r.highRiskReasons[0] ?? '위험 요인 검토 필요',
-        type: regulationBySupplier[r.supplierId] ?? (r.feocStatus !== 'eligible' ? 'IRA FEOC' : 'EU 배터리법'),
+        type: regulationBySupplier[r.supplierId] ?? 'EU 배터리법',
       };
     });
 
@@ -387,8 +384,59 @@ export default function DashboardPage() {
     ? apiViolations.filter(r => r.citedClauses.some(c => c.includes('EU') || c.includes('EUDR') || c.includes('배터리'))).length
     : violationsByRegulation.filter(v => v.region === 'EU' || v.region === 'DE').reduce((s, v) => s + v.count, 0);
   const usViolations = apiViolations
-    ? apiViolations.filter(r => r.citedClauses.some(c => c.includes('IRA') || c.includes('UFLPA') || c.includes('US'))).length
+    ? apiViolations.filter(r => r.citedClauses.some(c => c.includes('UFLPA') || c.includes('US'))).length
     : violationsByRegulation.filter(v => v.region === 'US').reduce((s, v) => s + v.count, 0);
+
+  // ── AI 규제 인사이트 집계 (per-건 compliance_results → 대시보드 집계 + 최우선 스포트라이트) ──
+  // AI 최소 단위는 "자재×규제" 판정. 대시보드는 전체라, 단일 통합 판정인 척하지 않고
+  // "전체 N건 집계 + 가장 시급한 1건" 형태로 표현한다(고유명사·수치 전부 데이터 기반).
+  // verdict 심각도: violation(확정 위반) > reject(판정 불가·검토) > warning/gray(경고) > passed.
+  const verdictSeverity = (v: string | null): number => {
+    const s = (v ?? '').toLowerCase();
+    if (s.includes('violation')) return 3;
+    if (s.includes('reject')) return 2;
+    if (s.includes('warning') || s.includes('gray')) return 1;
+    return 0;
+  };
+  const verdictKo = (v: string | null): string => {
+    const s = (v ?? '').toLowerCase();
+    if (s.includes('violation')) return '위반';
+    if (s.includes('reject')) return '판정 불가';
+    if (s.includes('warning') || s.includes('gray')) return '경고';
+    if (s.includes('pass')) return '적합';
+    return v ?? '-';
+  };
+  const verdictTone = (v: string | null): string =>
+    verdictSeverity(v) >= 2 ? 'text-alert-text' : verdictSeverity(v) === 1 ? 'text-warn-text' : 'text-ink-500';
+  // HITL 사유 칩(표시용). 시급도 랭킹 반영은 팀 상의 후 별도 결정 — 여기선 라벨만.
+  const hitlReasonKo: Record<string, string> = {
+    geographical_risk: '지리 리스크',
+    low_confidence: '저신뢰',
+  };
+  // 마감(SLA) 임박 배지 — 위험 심각도와 다른 축이라 랭킹엔 안 섞고 배지로만 병행 표시. 14일 이내(초과 포함)만.
+  // regRiskSorted는 클라 fetch 후에만 렌더되므로(초기 null=로딩) Date 사용에 하이드레이션 문제 없음.
+  const ddayBadge = (iso: string | null): { label: string; alert: boolean } | null => {
+    if (!iso) return null;
+    const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+    if (diff > 14) return null;
+    if (diff < 0) return { label: '기한초과', alert: true };
+    return { label: diff === 0 ? 'D-day' : `D-${diff}`, alert: diff <= 3 };
+  };
+  const regLoaded = regResults !== null;                          // null=미로드, []=결과 없음
+  const regTotal = regResults?.length ?? 0;
+  const regRiskSorted = (regResults ?? [])
+    .filter(r => verdictSeverity(r.verdict) > 0)
+    .sort((a, b) =>
+      verdictSeverity(b.verdict) - verdictSeverity(a.verdict) ||
+      Number(b.needsHumanReview) - Number(a.needsHumanReview));
+  const regViolationCount = regRiskSorted.filter(r => (r.verdict ?? '').toLowerCase().includes('violation')).length;
+  const regWarningCount = regRiskSorted.filter(r => verdictSeverity(r.verdict) === 1).length;
+  const regReviewCount = (regResults ?? []).filter(r => r.needsHumanReview).length;
+  const topRisk = regRiskSorted[0] ?? null;                       // 가장 시급한 1건(스포트라이트)
+  const topReason = topRisk?.reasoningText
+    ? (topRisk.reasoningText.length > 80 ? `${topRisk.reasoningText.slice(0, 80)}…` : topRisk.reasoningText)
+    : '';
+  const riskCountLabel = `위반 ${regViolationCount} · 경고 ${regWarningCount}${regReviewCount > 0 ? ` · 검토 필요 ${regReviewCount}` : ''}`;
 
   // 탭별 데이터 필터링
   const highRiskList = supplierRiskProfiles.filter(
@@ -439,12 +487,28 @@ export default function DashboardPage() {
             <CompactMetric label="ESG Compliance Score" value="84.2" icon={CheckCircle2} tone="ok" hint="규제 대응 종합 점수" delta="4.3" deltaGood />
           </section>
 
-          <div className="flex items-center gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
-            <Bot className="h-4 w-4 shrink-0 text-ink-400" />
-            <span className="text-sm font-bold text-ink-200">AI 인사이트</span>
-            <span className="text-sm text-ink-500">
-              고위험 협력사 {highRiskSuppliers}개사와 누락 문서 {missingFieldCount}건이 규제 대응 및 통관 적합성에 영향을 줍니다. Katanga Cobalt, Ganzhou Rare Metals를 우선 확인하세요.
-            </span>
+          <div className="flex items-start gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
+            <Bot className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
+            <p className="min-w-0 text-sm">
+              <span className="font-bold text-ink-200">AI 인사이트</span>{' '}
+              {!regLoaded ? (
+                <span className="text-ink-500">공급망 규제 분석을 불러오는 중…</span>
+              ) : regRiskSorted.length === 0 ? (
+                <span className="text-ink-500">AI 규제 검증 {regTotal}건 중 위험으로 판정된 건이 없습니다.</span>
+              ) : (
+                <span className="text-ink-500">
+                  AI 규제 검증 {regTotal}건 중 위험 {regRiskSorted.length}건({riskCountLabel}).
+                  {topRisk && (
+                    <> 가장 시급: <span className="font-semibold text-ink-200">{topRisk.supplierName ?? '협력사'}</span>
+                      의 {topRisk.regulation ?? topRisk.citedClauses[0] ?? '규제'} {verdictKo(topRisk.verdict)}
+                      {topReason ? ` — ${topReason}` : ''}.</>
+                  )}
+                </span>
+              )}
+            </p>
+            {regRiskSorted.length > 0 && (
+              <Link href="/materials/regulation-results" className="ml-auto shrink-0 self-center text-xs font-semibold text-accent-700">전체 보기</Link>
+            )}
           </div>
 
           {/* 협력사 승인(HITL) — 협력사 제출 자료를 AI가 파싱하고 사람이 검증·승인 */}
@@ -543,27 +607,51 @@ export default function DashboardPage() {
                 <Bot className="h-4 w-4 text-accent-700" />
               </div>
               <div className="p-4">
-                <div className="rounded-sm border border-accent-100 bg-accent-50 p-3">
-                  <p className="text-sm leading-6 text-ink-100">
-                    고위험 협력사 {highRiskSuppliers}개사와 누락 문서 {missingFieldCount}건이 규제 대응 및 통관 적합성에 영향을 줍니다.
-                    Katanga Cobalt, Ganzhou Rare Metals를 우선 확인하세요.
-                  </p>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {[
-                    { label: '우선 조치', value: '원산지 증빙 재요청', tone: 'text-alert-text' },
-                    { label: '검토 포인트', value: 'FEOC / UFLPA 교차 확인', tone: 'text-warn-text' },
-                    { label: '다음 화면', value: '입력 요청 맵 미제출 필터', tone: 'text-accent-700' },
-                  ].map(item => (
-                    <div key={item.label} className="flex items-center gap-2 rounded-xs border border-ink-700 bg-ink-800 px-3 py-2">
-                      <AlertCircle className={clsx('h-3.5 w-3.5', item.tone)} />
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-ink-500">{item.label}</div>
-                        <div className="truncate text-xs font-semibold text-ink-100">{item.value}</div>
-                      </div>
+                {!regLoaded ? (
+                  <p className="text-sm text-ink-500">AI 규제 분석을 불러오는 중…</p>
+                ) : regRiskSorted.length === 0 ? (
+                  <div className="rounded-sm border border-ok-border bg-ok-bg p-3">
+                    <p className="text-sm leading-6 text-ink-100">AI 규제 검증 {regTotal}건 모두 적합 판정입니다. 지금 조치가 필요한 위험이 없습니다.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-sm border border-accent-100 bg-accent-50 p-3">
+                      <p className="text-sm leading-6 text-ink-100">
+                        AI 규제 검증 {regTotal}건 중 위험 {regRiskSorted.length}건을 감지했습니다({riskCountLabel}). 아래 우선순위부터 확인하세요.
+                      </p>
                     </div>
-                  ))}
-                </div>
+                    <div className="mt-3 space-y-2">
+                      {regRiskSorted.slice(0, 3).map(r => (
+                        <Link
+                          key={r.resultId}
+                          href="/materials/regulation-results"
+                          className="flex items-start gap-2 rounded-xs border border-ink-700 bg-ink-800 px-3 py-2 hover:border-accent-300"
+                        >
+                          <AlertCircle className={clsx('mt-0.5 h-3.5 w-3.5 shrink-0', verdictTone(r.verdict))} />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <span className="truncate font-semibold text-ink-100">{r.supplierName ?? '협력사'}</span>
+                              <span className="text-ink-500">·</span>
+                              <span className="shrink-0 font-mono text-ink-400">{r.regulation ?? r.citedClauses[0] ?? '-'}</span>
+                              <span className={clsx('shrink-0 font-semibold', verdictTone(r.verdict))}>{verdictKo(r.verdict)}</span>
+                              {r.hitlReason && hitlReasonKo[r.hitlReason] && (
+                                <span className="shrink-0 rounded-full bg-ink-700 px-1.5 py-0.5 text-[10px] font-semibold text-ink-300">{hitlReasonKo[r.hitlReason]}</span>
+                              )}
+                              {(r.supplierRiskLevel === 'high' || r.supplierRiskLevel === 'critical') && (
+                                <span className="shrink-0 rounded-full border border-alert-border bg-alert-bg px-1.5 py-0.5 text-[10px] font-semibold text-alert-text">고위험사</span>
+                              )}
+                              {(() => { const d = ddayBadge(r.nearestDueDate); return d ? (
+                                <span className={clsx('shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold', d.alert ? 'bg-alert-bg text-alert-text' : 'bg-warn-bg text-warn-text')}>{d.label}</span>
+                              ) : null; })()}
+                            </div>
+                            <div className="mt-0.5 truncate text-xs text-ink-500">{r.reasoningText || r.evidence[0] || '근거 준비 중'}</div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                    <Link href="/materials/regulation-results" className="mt-3 inline-block text-xs font-semibold text-accent-700">전체 규제 검증 결과 보기 →</Link>
+                  </>
+                )}
               </div>
             </div>
           </section>
@@ -579,7 +667,7 @@ export default function DashboardPage() {
                   { time: '09:30', title: 'FSC 인증 만료 감지', desc: 'Ganzhou Rare Metals 증빙 보완 필요', tone: 'bg-ok-solid', pill: 'Ganzhou Rare' },
                   { time: '10:18', title: 'HITL 검토 대기', desc: 'Quzhou Precursor 원산지 증빙 검토', tone: 'bg-info-solid', pill: 'Quzhou' },
                   { time: '11:05', title: '리튬 정제 자료 추출 완료', desc: 'Pilbara Refining Works 자동 처리', tone: 'bg-purple-500', pill: 'Pilbara' },
-                  { time: '11:20', title: '고위험 지역 Alert 발생', desc: 'FEOC / UFLPA 교차 확인 필요', tone: 'bg-alert-solid', pill: 'Ganzhou' },
+                  { time: '11:20', title: '고위험 지역 Alert 발생', desc: 'UFLPA 교차 확인 필요', tone: 'bg-alert-solid', pill: 'Ganzhou' },
                   { time: '14:05', title: '공급망 변경 감지', desc: '신규 하위 공급업체 추가', tone: 'bg-warn-solid', pill: 'POS Cathode' },
                 ].map(item => (
                   <div key={`${item.time}-${item.title}`} className="flex gap-3 border-b border-ink-700/70 py-2.5 last:border-0">
@@ -615,7 +703,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="divide-y divide-ink-700 text-xs">
                   {[
-                    { country: 'CN', label: '중국·신장/간저우', risk: '고위험', reason: 'FEOC / UFLPA 검토', count: 12, change: '▲ 3', color: 'text-alert-text', dot: 'bg-alert-solid' },
+                    { country: 'CN', label: '중국·신장/간저우', risk: '고위험', reason: 'UFLPA 검토', count: 12, change: '▲ 3', color: 'text-alert-text', dot: 'bg-alert-solid' },
                     { country: 'CD', label: '콩고·카탕가', risk: '고위험', reason: '분쟁광물 실사 필요', count: 8, change: '▲ 1', color: 'text-alert-text', dot: 'bg-alert-solid' },
                     { country: 'ID', label: '인도네시아·술라웨시', risk: '중위험', reason: '니켈 원산지 보완', count: 5, change: '▼ 1', color: 'text-warn-text', dot: 'bg-warn-solid' },
                     { country: 'AU', label: '호주·필바라', risk: '저위험', reason: '리튬 정제 검증 완료', count: 3, change: '0', color: 'text-ok-text', dot: 'bg-ok-solid' },

@@ -96,9 +96,7 @@ const REGULATION_FULLNAME: Record<string, string> = {
   CSDDD:      'EU 공급망 실사 지침',
   EUDR:       'EU 산림 파괴 방지 규정',
   UFLPA:      '위구르 강제노동 방지법',
-  IRA:        '미국 인플레이션 감축법',
   CRMA:       'EU 핵심 원자재법',
-  FEOC:       '외국 우려 기업 규정',
   CBAM:       'EU 탄소국경조정제도',
   LkSG:       '독일 공급망 실사법',
 };
@@ -608,7 +606,7 @@ export default function SupplyChainMap({
       {/* ── 접근 제한 풋노트 ── */}
       <div className="rounded-xs border border-ink-700 bg-white p-4 text-[10px] leading-5 text-ink-500">
         이 화면은 직접 연결된 1단계 파트너사 정보만 표시합니다.
-        전체 공급망 구조, 타사 비교, PO 단가, FEOC 세부 판정 근거, 감사 추적 로그, 경쟁 협력사 비교 지표는 제공하지 않습니다.
+        전체 공급망 구조, 타사 비교, PO 단가, 감사 추적 로그, 경쟁 협력사 비교 지표는 제공하지 않습니다.
       </div>
 
       {/* ── 토스트 알림 ── */}

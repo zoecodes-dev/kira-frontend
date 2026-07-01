@@ -30,7 +30,7 @@ function SummaryInfo({ label, value }: { label: string; value: React.ReactNode }
 }
 
 export function InfoSummary({
-  supplier, name, contacts, factories, certs, completeness, risk,
+  supplier, name, contacts, factories, certs, completeness,
 }: {
   supplier: Supplier;
   name: Name;
@@ -46,8 +46,6 @@ export function InfoSummary({
   const rate       = completeness?.completionRate ?? 0;
   const inputTone  = rate >= 100 ? 'info' : rate >= 80 ? 'ok' : rate >= 50 ? 'warn' : 'alert';
   const inputLabel = rate >= 100 ? '제출 완료' : rate >= 80 ? '입력 중' : rate >= 50 ? '부분 제출' : '미제출';
-  const feocLabel  = risk?.feocStatus === 'eligible' ? '적격' : risk?.feocStatus === 'ineligible' ? '부적격' : risk?.feocStatus === 'under_review' ? '검토 중' : '미파악';
-  const feocTone   = risk?.feocStatus === 'eligible' ? 'info' : risk?.feocStatus === 'ineligible' ? 'alert' : risk?.feocStatus === 'under_review' ? 'warn' : 'neutral';
 
   return (
     <div className="space-y-6">
@@ -65,7 +63,6 @@ export function InfoSummary({
             <SummaryInfo label="국가"       value={`${supplier.country} ${supplier.region}`} />
             <SummaryInfo label="검증 상태"  value={<Badge tone={statusTone}>{statusMetaLabel(supplier.status)}</Badge>} />
             <SummaryInfo label="위험도 평가" value={<Badge tone={riskTone}>{riskLabel}</Badge>} />
-            <SummaryInfo label="FEOC 자격"  value={<Badge tone={feocTone}>{feocLabel}</Badge>} />
             <SummaryInfo label="입력 현황"  value={<Badge tone={inputTone}>{inputLabel}</Badge>} />
           </div>
         </Card>
