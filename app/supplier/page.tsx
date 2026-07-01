@@ -847,23 +847,11 @@ export default function SupplierPage() {
   const certRisk = certifications.filter(cert => cert.status !== 'active').length;
   const pendingRequests = missing.length + certRisk;
 
-  // ── 3-1. 공급망 정보 수집 요청 — 승인 완료(verified/supplier_verified) 협력사에게만 노출 ──
-  const isVerified =
-    supplier?.status === 'verified' || supplier?.status === 'supplier_verified';
-
-  // 3-2. 신규 항목 스펙
-  const SUPPLY_MAP_REQUEST_LABEL = 'Nori-Nickel 제품 공급망 정보 입력 요망';
-  const SUPPLY_MAP_REQUEST_DUE   = '2026-06-27'; // 기준일 2026-06-13 기준 D-14
-
   const requestItems = [
     { label: '광산 폴리곤 좌표 등록',    due: '2026-06-16', status: '제출 필요', tone: 'warn'    as const },
     { label: '환경영향평가 갱신본 업로드', due: '2026-06-20', status: '재요청',   tone: 'alert'   as const },
     { label: '커뮤니티 합의서 제출',      due: '2026-06-25', status: '대기',     tone: 'neutral' as const },
     { label: '광권 갱신 증빙',            due: '2026-07-05', status: '대기',     tone: 'neutral' as const },
-    // 3-1. 승인 완료 협력사에게만 공급망 정보 수집 요청 추가
-    ...(isVerified
-      ? [{ label: SUPPLY_MAP_REQUEST_LABEL, due: SUPPLY_MAP_REQUEST_DUE, status: '제출 필요', tone: 'warn' as const }]
-      : []),
   ];
   const guideItems = [
     { title: '광산 좌표 제출 가이드', detail: 'EUDR 검증용 폴리곤 좌표 형식' },
@@ -1046,14 +1034,7 @@ export default function SupplierPage() {
                   <button
                     key={item.label}
                     type="button"
-                    onClick={() => {
-                      // 3-3. 공급망 정보 요청 항목은 본인 공급망맵 입력 화면으로 이동
-                      if (item.label === SUPPLY_MAP_REQUEST_LABEL) {
-                        window.location.href = `/supplier/supply-chain?supplierId=${supplierId}`;
-                      } else {
-                        openWizardFromActionCenter(item.label, item.status);
-                      }
-                    }}
+                    onClick={() => openWizardFromActionCenter(item.label, item.status)}
                     className={`flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-ink-800/30 ${
                       isUrgent ? 'bg-alert-bg' : 'bg-white'
                     }`}
