@@ -732,7 +732,7 @@ export default function DashboardPage() {
             <div className="rounded-sm border border-ink-700 bg-white shadow-control">
               <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
                 <h2 className="text-sm font-semibold text-ink-100">문서 현황 요약</h2>
-                <Link href="/submission-status" className="text-xs font-semibold text-accent-700">전체 보기</Link>
+                <Link href="/suppliers/check-info" className="text-xs font-semibold text-accent-700">전체 보기</Link>
               </div>
               <div className="grid grid-cols-[0.82fr_1fr] gap-4 p-4">
                 <div className="flex items-center justify-center">

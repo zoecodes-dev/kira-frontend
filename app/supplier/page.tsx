@@ -28,7 +28,6 @@ import Badge from '@/components/Badge';
 import Card from '@/components/Card';
 import PageHeader from '@/components/PageHeader';
 import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
-import SubmitWizardModal from '@/components/supplier/SubmitWizardModal';
 import EightStageStepper from '@/components/supplier/EightStageStepper';
 import SupplyChainMap from '@/components/supplier/SupplyChainMap';
 import ViolationReportModal from '@/components/supplier/ViolationReportModal';
@@ -624,14 +623,6 @@ export default function SupplierPage() {
       .then(list => setSubmissions(list.map(mapToSubmission)))
       .catch(() => { /* mock 유지 */ });
   }, []);
-  // ── 자료 제출 모달 상태 ──────────────────────────────────────────────────────
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [wizardInitialItems, setWizardInitialItems] = useState<string[]>([]);
-  const [wizardReworkMode, setWizardReworkMode] = useState(false);
-  // certRenewalMode: 인증서 갱신 진입 시 Step 1 상단에 안내 배너 표시
-  const [wizardCertRenewalMode, setWizardCertRenewalMode] = useState(false);
-  // reworkReason: 재제출 시 모달 Step 2 상단 배너에 표시할 반려 사유
-  const [wizardReworkReason, setWizardReworkReason] = useState<string | null>(null);
   // ── 시정 조치 모달 상태 ──────────────────────────────────────────────────────
   const [violationModalOpen, setViolationModalOpen] = useState(false);
   // violationId: 특정 위반 건과 모달을 바인딩 — null이면 일반 진입
@@ -666,55 +657,6 @@ export default function SupplierPage() {
     setNotifications(prev => prev.map(n => ({ ...n, status: 'read' as const })));
   }
 
-  /** 일반 업로드 버튼: 항목 미선택 상태로 Step 1 열기 */
-  function openWizard() {
-    setWizardInitialItems([]);
-    setWizardReworkMode(false);
-    setWizardOpen(true);
-  }
-
-  /** 재제출 버튼: 해당 항목 선택 + rework 모드로 Step 2 바로 열기
-   *  @param label   requestItems.label과 일치하는 항목명
-   *  @param reason  반려 사유 (EightStageStepper에서 전달, 모달 배너에 표시)
-   */
-  function openWizardRework(label: string, reason?: string) {
-    setWizardInitialItems([label]);
-    setWizardReworkMode(true);
-    setWizardReworkReason(reason ?? null);
-    setWizardOpen(true);
-  }
-
-  /**
-   * Action Center 딥링크 진입:
-   * - 일반 항목(제출 필요/대기): Step 1에서 해당 항목 자동 체크된 채로 열기
-   * - 재요청 항목: rework 모드로 Step 2 바로 열기
-   */
-  function openWizardFromActionCenter(label: string, status: string) {
-    const isRework = status === '재요청';
-    setWizardInitialItems([label]);
-    setWizardReworkMode(isRework);
-    setWizardOpen(true);
-  }
-
-  /**
-   * ⑤ 인증서 갱신 증빙 업로드 딥링크:
-   * - 인증서명을 requestItems 라벨과 매핑 시도
-   * - 매핑 항목이 없으면 '환경영향평가 갱신본 업로드'를 기본 선택
-   * - certRenewalMode=true로 Step 1 상단에 갱신 안내 배너 표시
-   */
-  function openWizardFromCertRenewal(certName: string) {
-    // 인증서명 → requestItems 라벨 매핑 테이블
-    const certToRequestLabel: Record<string, string> = {
-      'Bettercoal Verified': '환경영향평가 갱신본 업로드',
-      // 추후 인증서 추가 시 여기에 확장
-    };
-    const targetLabel = certToRequestLabel[certName] ?? '환경영향평가 갱신본 업로드';
-    setWizardInitialItems([targetLabel]);
-    setWizardReworkMode(false);
-    setWizardCertRenewalMode(true);
-    setActiveView('company-info'); // 탭도 자료 제출로 이동
-    setWizardOpen(true);
-  }
   const supplier = suppliers.find(item => item.id === supplierId) as unknown as MockSupplier | undefined;
   const name = getSupplierName(supplierId);
   const contacts = getContacts(supplierId) as unknown as MockContact[];
@@ -1034,7 +976,7 @@ export default function SupplierPage() {
                   <button
                     key={item.label}
                     type="button"
-                    onClick={() => openWizardFromActionCenter(item.label, item.status)}
+                    onClick={() => setActiveView('company-info')}
                     className={`flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-ink-800/30 ${
                       isUrgent ? 'bg-alert-bg' : 'bg-white'
                     }`}
@@ -1552,13 +1494,7 @@ export default function SupplierPage() {
                     {selectedNotif.deep_link && (
                       <button
                         type="button"
-                        onClick={() => {
-                          if (selectedNotif.deep_link === 'company-info') {
-                            openWizardFromActionCenter(selectedNotif.subject, '제출 필요');
-                          } else {
-                            setActiveView(selectedNotif.deep_link as SupplierView);
-                          }
-                        }}
+                        onClick={() => setActiveView(selectedNotif.deep_link as SupplierView)}
                         className="inline-flex shrink-0 items-center gap-2 rounded-xs bg-accent-700 px-4 py-2.5 text-xs font-bold text-white shadow-control hover:bg-accent-900 transition-colors"
                       >
                         <ArrowRight className="h-3.5 w-3.5" />
@@ -1587,28 +1523,6 @@ export default function SupplierPage() {
         </div>
       </div>
 
-      {/* ── 자료 제출 Wizard 모달 ──────────────────────────────────────────── */}
-      <SubmitWizardModal
-        open={wizardOpen}
-        onClose={() => {
-          setWizardOpen(false);
-          setWizardCertRenewalMode(false);
-          setWizardReworkReason(null);
-        }}
-        initialSelectedLabels={wizardInitialItems}
-        reworkMode={wizardReworkMode}
-        reworkReason={wizardReworkReason ?? undefined}
-        certRenewalMode={wizardCertRenewalMode}
-        requestItems={requestItems}
-        supplierId={supplierId}
-        onSubmitComplete={() => {
-          // 자료 제출 완료 → AI 파싱 확인 탭으로 자동 이동
-          setWizardOpen(false);
-          setWizardCertRenewalMode(false);
-          setWizardReworkReason(null);
-          setActiveView('ai-parsing');
-        }}
-      />
       {/* ── 시정 조치 계획 모달 — violationId로 특정 위반 건 바인딩 ─────── */}
       <ViolationReportModal
         open={violationModalOpen}

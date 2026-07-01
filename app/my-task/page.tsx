@@ -74,7 +74,7 @@ const _TYPE_FROM_API: Record<string, TaskType> = {
 };
 const _HREF_FROM_TYPE: Record<TaskType, string> = {
   submission_review: '/suppliers/check-info', risk_action: '/suppliers/check-info',
-  hitl: '/my-task?tab=hitl', reminder: '/submission-status',
+  hitl: '/my-task?tab=hitl', reminder: '/my-task?tab=request',
   due_diligence: '/suppliers/check-info',
 };
 
