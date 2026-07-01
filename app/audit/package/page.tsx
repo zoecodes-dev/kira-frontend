@@ -11,7 +11,7 @@ import clsx from 'clsx';
 
 const packages = [
   { id: 'AP-2026-001', target: 'LOT-NCM-240514-A', type: '배치 처리 감사', status: 'ready', evidence: 18, gaps: 0, owner: '감사팀 정유진' },
-  { id: 'AP-2026-002', target: 'SN-2026-A1-082451', type: 'FEOC 보류 감사', status: 'gap', evidence: 11, gaps: 3, owner: '컴플라이언스 이서윤' },
+  { id: 'AP-2026-002', target: 'SN-2026-A1-082451', type: '원산지 보류 감사', status: 'gap', evidence: 11, gaps: 3, owner: '컴플라이언스 이서윤' },
   { id: 'AP-2026-003', target: 'S-MINE-002', type: '인권 실사 감사', status: 'collecting', evidence: 9, gaps: 2, owner: '구매실사 최하린' },
 ];
 

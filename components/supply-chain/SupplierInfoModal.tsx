@@ -12,7 +12,6 @@ import {
   getSupplierReliability,
   type SupplierDetail,
   type SupplierFactoriesResponse,
-  type SupplierFeocStatus,
   type SupplierReliabilityResponse,
   type SupplierRiskLevel,
   type SupplierStatusCode,
@@ -40,13 +39,6 @@ const riskLabel: Record<SupplierRiskLevel, string> = {
   high: '고위험',
   critical: '최고위험',
 };
-const feocLabel: Record<SupplierFeocStatus, string> = {
-  eligible: 'FEOC 적격',
-  ineligible: 'FEOC 부적격',
-  under_review: 'FEOC 검토중',
-  unknown: 'FEOC 미파악',
-};
-
 interface InfoData {
   detail: SupplierDetail;
   reliability: SupplierReliabilityResponse | null;
@@ -175,7 +167,6 @@ export default function SupplierInfoModal({
               <Field label="유형" value={typeLabel[data.detail.providerType] ?? data.detail.providerType} />
               <Field label="상태" value={statusLabel[data.detail.status] ?? data.detail.status} />
               <Field label="위험도" value={riskLabel[data.detail.riskLevel] ?? data.detail.riskLevel} />
-              <Field label="FEOC" value={feocLabel[data.detail.feocStatus] ?? data.detail.feocStatus} />
             </div>
           </section>
 

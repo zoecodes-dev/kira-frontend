@@ -847,27 +847,15 @@ export default function SupplierPage() {
   const certRisk = certifications.filter(cert => cert.status !== 'active').length;
   const pendingRequests = missing.length + certRisk;
 
-  // ── 3-1. 공급망 정보 수집 요청 — 승인 완료(verified/supplier_verified) 협력사에게만 노출 ──
-  const isVerified =
-    supplier?.status === 'verified' || supplier?.status === 'supplier_verified';
-
-  // 3-2. 신규 항목 스펙
-  const SUPPLY_MAP_REQUEST_LABEL = 'Nori-Nickel 제품 공급망 정보 입력 요망';
-  const SUPPLY_MAP_REQUEST_DUE   = '2026-06-27'; // 기준일 2026-06-13 기준 D-14
-
   const requestItems = [
     { label: '광산 폴리곤 좌표 등록',    due: '2026-06-16', status: '제출 필요', tone: 'warn'    as const },
     { label: '환경영향평가 갱신본 업로드', due: '2026-06-20', status: '재요청',   tone: 'alert'   as const },
     { label: '커뮤니티 합의서 제출',      due: '2026-06-25', status: '대기',     tone: 'neutral' as const },
     { label: '광권 갱신 증빙',            due: '2026-07-05', status: '대기',     tone: 'neutral' as const },
-    // 3-1. 승인 완료 협력사에게만 공급망 정보 수집 요청 추가
-    ...(isVerified
-      ? [{ label: SUPPLY_MAP_REQUEST_LABEL, due: SUPPLY_MAP_REQUEST_DUE, status: '제출 필요', tone: 'warn' as const }]
-      : []),
   ];
   const guideItems = [
     { title: '광산 좌표 제출 가이드', detail: 'EUDR 검증용 폴리곤 좌표 형식' },
-    { title: 'FEOC 자료 작성법', detail: '원산지·소유구조 증빙 제출 기준' },
+    { title: '원산지 증빙 작성법', detail: '원산지 증명서 제출 기준' },
     { title: '탄소 배출 보고서 기준', detail: 'Scope 1/2/3 산정 근거 예시' },
   ];
   const reviewResults = [
@@ -995,7 +983,7 @@ export default function SupplierPage() {
               {risk ? riskLabel[risk.riskLevel] : '미확인'}
             </div>
             <div className="mt-3 text-[10px] text-ink-500">
-              {risk?.feocStatus === 'eligible' ? 'FEOC 적격' : 'FEOC 검토 필요'}
+              {risk?.isHighRiskFlag ? '고위험 플래그 검토 필요' : '추가 조치 없음'}
             </div>
           </div>
 
@@ -1046,14 +1034,7 @@ export default function SupplierPage() {
                   <button
                     key={item.label}
                     type="button"
-                    onClick={() => {
-                      // 3-3. 공급망 정보 요청 항목은 본인 공급망맵 입력 화면으로 이동
-                      if (item.label === SUPPLY_MAP_REQUEST_LABEL) {
-                        window.location.href = `/supplier/supply-chain?supplierId=${supplierId}`;
-                      } else {
-                        openWizardFromActionCenter(item.label, item.status);
-                      }
-                    }}
+                    onClick={() => openWizardFromActionCenter(item.label, item.status)}
                     className={`flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-ink-800/30 ${
                       isUrgent ? 'bg-alert-bg' : 'bg-white'
                     }`}
@@ -1599,7 +1580,7 @@ export default function SupplierPage() {
         {/* 푸터 — ai-parsing 전체화면 모드일 때 숨김 (작업 몰입도 확보) */}
         {activeView !== 'ai-parsing' && (
           <div className="rounded-sm border border-ink-700 bg-white p-4 text-xs leading-5 text-ink-500 shadow-control">
-            이 협력사 화면은 전체 공급망 구조, 다른 협력사의 상세 연락처, PO 단가 비교, FEOC 세부 판정 근거, 내부 HITL 판단 로그, 감사 추적 로그, 경쟁 협력사 비교 지표를 표시하지 않습니다.
+            이 협력사 화면은 전체 공급망 구조, 다른 협력사의 상세 연락처, PO 단가 비교, 내부 HITL 판단 로그, 감사 추적 로그, 경쟁 협력사 비교 지표를 표시하지 않습니다.
           </div>
         )}
           </div>

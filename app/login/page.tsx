@@ -141,7 +141,7 @@ export default function LoginPage() {
           </div>
 
           <div className="grid grid-cols-3 gap-2 text-[11px] text-ink-500">
-            {['UFLPA', 'IRA/FEOC', 'EU Battery'].map(item => (
+            {['UFLPA', 'CSDDD', 'EU Battery'].map(item => (
               <div key={item} className="rounded-xs border border-ink-700 bg-white px-3 py-2 font-semibold">
                 {item}
               </div>

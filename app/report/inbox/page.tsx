@@ -32,25 +32,6 @@ interface InboxReport {
 
 const inboxReports: InboxReport[] = [
   {
-    id: 'RPT-2026-005',
-    title: 'Ganzhou Refinery FEOC 위반 검토 보고서',
-    type: 'FEOC 위반',
-    author: '이서윤',
-    authorRole: '컴플라이언스팀',
-    submittedAt: '2026-06-10',
-    deadline: '2026-06-13',
-    status: 'pending',
-    severity: 'high',
-    previousReviewers: [{ name: '김법무 (법무팀장)', approved: true }],
-    summary:
-      'Ganzhou Refinery에서 FEOC 기준 직접 지분 41.2% 확인. IRA §30D 적격성 상실 가능성이 있으며 즉각적인 결재 및 조달 중단 검토가 필요합니다.',
-    keyPoints: [
-      'FEOC 직접 지분 41.2% — 기준치(25%) 초과',
-      'IRA AMPC 크레딧 수령 중단 가능성',
-      '대체 공급망: POS Cathode 전환 시 리드타임 약 8주',
-    ],
-  },
-  {
     id: 'RPT-2026-007',
     title: 'Q2 리스크 조치 이행 현황 보고',
     type: '정기 보고',
@@ -65,7 +46,7 @@ const inboxReports: InboxReport[] = [
       'Q2 기준 고위험 협력사 5개사 중 3개사 CAPA 완료, 2개사 진행 중. 규제 검증 완료 제품 3건.',
     keyPoints: [
       'Katanga Mining CAPA 이행률 50% → 조건부 승인 권고',
-      'Ganzhou Refinery FEOC 검토 결과 별도 보고 중',
+      'Ganzhou Refinery 소유구조 검토 결과 별도 보고 중',
       'BMW iX3 규제 적합성 검증 완료 (RPT-IX3-20260610)',
     ],
   },

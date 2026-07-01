@@ -152,7 +152,6 @@ export default function SupplierInfoPage() {
   }
 
   const { brief, detail, factories: facRes, reliability } = data;
-  const feocStatus = detail?.feocStatus ?? reliability?.feocStatus ?? 'unknown';
 
   // ── 화면 모델 합성 (API에 없는 필드는 빈 값) ──
   const supplier = {
@@ -218,7 +217,6 @@ export default function SupplierInfoPage() {
     supplierId: brief.supplierId,
     overallRiskScore: data.riskProfile?.overallRiskScore ?? reliability?.overallRiskScore ?? 0,
     riskLevel: brief.riskLevel,
-    feocStatus,
     isHighRiskFlag: reliability?.isHighRiskFlag ?? false,
     highRiskReasons: [] as string[],
     auditRecords: [] as never[],
