@@ -719,6 +719,10 @@ export interface RegulationResult {
   verdict: string;            // passed / warning / violation / reject
   confidence: number | null;
   needsHumanReview: boolean;
+  // HITL/에스컬레이션 사유(시급도 랭킹용). feoc_violation·geographical_risk는 신뢰도-저하(low_confidence)보다 위.
+  hitlReason: 'feoc_violation' | 'geographical_risk' | 'low_confidence' | null;
+  supplierRiskLevel: 'low' | 'medium' | 'high' | 'critical' | null;  // 협력사 상시 리스크 등급(시급도 신호)
+  nearestDueDate: string | null;   // 가장 임박한 미이행 마감(ISO). D-day 배지용(마감은 위험과 별도 축)
   evidence: string[];
   citedClauses: string[];     // AI가 대조한 규제 조항(예: ["IRA FEOC"])
   reasoningText: string | null; // AI 판단 근거(근거 자료↔조항 대조 결과)
