@@ -296,7 +296,7 @@ export default function SuppliersPage() {
       setLoading(true);
       setError(null);
       try {
-        const briefs = await getSuppliers();
+        const briefs = await getSuppliers({ size: 200 });
         const visible = briefs.filter(s => s.supplierId !== REQUEST_NODE_ID);
         const enriched = await Promise.all(
           visible.map(async (brief): Promise<SupplierRowData> => {
