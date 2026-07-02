@@ -21,7 +21,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div>
               <div className="text-sm font-bold text-white tracking-tight">KIRA Battery</div>
-              <div className="text-[11px] text-white/55">규제 대응 관제</div>
+              <div className="text-[11px] text-white/55">공급망 관리</div>
             </div>
           </div>
         </div>
@@ -102,7 +102,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <div className="w-1.5 h-1.5 rounded-full bg-ok-solid pulse-soft" />
             <div className="text-xs text-white/80">정상 운영 중</div>
           </div>
-          <div className="text-[10px] text-white/40 mt-2 num-mono">v0.6.0 · 2026.05.21</div>
         </div>
       </aside>
 
