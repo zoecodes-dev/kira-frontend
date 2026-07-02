@@ -471,6 +471,11 @@ export interface SupplierFactory {
   destinationDetail: string | null;
   supplyRatioPercent: number | null;
   supplyQuantity: string | null;
+  // 공장 담당자(공장 단위) — 협력사 PIC(SupplierContact)와 별개
+  factoryManagerName: string | null;
+  factoryManagerRole: string | null;
+  factoryManagerPhone: string | null;
+  factoryManagerEmail: string | null;
   latitude: number | null;
   longitude: number | null;
 }
