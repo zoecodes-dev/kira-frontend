@@ -366,6 +366,11 @@ interface FactoryDraft {
   supplyRatioPercent: string;
   latitude: string;
   longitude: string;
+  // 공장 담당자(공장 단위) — 협력사 PIC(ContactDraft)와 별개
+  factoryManagerName: string;
+  factoryManagerRole: string;
+  factoryManagerPhone: string;
+  factoryManagerEmail: string;
 }
 interface ContactDraft {
   name: string;
@@ -379,6 +384,7 @@ interface ContactDraft {
 const emptyFactoryDraft = (): FactoryDraft => ({
   factoryName: '', country: '', region: '', address: '', factoryRole: '',
   destination: '', supplyRatioPercent: '', latitude: '', longitude: '',
+  factoryManagerName: '', factoryManagerRole: '', factoryManagerPhone: '', factoryManagerEmail: '',
 });
 const emptyContactDraft = (): ContactDraft => ({
   name: '', role: '', department: '', email: '', phone: '', mobile: '', isPrimary: false,
@@ -394,6 +400,10 @@ const factoryToDraft = (f: ApiSupplierFactory): FactoryDraft => ({
   supplyRatioPercent: f.supplyRatioPercent != null ? String(f.supplyRatioPercent) : '',
   latitude: f.latitude != null ? String(f.latitude) : '',
   longitude: f.longitude != null ? String(f.longitude) : '',
+  factoryManagerName: f.factoryManagerName ?? '',
+  factoryManagerRole: f.factoryManagerRole ?? '',
+  factoryManagerPhone: f.factoryManagerPhone ?? '',
+  factoryManagerEmail: f.factoryManagerEmail ?? '',
 });
 const contactToDraft = (c: ApiSupplierContact): ContactDraft => ({
   name: c.name ?? '',
@@ -419,7 +429,7 @@ function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (ro
         <table className="min-w-full border-collapse text-sm">
           <thead className="bg-slate-50">
             <tr>
-              {['공장명', '국가', '지역', '주소', '역할', '납품처', '공급비율(%)', '위도', '경도', ''].map((h, i) => (
+              {['공장명', '국가', '지역', '주소', '역할', '납품처', '공급비율(%)', '위도', '경도', '담당자 이름', '직책', '연락처', '메일', ''].map((h, i) => (
                 <th key={`${h}-${i}`} className="whitespace-nowrap border-b border-ink-700 px-3 py-2.5 text-left text-xs font-semibold text-ink-500">{h}</th>
               ))}
             </tr>
@@ -436,13 +446,17 @@ function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (ro
                 <td className="px-2 py-1.5"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></td>
                 <td className="px-2 py-1.5"><input value={r.latitude} onChange={e => update(i, { latitude: e.target.value })} placeholder="위도" inputMode="decimal" className={editCellCls} /></td>
                 <td className="px-2 py-1.5"><input value={r.longitude} onChange={e => update(i, { longitude: e.target.value })} placeholder="경도" inputMode="decimal" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.factoryManagerName} onChange={e => update(i, { factoryManagerName: e.target.value })} placeholder="담당자" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.factoryManagerRole} onChange={e => update(i, { factoryManagerRole: e.target.value })} placeholder="직책" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.factoryManagerPhone} onChange={e => update(i, { factoryManagerPhone: e.target.value })} placeholder="연락처" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.factoryManagerEmail} onChange={e => update(i, { factoryManagerEmail: e.target.value })} placeholder="메일" className={editCellCls} /></td>
                 <td className="px-2 py-1.5 text-center">
                   <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={10} className="px-3 py-6 text-center text-sm text-ink-500">등록된 공장이 없습니다. 행을 추가하세요.</td></tr>
+              <tr><td colSpan={14} className="px-3 py-6 text-center text-sm text-ink-500">등록된 공장이 없습니다. 행을 추가하세요.</td></tr>
             )}
           </tbody>
         </table>
@@ -678,19 +692,18 @@ function SectionContent({ section, real, editable = false, isOem = false, suppli
         </div>
       );
     } else {
-      // 공급비율(supplychain 산출)·위치(원산지)·공장 담당자만. 공장당 대표 담당자는 contacts에서 매칭.
-      const contactFor = (factoryId?: string | null) => real?.contacts.find(c => c.factoryId === factoryId);
-      const factoryRows = (real?.factories ?? []).filter(f => f.isActive !== false).map(f => {
-        const c = contactFor(f.factoryId);
-        const loc = [f.country, f.region].filter(Boolean).join(' · ') || '-';
-        return [
-          f.factoryName ?? '-',
-          loc,
-          f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-',
-          c ? `${c.name ?? '-'}${c.email ? ` (${c.email})` : ''}` : '-',
-          fieldFilled(f.factoryName),
-        ];
-      });
+      // 공장 정보(원산지·이름·주소) + 공장 담당자(이름·직책·연락처·메일). 공장 단위 필드 직접 사용.
+      const factoryRows = (real?.factories ?? []).filter(f => f.isActive !== false).map(f => [
+        f.factoryName ?? '-',
+        f.country ?? '-',                 // 원산지
+        f.address ?? '-',
+        f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-',
+        f.factoryManagerName ?? '-',
+        f.factoryManagerRole ?? '-',
+        f.factoryManagerPhone ?? '-',
+        f.factoryManagerEmail ?? '-',
+        fieldFilled(f.factoryName),
+      ]);
       const contactRowsView = (real?.contacts ?? []).map(c => [
         c.name ?? '-',
         c.role ?? '-',
@@ -701,7 +714,7 @@ function SectionContent({ section, real, editable = false, isOem = false, suppli
       ]);
       content = (
         <div className="space-y-4">
-          {factoryRows.length ? <DataTable headers={['공장명', '위치(원산지)', '공급비율', '공장 담당자', '상태']} rows={factoryRows} /> : <EmptyData />}
+          {factoryRows.length ? <DataTable headers={['공장명', '원산지', '주소', '공급비율', '공장 담당자', '직책', '연락처', '메일', '상태']} rows={factoryRows} /> : <EmptyData />}
           <div>
             <div className="mb-2 text-xs font-bold text-ink-500">담당자 (연락처)</div>
             {contactRowsView.length ? <DataTable headers={['이름', '직책', '이메일', '연락처', '대표', '상태']} rows={contactRowsView} /> : <EmptyData />}
@@ -1015,6 +1028,11 @@ export function SupplierGeneralReviewContent({
       if (f.factoryRole) out.factory_role = f.factoryRole;
       if (f.destination) out.destination = f.destination;
       if (f.supplyRatioPercent !== '') out.supply_ratio_percent = Number(f.supplyRatioPercent);
+      // 공장 담당자(공장 단위)
+      if (f.factoryManagerName) out.factory_manager_name = f.factoryManagerName;
+      if (f.factoryManagerRole) out.factory_manager_role = f.factoryManagerRole;
+      if (f.factoryManagerPhone) out.factory_manager_phone = f.factoryManagerPhone;
+      if (f.factoryManagerEmail) out.factory_manager_email = f.factoryManagerEmail;
       // 좌표: lat/lng 둘 다 있으면 coordinates 로 매핑, 아니면 omit.
       if (f.latitude !== '' && f.longitude !== '') {
         out.coordinates = { latitude: Number(f.latitude), longitude: Number(f.longitude) };
