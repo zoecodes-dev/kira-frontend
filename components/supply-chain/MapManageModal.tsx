@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { CheckCircle2, FileSignature, Leaf, Loader2, Paperclip, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
 import ModalShell from './ModalShell';
+import type { RequestGapItem } from './DataRequestModal';
 import { downloadSupplyChainExcel, getDataConsents, getSupplierCarbonDeclarations, getValidationSummary, listFilesByContext, uploadFile, type CarbonDeclaration, type DataConsent, type SupplierBrief, type ValidationSummary } from '@/lib/api';
 
 type EpdStatus = 'verified' | 'declared' | 'expired' | 'missing';
@@ -59,7 +60,8 @@ export default function MapManageModal({
 }: {
   pool: SupplierBrief[];
   onClose: () => void;
-  onRequestUpdate: (supplier: SupplierBrief) => void;
+  // 자료 요청 — 그 협력사의 미흡 항목(gaps)을 함께 넘겨 결손 항목만 요청하도록 한다.
+  onRequestUpdate: (supplier: SupplierBrief, gaps: RequestGapItem[]) => void;
   // 검증 완료 시 협력사별 환경성적서 통과 여부를 백엔드(verification_status)에 영속.
   onVerified?: (results: { supplierId: string; passed: boolean }[]) => void;
   productId?: string;         // [P7] 최종 검증 요약/판정 + 고객사 엑셀용
@@ -141,10 +143,26 @@ export default function MapManageModal({
     }
   }
 
-  // 검증 통과 = 환경성적서 통과 AND 데이터 계약 동의(둘 다 핵심 게이트).
-  const rowPass = (r: VerifyRow) => EPD_META[r.epd].pass && r.consent.agreed;
+  // 그 협력사의 공급망 필수필드 누락 수(최종 검증 3축 중 ③). summary 미로드면 0으로 중립 처리.
+  const supplyGapCount = (r: VerifyRow) =>
+    summary?.gapsBySupplier.find(s => s.supplierId === r.supplier.supplierId)?.missingFields.length ?? 0;
+  // 검증 통과 = 환경성적서 통과 AND 데이터 계약 동의 AND 공급망 필수필드 완비 (3축 모두 충족).
+  const rowPass = (r: VerifyRow) => EPD_META[r.epd].pass && r.consent.agreed && supplyGapCount(r) === 0;
   const failed = rows.filter(r => !rowPass(r));
   const allPass = rows.length > 0 && failed.length === 0;
+
+  // 그 협력사의 미흡 항목(최종 검증 3축) — 자료 요청에 그대로 실어 보낸다.
+  //   ① 환경성적서 미검증(미제출/만료)  ② 데이터 제공 동의 미완료  ③ 공급망 필수필드 누락(summary.gaps)
+  function buildGaps(r: VerifyRow): RequestGapItem[] {
+    const gaps: RequestGapItem[] = [];
+    if (!EPD_META[r.epd].pass) gaps.push({ key: 'epd', label: `환경성적서 ${EPD_META[r.epd].label}` });
+    if (!r.consent.agreed) gaps.push({ key: 'consent', label: `데이터 제공 동의 ${r.consent.label}` });
+    const node = summary?.gapsBySupplier.find(s => s.supplierId === r.supplier.supplierId);
+    (node?.missingFields ?? []).forEach(f =>
+      gaps.push({ key: `field:${f.fieldName}`, label: `공급망 필수필드: ${f.fieldLabel || f.fieldName}` }),
+    );
+    return gaps;
+  }
 
   return (
     <ModalShell
@@ -254,6 +272,7 @@ export default function MapManageModal({
         <div className="space-y-1.5">
           {rows.map(r => {
             const meta = EPD_META[r.epd];
+            const gapN = supplyGapCount(r);   // 공급망 필수필드 누락 수(3축 중 ③)
             const needsRequest = !rowPass(r);
             return (
               <div key={r.supplier.supplierId} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2">
@@ -268,6 +287,11 @@ export default function MapManageModal({
                       r.consent.agreed ? 'border-ok-border bg-ok-bg text-ok-text' : 'border-alert-border bg-alert-bg text-alert-text')}>
                       <FileSignature className="h-3 w-3" />
                       데이터 동의 {r.consent.label}
+                    </span>
+                    <span className={clsx('inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-bold',
+                      gapN === 0 ? 'border-ok-border bg-ok-bg text-ok-text' : 'border-alert-border bg-alert-bg text-alert-text')}>
+                      <ShieldCheck className="h-3 w-3" />
+                      공급망 데이터 {gapN === 0 ? '완비' : `미보유 ${gapN}건`}
                     </span>
                     {r.carbonIntensity != null && (
                       <span className="text-slate-500">{r.carbonIntensity} kgCO₂e/kWh</span>
@@ -291,7 +315,7 @@ export default function MapManageModal({
                   {needsRequest && (
                     <button
                       type="button"
-                      onClick={() => onRequestUpdate(r.supplier)}
+                      onClick={() => onRequestUpdate(r.supplier, buildGaps(r))}
                       className="inline-flex items-center gap-1.5 rounded-md border border-brand bg-white px-3 py-1.5 text-xs font-semibold text-brand hover:bg-ok-bg"
                     >
                       <RefreshCw className="h-3.5 w-3.5" />
