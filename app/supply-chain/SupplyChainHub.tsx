@@ -620,35 +620,6 @@ export default function SupplyChainHub() {
         />
       </PageHeader>
 
-      {/* [P1] 맵 기준 · 고정 — STEP1 필터 모달에서 고른 기준(고객사/제품/BOM/단위기간)을 다음 화면(맵)에서
-          고정 표출한다. 맵 화면엔 편집 필터 칸이 없고, 변경은 '기준 변경'으로 모달을 다시 연다. */}
-      {mapContext && (
-        <div className="mx-6 mt-4 flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-brand">맵 기준 · 고정</span>
-          {([
-            ['고객사', mapContext.customer],
-            ['제품', mapContext.product + (mapContext.productCode ? ` (${mapContext.productCode})` : '')],
-            ['BOM', mapContext.bomVersion],
-            ['단위기간', (mapContext.periodFrom || mapContext.periodTo) ? `${toDateInput(mapContext.periodFrom) || '…'} ~ ${toDateInput(mapContext.periodTo) || '…'}` : '전체'],
-          ] as const).map(([label, value]) => (
-            <span key={label} className="flex items-baseline gap-1.5 text-sm">
-              <span className="text-xs text-slate-400">{label}</span>
-              <span className="font-semibold text-ink-100">{value}</span>
-            </span>
-          ))}
-          {!locked && (
-            <button
-              type="button"
-              onClick={() => setActiveModal('mapCreate')}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-400 hover:border-brand hover:text-brand"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              기준 변경
-            </button>
-          )}
-        </div>
-      )}
-
       {loadStatus === null && !productsLoading && dataset.products.length > 0 && mapStarted && !locked && (
         <FlowGuide
           hasProduct={Boolean(selectedProductId)}
@@ -770,6 +741,34 @@ export default function SupplyChainHub() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 맵 기준 — STEP1에서 고른 기준(고객사/제품/BOM/단위기간). 데이터 완성도 아래에 표시. */}
+      {mapContext && (
+        <div className="mx-6 mt-3 flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-brand">맵 기준</span>
+          {([
+            ['고객사', mapContext.customer],
+            ['제품', mapContext.product + (mapContext.productCode ? ` (${mapContext.productCode})` : '')],
+            ['BOM', mapContext.bomVersion],
+            ['단위기간', (mapContext.periodFrom || mapContext.periodTo) ? `${toDateInput(mapContext.periodFrom) || '…'} ~ ${toDateInput(mapContext.periodTo) || '…'}` : '전체'],
+          ] as const).map(([label, value]) => (
+            <span key={label} className="flex items-baseline gap-1.5 text-sm">
+              <span className="text-xs text-slate-400">{label}</span>
+              <span className="font-semibold text-ink-100">{value}</span>
+            </span>
+          ))}
+          {!locked && (
+            <button
+              type="button"
+              onClick={() => setActiveModal('mapCreate')}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-400 hover:border-brand hover:text-brand"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              기준 변경
+            </button>
+          )}
         </div>
       )}
 
