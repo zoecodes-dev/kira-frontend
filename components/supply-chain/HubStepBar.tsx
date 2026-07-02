@@ -12,6 +12,7 @@ interface HubStepBarProps {
   completed: Set<number>;
   locked?: boolean;
   step3Done?: boolean;           // 협력사 전부 확인 → STEP4(자료 수집·보완) 개방
+  step4Done?: boolean;           // 자료 검토 전체 확인 → STEP5(최종 검증) 개방
   readyForFinal?: boolean;       // 데이터 완성도 준비 완료 → 최종검증 개방
   completePct?: number | null;   // 자료수집 반복 구간 진행률(%)
   onOpenPool: () => void;
@@ -66,6 +67,7 @@ export default function HubStepBar({
   completed,
   locked = false,
   step3Done = false,
+  step4Done = false,
   readyForFinal = false,
   completePct = null,
   onOpenPool,
@@ -109,26 +111,26 @@ export default function HubStepBar({
           disabled={!poolDone || locked}
           done={completed.has(3)}
         />
-        {/* 4 — 자료 수집·보완 (입력 누락·문서 문제 검토·요청). STEP3(협력사 전부 확인) 후 개방 */}
+        {/* 4 — 자료 수집·보완 (입력 누락·문서 문제 검토·요청). STEP3 후 개방, '전체 확인' 시 완료 */}
         <StepTile
           index={4}
           label="자료 수집 · 보완"
-          hint={!step3Done ? '협력사 전부 확인 후' : collecting ? '입력 누락·문서 문제 검토' : '수집 완료'}
+          hint={!step3Done ? '협력사 전부 확인 후' : step4Done ? '검토 완료' : '입력 누락·문서 문제 검토'}
           Icon={RefreshCw}
           onClick={onOpenDataReview}
           disabled={!step3Done || locked}
-          done={poolDone && readyForFinal}
-          current={step3Done && collecting}
+          done={step4Done}
+          current={step3Done && !step4Done}
           badge={poolDone && completePct !== null ? `완성도 ${completePct}%` : undefined}
         />
         {/* 5 — 최종 검증 (완성도 준비 시 개방) */}
         <StepTile
           index={5}
           label="최종 검증"
-          hint={!poolDone ? 'Pool 확정 후' : readyForFinal ? '요약·판정·엑셀' : '완성도 100% 후 개방'}
+          hint={!step4Done ? '자료 검토 전체 확인 후' : readyForFinal ? '요약·판정·엑셀' : '완성도 100% 후 개방'}
           Icon={ShieldCheck}
           onClick={onOpenVerify}
-          disabled={!readyForFinal || locked}
+          disabled={!step4Done || locked}
           done={completed.has(4)}
         />
         {/* 6 — 고객사 데이터 다운로드 (아래 추적 테이블) */}

@@ -498,6 +498,9 @@ export function SupplyChainMapPageContent({
         </header>
       )}
 
+      {/* 맵 화면 필터 바 — 허브(embedded)에선 숨긴다. 기준은 STEP1 필터 모달에서 고르고 '맵 기준·고정' 바로 표출된다.
+          형성(formationMode)/단독 페이지에선 그대로 노출한다. */}
+      {!embedded && (
       <section className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <FilterSelect label="고객사">
@@ -575,6 +578,7 @@ export function SupplyChainMapPageContent({
           )}
         </div>
       </section>
+      )}
 
       {generatedAt && (
         <div className="mb-4 rounded-md border border-ok-border bg-ok-bg px-3 py-2 text-xs font-semibold text-ok-text">
@@ -716,7 +720,7 @@ export function SupplyChainMapPageContent({
                       {row.part_name}
                       {row.function_purpose && (
                         <span className="mt-0.5 block text-xs font-normal text-ink-500" title={row.function_purpose}>
-                          용도: {row.function_purpose}
+                          {row.function_purpose}
                         </span>
                       )}
                     </td>

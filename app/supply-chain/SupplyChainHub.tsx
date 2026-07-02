@@ -3,7 +3,7 @@
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil, RefreshCw, X } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
 import { ApiError, confirmPool, createDataRequest, getSupplyChainGaps, getSupplyChainMaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, getValidationSummary, verifySupplier, type SupplierBrief, type SupplyChainGapsResult, type ValidationSummary } from '@/lib/api';
@@ -73,6 +73,8 @@ export default function SupplyChainHub() {
   const [reviewSupplier, setReviewSupplier] = useState<{ id: string; name: string } | null>(null);
   // STEP3에서 특정 협력사 '메일' 클릭 시 초대 메일 팝업을 그 협력사로 미리 선택해 연다.
   const [mailInitialSupplierId, setMailInitialSupplierId] = useState<string | null>(null);
+  // STEP4(자료 수집·보완) '전체 확인' 완료 여부 — 이걸 눌러야 STEP5(최종 검증)로 넘어간다.
+  const [dataReviewDone, setDataReviewDone] = useState(false);
   // 사용자가 수행한 액션 단계(STEP 4 검증). STEP 1·2는 데이터, STEP 3은 협력사 확인 완료로 판정.
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
   // STEP 3 — 연결 협력사별 '확인' 처리 집합 + 일괄 자료요청 진행중 플래그 + 활성 BOM 버전(verify 대상).
@@ -104,11 +106,17 @@ export default function SupplyChainHub() {
     return ids;
   }, [dataset.supply_chain_map, activeBomVersionId]);
 
-  // 이 공급망 맵에 편입된 협력사 전부(1~n차) — STEP3 확인/메일 대상. dataset.suppliers(맵 병합 시 전 차수 포함)에서 도출.
+  // 원청(우리 회사)은 협력사가 아니므로 목록에서 제외 — gaps의 is_root_anchor로 식별.
+  const rootAnchorIds = useMemo(
+    () => new Set((gaps?.nodes ?? []).filter(n => n.is_root_anchor).map(n => n.supplier_id)),
+    [gaps],
+  );
+
+  // 이 공급망 맵에 편입된 협력사 전부(1~n차, 원청 제외) — STEP3 확인/메일·STEP4 검토 대상. dataset.suppliers(맵 병합 시 전 차수 포함)에서 도출.
   const mapSuppliers = useMemo<SupplierBrief[]>(
     () =>
       dataset.suppliers
-        .filter(s => mapSupplierIds.has(s.supplier_id))
+        .filter(s => mapSupplierIds.has(s.supplier_id) && !rootAnchorIds.has(s.supplier_id))
         .map(s => ({
           supplierId: s.supplier_id,
           companyName: s.company_name,
@@ -121,16 +129,15 @@ export default function SupplyChainHub() {
           const tb = dataset.suppliers.find(s => s.supplier_id === b.supplierId)?.tier ?? 99;
           return ta - tb || a.companyName.localeCompare(b.companyName);
         }),
-    [dataset.suppliers, mapSupplierIds],
+    [dataset.suppliers, mapSupplierIds, rootAnchorIds],
   );
 
   // STEP3 완료 = 이 맵에 편입된 협력사 '전부' 확인. (Pool=1차만이 아니라 전 차수 기준)
   const step3Done = mapSuppliers.length > 0 && mapSuppliers.every(p => confirmedSuppliers.has(p.supplierId));
 
-  // 완료 공급망 = 전 차수 협력사 확인(step3Done) + 데이터 완성도 준비 완료(readyForFinal).
-  //   요약이 없으면(데모 등) 완성도 게이트는 적용하지 않는다.
-  const dataReady = summary ? summary.readyForFinal : true;
-  const chainComplete = step3Done && dataReady;
+  // 완료 공급망(=STEP5 최종검증까지 done) = 협력사 전부 확인(STEP3) + 자료 검토 전체 확인(STEP4) + 완성도 준비(readyForFinal).
+  const dataReady = summary?.readyForFinal ?? false;
+  const chainComplete = step3Done && dataReviewDone && dataReady;
   // 완료 공급망은 '수정'을 누르기 전까지 전체 완료·잠금 상태로 본다.
   const [editMode, setEditMode] = useState(false);
   const locked = chainComplete && !editMode;
@@ -366,6 +373,7 @@ export default function SupplyChainHub() {
     setTier1Pool([]);
     setPool([]);
     setConfirmedSuppliers(new Set());
+    setDataReviewDone(false); // 새 공급망 — STEP4 검토 확인 초기화
     setEditMode(false); // 새 공급망 진입 — 완료면 다시 잠금 상태로.
 
     // 1) BOM 버전 목록(실 bomVersionId) — 없으면 트리 합성 버전으로 폴백
@@ -602,6 +610,7 @@ export default function SupplyChainHub() {
           completed={completed}
           locked={locked}
           step3Done={step3Done}
+          step4Done={dataReviewDone}
           readyForFinal={summary?.readyForFinal ?? false}
           completePct={completePct}
           onOpenPool={() => setActiveModal('pool')}
@@ -611,16 +620,46 @@ export default function SupplyChainHub() {
         />
       </PageHeader>
 
-      {/* [P1] 맵 기준(고객사/제품/BOM/단위기간)은 별도 고정 바가 아니라 아래 맵 필터 칸(STEP2)에 표시된다.
-          — 진입 게이트에서 고른 값이 initialProductId/BomVersionId/PeriodFrom·To로 필터 칸에 채워진다. */}
+      {/* [P1] 맵 기준 · 고정 — STEP1 필터 모달에서 고른 기준(고객사/제품/BOM/단위기간)을 다음 화면(맵)에서
+          고정 표출한다. 맵 화면엔 편집 필터 칸이 없고, 변경은 '기준 변경'으로 모달을 다시 연다. */}
+      {mapContext && (
+        <div className="mx-6 mt-4 flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-brand">맵 기준 · 고정</span>
+          {([
+            ['고객사', mapContext.customer],
+            ['제품', mapContext.product + (mapContext.productCode ? ` (${mapContext.productCode})` : '')],
+            ['BOM', mapContext.bomVersion],
+            ['단위기간', (mapContext.periodFrom || mapContext.periodTo) ? `${toDateInput(mapContext.periodFrom) || '…'} ~ ${toDateInput(mapContext.periodTo) || '…'}` : '전체'],
+          ] as const).map(([label, value]) => (
+            <span key={label} className="flex items-baseline gap-1.5 text-sm">
+              <span className="text-xs text-slate-400">{label}</span>
+              <span className="font-semibold text-ink-100">{value}</span>
+            </span>
+          ))}
+          {!locked && (
+            <button
+              type="button"
+              onClick={() => setActiveModal('mapCreate')}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-400 hover:border-brand hover:text-brand"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              기준 변경
+            </button>
+          )}
+        </div>
+      )}
 
       {loadStatus === null && !productsLoading && dataset.products.length > 0 && mapStarted && !locked && (
         <FlowGuide
           hasProduct={Boolean(selectedProductId)}
           poolCount={pool.length}
           tier1Count={tier1Pool.length}
-          hasSelection={Boolean(selectedNode)}
+          step3Done={step3Done}
+          readyForFinal={summary?.readyForFinal ?? false}
           onOpenPool={() => setActiveModal('pool')}
+          onOpenSuppliers={() => setActiveModal('suppliers')}
+          onOpenDataReview={() => setActiveModal('dataReview')}
+          onOpenVerify={() => { markVisited(4); setActiveModal('mapManage'); }}
         />
       )}
 
@@ -645,17 +684,17 @@ export default function SupplyChainHub() {
         </div>
       )}
 
-      {/* [R2] 데이터 완성도 + 다음 단계(최종검증) 이동 게이트 — STEP3~4 반복 자료수집 구간 */}
-      {mapContext && summary && !locked && (
+      {/* [R2] 데이터 완성도 + 협력사 단계별(차수) 뷰 — gaps(scopedGapNodes) 기준. summary 없어도 맵 데이터가 있으면 표시. */}
+      {mapContext && (mapStats.supplierCount > 0 || summary) && !locked && (
         <div className="mx-6 mt-3 rounded-md border border-slate-200 bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-ink-100">데이터 완성도</span>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                  summary.readyForFinal ? 'border border-ok-border bg-ok-bg text-ok-text' : 'border border-warn-border bg-warn-bg text-warn-text'
+                  summary?.readyForFinal ? 'border border-ok-border bg-ok-bg text-ok-text' : 'border border-warn-border bg-warn-bg text-warn-text'
                 }`}>
-                  {summary.readyForFinal
+                  {summary?.readyForFinal
                     ? '최종 검증 준비 완료'
                     : activeDepth != null ? `${activeDepth}차 진행 중` : '입력 진행 중'}
                 </span>
@@ -667,7 +706,7 @@ export default function SupplyChainHub() {
                     {depthStats.map(s => {
                       const pct = s.total > 0 ? Math.round((s.complete / s.total) * 100) : 0;
                       const done = pct === 100;
-                      const isActive = s.depth === activeDepth && !summary.readyForFinal;
+                      const isActive = s.depth === activeDepth && !summary?.readyForFinal;
                       return (
                         <div
                           key={s.depth}
@@ -699,16 +738,16 @@ export default function SupplyChainHub() {
                 </div>
               )}
               <div className="mt-1.5 text-[11px] text-slate-500">
-                협력사 {mapStats.supplierCount}곳 · 완비 {mapStats.complete}곳 · 미보유 {mapStats.totalGapCount}건 · 비율검증 {summary.ratioValid ? 'OK' : '불일치'}
+                협력사 {mapStats.supplierCount}곳 · 완비 {mapStats.complete}곳 · 미보유 {mapStats.totalGapCount}건 · 비율검증 {summary ? (summary.ratioValid ? 'OK' : '불일치') : '—'}
                 <span className="ml-1 text-slate-400">
-                  — {activeDepth != null && !summary.readyForFinal
+                  — {activeDepth != null && !summary?.readyForFinal
                     ? `현재 ${activeDepth}차 자료 수집 중, 하위(n차)가 제출하면 다음 칸이 채워집니다.`
                     : '협력사·하위(n차)가 자료를 제출하면 완성도가 채워집니다.'}
                 </span>
               </div>
             </div>
             <div className="flex shrink-0 gap-2">
-              {!summary.readyForFinal && mapStats.nodesWithGaps > 0 && (
+              {!summary?.readyForFinal && mapStats.nodesWithGaps > 0 && (
                 <button
                   type="button"
                   onClick={requestIncomplete}
@@ -722,8 +761,8 @@ export default function SupplyChainHub() {
               <button
                 type="button"
                 onClick={() => { markVisited(4); setActiveModal('mapManage'); }}
-                disabled={!summary.readyForFinal}
-                title={summary.readyForFinal ? '' : '모든 협력사 데이터가 채워지면 이동할 수 있어요'}
+                disabled={!summary?.readyForFinal}
+                title={summary?.readyForFinal ? '' : '모든 협력사 데이터가 채워지면 이동할 수 있어요'}
                 className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 최종 검증으로 이동
@@ -835,7 +874,7 @@ export default function SupplyChainHub() {
       {/* 협력사 상세(general review) 팝업 — 맵 표 행 클릭 시. 닫으면 이 공급망 맵으로 바로 복귀. */}
       {reviewSupplier && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 md:p-8"
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 md:p-8"
           onClick={() => setReviewSupplier(null)}
         >
           <div
@@ -999,11 +1038,14 @@ export default function SupplyChainHub() {
         <DataReviewModal
           suppliers={mapSuppliers}
           gapNodes={scopedGapNodes}
+          allConfirmed={dataReviewDone}
           onRequest={id =>
             createDataRequest({ targetSupplierId: id, requestedDataType: 'general_info' })
               .then(() => { if (selectedProductId) getValidationSummary(selectedProductId, activeBomVersionId).then(setSummary).catch(() => {}); })
               .catch(() => {})
           }
+          onConfirmAll={() => setDataReviewDone(true)}
+          onOpenReview={(id, name) => openSupplierReview(id, name)}
           onClose={close}
         />
       )}
@@ -1043,11 +1085,15 @@ export default function SupplyChainHub() {
 
 // 흐름 안내 배너 — 현재 단계와 '다음 할 일'을 상태 기반으로 명시(사용자가 다음 액션을 알 수 있게).
 function FlowGuide({
-  hasProduct, poolCount, tier1Count, hasSelection, onOpenPool,
+  hasProduct, poolCount, tier1Count, step3Done, readyForFinal,
+  onOpenPool, onOpenSuppliers, onOpenDataReview, onOpenVerify,
 }: {
-  hasProduct: boolean; poolCount: number; tier1Count: number; hasSelection: boolean; onOpenPool: () => void;
+  hasProduct: boolean; poolCount: number; tier1Count: number;
+  step3Done: boolean; readyForFinal: boolean;
+  onOpenPool: () => void; onOpenSuppliers: () => void; onOpenDataReview: () => void; onOpenVerify: () => void;
 }) {
-  let step: string, title: string, desc: string, tone: 'info' | 'warn' | 'ok', cta = false;
+  let step: string, title: string, desc: string, tone: 'info' | 'warn' | 'ok';
+  let cta: { label: string; onClick: () => void } | null = null;
   if (!hasProduct) {
     step = 'STEP 1'; tone = 'info';
     title = '대표 제품을 선택하세요';
@@ -1057,13 +1103,25 @@ function FlowGuide({
     title = '이 제품은 다음 단계로 진행할 수 없습니다';
     desc = '등록된 1차 협력사가 없어 협력사 Pool을 구성할 수 없습니다. 다른 제품을 선택하세요.';
   } else if (poolCount === 0) {
-    step = 'STEP 2'; tone = 'info'; cta = true;
+    step = 'STEP 2'; tone = 'info';
     title = '협력사 Pool을 구성하세요';
     desc = `상단 "STEP 2 협력사 Pool 구성"을 눌러 1차 협력사 ${tier1Count}개사 중 작업 대상을 선택·확정하면 STEP 3~5가 열립니다.`;
+    cta = { label: '협력사 Pool 구성', onClick: onOpenPool };
+  } else if (!step3Done) {
+    step = 'STEP 3'; tone = 'info';
+    title = '협력사를 확인하세요';
+    desc = '이 공급망 맵에 편입된 협력사를 전부 확인하고, 필요하면 협력사별 정보요청 메일·동의서를 보내세요. 전부 확인하면 STEP 4가 열립니다.';
+    cta = { label: '협력사 확인', onClick: onOpenSuppliers };
+  } else if (!readyForFinal) {
+    step = 'STEP 4'; tone = 'info';
+    title = '자료 수집 · 보완을 검토하세요';
+    desc = '협력사가 제출한 자료의 입력 누락·문서 문제를 확인하고, 미완료 협력사에 알림 요청하거나 문제 문서를 AI 파싱 검토하세요.';
+    cta = { label: '자료 검토', onClick: onOpenDataReview };
   } else {
-    step = 'STEP 3'; tone = 'ok';
-    title = '맵 구성 완료 — 협력사를 확인하세요';
-    desc = '상단 "STEP 3 협력사 확인·자료 요청"에서 연결 협력사를 확인하거나 자료를 일괄 요청하세요. 협력사 노드를 클릭하면 상세 정보가 맵에 바로 표시됩니다.';
+    step = 'STEP 5'; tone = 'ok';
+    title = '자료 수집 완료 — 최종 검증으로 진행하세요';
+    desc = '모든 협력사 데이터가 준비됐습니다. 최종 검증에서 판정·요약을 확인하고 고객사 데이터를 내보내세요.';
+    cta = { label: '최종 검증', onClick: onOpenVerify };
   }
   const toneCls =
     tone === 'ok' ? 'border-ok-border bg-ok-bg text-ok-text'
@@ -1081,10 +1139,10 @@ function FlowGuide({
       {cta && (
         <button
           type="button"
-          onClick={onOpenPool}
+          onClick={cta.onClick}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-bold text-white hover:bg-brand-hover"
         >
-          협력사 Pool 구성
+          {cta.label}
           <ArrowRight className="h-4 w-4" />
         </button>
       )}
