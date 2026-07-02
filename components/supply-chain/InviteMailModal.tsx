@@ -1,12 +1,14 @@
 'use client';
 
-// 단계6 — 1차 협력사에 정보 입력을 요청하는 표준 템플릿 메일 팝업 (발송은 mock)
+// 단계6 — 1차 협력사에 정보 입력을 요청하는 표준 템플릿 메일 팝업
 //  · 시스템 제공 표준 템플릿 / 제3자 정보 확인 동의서 첨부 / 본인인증 담당자(PIC) 재확인
+//  · 발송 = 제3자 동의서(데이터 계약) 생성 + (실 UUID 협력사) 자료요청 생성
+//    → 백엔드가 협력사 담당자에게 in-app 알림 + 이메일(SES) 실발송
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { CheckCircle2, FileSignature, Loader2, Paperclip, Send, ShieldCheck, Users } from 'lucide-react';
 import ModalShell from './ModalShell';
-import { createDataConsent, type SupplierBrief } from '@/lib/api';
+import { createDataConsent, createDataRequest, type SupplierBrief } from '@/lib/api';
 import { CONSENT_ATTACHMENT, INVITE_MAIL_SUBJECT, buildInviteMailBody } from '@/lib/supply-chain-mail-template';
 
 // 메일에 첨부하는 제3자 정보제공 동의서 = 데이터 계약(Data Contract) 조건.
@@ -76,7 +78,8 @@ export default function InviteMailModal({
     setDrafts(prev => ({ ...prev, [id]: { ...prev[id], ...p } }));
   }
 
-  // 발송 = 초대 메일 + 제3자 동의서 → 데이터 계약(consent 'requested') 생성.
+  // 발송 = 제3자 동의서(데이터 계약 'requested') 생성 + 자료요청 생성.
+  //   자료요청은 백엔드에서 협력사 담당자에게 in-app 알림 + 이메일(SES)을 실발송한다.
   async function send(id: string) {
     setSendingId(id);
     try {
@@ -88,6 +91,10 @@ export default function InviteMailModal({
         validFrom: new Date().toISOString().slice(0, 10),
         formVersion: 'v1.0',
       }).catch(() => {});
+      // 실 UUID 협력사만 자료요청 생성(→ 실 알림·이메일). mock S-ID는 데모로 통과.
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id)) {
+        await createDataRequest({ targetSupplierId: id, requestedDataType: 'general_info' }).catch(() => {});
+      }
       patch(id, { sent: true });
     } finally {
       setSendingId(null);
