@@ -18,7 +18,8 @@ import MapManageModal from '@/components/supply-chain/MapManageModal';
 
 export type HubModal = null | 'pool' | 'suppliers' | 'dataRequest' | 'invite' | 'mapManage';
 
-// 진입 게이트 통합 목록의 한 행 = (제품 × 고객사 × 단위기간[BOM Lot]).
+// 진입 게이트 통합 목록의 한 행 = (제품 × 고객사 × BOM 버전). 각 BOM은 생산기간(period)을 가진다.
+// 단위기간은 이 BOM들과 분리된 광범위 시간창이며, 그 안에 여러 BOM이 편입된다.
 interface EntryChainRow {
   productId: string;
   productName: string;
@@ -28,6 +29,29 @@ interface EntryChainRow {
   versionNumber: string;
   periodFrom: string | null;
   periodTo: string | null;
+}
+
+// 날짜 문자열 → <input type="date"> 값(YYYY-MM-DD). null/빈값은 ''.
+const toDateInput = (s: string | null | undefined) => (s ? s.slice(0, 10) : '');
+
+// 주어진 행들의 생산기간을 모두 감싸는 최소~최대 경계(단위기간 기본값).
+function periodBounds(rows: EntryChainRow[]): { from: string; to: string } {
+  const froms = rows.map(r => toDateInput(r.periodFrom)).filter(Boolean);
+  const tos = rows.map(r => toDateInput(r.periodTo)).filter(Boolean);
+  return {
+    from: froms.length ? froms.reduce((a, b) => (a < b ? a : b)) : '',
+    to: tos.length ? tos.reduce((a, b) => (a > b ? a : b)) : '',
+  };
+}
+
+// BOM(봄)의 생산기간이 선택 단위기간 [from,to]와 겹치면 그 기간에 편입된 것으로 본다.
+// 기간 미입력(빈값)이면 제한 없음, BOM 날짜가 null이면 경계를 열어(±무한) 항상 포함.
+function bomInPeriod(r: EntryChainRow, from: string, to: string): boolean {
+  const bf = toDateInput(r.periodFrom);
+  const bt = toDateInput(r.periodTo);
+  if (from && bt && bt < from) return false; // BOM이 기간 시작 전에 끝남
+  if (to && bf && bf > to) return false; //     BOM이 기간 종료 후에 시작함
+  return true;
 }
 
 export default function SupplyChainHub() {
@@ -119,13 +143,16 @@ export default function SupplyChainHub() {
     setRequesting(false);
   }
 
-  // ④ 진입 게이트 — 첫 진입 시 빈 상태에서 (제품×고객사×단위기간) 통합 목록에서 한 줄을 골라 맵을 연다.
+  // ④ 진입 게이트 — 첫 진입 시 빈 상태에서 고객사 → 제품 → 단위기간 → BOM(봄)을 골라 맵을 연다.
   // URL 제품 진입·데모는 게이트 스킵.
   const [mapStarted, setMapStarted] = useState(Boolean(initialProductId));
   const [entryProductId, setEntryProductId] = useState(initialProductId ?? '');
   const [entryCustomer, setEntryCustomer] = useState('');
   const [entryBomVersionId, setEntryBomVersionId] = useState<string | undefined>(undefined);
-  // 통합 목록 행 = (제품 × 고객사 × 단위기간[BOM Lot]). 제품마다 BOM 버전을 조회해 구성.
+  // 단위기간 — BOM(봄)과 분리된 광범위 시간창. 이 범위에 겹치는 BOM들만 봄 드롭다운에 뜬다.
+  const [entryPeriodFrom, setEntryPeriodFrom] = useState('');
+  const [entryPeriodTo, setEntryPeriodTo] = useState('');
+  // 통합 목록 행 = (제품 × 고객사 × BOM 버전). 제품마다 BOM 버전을 조회해 구성.
   const [entryRows, setEntryRows] = useState<EntryChainRow[]>([]);
   const [entryRowsLoading, setEntryRowsLoading] = useState(false);
 
@@ -220,9 +247,16 @@ export default function SupplyChainHub() {
         setEntryRowsLoading(false);
         // 기본 선택값 — 첫 행(고객사→제품→기간 정렬 기준). 이미 고른 값은 유지.
         const first = rows[0];
+        const defProductId = entryProductId || first?.productId || '';
         setEntryCustomer(c => c || first?.customerName || '');
         setEntryProductId(p => p || first?.productId || '');
-        setEntryBomVersionId(b => b ?? first?.bomVersionId);
+        // 단위기간 기본값 = 그 제품 BOM 전체를 감싸는 범위. 그 안 첫 BOM을 봄으로 선택.
+        const prodRows = rows.filter(r => r.productId === defProductId);
+        const b = periodBounds(prodRows);
+        setEntryPeriodFrom(prev => prev || b.from);
+        setEntryPeriodTo(prev => prev || b.to);
+        const firstBom = prodRows.find(r => bomInPeriod(r, b.from, b.to));
+        setEntryBomVersionId(bv => bv ?? firstBom?.bomVersionId);
       }
     })();
     return () => {
@@ -241,29 +275,46 @@ export default function SupplyChainHub() {
         .map(r => [r.productId, r]),
     ).values(),
   );
-  const entryPeriods = entryRows.filter(r => r.productId === entryProductId);
+  // 선택 제품의 모든 BOM 행 → 그중 단위기간에 겹치는 BOM만 봄 드롭다운 후보.
+  const entryProductRows = entryRows.filter(r => r.productId === entryProductId);
+  const entryBoms = entryProductRows.filter(r => bomInPeriod(r, entryPeriodFrom, entryPeriodTo));
 
-  // 고객사 변경 → 그 고객사의 첫 제품·첫 기간으로 리셋.
+  // 제품 확정 시 공통 — 단위기간을 그 제품 BOM 전체를 감싸는 범위로 리셋하고 첫 봄 선택.
+  function applyProduct(productId: string) {
+    setEntryProductId(productId);
+    const prodRows = entryRows.filter(r => r.productId === productId);
+    const b = periodBounds(prodRows);
+    setEntryPeriodFrom(b.from);
+    setEntryPeriodTo(b.to);
+    const firstBom = prodRows.find(r => bomInPeriod(r, b.from, b.to));
+    setEntryBomVersionId(firstBom?.bomVersionId);
+  }
+  // 고객사 변경 → 그 고객사의 첫 제품으로 리셋 + 그 제품 기준 단위기간/봄 재설정.
   function onEntryCustomerChange(name: string) {
     setEntryCustomer(name);
     const firstProd = entryRows.find(r => !name || r.customerName === name);
-    setEntryProductId(firstProd?.productId ?? '');
-    const firstPeriod = entryRows.find(r => r.productId === firstProd?.productId);
-    setEntryBomVersionId(firstPeriod?.bomVersionId);
+    applyProduct(firstProd?.productId ?? '');
   }
-  // 제품 변경 → 그 제품의 고객사 자동 반영 + 첫 기간으로 리셋.
+  // 제품 변경 → 그 제품의 고객사 자동 반영 + 단위기간/봄 재설정.
   function onEntryProductChange(productId: string) {
-    setEntryProductId(productId);
     const row = entryRows.find(r => r.productId === productId);
     if (row?.customerName) setEntryCustomer(row.customerName);
-    const firstPeriod = entryRows.find(r => r.productId === productId);
-    setEntryBomVersionId(firstPeriod?.bomVersionId);
+    applyProduct(productId);
+  }
+  // 단위기간 변경 → 선택된 봄이 새 범위 밖이면 범위 내 첫 봄으로 옮긴다.
+  function onPeriodChange(from: string, to: string) {
+    setEntryPeriodFrom(from);
+    setEntryPeriodTo(to);
+    const inRange = entryProductRows.filter(r => bomInPeriod(r, from, to));
+    if (!inRange.some(r => r.bomVersionId === entryBomVersionId)) {
+      setEntryBomVersionId(inRange[0]?.bomVersionId);
+    }
   }
 
   // '맵 생성' → 선택한 제품·단위기간(Lot)으로 맵 생성/진입(페이지 전환).
   function startMapFromSelection() {
     if (!entryProductId) return;
-    const versionId = entryBomVersionId ?? entryPeriods[0]?.bomVersionId;
+    const versionId = entryBomVersionId ?? entryBoms[0]?.bomVersionId;
     setEntryBomVersionId(versionId);
     setMapStarted(true);
     handleProductChange(entryProductId, versionId);
@@ -394,12 +445,26 @@ export default function SupplyChainHub() {
 
   const close = () => setActiveModal(null);
 
+  // [P1] 맵 생성 시 고른 기준(고객사·제품·BOM버전·단위기간) — 흐름상 이후 화면에서도 고정 표출.
+  const ctxRow = entryRows.find(
+    r => r.productId === entryProductId && (!entryBomVersionId || r.bomVersionId === entryBomVersionId),
+  );
+  const mapContext = mapStarted
+    ? {
+        customer: ctxRow?.customerName || entryCustomer || '—',
+        product: ctxRow?.productName || '—',
+        productCode: ctxRow?.productCode,
+        bomVersion: ctxRow?.versionNumber || '—',
+        periodFrom: entryPeriodFrom || ctxRow?.periodFrom || '',
+        periodTo: entryPeriodTo || ctxRow?.periodTo || '',
+      }
+    : null;
+
   return (
     <div className="min-h-screen bg-white text-ink-100">
       <PageHeader
         title="공급망 맵 허브"
-        description="대표 제품을 고르고 MBOM 기준으로 1차 협력사를 자동 맵핑한 뒤, 협력사 정보 확인·자료 요청·초대·만료 관리까지 관리합니다.
-      </p>"
+        description="고객사·제품·BOM버전·단위기간 기준으로 맵을 생성하고, 1차 협력사 확인·Pool 확정·자료 요청·초대·최종 검증까지 이어갑니다."
         tabs={[
           { label: '공급망 목록', href: '/supply-chain' },
           { label: '공급망 맵', href: '/supply-chain/map', active: true },
@@ -415,6 +480,24 @@ export default function SupplyChainHub() {
           onOpenVerify={() => { markVisited(4); setActiveModal('mapManage'); }}
         />
       </PageHeader>
+
+      {/* [P1] 맵 기준 고정 바 — 맵 생성 후 모든 단계에서 고객사/제품/BOM/단위기간을 고정 표출 */}
+      {mapContext && (
+        <div className="mx-6 mt-4 flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-brand">맵 기준 · 고정</span>
+          {([
+            ['고객사', mapContext.customer],
+            ['제품', mapContext.product + (mapContext.productCode ? ` (${mapContext.productCode})` : '')],
+            ['BOM 버전', mapContext.bomVersion],
+            ['단위기간', (mapContext.periodFrom || mapContext.periodTo) ? `${mapContext.periodFrom || '…'} ~ ${mapContext.periodTo || '…'}` : '전체'],
+          ] as const).map(([label, value]) => (
+            <span key={label} className="flex items-baseline gap-1.5 text-sm">
+              <span className="text-xs text-slate-400">{label}</span>
+              <span className="font-semibold text-ink-100">{value}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       {loadStatus === null && !productsLoading && dataset.products.length > 0 && mapStarted && !locked && (
         <FlowGuide
@@ -497,7 +580,7 @@ export default function SupplyChainHub() {
         </button>
       </div>
 
-      {/* ④ 진입 게이트: 제품·고객사·단위기간 리스트를 골라 '맵 생성'으로 진입. */}
+      {/* ④ 진입 게이트: 고객사·제품·단위기간·BOM(봄)을 골라 '맵 생성'으로 진입. */}
       {!mapStarted && loadStatus === null && !productsLoading && dataset.products.length > 0 && (
         <div className="mx-6 mt-6 rounded-md border border-slate-200 bg-white p-10 text-center shadow-sm">
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-ok-bg text-ok-text">
@@ -505,7 +588,7 @@ export default function SupplyChainHub() {
           </span>
           <h2 className="mt-4 text-lg font-bold text-ink-100">공급망 맵 생성</h2>
           <p className="mt-1 text-sm text-slate-500">
-            제품 · 고객사 · 단위기간(생산 Lot)을 선택하고 맵을 생성하면, 해당 공급망의 1차 협력사부터 자동 맵핑됩니다.
+            고객사 · 제품 · 단위기간을 고르고, 그 기간에 편입된 BOM(생산 Lot) 하나를 선택해 맵을 생성하면, 해당 공급망의 1차 협력사부터 자동 맵핑됩니다.
           </p>
 
           {entryRowsLoading ? (
@@ -540,17 +623,38 @@ export default function SupplyChainHub() {
                 </select>
               </label>
               <label className="flex flex-col gap-1.5 text-left">
-                <span className="text-[11px] font-bold text-slate-500">단위기간 (생산 Lot)</span>
+                <span className="text-[11px] font-bold text-slate-500">단위기간 (시작)</span>
+                <input
+                  type="date"
+                  value={entryPeriodFrom}
+                  max={entryPeriodTo || undefined}
+                  onChange={e => onPeriodChange(e.target.value, entryPeriodTo)}
+                  className="min-w-[150px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5 text-left">
+                <span className="text-[11px] font-bold text-slate-500">단위기간 (종료)</span>
+                <input
+                  type="date"
+                  value={entryPeriodTo}
+                  min={entryPeriodFrom || undefined}
+                  onChange={e => onPeriodChange(entryPeriodFrom, e.target.value)}
+                  className="min-w-[150px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5 text-left">
+                <span className="text-[11px] font-bold text-slate-500">BOM (생산 Lot)</span>
                 <select
                   value={entryBomVersionId ?? ''}
                   onChange={e => setEntryBomVersionId(e.target.value || undefined)}
-                  className="min-w-[220px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none"
+                  disabled={entryBoms.length === 0}
+                  className="min-w-[240px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none disabled:opacity-50"
                 >
-                  {entryPeriods.length === 0 && <option value="">전체</option>}
-                  {entryPeriods.map(r => (
+                  {entryBoms.length === 0 && <option value="">해당 기간에 편입된 BOM 없음</option>}
+                  {entryBoms.map(r => (
                     <option key={r.bomVersionId ?? 'na'} value={r.bomVersionId ?? ''}>
-                      {r.periodFrom ? `${r.periodFrom} ~ ${r.periodTo ?? '진행중'}` : '전체'}
-                      {r.versionNumber ? ` (v${r.versionNumber})` : ''}
+                      {r.versionNumber ? `v${r.versionNumber}` : 'BOM'}
+                      {r.periodFrom ? ` · ${toDateInput(r.periodFrom)} ~ ${toDateInput(r.periodTo) || '진행중'}` : ''}
                     </option>
                   ))}
                 </select>
@@ -558,7 +662,7 @@ export default function SupplyChainHub() {
               <button
                 type="button"
                 onClick={startMapFromSelection}
-                disabled={!entryProductId}
+                disabled={!entryProductId || entryBoms.length === 0}
                 className="inline-flex items-center gap-1.5 rounded-md bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-hover disabled:opacity-50"
               >
                 <ArrowRight className="h-4 w-4" />
