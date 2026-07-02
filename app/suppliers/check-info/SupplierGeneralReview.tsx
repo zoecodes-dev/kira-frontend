@@ -579,6 +579,11 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId }: { la
   const [displayName, setDisplayName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  // initialUrl은 비동기 GET(getSupplierDetail 등) 도착 후 나중에 채워짐 — 첫 렌더 때
+  // useState 초기값만 잡고 끝나면 데이터가 도착해도 반영이 안 되므로 prop 변경 시 동기화.
+  useEffect(() => {
+    setDocValue(initialUrl ?? '');
+  }, [initialUrl]);
   const uploaded = Boolean(docValue);
   // 표시명: 방금 올린 파일명 우선, 없으면 S3 키 경로의 마지막 조각.
   const shownName = displayName || (docValue ? docValue.split('/').pop() : '');
