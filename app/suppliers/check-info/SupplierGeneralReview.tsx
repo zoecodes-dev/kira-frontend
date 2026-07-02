@@ -1074,8 +1074,12 @@ export function SupplierGeneralReviewContent({
     try {
       await persistForm();
       setSaved(true);
-    } catch {
-      alert('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403 && err.message === 'CONSENT_REQUIRED') {
+        alert('제3자 정보제공 동의가 필요합니다. 초대 메일의 링크로 접속해 동의를 완료한 뒤 자료를 저장할 수 있어요.');
+      } else {
+        alert('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -1088,8 +1092,12 @@ export function SupplierGeneralReviewContent({
       await persistForm();
       setSaved(false);
       setEditing(false);
-    } catch {
-      alert('제출에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403 && err.message === 'CONSENT_REQUIRED') {
+        alert('제3자 정보제공 동의가 필요합니다. 초대 메일의 링크로 접속해 동의를 완료한 뒤 자료를 제출할 수 있어요.');
+      } else {
+        alert('제출에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      }
     } finally {
       setSubmitting(false);
     }

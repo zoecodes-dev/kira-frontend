@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { CheckCircle2, PackageSearch, Plus, Search } from 'lucide-react';
 import ModalShell from './ModalShell';
+import SubSupplierInviteModal from './SubSupplierInviteModal';
 import { type SupplierBrief, type ProviderType } from '@/lib/api';
 
 // §4.2 — 요청 노드(KIRA, OEM/tier0)는 Pool 후보에서 제외 (tier 필터로 대부분 걸러지나 안전망)
@@ -33,6 +34,7 @@ export default function PoolModal({
 }) {
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(initialPool.map(s => s.supplierId)));
+  const [showInvite, setShowInvite] = useState(false);
 
   const visible = useMemo(() => candidates.filter(s => s.supplierId !== REQUEST_NODE_ID), [candidates]);
 
@@ -59,6 +61,7 @@ export default function PoolModal({
   }
 
   return (
+   <>
     <ModalShell
       title="협력사 Pool 구성"
       subtitle="선택한 대표 제품의 1차 협력사 중 이번 공급망 맵 작업 대상을 고르세요. (1차 협력사는 이미 등록되어 있습니다)"
@@ -97,12 +100,12 @@ export default function PoolModal({
             className="h-10 w-full rounded-md border border-slate-200 pl-9 pr-3 text-sm outline-none focus:border-brand"
           />
         </div>
-        {/* 신규 협력사 등록(n차 회원가입)은 추후 별도 구현 — 훅 지점 stub */}
+        {/* 신규(하위) 협력사 초대 — POST /suppliers(stub+초대메일+PIC). 원청 직접 등록이라 inviter=null. */}
         <button
           type="button"
-          disabled
-          title="추후 지원 예정"
-          className="inline-flex h-10 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-400"
+          onClick={() => setShowInvite(true)}
+          title="하위 협력사 초대"
+          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 hover:border-brand hover:text-brand"
         >
           <Plus className="h-4 w-4" />
           협력사 추가
@@ -151,5 +154,16 @@ export default function PoolModal({
         </div>
       )}
     </ModalShell>
+    {showInvite && (
+      <SubSupplierInviteModal
+        inviterSupplierId={null}
+        onClose={() => setShowInvite(false)}
+        onInvited={() => {
+          setShowInvite(false);
+          alert('초대 메일이 발송되었습니다. 목록은 새로고침 후 반영됩니다.');
+        }}
+      />
+    )}
+   </>
   );
 }
