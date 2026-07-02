@@ -11,10 +11,12 @@ interface HubStepBarProps {
   hasProduct: boolean;
   completed: Set<number>;
   locked?: boolean;
+  step3Done?: boolean;           // 협력사 전부 확인 → STEP4(자료 수집·보완) 개방
   readyForFinal?: boolean;       // 데이터 완성도 준비 완료 → 최종검증 개방
   completePct?: number | null;   // 자료수집 반복 구간 진행률(%)
   onOpenPool: () => void;
   onOpenSuppliers: () => void;   // 협력사 확인·동의·정보요청 메일(ConnectedSuppliersModal)
+  onOpenDataReview: () => void;  // 자료 수집·보완 검토(DataReviewModal)
   onOpenVerify: () => void;      // 최종 검증(MapManageModal)
 }
 
@@ -63,10 +65,12 @@ export default function HubStepBar({
   hasProduct,
   completed,
   locked = false,
+  step3Done = false,
   readyForFinal = false,
   completePct = null,
   onOpenPool,
   onOpenSuppliers,
+  onOpenDataReview,
   onOpenVerify,
 }: HubStepBarProps) {
   const step1Done = completed.has(1);
@@ -105,16 +109,16 @@ export default function HubStepBar({
           disabled={!poolDone || locked}
           done={completed.has(3)}
         />
-        {/* 4 — 자료 수집·보완 (반복: 협력사·하위 n차 왕복) */}
+        {/* 4 — 자료 수집·보완 (입력 누락·문서 문제 검토·요청). STEP3(협력사 전부 확인) 후 개방 */}
         <StepTile
           index={4}
           label="자료 수집 · 보완"
-          hint={!poolDone ? 'Pool 확정 후' : collecting ? '협력사·하위 자료 제출 대기' : '수집 완료'}
+          hint={!step3Done ? '협력사 전부 확인 후' : collecting ? '입력 누락·문서 문제 검토' : '수집 완료'}
           Icon={RefreshCw}
-          onClick={onOpenSuppliers}
-          disabled={!poolDone || locked}
+          onClick={onOpenDataReview}
+          disabled={!step3Done || locked}
           done={poolDone && readyForFinal}
-          current={collecting}
+          current={step3Done && collecting}
           badge={poolDone && completePct !== null ? `완성도 ${completePct}%` : undefined}
         />
         {/* 5 — 최종 검증 (완성도 준비 시 개방) */}
