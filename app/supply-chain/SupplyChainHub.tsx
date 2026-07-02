@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
-import { ApiError, createDataRequest, getSupplyChainGaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, verifySupplier, type SupplierBrief, type SupplyChainGapsResult } from '@/lib/api';
+import { ApiError, confirmPool, createDataRequest, getSupplyChainGaps, getSupplyChainMaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, verifySupplier, type SupplierBrief, type SupplyChainGapsResult } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
 import PageHeader from '@/components/PageHeader';
 import HubStepBar from '@/components/supply-chain/HubStepBar';
@@ -616,9 +616,24 @@ export default function SupplyChainHub() {
           candidates={tier1Pool}
           initialPool={pool}
           onClose={close}
-          onConfirm={selected => {
+          onConfirm={async selected => {
             setPool(selected);
             close();
+            // Pool 확정 영속화(P4/F1) — 선택 Tier-1 엣지 link_status=confirmed.
+            // 실 UUID 협력사 + 해당 맵이 있을 때만 호출(데모/mock S-ID는 상태만 유지).
+            const ids = selected
+              .map(s => s.supplierId)
+              .filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id));
+            if (ids.length === 0) return;
+            try {
+              const maps = await getSupplyChainMaps();
+              const header = maps.find(
+                m => (activeBomVersionId && m.bomVersionId === activeBomVersionId) || m.productId === selectedProductId,
+              );
+              if (header?.mapId) await confirmPool(header.mapId, ids);
+            } catch {
+              /* 영속화 실패는 흐름을 막지 않음 — 프론트 상태(pool)는 이미 반영됨 */
+            }
           }}
         />
       )}
