@@ -38,12 +38,14 @@ interface EntryChainRow {
 const toDateInput = (s: string | null | undefined) => (s ? s.slice(0, 10) : '');
 
 // 주어진 행들의 생산기간을 모두 감싸는 최소~최대 경계(단위기간 기본값).
+//   종료일이 없는(진행중) BOM만 있으면 종료 경계를 '오늘'로 채운다 — 빈 날짜칸('연도-월-일' 플레이스홀더) 방지.
 function periodBounds(rows: EntryChainRow[]): { from: string; to: string } {
   const froms = rows.map(r => toDateInput(r.periodFrom)).filter(Boolean);
   const tos = rows.map(r => toDateInput(r.periodTo)).filter(Boolean);
+  const today = new Date().toISOString().slice(0, 10);
   return {
     from: froms.length ? froms.reduce((a, b) => (a < b ? a : b)) : '',
-    to: tos.length ? tos.reduce((a, b) => (a > b ? a : b)) : '',
+    to: tos.length ? tos.reduce((a, b) => (a > b ? a : b)) : (froms.length ? today : ''),
   };
 }
 
@@ -113,24 +115,28 @@ export default function SupplyChainHub() {
   );
 
   // 이 공급망 맵에 편입된 협력사 전부(1~n차, 원청 제외) — STEP3 확인/메일·STEP4 검토 대상. dataset.suppliers(맵 병합 시 전 차수 포함)에서 도출.
-  const mapSuppliers = useMemo<SupplierBrief[]>(
-    () =>
-      dataset.suppliers
-        .filter(s => mapSupplierIds.has(s.supplier_id) && !rootAnchorIds.has(s.supplier_id))
-        .map(s => ({
-          supplierId: s.supplier_id,
-          companyName: s.company_name,
-          providerType: s.provider_type as SupplierBrief['providerType'],
-          status: (s.status || 'active') as SupplierBrief['status'],
-          riskLevel: (s.risk_level ?? 'low') as SupplierBrief['riskLevel'],
-        }))
-        .sort((a, b) => {
-          const ta = dataset.suppliers.find(s => s.supplier_id === a.supplierId)?.tier ?? 99;
-          const tb = dataset.suppliers.find(s => s.supplier_id === b.supplierId)?.tier ?? 99;
-          return ta - tb || a.companyName.localeCompare(b.companyName);
-        }),
-    [dataset.suppliers, mapSupplierIds, rootAnchorIds],
-  );
+  //   원청(우리 회사)은 협력사가 아니므로 제외: (1) gaps의 is_root_anchor, (2) hop_level 0(=원청 차수) 노드.
+  //   단, hop 정보가 없어 전 협력사가 tier 0이면 구분 불가이므로 그때는 tier 기준 제외를 적용하지 않는다.
+  const mapSuppliers = useMemo<SupplierBrief[]>(() => {
+    const inMap = dataset.suppliers.filter(
+      s => mapSupplierIds.has(s.supplier_id) && !rootAnchorIds.has(s.supplier_id),
+    );
+    const nonOem = inMap.filter(s => (s.tier ?? 0) > 0);
+    const base = nonOem.length ? nonOem : inMap;   // 전부 tier 0(hop 미제공)이면 tier 제외 스킵
+    return base
+      .map(s => ({
+        supplierId: s.supplier_id,
+        companyName: s.company_name,
+        providerType: s.provider_type as SupplierBrief['providerType'],
+        status: (s.status || 'active') as SupplierBrief['status'],
+        riskLevel: (s.risk_level ?? 'low') as SupplierBrief['riskLevel'],
+      }))
+      .sort((a, b) => {
+        const ta = dataset.suppliers.find(s => s.supplier_id === a.supplierId)?.tier ?? 99;
+        const tb = dataset.suppliers.find(s => s.supplier_id === b.supplierId)?.tier ?? 99;
+        return ta - tb || a.companyName.localeCompare(b.companyName);
+      });
+  }, [dataset.suppliers, mapSupplierIds, rootAnchorIds]);
 
   // STEP3 완료 = 이 맵에 편입된 협력사 '전부' 확인. (Pool=1차만이 아니라 전 차수 기준)
   const step3Done = mapSuppliers.length > 0 && mapSuppliers.every(p => confirmedSuppliers.has(p.supplierId));
@@ -599,7 +605,7 @@ export default function SupplyChainHub() {
     <div className="min-h-screen bg-white text-ink-100">
       <PageHeader
         title="공급망 맵 허브"
-        description="고객사·제품·BOM버전·단위기간 기준으로 맵을 생성하고, 1차 협력사 확인·Pool 확정·자료 요청·초대·최종 검증까지 이어갑니다."
+        description="고객사·제품·BOM버전·단위기간 기준으로 맵을 생성하고, 협력사 확인·Pool 구성·자료 요청·초대·최종 검증까지 이어갑니다."
         tabs={[
           { label: '공급망 목록', href: '/supply-chain' },
           { label: '공급망 맵', href: '/supply-chain/map', active: true },
@@ -1068,7 +1074,9 @@ export default function SupplyChainHub() {
 
       {activeModal === 'mapManage' && (
         <MapManageModal
-          pool={pool}
+          // 최종 검증 대상 = 이 맵 트리에 편입된 협력사 '전부'(전 차수). 1차 확정분(pool)만이 아니라
+          //   트리가 구성되며 붙은 하위(n차)까지 검증한다. mapSuppliers는 트리 성장에 따라 커진다.
+          pool={mapSuppliers}
           {...(selectedProductId ? { productId: selectedProductId } : {})}
           {...(activeBomVersionId ? { bomVersionId: activeBomVersionId } : {})}
           onClose={close}

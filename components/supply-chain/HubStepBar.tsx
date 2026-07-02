@@ -141,7 +141,7 @@ export default function HubStepBar({
           <span className="min-w-0">
             <span className="block text-[11px] font-bold text-slate-400">STEP 6</span>
             <span className="block truncate text-sm font-bold text-ink-100">고객사 데이터 다운로드</span>
-            <span className="block truncate text-[11px] font-medium text-slate-500">최종 검증 · 추적 테이블에서 엑셀</span>
+            <span className="block truncate text-[11px] font-medium text-slate-500">추적 테이블에서 엑셀 다운로드</span>
           </span>
         </div>
       </div>
