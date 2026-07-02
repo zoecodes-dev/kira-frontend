@@ -793,7 +793,7 @@ export default function SupplyChainHub() {
                     <tr key={node.supplier_id} className="hover:bg-slate-50">
                       <td className="whitespace-nowrap px-3 py-2"><span className="num-mono text-xs font-bold text-slate-500">{node.depth}차</span></td>
                       <td className="px-3 py-2">
-                        <div className="font-semibold text-ink-100">{node.company_name || node.supplier_id.slice(0, 8)}</div>
+                        <div className="font-semibold text-ink-100">{node.company_name || (node.supplier_id ?? '').slice(0, 8)}</div>
                         <div className="text-[11px] text-slate-400">{node.provider_type}</div>
                       </td>
                       <td className="whitespace-nowrap px-3 py-2">

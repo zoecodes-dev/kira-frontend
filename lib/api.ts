@@ -762,7 +762,9 @@ export interface SupplyChainAlternative {
 }
 
 export const getSupplyChainGaps = (productId: string) =>
-  api.get<SupplyChainGapsResult>(`/supply-chain/gaps?product_id=${productId}`);
+  // raw: 응답을 snake_case 그대로 받는다(SupplyChainGapsResult 타입·소비부가 snake_case 기준).
+  //   raw 없으면 snakeToCamel로 변환돼 node.supplier_id 등이 undefined가 된다.
+  api.get<SupplyChainGapsResult>(`/supply-chain/gaps?product_id=${productId}`, { raw: true });
 
 export const getSupplyChainAlternatives = (productId: string, partId: string) =>
   api.get<SupplyChainAlternative[]>(`/supply-chain/alternatives?product_id=${productId}&part_id=${partId}`);
