@@ -865,6 +865,15 @@ export default function SupplierPage() {
 
         {activeView === 'dashboard' && (
         <>
+        {/* [P4] 제출 진행 현황 — 제출→AI파싱→협력사확인→원청접수/검토→최종승인 (실 submissions) */}
+        {submissions.length > 0 && (
+          <section>
+            <EightStageStepper
+              submissions={submissions}
+              onResubmit={() => setActiveView('company-info')}
+            />
+          </section>
+        )}
         {/* ── 영역 B: 진행 현황 KPI (상단 가로 4개) ── */}
         <section className="grid grid-cols-4 gap-4">
           <div
