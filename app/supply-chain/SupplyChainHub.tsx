@@ -753,69 +753,51 @@ export default function SupplyChainHub() {
         </div>
       )}
 
-      {mapStarted && (
-        <SupplyChainMapPageContent
-          dataset={dataset}
-          embedded
-          initialProductId={initialProductId ?? entryProductId}
-          initialBomVersionId={initialBomVersionId ?? entryBomVersionId}
-          highlightSupplierIds={new Set(pool.map(s => s.supplierId))}
-          onNodeSelect={setSelectedNode}
-          onConnectClick={() => setActiveModal('invite')}
-          onProductChange={handleProductChange}
-        />
-      )}
-
-      {/* [R] 협력사별 진행 현황 — 전 차수(1~n차). gaps.nodes(재귀 CTE)에서 단계·미보유·per-supplier 액션 */}
+      {/* [R] 협력사별 진행 현황 — 이 공급망 맵(제품) 대상 전 차수. 제출 데이터 확인 위·동일 양식 */}
       {gaps && gaps.nodes.filter(n => !n.is_root_anchor).length > 0 && (
-        <div className="mx-6 mt-4 rounded-md border border-slate-200 bg-white p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Network className="h-4 w-4 text-brand" />
-            <span className="text-sm font-bold text-ink-100">협력사별 진행 현황</span>
-            <span className="text-[11px] text-slate-500">전 차수 · 협력사가 자료를 제출하면 단계가 갱신됩니다</span>
+        <section className="mx-6 mt-4 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+          <div className="border-b border-ink-700 bg-ink-800/40 px-5 py-4">
+            <h2 className="text-base font-bold text-ink-100">협력사별 진행 현황</h2>
+            <p className="mt-0.5 text-xs text-ink-500">이 공급망 맵의 전 차수(1~n차) 협력사 · 단계 기준: 미보유(규제 필수필드 부족) → 데이터 완비(필수필드 충족) → 승인(원청 확인 완료)</p>
           </div>
-          <div className="overflow-x-auto rounded-md border border-slate-200">
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-[11px] text-slate-500">
-                <tr>
-                  <th className="px-3 py-2 text-left font-semibold">차수</th>
-                  <th className="px-3 py-2 text-left font-semibold">협력사</th>
-                  <th className="px-3 py-2 text-left font-semibold">단계</th>
-                  <th className="px-3 py-2 text-left font-semibold">미보유 필드</th>
-                  <th className="px-3 py-2 text-right font-semibold">액션</th>
+              <thead>
+                <tr className="border-b border-ink-700 bg-ink-800/30">
+                  {['Tier', '협력사', '공급자 유형', '단계', '미보유 필드', '액션'].map(h => (
+                    <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold text-ink-500">{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ink-700/40">
                 {[...gaps.nodes].filter(n => !n.is_root_anchor).sort((a, b) => a.depth - b.depth).map(node => {
                   const complete = node.gap_count === 0;
                   const confirmed = confirmedSuppliers.has(node.supplier_id);
+                  const stageCls = complete
+                    ? (confirmed ? 'border-ok-border bg-ok-bg text-ok-text' : 'border-accent-100 bg-accent-50 text-accent-700')
+                    : 'border-warn-border bg-warn-bg text-warn-text';
+                  const stageLabel = complete ? (confirmed ? '승인' : '데이터 완비') : `미보유 ${node.gap_count}건`;
                   return (
-                    <tr key={node.supplier_id} className="hover:bg-slate-50">
-                      <td className="whitespace-nowrap px-3 py-2"><span className="num-mono text-xs font-bold text-slate-500">{node.depth}차</span></td>
-                      <td className="px-3 py-2">
-                        <div className="font-semibold text-ink-100">{node.company_name || (node.supplier_id ?? '').slice(0, 8)}</div>
-                        <div className="text-[11px] text-slate-400">{node.provider_type}</div>
+                    <tr key={node.supplier_id} className="hover:bg-ink-800/30">
+                      <td className="whitespace-nowrap px-4 py-3 text-xs font-bold text-ink-400">{node.depth}차</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-bold text-ink-100">{node.company_name || (node.supplier_id ?? '').slice(0, 8)}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-ink-400">{node.provider_type}</td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <span className={`inline-flex rounded-xs border px-2 py-0.5 text-xs font-bold ${stageCls}`}>{stageLabel}</span>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                          complete ? 'border border-ok-border bg-ok-bg text-ok-text' : 'border border-warn-border bg-warn-bg text-warn-text'
-                        }`}>
-                          {complete ? (confirmed ? '승인됨' : '데이터 완비') : `미보유 ${node.gap_count}건`}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {node.missing_fields.length === 0
-                            ? <span className="text-[11px] text-slate-400">—</span>
+                            ? <span className="text-xs text-ink-400">—</span>
                             : node.missing_fields.slice(0, 4).map(f => (
-                                <span key={f.field_name} className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500">
+                                <span key={f.field_name} className="inline-flex rounded-xs border border-ink-700 bg-ink-800/40 px-2 py-0.5 text-xs text-ink-400">
                                   {f.field_label || f.field_name}
                                 </span>
                               ))}
-                          {node.missing_fields.length > 4 && <span className="text-[11px] text-slate-400">+{node.missing_fields.length - 4}</span>}
+                          {node.missing_fields.length > 4 && <span className="text-xs text-ink-400">+{node.missing_fields.length - 4}</span>}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                      <td className="whitespace-nowrap px-4 py-3">
                         {!complete && isUuid(node.supplier_id) && (
                           <button
                             type="button"
@@ -824,7 +806,7 @@ export default function SupplyChainHub() {
                                 .then(() => { if (selectedProductId) getValidationSummary(selectedProductId, activeBomVersionId).then(setSummary).catch(() => {}); })
                                 .catch(() => {})
                             }
-                            className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-brand hover:text-brand"
+                            className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-400 hover:bg-ink-800"
                           >
                             자료 요청
                           </button>
@@ -836,7 +818,20 @@ export default function SupplyChainHub() {
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
+      )}
+
+      {mapStarted && (
+        <SupplyChainMapPageContent
+          dataset={dataset}
+          embedded
+          initialProductId={initialProductId ?? entryProductId}
+          initialBomVersionId={initialBomVersionId ?? entryBomVersionId}
+          highlightSupplierIds={new Set(pool.map(s => s.supplierId))}
+          onNodeSelect={setSelectedNode}
+          onConnectClick={() => setActiveModal('invite')}
+          onProductChange={handleProductChange}
+        />
       )}
 
       {activeModal === 'pool' && (
