@@ -775,6 +775,8 @@ export default function SupplyChainHub() {
       {activeModal === 'mapManage' && (
         <MapManageModal
           pool={pool}
+          {...(selectedProductId ? { productId: selectedProductId } : {})}
+          {...(activeBomVersionId ? { bomVersionId: activeBomVersionId } : {})}
           onClose={close}
           onVerified={onStep4Verified}
           onRequestUpdate={supplier => {
