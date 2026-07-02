@@ -9,9 +9,9 @@ import { createDataRequest } from '@/lib/api';
 
 // 공급망 맵 문서 표준 요청 카테고리 (협력사가 입력/갱신해야 하는 항목)
 const REQUEST_CATEGORIES: { key: string; title: string; items: string[] }[] = [
-  { key: 'material', title: '자재 / 조성', items: ['자재 spec (핵심광물 함량)', '유해물질 정보', '재활용 함량 시험성적서'] },
-  { key: 'cert', title: '인증서', items: ['ISO 14001 갱신본', 'Bettercoal 인증서', '인증서 만료일 갱신'] },
-  { key: 'origin', title: '원산지', items: ['원산지증명서(C/O)', '광산 운영 허가증 / 채굴권 증서'] },
+  { key: 'material', title: '자재 / 조성', items: ['자재 spec (핵심광물 함량)'] },
+  { key: 'cert', title: '인증서', items: ['환경성적서', '인증서 만료일 갱신'] },
+  { key: 'origin', title: '원산지', items: ['원산지증명서(C/O)'] },
   { key: 'reg', title: '규제 증빙', items: ['PCF / 탄소발자국 보고서', '실사 감사 보고서'] },
 ];
 
