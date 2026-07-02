@@ -5,7 +5,8 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { CheckCircle2, FileSignature, Loader2, X } from 'lucide-react';
-import { getDataConsents, updateDataConsent, type DataConsent, type SupplierBrief } from '@/lib/api';
+import { getDataConsents, type DataConsent, type SupplierBrief } from '@/lib/api';
+import ConsentReplyForm from './ConsentReplyForm';
 
 const SCOPE_OPTIONS: { key: string; label: string }[] = [
   { key: 'company', label: '기업 기본정보' },
@@ -27,7 +28,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 export default function DataConsentModal({ supplier, onClose }: { supplier: SupplierBrief; onClose: () => void }) {
   const [consents, setConsents] = useState<DataConsent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [replyTarget, setReplyTarget] = useState<DataConsent | null>(null);
 
   async function load() {
     setLoading(true);
@@ -36,21 +37,6 @@ export default function DataConsentModal({ supplier, onClose }: { supplier: Supp
     finally { setLoading(false); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [supplier.supplierId]);
-
-  // 회신 기록(데모) — 협력사 서명·양식 회신을 원청이 수신 처리(requested/returned → agreed).
-  async function markAgreed(c: DataConsent) {
-    setBusy(true);
-    try {
-      await updateDataConsent(c.consentId, {
-        status: 'agreed',
-        signerName: '협력사 대표',
-        signatureMethod: 'email_form',
-        formData: { received_via: 'email', retention_years: 7 },
-        agreementHash: Math.random().toString(16).slice(2, 14),
-      });
-      await load();
-    } finally { setBusy(false); }
-  }
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/30 px-4" onClick={onClose}>
@@ -86,8 +72,8 @@ export default function DataConsentModal({ supplier, onClose }: { supplier: Supp
                         {c.thirdPartySharing && <span className="rounded-sm bg-warn-bg px-1.5 py-0.5 text-[11px] font-bold text-warn-text">제3자 재공유</span>}
                       </div>
                       {c.status !== 'agreed' && c.status !== 'revoked' && (
-                        <button type="button" onClick={() => markAgreed(c)} disabled={busy}
-                          className="inline-flex items-center gap-1.5 rounded-sm border border-ok-border bg-white px-2.5 py-1 text-xs font-bold text-ok-text hover:bg-ok-bg disabled:opacity-50">
+                        <button type="button" onClick={() => setReplyTarget(c)}
+                          className="inline-flex items-center gap-1.5 rounded-sm border border-ok-border bg-white px-2.5 py-1 text-xs font-bold text-ok-text hover:bg-ok-bg">
                           <CheckCircle2 className="h-3.5 w-3.5" /> 회신·동의 처리
                         </button>
                       )}
@@ -110,6 +96,15 @@ export default function DataConsentModal({ supplier, onClose }: { supplier: Supp
           )}
         </div>
       </div>
+
+      {replyTarget && (
+        <ConsentReplyForm
+          consent={replyTarget}
+          companyName={supplier.companyName}
+          onClose={() => setReplyTarget(null)}
+          onDone={() => { setReplyTarget(null); load(); }}
+        />
+      )}
     </div>
   );
 }
