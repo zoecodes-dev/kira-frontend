@@ -1268,6 +1268,41 @@ export const confirmPool = (mapId: string, supplierIds?: string[]) =>
     { supplier_ids: supplierIds ?? null },
   );
 
+// ── P7 최종 검증 요약/판정 + 고객사 제출용 서버 엑셀 export ──
+export interface ValidationSummaryNode {
+  supplierId: string;
+  companyName: string;
+  providerType?: string | null;
+  gapCount: number;
+  missingFields: { fieldName: string; fieldLabel?: string; regulationCode?: string; regulationName?: string }[];
+}
+export interface ValidationSummary {
+  productId: string;
+  bomVersionId: string | null;
+  supplierCount: number;
+  maxTier: number;
+  ratioValid: boolean;
+  totalGapCount: number;
+  nodesWithGaps: number;
+  readyForFinal: boolean;         // 미보유 필드 0 + 비율검증 통과 + 협력사>0
+  gapsBySupplier: ValidationSummaryNode[];
+}
+/** 최종 검증 요약/판정 — get_gaps(노드별 미보유) + 비율검증 롤업. 조회 전용. */
+export const getValidationSummary = (productId: string, bomVersionId?: string) =>
+  api.get<ValidationSummary>(
+    `/products/${productId}/supply-chain-map/validation-summary${bomVersionId ? `?bom_version_id=${bomVersionId}` : ""}`,
+  );
+/** 고객사 제출용 공급망 엑셀(xlsx) 서버 생성 다운로드 → Blob (인증 헤더 포함 fetch). */
+export async function downloadSupplyChainExcel(productId: string, bomVersionId?: string): Promise<Blob> {
+  const token = getToken();
+  const qs = bomVersionId ? `?bom_version_id=${bomVersionId}` : "";
+  const res = await fetch(`${API_BASE_URL}/products/${productId}/supply-chain-map/export${qs}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError(res.status, `엑셀 다운로드 실패 (HTTP ${res.status})`);
+  return res.blob();
+}
+
 // ── 공급망 맵 헤더(맵 그 자체) — 목록/단건/상태 ──────────────────────────────
 export interface SupplyChainMapHeader {
   mapId: string;
