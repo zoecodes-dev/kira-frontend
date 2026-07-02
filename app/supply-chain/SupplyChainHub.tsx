@@ -469,6 +469,29 @@ export default function SupplyChainHub() {
     ? Math.round(((summary.supplierCount - summary.nodesWithGaps) / summary.supplierCount) * 100)
     : (summary ? 0 : null);
 
+  // [R3] 협력사별 진행 현황은 '이 공급망 맵(map_id)' 기준으로 스코프한다.
+  //   gaps는 제품 전체(여러 BOM/맵) 노드를 주므로 그대로 쓰면 전체 협력사가 뜬다.
+  //   현재 선택 BOM 버전의 맵에 편입된 협력사(parent/child)만 남긴다.
+  //   맵이 아직 없으면(빈 집합) 스코프 불가 → 폴백으로 전체를 보여준다.
+  const mapSupplierIds = useMemo(() => {
+    const ids = new Set<string>();
+    dataset.supply_chain_map
+      .filter(r => !activeBomVersionId || r.bom_version_id === activeBomVersionId)
+      .forEach(r => {
+        if (r.child_supplier_id) ids.add(r.child_supplier_id);
+        if (r.parent_supplier_id) ids.add(r.parent_supplier_id);
+      });
+    return ids;
+  }, [dataset.supply_chain_map, activeBomVersionId]);
+
+  const scopedGapNodes = useMemo(
+    () =>
+      (gaps?.nodes ?? []).filter(
+        n => !n.is_root_anchor && (mapSupplierIds.size === 0 || mapSupplierIds.has(n.supplier_id)),
+      ),
+    [gaps, mapSupplierIds],
+  );
+
   // [R2] 미완성(미보유 필드 보유) 협력사에 자료 일괄 요청 → 완성도 재조회.
   async function requestIncomplete() {
     if (!summary) return;
@@ -753,8 +776,21 @@ export default function SupplyChainHub() {
         </div>
       )}
 
-      {/* [R] 협력사별 진행 현황 — 이 공급망 맵(제품) 대상 전 차수. 제출 데이터 확인 위·동일 양식 */}
-      {gaps && gaps.nodes.filter(n => !n.is_root_anchor).length > 0 && (
+      {mapStarted && (
+        <SupplyChainMapPageContent
+          dataset={dataset}
+          embedded
+          initialProductId={initialProductId ?? entryProductId}
+          initialBomVersionId={initialBomVersionId ?? entryBomVersionId}
+          highlightSupplierIds={new Set(pool.map(s => s.supplierId))}
+          onNodeSelect={setSelectedNode}
+          onConnectClick={() => setActiveModal('invite')}
+          onProductChange={handleProductChange}
+        />
+      )}
+
+      {/* [R] 협력사별 진행 현황 — 이 공급망 맵(map_id) 대상 전 차수. 맵/트리 아래·제출 데이터 확인 동일 양식 */}
+      {mapStarted && scopedGapNodes.length > 0 && (
         <section className="mx-6 mt-4 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
           <div className="border-b border-ink-700 bg-ink-800/40 px-5 py-4">
             <h2 className="text-base font-bold text-ink-100">협력사별 진행 현황</h2>
@@ -770,7 +806,7 @@ export default function SupplyChainHub() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-700/40">
-                {[...gaps.nodes].filter(n => !n.is_root_anchor).sort((a, b) => a.depth - b.depth).map(node => {
+                {[...scopedGapNodes].sort((a, b) => a.depth - b.depth).map(node => {
                   const complete = node.gap_count === 0;
                   const confirmed = confirmedSuppliers.has(node.supplier_id);
                   const stageCls = complete
@@ -819,19 +855,6 @@ export default function SupplyChainHub() {
             </table>
           </div>
         </section>
-      )}
-
-      {mapStarted && (
-        <SupplyChainMapPageContent
-          dataset={dataset}
-          embedded
-          initialProductId={initialProductId ?? entryProductId}
-          initialBomVersionId={initialBomVersionId ?? entryBomVersionId}
-          highlightSupplierIds={new Set(pool.map(s => s.supplierId))}
-          onNodeSelect={setSelectedNode}
-          onConnectClick={() => setActiveModal('invite')}
-          onProductChange={handleProductChange}
-        />
       )}
 
       {activeModal === 'pool' && (
