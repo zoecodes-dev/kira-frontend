@@ -471,6 +471,11 @@ export interface SupplierFactory {
   destinationDetail: string | null;
   supplyRatioPercent: number | null;
   supplyQuantity: string | null;
+  // 공장 담당자(공장 단위) — 협력사 PIC(SupplierContact)와 별개
+  factoryManagerName: string | null;
+  factoryManagerRole: string | null;
+  factoryManagerPhone: string | null;
+  factoryManagerEmail: string | null;
   latitude: number | null;
   longitude: number | null;
 }
@@ -743,6 +748,7 @@ export interface SupplyChainGapNode {
   company_name: string;
   provider_type: string;
   depth: number;
+  is_root_anchor?: boolean;   // 원청(Tier0) 앵커 — 협력사 진행 현황에서 제외
   missing_fields: SupplyChainGapField[];
   gap_count: number;
 }
@@ -761,7 +767,9 @@ export interface SupplyChainAlternative {
 }
 
 export const getSupplyChainGaps = (productId: string) =>
-  api.get<SupplyChainGapsResult>(`/supply-chain/gaps?product_id=${productId}`);
+  // raw: 응답을 snake_case 그대로 받는다(SupplyChainGapsResult 타입·소비부가 snake_case 기준).
+  //   raw 없으면 snakeToCamel로 변환돼 node.supplier_id 등이 undefined가 된다.
+  api.get<SupplyChainGapsResult>(`/supply-chain/gaps?product_id=${productId}`, { raw: true });
 
 export const getSupplyChainAlternatives = (productId: string, partId: string) =>
   api.get<SupplyChainAlternative[]>(`/supply-chain/alternatives?product_id=${productId}&part_id=${partId}`);
@@ -857,6 +865,8 @@ export interface OnboardingSubmitInput {
   };
   /** 사업자등록증 업로드 결과(uploadFile 반환). 미보유(미확인 등록)면 null. */
   businessRegDoc: { s3Key: string; fileName: string } | null;
+  /** 환경성적서 업로드 결과. 미보유면 null(AI 확인은 로그인 후 자료입력에서). */
+  environmentalReport?: { s3Key: string; fileName: string } | null;
   unverified: boolean;
   contacts: Array<{
     name: string;
@@ -917,6 +927,9 @@ export const submitSupplierOnboarding = (supplierId: string, input: OnboardingSu
     },
     business_reg_doc: input.businessRegDoc
       ? { s3_key: input.businessRegDoc.s3Key, file_name: input.businessRegDoc.fileName }
+      : null,
+    environmental_report: input.environmentalReport
+      ? { s3_key: input.environmentalReport.s3Key, file_name: input.environmentalReport.fileName }
       : null,
     unverified: input.unverified,
     consent_agreed: true,
@@ -1267,6 +1280,41 @@ export const confirmPool = (mapId: string, supplierIds?: string[]) =>
     `/supply-chain/maps/${mapId}/pool/confirm`,
     { supplier_ids: supplierIds ?? null },
   );
+
+// ── P7 최종 검증 요약/판정 + 고객사 제출용 서버 엑셀 export ──
+export interface ValidationSummaryNode {
+  supplierId: string;
+  companyName: string;
+  providerType?: string | null;
+  gapCount: number;
+  missingFields: { fieldName: string; fieldLabel?: string; regulationCode?: string; regulationName?: string }[];
+}
+export interface ValidationSummary {
+  productId: string;
+  bomVersionId: string | null;
+  supplierCount: number;
+  maxTier: number;
+  ratioValid: boolean;
+  totalGapCount: number;
+  nodesWithGaps: number;
+  readyForFinal: boolean;         // 미보유 필드 0 + 비율검증 통과 + 협력사>0
+  gapsBySupplier: ValidationSummaryNode[];
+}
+/** 최종 검증 요약/판정 — get_gaps(노드별 미보유) + 비율검증 롤업. 조회 전용. */
+export const getValidationSummary = (productId: string, bomVersionId?: string) =>
+  api.get<ValidationSummary>(
+    `/products/${productId}/supply-chain-map/validation-summary${bomVersionId ? `?bom_version_id=${bomVersionId}` : ""}`,
+  );
+/** 고객사 제출용 공급망 엑셀(xlsx) 서버 생성 다운로드 → Blob (인증 헤더 포함 fetch). */
+export async function downloadSupplyChainExcel(productId: string, bomVersionId?: string): Promise<Blob> {
+  const token = getToken();
+  const qs = bomVersionId ? `?bom_version_id=${bomVersionId}` : "";
+  const res = await fetch(`${API_BASE_URL}/products/${productId}/supply-chain-map/export${qs}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError(res.status, `엑셀 다운로드 실패 (HTTP ${res.status})`);
+  return res.blob();
+}
 
 // ── 공급망 맵 헤더(맵 그 자체) — 목록/단건/상태 ──────────────────────────────
 export interface SupplyChainMapHeader {
