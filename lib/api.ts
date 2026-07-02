@@ -58,6 +58,20 @@ export function getTokenSupplierId(): string | null {
   }
 }
 
+// JWT payload 의 tenant_id 클레임(테넌트 격리 §0.2). 미로그인이면 null.
+export function getTokenTenantId(): string | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const claims = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof claims.tenant_id === "string" ? claims.tenant_id : null;
+  } catch {
+    return null;
+  }
+}
+
 // ───────────────────────────────────────────────────────────
 // snake_case → camelCase 어댑터 (재귀, 배열/객체 모두 처리)
 //   백엔드 응답 키는 snake_case, 프론트 타입은 camelCase로 통일.
@@ -858,6 +872,37 @@ export interface OnboardingSubmitResult {
   status: string;            // 'supplier_review'
   onboardingComplete: boolean;
 }
+/** 하위 협력사 초대용 PIC(담당자). 첫 담당자를 대표(is_primary)로 둔다. */
+export interface InvitePic {
+  name?: string;
+  email?: string;
+  phone?: string;
+  isPrimary?: boolean;
+}
+export interface CreateSupplierInput {
+  companyName: string;
+  providerType: ProviderType;
+  email: string;                 // 초대(가입 요청) 메일 수신 주소 — 보통 대표 PIC 이메일
+  inviterSupplierId?: string | null;  // 상위 협력사가 하위를 초대하면 본인 supplier_id, 원청 직접 등록이면 null
+  contacts?: InvitePic[];
+}
+/**
+ * POST /suppliers — 하위 협력사 stub 생성 + 초대(SupplierInvited: 메일 발송 + discovered_via).
+ * contacts(PIC)는 같은 트랜잭션에 supplier_contacts 로 저장돼 다음 화면에서 재표기된다.
+ * tenant_id 는 토큰에서 파생(백엔드가 실제로는 토큰 테넌트로 강제하나 모델 계약상 동봉). 바디는 snake_case.
+ */
+export const createSupplier = (input: CreateSupplierInput) =>
+  api.post<{ supplierId: string; status: string }>("/suppliers", {
+    tenant_id: getTokenTenantId(),
+    company_name: input.companyName,
+    provider_type: input.providerType,
+    email: input.email,
+    inviter_supplier_id: input.inviterSupplierId ?? null,
+    contacts: (input.contacts ?? [])
+      .filter(c => c.name || c.email || c.phone)
+      .map(c => ({ name: c.name, email: c.email, phone: c.phone, is_primary: c.isPrimary ?? false })),
+  });
+
 /** 공개 submit — 회사정보+문서+PIC+동의+계정 생성을 한 번에. 재제출/이메일중복 409. */
 export const submitSupplierOnboarding = (supplierId: string, input: OnboardingSubmitInput) =>
   api.post<OnboardingSubmitResult>(`/suppliers/${supplierId}/onboarding/submit`, {
@@ -1211,6 +1256,17 @@ export const getProductSupplyChainMap = (productId: string, params?: SupplyChain
 /** §10.2b 공급망 맵 확인 → link_status = supplychain_confirmed. */
 export const confirmSupplyChainMap = (mapId: string) =>
   api.post<{ mapId: string; status: string }>(`/supply-chain/maps/${mapId}/confirm`, { confirmed: true });
+
+/**
+ * Pool 확정(P4) — 선택한 Tier-1 협력사(supplierIds 생략 시 맵의 전체 Tier-1) 엣지를
+ * link_status=confirmed 로 전이. 풀=맵 엣지이므로 별도 저장소 없이 상태전이로 확정.
+ * 요청 바디는 백엔드 계약(snake_case)에 맞춰 supplier_ids 로 보낸다.
+ */
+export const confirmPool = (mapId: string, supplierIds?: string[]) =>
+  api.post<{ mapId: string; confirmedCount: number; confirmedSuppliers: string[] }>(
+    `/supply-chain/maps/${mapId}/pool/confirm`,
+    { supplier_ids: supplierIds ?? null },
+  );
 
 // ── 공급망 맵 헤더(맵 그 자체) — 목록/단건/상태 ──────────────────────────────
 export interface SupplyChainMapHeader {
