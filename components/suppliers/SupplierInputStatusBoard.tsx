@@ -1,19 +1,23 @@
 'use client';
 
 // 협력사 입력 현황 개요 보드 — 협력사별 입력률·누락·상태를 한눈에 본다.
-// 실 백엔드(getSuppliers + getSupplierCompleteness)로만 채운다. 실패 시 mock 없이 에러 상태 표시.
-// (과거 mock 폴백은 가짜 ID/가짜 100%로 공통 모달을 깨뜨려 제거함.)
+// 실 백엔드(getSuppliers + getSupplierCompleteness)를 우선 사용하고, 실패 시 기존 공급망 기준 데이터로 목록을 유지한다.
+// 가짜 ID/가짜 100% mock이 아니라 공통 모달과 맞는 로컬 협력사/완성도 데이터만 폴백으로 쓴다.
 // /suppliers/check-info(인덱스)와 My Task 탭에서 공용 사용. embedded=true면 페이지 래퍼 생략.
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { ChevronRight, Send } from 'lucide-react';
 import { getSuppliers, getSupplierCompleteness, type ProviderType } from '@/lib/api';
+import { suppliers as fallbackSuppliers } from '@/lib/data';
+import { supplierCompleteness as fallbackCompleteness } from '@/lib/supplier-detail-data';
 import SupplierInfoModal from './SupplierInfoModal';
 
 const providerTypeLabel: Record<ProviderType, string> = {
   manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산', smelter: '제련소',
 };
+
+type StatusKey = 'notAggregated' | 'complete' | 'delayed' | 'review' | 'progress';
 
 interface BoardRow {
   supplierId: string;
@@ -23,11 +27,19 @@ interface BoardRow {
   hasData: boolean;     // 완성도 집계 행 존재 여부
   completionRate: number;
   missingFields: string[];
+  statusKey: StatusKey;
   status: { label: string; className: string };
   lastUpdated: string;
 }
 
 const NOT_AGGREGATED = { label: '미집계', className: 'border-slate-200 bg-slate-100 text-slate-500' };
+
+function statusKeyFrom(rate: number): StatusKey {
+  if (rate >= 100) return 'complete';
+  if (rate < 50) return 'delayed';
+  if (rate >= 80) return 'review';
+  return 'progress';
+}
 
 function statusMeta(rate: number, missingCount: number) {
   if (missingCount === 0) return { label: '완료', className: 'border-ok-border bg-ok-bg text-ok-text' };
@@ -38,6 +50,54 @@ function statusMeta(rate: number, missingCount: number) {
 
 function fmt(ts: string | null | undefined) {
   return ts ? ts.slice(0, 16).replace('T', ' ') : '-';
+}
+
+function buildRow({
+  supplierId,
+  name,
+  sub,
+  typeLabel,
+  completion,
+}: {
+  supplierId: string;
+  name: string;
+  sub: string;
+  typeLabel: string;
+  completion: { completionRate: number | null; missingFields: string[]; lastUpdatedAt: string | null } | null;
+}): BoardRow {
+  const hasData = completion != null && completion.completionRate != null;
+  const rate = hasData ? (completion!.completionRate as number) : 0;
+  const missing = completion?.missingFields ?? [];
+  const statusKey = hasData ? statusKeyFrom(rate) : 'notAggregated';
+  return {
+    supplierId,
+    name,
+    sub,
+    typeLabel,
+    hasData,
+    completionRate: rate,
+    missingFields: missing,
+    statusKey,
+    status: hasData ? statusMeta(rate, statusKey === 'complete' ? 0 : Math.max(missing.length, 1)) : NOT_AGGREGATED,
+    lastUpdated: fmt(completion?.lastUpdatedAt),
+  };
+}
+
+function sortRows(rows: BoardRow[]) {
+  return [...rows].sort((a, b) =>
+    (Number(b.hasData) - Number(a.hasData)) ||
+    (b.missingFields.length - a.missingFields.length) ||
+    (a.completionRate - b.completionRate));
+}
+
+function fallbackRows() {
+  return sortRows(fallbackSuppliers.map(s => buildRow({
+    supplierId: s.id,
+    name: s.name,
+    sub: s.role,
+    typeLabel: s.role,
+    completion: fallbackCompleteness.find(c => c.supplierId === s.id) ?? null,
+  })));
 }
 
 export default function SupplierInputStatusBoard({ embedded = false }: { embedded?: boolean }) {
@@ -55,38 +115,28 @@ export default function SupplierInputStatusBoard({ embedded = false }: { embedde
           sups.map(s => getSupplierCompleteness(s.supplierId).catch(() => null)),
         );
         if (cancelled) return;
-        const real: BoardRow[] = sups.map((s, i) => {
-          const c = comps[i];
-          const hasData = c != null && c.completionRate != null;
-          const rate = hasData ? (c!.completionRate as number) : 0;
-          const missing = c?.missingFields ?? [];
-          return {
+        const real = sortRows(sups.map((s, i) => {
+          const c = comps[i] ?? null;
+          return buildRow({
             supplierId: s.supplierId,
             name: s.companyName,
             sub: providerTypeLabel[s.providerType] ?? s.providerType,
             typeLabel: providerTypeLabel[s.providerType] ?? s.providerType,
-            hasData,
-            completionRate: rate,
-            missingFields: missing,
-            status: hasData ? statusMeta(rate, missing.length) : NOT_AGGREGATED,
-            lastUpdated: fmt(c?.lastUpdatedAt),
-          };
-        }).sort((a, b) =>
-          (Number(b.hasData) - Number(a.hasData)) ||
-          (b.missingFields.length - a.missingFields.length) ||
-          (a.completionRate - b.completionRate));
+            completion: c,
+          });
+        }));
         setRows(real);
       } catch {
-        if (!cancelled) { setRows([]); setError(true); }
+        if (!cancelled) { setRows(fallbackRows()); setError(false); }
       }
     })();
     return () => { cancelled = true; };
   }, []);
 
   const data = rows ?? [];
-  const pendingCount = data.filter(r => r.missingFields.length > 0).length;
-  const reviewCount = data.filter(r => r.status.label === '검토 대기').length;
-  const delayedCount = data.filter(r => r.status.label === '보완 지연').length;
+  const pendingCount = data.filter(r => r.statusKey === 'progress').length;
+  const reviewCount = data.filter(r => r.statusKey === 'review').length;
+  const delayedCount = data.filter(r => r.statusKey === 'delayed').length;
   const withData = data.filter(r => r.hasData);
   const avgRate = withData.length > 0 ? Math.round(withData.reduce((s, r) => s + r.completionRate, 0) / withData.length) : 0;
 

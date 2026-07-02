@@ -43,6 +43,14 @@ export function clearToken(): void {
   window.localStorage.removeItem(TOKEN_KEY);
 }
 
+// 인증 만료(401) 전역 알림 — 어느 페이지에서든 로그인 오버레이를 띄우도록 브라우저 이벤트를 쏜다.
+//   (호출부가 개별로 401을 처리하지 않아도 전역 AuthGuard가 받아 처리)
+export const AUTH_EXPIRED_EVENT = "kira:auth-expired";
+export function notifyAuthExpired(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+}
+
 // JWT payload 의 supplier_id 클레임(협력사 본인 식별 §0.5). 클라이언트 전용·미로그인/OEM 이면 null.
 // 협력사 포털이 로그인한 본인 supplier 로 스코프를 잡는 소스.
 export function getTokenSupplierId(): string | null {
@@ -159,9 +167,10 @@ async function request<T = unknown>(
   }
 
   if (!res.ok) {
-    // 401 → 토큰 만료/무효. 토큰 정리 후 호출부가 로그인으로 보내도록 throw.
+    // 401 → 토큰 만료/무효. 토큰 정리 + 전역 알림(어느 페이지에서든 로그인 오버레이가 뜨게) 후 throw.
     if (res.status === 401) {
       clearToken();
+      notifyAuthExpired();
     }
     const msg =
       (payload && typeof payload === "object" && "detail" in payload
@@ -641,7 +650,7 @@ export async function uploadFile(file: File, context: string): Promise<{ fileId:
     body: form,
   });
   if (!res.ok) {
-    if (res.status === 401) clearToken();
+    if (res.status === 401) { clearToken(); notifyAuthExpired(); }
     throw new ApiError(res.status, `HTTP ${res.status}`);
   }
   return snakeToCamel(await res.json());

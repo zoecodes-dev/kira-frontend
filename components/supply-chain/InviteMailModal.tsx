@@ -157,11 +157,11 @@ export default function InviteMailModal({
           {/* 메일 작성 */}
           {selected && draft && (
             <div className="space-y-3">
-              {/* 본인인증 담당자(PIC) 재확인 */}
+              {/* 본인인증 담당자 재확인 */}
               <div className="rounded-md border border-ok-border bg-ok-bg p-3">
                 <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ok-text">
                   <ShieldCheck className="h-4 w-4" />
-                  본인인증 담당자(PIC) 재확인
+                  본인인증 담당자 재확인
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <input value={draft.picName} onChange={e => patch(selected.supplierId, { picName: e.target.value })} placeholder="담당자명" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand" />

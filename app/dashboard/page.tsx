@@ -1,105 +1,26 @@
-// [작업 4 — 대시보드 탭 구조 추가]
-// 변경 사항:
-// 1. 페이지 최상단에 탭 네비게이션 추가 (Overview / High Risk / Pending / HITL Queue)
-// 2. Overview 탭 — 기존 대시보드 내용 그대로 유지
-// 3. High Risk 탭 — supplierRiskProfiles에서 high/critical 협력사 목록
-// 4. Pending 탭 — supplierCompleteness에서 completionRate < 80 목록 + SLA 초과 여부
-// 5. HITL Queue 탭 — batchesInProgress에서 currentStage === 'hitl-wait' 목록
 // 탭 스타일: border-b-2 방식 (app/suppliers/[id]/layout.tsx 참고)
 
 'use client';
 
 import { useEffect, useState } from 'react';
 import {
-  violationsByRegulation,
   suppliers,
 } from '@/lib/data';
 import {
-  getDashboardKpis, getBatches, getRegulationResults, getDashboardSupplierStats,
-  type DashboardKpis, type BatchItem, type BatchesResponse, type RegulationResult, type DashboardSupplierStats,
+  getDashboardKpis, getRegulationResults, getDashboardSupplierStats,
+  type DashboardKpis, type RegulationResult, type DashboardSupplierStats,
 } from '@/lib/api';
 import {
   supplierRiskProfiles, supplierCompleteness, getSupplierName,
 } from '@/lib/supplier-detail-data';
 import {
   AlertTriangle, CheckCircle2, ShieldAlert,
-  ArrowRight, Activity, AlertCircle, Bot, FileText, Bell, CalendarDays, ChevronDown,
+  ArrowRight, Activity, Bot, FileText, Bell, CalendarDays, ChevronDown,
 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
 import Link from 'next/link';
 import clsx from 'clsx';
-
-
-const stageMeta: Record<string, { label: string; color: string }> = {
-  queued:         { label: '대기',         color: 'text-ink-400' },
-  supervisor:     { label: '조율',         color: 'text-info-text' },
-  extraction:     { label: '추출',         color: 'text-info-text' },
-  verification:   { label: '검증',         color: 'text-warn-text' },
-  'geo-analysis': { label: 'Geo',          color: 'text-purple-400' },
-  compliance:     { label: '컴플라이언스', color: 'text-warn-text' },
-  readiness:      { label: '준비도',       color: 'text-teal-400' },
-  'hitl-wait':    { label: 'HITL 대기',    color: 'text-alert-text' },
-  action:         { label: '처리',         color: 'text-ok-text' },
-  completed:      { label: '완료',         color: 'text-ok-text' },
-  rejected:       { label: '반려',         color: 'text-alert-text' },
-};
-
-const destMeta: Record<string, { label: string; tone: any }> = {
-  US: { label: 'US', tone: 'warn' },
-  EU: { label: 'EU', tone: 'ok' },
-  KR: { label: 'KR', tone: 'neutral' },
-};
-
-
-const supplierStatusMeta = {
-  verified: { label: '검증 완료', className: 'border-ok-border bg-ok-bg text-ok-text' },
-  pending: { label: '자료 대기', className: 'border-info-border bg-info-bg text-info-text' },
-  review: { label: '추가 확인', className: 'border-warn-border bg-warn-bg text-warn-text' },
-  violation: { label: '규제 위반', className: 'border-alert-border bg-alert-bg text-alert-text' },
-};
-
-// ── DB stage/status → UI stage 매핑 ─────────────────────────────
-const DB_STAGE_UI: Record<string, string> = {
-  stage_queued: 'queued',
-  stage_extraction: 'extraction',
-  stage_geo: 'geo-analysis',
-  stage_compliance: 'compliance',
-  stage_risk: 'compliance',
-};
-
-interface UiBatch {
-  id: string; batchId: string; supplier: string;
-  receivedAt: string; destination: string;
-  currentStage: string; confidence?: number; assignedTo?: string;
-}
-
-function flattenBatchesResponse(res: BatchesResponse): UiBatch[] {
-  const out: UiBatch[] = [];
-  for (const list of Object.values(res.byStage)) {
-    for (const b of list) {
-      let stage: string;
-      if (b.status === 'batch_hitl_wait') stage = 'hitl-wait';
-      else if (b.status === 'batch_completed') stage = 'completed';
-      else if (b.status === 'batch_rejected') stage = 'rejected';
-      else stage = DB_STAGE_UI[b.currentStage] ?? 'queued';
-      out.push({
-        id: b.batchId,
-        batchId: b.externalId ?? b.batchId.slice(0, 12),
-        supplier: b.externalId ?? '-',
-        receivedAt: b.receivedAt?.slice(0, 16).replace('T', ' ') ?? '-',
-        destination: b.destination ?? 'EU',
-        currentStage: stage,
-        confidence: b.confidenceScore ?? undefined,
-      });
-    }
-  }
-  return out;
-}
-
-// ── 탭 정의 ──────────────────────────────────────────────────────
-type TabKey = 'overview';
-
 
 function CompactMetric({
   label,
@@ -160,11 +81,11 @@ function CompactMetric({
         onClick && 'hover:border-accent-600 hover:shadow-panel',
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className={clsx('flex h-11 w-11 shrink-0 items-center justify-center rounded-full', iconClass)}>
-          <Icon className="h-5 w-5" strokeWidth={2.1} />
+      <div className="flex items-start gap-3">
+        <div className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', iconClass)}>
+          <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold text-current">{label}</div>
           {hint && <div className="mt-0.5 text-xs text-ink-500">{hint}</div>}
           <div className="mt-2 flex items-baseline gap-1">
@@ -173,28 +94,29 @@ function CompactMetric({
           </div>
         </div>
       </div>
-      <div className="mt-3 flex items-end justify-between gap-3">
-        <div>
-          {delta && (
+      {/* 추세 블록은 실제 전월 대비(delta)가 주어질 때만 렌더 — 근거 없는 '지난달 대비'·스파크라인 표시 방지. */}
+      {delta && (
+        <div className="mt-3 flex items-end justify-between gap-3">
+          <div>
             <div className={clsx('text-xs font-semibold num-mono', deltaGood ? 'text-ok-text' : 'text-alert-text')}>
               {deltaDirection === 'up' ? '▲' : '▼'} {delta}
             </div>
-          )}
-          <div className="mt-0.5 text-xs text-ink-500">지난달 대비</div>
+            <div className="mt-0.5 text-xs text-ink-500">지난달 대비</div>
+          </div>
+          <svg width="76" height="28" viewBox="0 0 76 28" className="shrink-0">
+            <path
+              d={
+                deltaDirection === 'up'
+                  ? 'M2 24 C10 17 14 19 20 15 S31 18 37 10 48 12 55 7 66 8 74 2'
+                  : 'M2 5 C10 10 15 8 21 13 S33 10 39 17 49 15 56 21 66 20 74 25'
+              }
+              fill="none"
+              stroke={graphColor}
+              strokeWidth="2"
+            />
+          </svg>
         </div>
-        <svg width="76" height="28" viewBox="0 0 76 28" className="shrink-0">
-          <path
-            d={
-              deltaDirection === 'up'
-                ? 'M2 24 C10 17 14 19 20 15 S31 18 37 10 48 12 55 7 66 8 74 2'
-                : 'M2 5 C10 10 15 8 21 13 S33 10 39 17 49 15 56 21 66 20 74 25'
-            }
-            fill="none"
-            stroke={graphColor}
-            strokeWidth="2"
-          />
-        </svg>
-      </div>
+      )}
     </Component>
   );
 }
@@ -205,7 +127,7 @@ function DashboardSupplyChainMap() {
     { rank: 2, title: '보완 요청', desc: '공급사로부터 추가 자료가 필요합니다.', level: '높음', count: '3건', href: '/my-task' },
     { rank: 3, title: '인증서 만료 임박', desc: '30일 이내 만료되는 인증서가 있습니다.', level: '중간', count: '5건', href: '/suppliers/check-info' },
     { rank: 4, title: '실사 필요', desc: '고위험 공급사 중 실사가 필요합니다.', level: '중간', count: '4건', href: '/suppliers/check-info' },
-    { rank: 5, title: 'HITL 검토 대기', desc: 'AI 검토가 완료되어 최종 확인이 필요합니다.', level: '낮음', count: '2건', href: '/dashboard?tab=hitl-queue' },
+    { rank: 5, title: '담당자 검토 대기', desc: 'AI 검토가 완료되어 최종 확인이 필요합니다.', level: '낮음', count: '2건', href: '/dashboard?tab=hitl-queue' },
   ];
 
   const regulationBySupplier: Record<string, string> = {
@@ -353,10 +275,7 @@ function TaskRow({ task }: { task: { rank: number; title: string; desc: string; 
 
 
 // ── 메인 페이지 ────────────────────────────────────────────────────
-export default function DashboardPage() {
-  const [activeTab] = useState<TabKey>('overview');
-  const [apiKpis, setApiKpis] = useState<DashboardKpis | null>(null);
-  const [apiBatches, setApiBatches] = useState<UiBatch[]>([]);
+export default function DashboardPage() {  const [apiKpis, setApiKpis] = useState<DashboardKpis | null>(null);
   // 규제검증 결과 — regulation 도메인. null=미로드, []=결과 없음.
   const [regResults, setRegResults] = useState<RegulationResult[] | null>(null);
   const [supplierStats, setSupplierStats] = useState<DashboardSupplierStats | null>(null);
@@ -368,24 +287,11 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    getDashboardKpis().then(setApiKpis).catch(() => {});
-    Promise.all([getBatches('processing'), getBatches('hitl_wait')]).then(([p, h]) => {
-      setApiBatches([...flattenBatchesResponse(p), ...flattenBatchesResponse(h)]);
-    }).catch(() => {});
-    getRegulationResults().then(setRegResults).catch(() => {});
-    getDashboardSupplierStats().then(setSupplierStats).catch(() => {});
+    getDashboardKpis().then(setApiKpis).catch(e => console.error('[dashboard] getDashboardKpis 실패', e));
+    // 실패 원인(401/404/500 등)을 콘솔에 남긴다 — 조용히 삼키면 'AI 데이터 안 옴'이 왜인지 알 수 없다.
+    getRegulationResults().then(setRegResults).catch(e => console.error('[dashboard] getRegulationResults 실패', e));
+    getDashboardSupplierStats().then(setSupplierStats).catch(e => console.error('[dashboard] getDashboardSupplierStats 실패', e));
   }, []);
-
-
-  const hitlWaiting = apiKpis?.hitlWaitBatches ?? apiBatches.filter(b => b.currentStage === 'hitl-wait').length;
-  // 규제 위반 케이스 — verdict가 violation/reject인 것만. 미로드 시 mock 폴백.
-  const apiViolations = regResults?.filter(r => r.verdict === 'violation' || r.verdict === 'reject') ?? null;
-  const euViolations = apiViolations
-    ? apiViolations.filter(r => r.citedClauses.some(c => c.includes('EU') || c.includes('EUDR') || c.includes('배터리'))).length
-    : violationsByRegulation.filter(v => v.region === 'EU' || v.region === 'DE').reduce((s, v) => s + v.count, 0);
-  const usViolations = apiViolations
-    ? apiViolations.filter(r => r.citedClauses.some(c => c.includes('UFLPA') || c.includes('US'))).length
-    : violationsByRegulation.filter(v => v.region === 'US').reduce((s, v) => s + v.count, 0);
 
   // ── AI 규제 인사이트 집계 (per-건 compliance_results → 대시보드 집계 + 최우선 스포트라이트) ──
   // AI 최소 단위는 "자재×규제" 판정. 대시보드는 전체라, 단일 통합 판정인 척하지 않고
@@ -406,22 +312,8 @@ export default function DashboardPage() {
     if (s.includes('pass')) return '적합';
     return v ?? '-';
   };
-  const verdictTone = (v: string | null): string =>
-    verdictSeverity(v) >= 2 ? 'text-alert-text' : verdictSeverity(v) === 1 ? 'text-warn-text' : 'text-ink-500';
-  // HITL 사유 칩(표시용). 시급도 랭킹 반영은 팀 상의 후 별도 결정 — 여기선 라벨만.
-  const hitlReasonKo: Record<string, string> = {
-    geographical_risk: '지리 리스크',
-    low_confidence: '저신뢰',
-  };
   // 마감(SLA) 임박 배지 — 위험 심각도와 다른 축이라 랭킹엔 안 섞고 배지로만 병행 표시. 14일 이내(초과 포함)만.
   // regRiskSorted는 클라 fetch 후에만 렌더되므로(초기 null=로딩) Date 사용에 하이드레이션 문제 없음.
-  const ddayBadge = (iso: string | null): { label: string; alert: boolean } | null => {
-    if (!iso) return null;
-    const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
-    if (diff > 14) return null;
-    if (diff < 0) return { label: '기한초과', alert: true };
-    return { label: diff === 0 ? 'D-day' : `D-${diff}`, alert: diff <= 3 };
-  };
   const regLoaded = regResults !== null;                          // null=미로드, []=결과 없음
   const regTotal = regResults?.length ?? 0;
   const regRiskSorted = (regResults ?? [])
@@ -439,17 +331,8 @@ export default function DashboardPage() {
   const riskCountLabel = `위반 ${regViolationCount} · 경고 ${regWarningCount}${regReviewCount > 0 ? ` · 검토 필요 ${regReviewCount}` : ''}`;
 
   // 탭별 데이터 필터링
-  const highRiskList = supplierRiskProfiles.filter(
-    r => r.riskLevel === 'high' || r.riskLevel === 'critical'
-  );
-  const pendingList = supplierCompleteness.filter(c => c.completionRate < 80);
-  const hitlList = apiBatches.filter(b => b.currentStage === 'hitl-wait');
   const missingFieldCount = supplierStats?.incompleteCount ?? supplierCompleteness.reduce((sum, item) => sum + item.missingFields.length, 0);
-  const verifiedSuppliers = supplierStats?.verifiedCount ?? suppliers.filter(s => s.status === 'verified').length;
   const highRiskSuppliers = supplierStats?.highRiskCount ?? suppliers.filter(s => s.risk === 'high' || s.risk === 'critical').length;
-  const averageCompleteness = supplierStats?.averageCompleteness ?? Math.round(
-    supplierCompleteness.reduce((sum, item) => sum + item.completionRate, 0) / supplierCompleteness.length
-  );
 
   return (
     <>
@@ -466,25 +349,19 @@ export default function DashboardPage() {
               <Bell className="h-3.5 w-3.5" />
               <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-alert-solid text-xs font-semibold text-white">3</span>
             </button>
-            <button className="flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-semibold text-ink-400 hover:border-accent-600 hover:text-accent-700">
-              전체 공급망
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
           </>
         }
       />
 
       {/* ══════════════════════════════════════════════════════════
-          탭 1 — Overview (기존 대시보드 내용 그대로)
+          Overview
       ══════════════════════════════════════════════════════════ */}
-      {activeTab === 'overview' && (
         <div className="space-y-2 bg-slate-50 p-6">
-          <section className="grid grid-cols-5 gap-2">
-            <CompactMetric label="Traceability Coverage" value={92} unit="%" icon={Activity} tone="ok" hint="원산지 추적 가능 비율" delta="7%" deltaGood />
-            <CompactMetric label="High Risk Region" value={highRiskSuppliers + 16} icon={ShieldAlert} tone="alert" hint="고위험 지역 연결 업체" delta="3" deltaGood={false} deltaDirection="up" />
-            <CompactMetric label="Missing Documents" value={missingFieldCount} icon={FileText} tone="warn" hint="원산지/인증 문서 누락 업체" delta="5" deltaGood deltaDirection="down" />
-            <CompactMetric label="Due Diligence Alerts" value={(apiKpis?.rejectedBatches ?? 0) + hitlWaiting + 3} icon={AlertTriangle} tone="alert" hint="EUDR/CSDDD 검토 필요 건수" delta="2" deltaGood deltaDirection="down" />
-            <CompactMetric label="ESG Compliance Score" value="84.2" icon={CheckCircle2} tone="ok" hint="규제 대응 종합 점수" delta="4.3" deltaGood />
+          <section className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <CompactMetric label="데이터 완성도" value={supplierStats ? supplierStats.averageCompleteness : '—'} unit="%" icon={Activity} tone="ok" hint="협력사 평균 데이터 완성도" />
+            <CompactMetric label="고위험 협력사" value={highRiskSuppliers} icon={ShieldAlert} tone="alert" hint="리스크 협력사 수" />
+            <CompactMetric label="입력 미완료" value={missingFieldCount} icon={FileText} tone="warn" hint="필수 정보 미완료 협력사 수" />
+            <CompactMetric label="규제 통과율" value={apiKpis ? apiKpis.compliancePassRate : '—'} unit="%" icon={CheckCircle2} tone="ok" hint="AI 규제 판정 통과율" />
           </section>
 
           <div className="flex items-start gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
@@ -492,16 +369,16 @@ export default function DashboardPage() {
             <p className="min-w-0 text-sm">
               <span className="font-bold text-ink-200">AI 인사이트</span>{' '}
               {!regLoaded ? (
-                <span className="text-ink-500">공급망 규제 분석을 불러오는 중…</span>
+                <span className="text-ink-500">{' '}공급망 규제 분석을 불러오는 중…</span>
               ) : regRiskSorted.length === 0 ? (
                 <span className="text-ink-500">AI 규제 검증 {regTotal}건 중 위험으로 판정된 건이 없습니다.</span>
               ) : (
-                <span className="text-ink-500">
+                <span className="text-ink-500 mt-1 block">
                   AI 규제 검증 {regTotal}건 중 위험 {regRiskSorted.length}건({riskCountLabel}).
                   {topRisk && (
-                    <> 가장 시급: <span className="font-semibold text-ink-200">{topRisk.supplierName ?? '협력사'}</span>
+                    <span className="mt-1 block">가장 시급: <span className="font-semibold text-ink-200">{topRisk.supplierName ?? '협력사'}</span>
                       의 {topRisk.regulation ?? topRisk.citedClauses[0] ?? '규제'} {verdictKo(topRisk.verdict)}
-                      {topReason ? ` — ${topReason}` : ''}.</>
+                      {topReason ? ` — ${topReason}` : ''}.</span>
                   )}
                 </span>
               )}
@@ -511,267 +388,10 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* 협력사 승인(HITL) — 협력사 제출 자료를 AI가 파싱하고 사람이 검증·승인 */}
           <HitlReviewCard />
 
           <DashboardSupplyChainMap />
-
-          <section className="hidden">
-            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
-              <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-ink-100">협력사 현황</h2>
-                  <p className="mt-0.5 text-xs text-ink-500">상태, 국가, 티어, 데이터 완성도</p>
-                </div>
-                <Link href="/suppliers" className="text-xs font-semibold text-accent-700">전체 보기</Link>
-              </div>
-              <div className="px-4 py-3">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-ink-700 text-left text-xs font-semibold text-ink-500">
-                      <th className="pb-2">업체명</th>
-                      <th className="pb-2">국가</th>
-                      <th className="pb-2">상태</th>
-                      <th className="pb-2 text-right">완성도</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-ink-700/70">
-                    {suppliers.slice(0, 6).map(supplier => {
-                      const name = getSupplierName(supplier.id);
-                      const completeness = supplierCompleteness.find(item => item.supplierId === supplier.id)?.completionRate ?? 100;
-                      const status = supplierStatusMeta[supplier.status];
-                      return (
-                        <tr key={supplier.id}>
-                          <td className="py-2 pr-3">
-                            <Link href={`/suppliers/${supplier.id}/info`} className="font-semibold text-ink-100 hover:text-accent-700">
-                              {name?.shortNameEn ?? supplier.name}
-                            </Link>
-                            <div className="mt-0.5 text-xs text-ink-500">T{supplier.tier} · {supplier.role}</div>
-                          </td>
-                          <td className="py-2 pr-3 text-ink-400 num-mono">{supplier.country}</td>
-                          <td className="py-2 pr-3">
-                            <span className={clsx('inline-flex rounded-xs border px-1.5 py-0.5 text-xs font-semibold', status.className)}>
-                              {status.label}
-                            </span>
-                          </td>
-                          <td className="py-2 text-right">
-                            <span className="font-semibold text-ink-200 num-mono">{completeness}%</span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
-              <div className="border-b border-ink-700 px-4 py-3">
-                <h2 className="text-sm font-semibold text-ink-100">컴플라이언스 상태</h2>
-                <p className="mt-0.5 text-xs text-ink-500">규제/문서/리스크 완료율</p>
-              </div>
-              <div className="p-4">
-                <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border-[14px] border-ok-border border-r-blue-500 bg-white">
-                  <div className="text-center">
-                    <div className="text-xs font-semibold text-ink-500">종합</div>
-                    <div className="text-2xl font-semibold text-ink-100 num-mono">82%</div>
-                  </div>
-                </div>
-                <div className="mt-4 space-y-2">
-                  {[
-                    { label: '원산지 추적', value: 92, color: 'bg-ok-solid' },
-                    { label: 'Due Diligence', value: 81, color: 'bg-info-solid' },
-                    { label: '문서 검증', value: averageCompleteness, color: 'bg-purple-500' },
-                    { label: 'Risk Assessment', value: 79, color: 'bg-warn-solid' },
-                  ].map(item => (
-                    <div key={item.label}>
-                      <div className="mb-1 flex justify-between text-xs">
-                        <span className="font-medium text-ink-200">{item.label}</span>
-                        <span className="font-semibold text-ink-100 num-mono">{item.value}%</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-ink-700">
-                        <div className={clsx('h-full rounded-full', item.color)} style={{ width: `${item.value}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
-              <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-ink-100">AI 공급망 인사이트</h2>
-                  <p className="mt-0.5 text-xs text-ink-500">오늘 우선순위 요약</p>
-                </div>
-                <Bot className="h-4 w-4 text-accent-700" />
-              </div>
-              <div className="p-4">
-                {!regLoaded ? (
-                  <p className="text-sm text-ink-500">AI 규제 분석을 불러오는 중…</p>
-                ) : regRiskSorted.length === 0 ? (
-                  <div className="rounded-sm border border-ok-border bg-ok-bg p-3">
-                    <p className="text-sm leading-6 text-ink-100">AI 규제 검증 {regTotal}건 모두 적합 판정입니다. 지금 조치가 필요한 위험이 없습니다.</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="rounded-sm border border-accent-100 bg-accent-50 p-3">
-                      <p className="text-sm leading-6 text-ink-100">
-                        AI 규제 검증 {regTotal}건 중 위험 {regRiskSorted.length}건을 감지했습니다({riskCountLabel}). 아래 우선순위부터 확인하세요.
-                      </p>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      {regRiskSorted.slice(0, 3).map(r => (
-                        <Link
-                          key={r.resultId}
-                          href="/materials/regulation-results"
-                          className="flex items-start gap-2 rounded-xs border border-ink-700 bg-ink-800 px-3 py-2 hover:border-accent-300"
-                        >
-                          <AlertCircle className={clsx('mt-0.5 h-3.5 w-3.5 shrink-0', verdictTone(r.verdict))} />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <span className="truncate font-semibold text-ink-100">{r.supplierName ?? '협력사'}</span>
-                              <span className="text-ink-500">·</span>
-                              <span className="shrink-0 font-mono text-ink-400">{r.regulation ?? r.citedClauses[0] ?? '-'}</span>
-                              <span className={clsx('shrink-0 font-semibold', verdictTone(r.verdict))}>{verdictKo(r.verdict)}</span>
-                              {r.hitlReason && hitlReasonKo[r.hitlReason] && (
-                                <span className="shrink-0 rounded-full bg-ink-700 px-1.5 py-0.5 text-[10px] font-semibold text-ink-300">{hitlReasonKo[r.hitlReason]}</span>
-                              )}
-                              {(r.supplierRiskLevel === 'high' || r.supplierRiskLevel === 'critical') && (
-                                <span className="shrink-0 rounded-full border border-alert-border bg-alert-bg px-1.5 py-0.5 text-[10px] font-semibold text-alert-text">고위험사</span>
-                              )}
-                              {(() => { const d = ddayBadge(r.nearestDueDate); return d ? (
-                                <span className={clsx('shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold', d.alert ? 'bg-alert-bg text-alert-text' : 'bg-warn-bg text-warn-text')}>{d.label}</span>
-                              ) : null; })()}
-                            </div>
-                            <div className="mt-0.5 truncate text-xs text-ink-500">{r.reasoningText || r.evidence[0] || '근거 준비 중'}</div>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                    <Link href="/materials/regulation-results" className="mt-3 inline-block text-xs font-semibold text-accent-700">전체 규제 검증 결과 보기 →</Link>
-                  </>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section className="hidden">
-            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
-              <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
-                <h2 className="text-sm font-semibold text-ink-100">공급망 활동 타임라인</h2>
-                <Link href="/my-task" className="text-xs font-semibold text-accent-700">전체 보기</Link>
-              </div>
-              <div className="px-4 py-2">
-                {[
-                  { time: '09:30', title: 'FSC 인증 만료 감지', desc: 'Ganzhou Rare Metals 증빙 보완 필요', tone: 'bg-ok-solid', pill: 'Ganzhou Rare' },
-                  { time: '10:18', title: 'HITL 검토 대기', desc: 'Quzhou Precursor 원산지 증빙 검토', tone: 'bg-info-solid', pill: 'Quzhou' },
-                  { time: '11:05', title: '리튬 정제 자료 추출 완료', desc: 'Pilbara Refining Works 자동 처리', tone: 'bg-purple-500', pill: 'Pilbara' },
-                  { time: '11:20', title: '고위험 지역 Alert 발생', desc: 'UFLPA 교차 확인 필요', tone: 'bg-alert-solid', pill: 'Ganzhou' },
-                  { time: '14:05', title: '공급망 변경 감지', desc: '신규 하위 공급업체 추가', tone: 'bg-warn-solid', pill: 'POS Cathode' },
-                ].map(item => (
-                  <div key={`${item.time}-${item.title}`} className="flex gap-3 border-b border-ink-700/70 py-2.5 last:border-0">
-                    <span className="w-10 shrink-0 text-xs font-semibold leading-4 text-ink-500 num-mono">{item.time}</span>
-                    <div className="flex flex-col items-center">
-                      <span className={clsx('h-2.5 w-2.5 rounded-full', item.tone)} />
-                      <span className="h-full w-px bg-ink-700" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-xs font-semibold text-ink-100">{item.title}</span>
-                        <span className="rounded-full bg-accent-50 px-2 py-0.5 text-xs font-semibold text-accent-700">{item.pill}</span>
-                      </div>
-                      <div className="mt-0.5 truncate text-xs text-ink-500">{item.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
-              <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
-                <h2 className="text-sm font-semibold text-ink-100">고위험 국가/지역 현황</h2>
-                <Link href="/supply-chain/map" className="text-xs font-semibold text-accent-700">전체 보기</Link>
-              </div>
-              <div className="p-4">
-                <div className="rounded-sm border border-ink-700 bg-white">
-                  <div className="grid grid-cols-[0.7fr_1fr_0.9fr_0.9fr] border-b border-ink-700 px-3 py-2 text-xs font-semibold text-ink-500">
-                    <span>국가/지역</span>
-                    <span>위험도</span>
-                    <span className="text-right">연결 업체</span>
-                    <span className="text-right">변동</span>
-                  </div>
-                  <div className="divide-y divide-ink-700 text-xs">
-                  {[
-                    { country: 'CN', label: '중국·신장/간저우', risk: '고위험', reason: 'UFLPA 검토', count: 12, change: '▲ 3', color: 'text-alert-text', dot: 'bg-alert-solid' },
-                    { country: 'CD', label: '콩고·카탕가', risk: '고위험', reason: '분쟁광물 실사 필요', count: 8, change: '▲ 1', color: 'text-alert-text', dot: 'bg-alert-solid' },
-                    { country: 'ID', label: '인도네시아·술라웨시', risk: '중위험', reason: '니켈 원산지 보완', count: 5, change: '▼ 1', color: 'text-warn-text', dot: 'bg-warn-solid' },
-                    { country: 'AU', label: '호주·필바라', risk: '저위험', reason: '리튬 정제 검증 완료', count: 3, change: '0', color: 'text-ok-text', dot: 'bg-ok-solid' },
-                  ].map(item => (
-                    <div key={item.country} className="grid grid-cols-[0.7fr_1fr_0.9fr_0.9fr] items-center px-3 py-2">
-                      <div>
-                        <div className="font-semibold text-ink-100 num-mono">{item.country}</div>
-                        <div className="mt-0.5 text-xs text-ink-500">{item.label}</div>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className={clsx('h-2 w-2 rounded-full', item.dot)} />
-                          <span className={clsx('font-semibold', item.color)}>{item.risk}</span>
-                        </div>
-                        <div className="mt-0.5 text-xs text-ink-500">{item.reason}</div>
-                      </div>
-                      <span className="text-right font-semibold num-mono text-ink-100">{item.count}개사</span>
-                      <span className={clsx('text-right font-semibold num-mono', item.color)}>{item.change}</span>
-                    </div>
-                  ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-sm border border-ink-700 bg-white shadow-control">
-              <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
-                <h2 className="text-sm font-semibold text-ink-100">문서 현황 요약</h2>
-                <Link href="/suppliers/check-info" className="text-xs font-semibold text-accent-700">전체 보기</Link>
-              </div>
-              <div className="grid grid-cols-[0.82fr_1fr] gap-4 p-4">
-                <div className="flex items-center justify-center">
-                  <div
-                    className="flex h-32 w-32 items-center justify-center rounded-full"
-                    style={{ background: 'conic-gradient(#22C55E 0 52%, #8B5CF6 52% 73%, #3B82F6 73% 88%, #CBD5E1 88% 100%)' }}
-                  >
-                    <div className="flex h-20 w-20 flex-col items-center justify-center rounded-full bg-white text-center shadow-control">
-                      <span className="text-xs font-semibold text-ink-500">전체 문서</span>
-                      <span className="text-xl font-semibold text-ink-100 num-mono">1,248</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  {[
-                    { label: '인증서', value: 642, pct: '51%', color: 'text-ok-text' },
-                    { label: '원산지 증빙', value: 342, pct: '27%', color: 'text-info-text' },
-                    { label: 'DDS / 보고서', value: 156, pct: '12%', color: 'text-purple-600' },
-                    { label: '기타 문서', value: 108, pct: '9%', color: 'text-slate-500' },
-                  ].map(item => (
-                    <div key={item.label} className="flex items-center justify-between rounded-xs border border-ink-700 bg-white px-3 py-2">
-                      <span className="text-xs font-semibold text-ink-100">{item.label}</span>
-                      <div className="text-right">
-                        <span className="text-xs font-semibold text-ink-100 num-mono">{item.value}</span>
-                        <span className={clsx('ml-2 text-xs font-semibold', item.color)}>{item.pct}</span>
-                      </div>
-                    </div>
-                  ))}
-                  <button className="mt-2 flex w-full items-center justify-center gap-2 rounded-xs border border-alert-border bg-alert-bg px-3 py-2 text-xs font-semibold text-alert-text">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    문서 누락: {missingFieldCount}건
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
-      )}
-
     </>
   );
 }

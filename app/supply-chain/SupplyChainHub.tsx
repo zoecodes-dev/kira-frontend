@@ -3,7 +3,7 @@
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil, RefreshCw, X } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
 import { ApiError, confirmPool, createDataRequest, getSupplyChainGaps, getSupplyChainMaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, getValidationSummary, verifySupplier, type SupplierBrief, type SupplyChainGapsResult, type ValidationSummary } from '@/lib/api';
@@ -15,7 +15,7 @@ import ModalShell from '@/components/supply-chain/ModalShell';
 import PoolModal from '@/components/supply-chain/PoolModal';
 import ConnectedSuppliersModal from '@/components/supply-chain/ConnectedSuppliersModal';
 import DataReviewModal from '@/components/supply-chain/DataReviewModal';
-import DataRequestModal from '@/components/supply-chain/DataRequestModal';
+import DataRequestModal, { type RequestGapItem } from '@/components/supply-chain/DataRequestModal';
 import InviteMailModal from '@/components/supply-chain/InviteMailModal';
 import MapManageModal from '@/components/supply-chain/MapManageModal';
 
@@ -38,12 +38,14 @@ interface EntryChainRow {
 const toDateInput = (s: string | null | undefined) => (s ? s.slice(0, 10) : '');
 
 // 주어진 행들의 생산기간을 모두 감싸는 최소~최대 경계(단위기간 기본값).
+//   종료일이 없는(진행중) BOM만 있으면 종료 경계를 '오늘'로 채운다 — 빈 날짜칸('연도-월-일' 플레이스홀더) 방지.
 function periodBounds(rows: EntryChainRow[]): { from: string; to: string } {
   const froms = rows.map(r => toDateInput(r.periodFrom)).filter(Boolean);
   const tos = rows.map(r => toDateInput(r.periodTo)).filter(Boolean);
+  const today = new Date().toISOString().slice(0, 10);
   return {
     from: froms.length ? froms.reduce((a, b) => (a < b ? a : b)) : '',
-    to: tos.length ? tos.reduce((a, b) => (a > b ? a : b)) : '',
+    to: tos.length ? tos.reduce((a, b) => (a > b ? a : b)) : (froms.length ? today : ''),
   };
 }
 
@@ -73,6 +75,8 @@ export default function SupplyChainHub() {
   const [reviewSupplier, setReviewSupplier] = useState<{ id: string; name: string } | null>(null);
   // STEP3에서 특정 협력사 '메일' 클릭 시 초대 메일 팝업을 그 협력사로 미리 선택해 연다.
   const [mailInitialSupplierId, setMailInitialSupplierId] = useState<string | null>(null);
+  // STEP4(자료 수집·보완) '전체 확인' 완료 여부 — 이걸 눌러야 STEP5(최종 검증)로 넘어간다.
+  const [dataReviewDone, setDataReviewDone] = useState(false);
   // 사용자가 수행한 액션 단계(STEP 4 검증). STEP 1·2는 데이터, STEP 3은 협력사 확인 완료로 판정.
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
   // STEP 3 — 연결 협력사별 '확인' 처리 집합 + 일괄 자료요청 진행중 플래그 + 활성 BOM 버전(verify 대상).
@@ -80,6 +84,9 @@ export default function SupplyChainHub() {
   const [activeBomVersionId, setActiveBomVersionId] = useState<string | undefined>(undefined);
   // 맵 관리에서 시작한 자료요청은 협력사명을 직접 지정 (없으면 선택 노드 기준)
   const [requestLabel, setRequestLabel] = useState<string | null>(null);
+  // 자료 요청 대상 협력사 id + 그 협력사의 미흡 항목(최종 검증에서 계산). DataRequestModal에 전달.
+  const [requestSupplierId, setRequestSupplierId] = useState<string | null>(null);
+  const [requestGaps, setRequestGaps] = useState<RequestGapItem[]>([]);
 
   // 트리에 주입할 데이터셋 — 기본 빈 상태. 제품은 API, 공급망은 형성으로 채운다.
   const [dataset, setDataset] = useState<SupplyChainDataset>(emptyDataset);
@@ -104,33 +111,42 @@ export default function SupplyChainHub() {
     return ids;
   }, [dataset.supply_chain_map, activeBomVersionId]);
 
-  // 이 공급망 맵에 편입된 협력사 전부(1~n차) — STEP3 확인/메일 대상. dataset.suppliers(맵 병합 시 전 차수 포함)에서 도출.
-  const mapSuppliers = useMemo<SupplierBrief[]>(
-    () =>
-      dataset.suppliers
-        .filter(s => mapSupplierIds.has(s.supplier_id))
-        .map(s => ({
-          supplierId: s.supplier_id,
-          companyName: s.company_name,
-          providerType: s.provider_type as SupplierBrief['providerType'],
-          status: (s.status || 'active') as SupplierBrief['status'],
-          riskLevel: (s.risk_level ?? 'low') as SupplierBrief['riskLevel'],
-        }))
-        .sort((a, b) => {
-          const ta = dataset.suppliers.find(s => s.supplier_id === a.supplierId)?.tier ?? 99;
-          const tb = dataset.suppliers.find(s => s.supplier_id === b.supplierId)?.tier ?? 99;
-          return ta - tb || a.companyName.localeCompare(b.companyName);
-        }),
-    [dataset.suppliers, mapSupplierIds],
+  // 원청(우리 회사)은 협력사가 아니므로 목록에서 제외 — gaps의 is_root_anchor로 식별.
+  const rootAnchorIds = useMemo(
+    () => new Set((gaps?.nodes ?? []).filter(n => n.is_root_anchor).map(n => n.supplier_id)),
+    [gaps],
   );
+
+  // 이 공급망 맵에 편입된 협력사 전부(1~n차, 원청 제외) — STEP3 확인/메일·STEP4 검토 대상. dataset.suppliers(맵 병합 시 전 차수 포함)에서 도출.
+  //   원청(우리 회사)은 협력사가 아니므로 제외: (1) gaps의 is_root_anchor, (2) hop_level 0(=원청 차수) 노드.
+  //   단, hop 정보가 없어 전 협력사가 tier 0이면 구분 불가이므로 그때는 tier 기준 제외를 적용하지 않는다.
+  const mapSuppliers = useMemo<SupplierBrief[]>(() => {
+    const inMap = dataset.suppliers.filter(
+      s => mapSupplierIds.has(s.supplier_id) && !rootAnchorIds.has(s.supplier_id),
+    );
+    const nonOem = inMap.filter(s => (s.tier ?? 0) > 0);
+    const base = nonOem.length ? nonOem : inMap;   // 전부 tier 0(hop 미제공)이면 tier 제외 스킵
+    return base
+      .map(s => ({
+        supplierId: s.supplier_id,
+        companyName: s.company_name,
+        providerType: s.provider_type as SupplierBrief['providerType'],
+        status: (s.status || 'active') as SupplierBrief['status'],
+        riskLevel: (s.risk_level ?? 'low') as SupplierBrief['riskLevel'],
+      }))
+      .sort((a, b) => {
+        const ta = dataset.suppliers.find(s => s.supplier_id === a.supplierId)?.tier ?? 99;
+        const tb = dataset.suppliers.find(s => s.supplier_id === b.supplierId)?.tier ?? 99;
+        return ta - tb || a.companyName.localeCompare(b.companyName);
+      });
+  }, [dataset.suppliers, mapSupplierIds, rootAnchorIds]);
 
   // STEP3 완료 = 이 맵에 편입된 협력사 '전부' 확인. (Pool=1차만이 아니라 전 차수 기준)
   const step3Done = mapSuppliers.length > 0 && mapSuppliers.every(p => confirmedSuppliers.has(p.supplierId));
 
-  // 완료 공급망 = 전 차수 협력사 확인(step3Done) + 데이터 완성도 준비 완료(readyForFinal).
-  //   요약이 없으면(데모 등) 완성도 게이트는 적용하지 않는다.
-  const dataReady = summary ? summary.readyForFinal : true;
-  const chainComplete = step3Done && dataReady;
+  // 완료 공급망(=STEP5 최종검증까지 done) = 협력사 전부 확인(STEP3) + 자료 검토 전체 확인(STEP4) + 완성도 준비(readyForFinal).
+  const dataReady = summary?.readyForFinal ?? false;
+  const chainComplete = step3Done && dataReviewDone && dataReady;
   // 완료 공급망은 '수정'을 누르기 전까지 전체 완료·잠금 상태로 본다.
   const [editMode, setEditMode] = useState(false);
   const locked = chainComplete && !editMode;
@@ -366,6 +382,7 @@ export default function SupplyChainHub() {
     setTier1Pool([]);
     setPool([]);
     setConfirmedSuppliers(new Set());
+    setDataReviewDone(false); // 새 공급망 — STEP4 검토 확인 초기화
     setEditMode(false); // 새 공급망 진입 — 완료면 다시 잠금 상태로.
 
     // 1) BOM 버전 목록(실 bomVersionId) — 없으면 트리 합성 버전으로 폴백
@@ -430,15 +447,16 @@ export default function SupplyChainHub() {
             riskLevel: s.riskLevel ?? 'low',
           }));
         setTier1Pool(tier1List);
-        // 이미 검증된 협력사가 있는 기존 공급망만 Pool 자동 하이드레이션(STEP2 완료 표시).
-        // 신규/building 공급망(전부 unverified)은 사용자가 직접 Pool 구성해야 함.
-        const hasVerified = map.supplyChainMap.some(n => n.verificationStatus === 'verified');
-        if (hasVerified) setPool(tier1List);
-        // STEP3 verify 대상 BOM 버전 저장 + 백엔드 verification_status로 '확인' 상태 하이드레이션.
         setActiveBomVersionId(activeVersionId);
-        setConfirmedSuppliers(new Set(
-          map.supplyChainMap.filter(n => n.verificationStatus === 'verified').map(n => n.supplierId),
-        ));
+        // '완료된 공급망' = 전 차수 엣지가 모두 verified. 이때만 Pool·확인 상태를 자동 하이드레이션한다.
+        //   시드/ERP가 1차 엣지만 supplychain_confirmed(=verified)로 넣는 경우, 원청이 Pool 확정·확인을
+        //   누르지 않았는데 STEP2/3가 자동 확정으로 뜨던 문제를 막는다(부분 verified는 사용자가 직접 진행).
+        const allVerified =
+          map.supplyChainMap.length > 0 && map.supplyChainMap.every(n => n.verificationStatus === 'verified');
+        setPool(allVerified ? tier1List : []);
+        setConfirmedSuppliers(
+          allVerified ? new Set(map.supplyChainMap.map(n => n.supplierId)) : new Set(),
+        );
       } catch {
         // 공급망 맵 없음 — 협력사 빈 상태 유지
       }
@@ -505,24 +523,48 @@ export default function SupplyChainHub() {
     [gaps, mapSupplierIds],
   );
 
+  // 협력사별 진행 현황 표의 소스 — gaps(scopedGapNodes)가 있으면 그걸(미보유 필드 상세 포함),
+  //   gaps가 없으면(데모 모드 등 gaps=null) 맵 협력사(mapSuppliers)로 폴백해 표가 항상 뜨게 한다.
+  //   폴백은 미보유 필드를 알 수 없으므로 완비로 간주(차수=tier, 단계=확인여부 기준).
+  const progressNodes = useMemo(() => {
+    if (scopedGapNodes.length > 0) {
+      return scopedGapNodes.map(n => ({
+        supplierId: n.supplier_id,
+        companyName: n.company_name,
+        providerType: n.provider_type,
+        depth: n.depth,
+        gapCount: n.gap_count,
+        missingFields: n.missing_fields as { field_name: string; field_label?: string }[],
+      }));
+    }
+    return mapSuppliers.map(s => ({
+      supplierId: s.supplierId,
+      companyName: s.companyName,
+      providerType: s.providerType,
+      depth: dataset.suppliers.find(d => d.supplier_id === s.supplierId)?.tier ?? 0,
+      gapCount: 0,
+      missingFields: [] as { field_name: string; field_label?: string }[],
+    }));
+  }, [scopedGapNodes, mapSuppliers, dataset.suppliers]);
+
   // [R2] hop(차수)별 진행 구획 — 공급망은 원청→1차→…→n차로 edge가 연결되며 내려간다.
   //   depth(=hop)마다 칸을 하나씩 만들어, 지금 어느 차수까지 진행됐는지 한눈에 보이게 한다.
   //   각 칸: 그 차수 협력사 중 완비(미보유 0) 비율. 100%면 완료(초록), 일부면 진행(브랜드), 0이면 대기(회색).
   const depthStats = useMemo(() => {
     const byDepth = new Map<number, { depth: number; total: number; complete: number; confirmed: number; gaps: number }>();
-    for (const n of scopedGapNodes) {
+    for (const n of progressNodes) {
       const s = byDepth.get(n.depth) ?? { depth: n.depth, total: 0, complete: 0, confirmed: 0, gaps: 0 };
       s.total += 1;
-      if (n.gap_count === 0) {
+      if (n.gapCount === 0) {
         s.complete += 1;
-        if (confirmedSuppliers.has(n.supplier_id)) s.confirmed += 1;
+        if (confirmedSuppliers.has(n.supplierId)) s.confirmed += 1;
       } else {
-        s.gaps += n.gap_count;
+        s.gaps += n.gapCount;
       }
       byDepth.set(n.depth, s);
     }
     return [...byDepth.values()].sort((a, b) => a.depth - b.depth);
-  }, [scopedGapNodes, confirmedSuppliers]);
+  }, [progressNodes, confirmedSuppliers]);
 
   // 현재 진행 중인 차수 = 아직 완비되지 않은 가장 얕은 차수(위에서부터 채워 내려가므로).
   //   전 차수 완비면 가장 깊은 차수(도달한 최전선)를 '완료' 표시로 쓴다.
@@ -531,14 +573,14 @@ export default function SupplyChainHub() {
     return pending ? pending.depth : (depthStats.length ? depthStats[depthStats.length - 1].depth : null);
   }, [depthStats]);
 
-  // [R2] 데이터 완성도 요약 — '이 공급망 맵'(scopedGapNodes) 기준으로 집계한다.
-  //   summary(getValidationSummary)는 제품+BOM 롤업이라 이 맵과 범위가 다를 수 있으므로, 맵 스코프로 다시 센다.
+  // [R2] 데이터 완성도 요약 — '이 공급망 맵'(progressNodes) 기준으로 집계한다.
+  //   gaps 미로드(데모 등)면 progressNodes가 맵 협력사로 폴백하므로 데모에서도 칸 구획/완성도가 뜬다.
   const mapStats = useMemo(() => {
-    const supplierCount = scopedGapNodes.length;
-    const nodesWithGaps = scopedGapNodes.filter(n => n.gap_count > 0).length;
-    const totalGapCount = scopedGapNodes.reduce((sum, n) => sum + n.gap_count, 0);
+    const supplierCount = progressNodes.length;
+    const nodesWithGaps = progressNodes.filter(n => n.gapCount > 0).length;
+    const totalGapCount = progressNodes.reduce((sum, n) => sum + n.gapCount, 0);
     return { supplierCount, nodesWithGaps, complete: supplierCount - nodesWithGaps, totalGapCount };
-  }, [scopedGapNodes]);
+  }, [progressNodes]);
 
   // 완성도(%) — 맵 협력사 중 미보유 없는 곳 비율. 맵 노드가 없으면(gaps 미로드 등) summary로 폴백.
   const completePct = mapStats.supplierCount > 0
@@ -591,10 +633,10 @@ export default function SupplyChainHub() {
     <div className="min-h-screen bg-white text-ink-100">
       <PageHeader
         title="공급망 맵 허브"
-        description="고객사·제품·BOM버전·단위기간 기준으로 맵을 생성하고, 1차 협력사 확인·Pool 확정·자료 요청·초대·최종 검증까지 이어갑니다."
+        description="고객사·제품·BOM버전·단위기간 기준으로 맵을 생성하고, 협력사 확인·Pool 구성·자료 요청·초대·최종 검증까지 이어갑니다."
         tabs={[
-          { label: '공급망 목록', href: '/supply-chain' },
-          { label: '공급망 맵', href: '/supply-chain/map', active: true },
+          { label: '공급망 맵 목록', href: '/supply-chain' },
+          { label: '공급망 맵 생성 및 조회', href: '/supply-chain/map', active: true },
         ]}
       >
         <HubStepBar
@@ -603,6 +645,7 @@ export default function SupplyChainHub() {
           completed={completed}
           locked={locked}
           step3Done={step3Done}
+          step4Done={dataReviewDone}
           readyForFinal={summary?.readyForFinal ?? false}
           completePct={completePct}
           onOpenPool={() => setActiveModal('pool')}
@@ -612,16 +655,17 @@ export default function SupplyChainHub() {
         />
       </PageHeader>
 
-      {/* [P1] 맵 기준(고객사/제품/BOM/단위기간)은 별도 고정 바가 아니라 아래 맵 필터 칸(STEP2)에 표시된다.
-          — 진입 게이트에서 고른 값이 initialProductId/BomVersionId/PeriodFrom·To로 필터 칸에 채워진다. */}
-
       {loadStatus === null && !productsLoading && dataset.products.length > 0 && mapStarted && !locked && (
         <FlowGuide
           hasProduct={Boolean(selectedProductId)}
           poolCount={pool.length}
           tier1Count={tier1Pool.length}
-          hasSelection={Boolean(selectedNode)}
+          step3Done={step3Done}
+          readyForFinal={summary?.readyForFinal ?? false}
           onOpenPool={() => setActiveModal('pool')}
+          onOpenSuppliers={() => setActiveModal('suppliers')}
+          onOpenDataReview={() => setActiveModal('dataReview')}
+          onOpenVerify={() => { markVisited(4); setActiveModal('mapManage'); }}
         />
       )}
 
@@ -646,17 +690,17 @@ export default function SupplyChainHub() {
         </div>
       )}
 
-      {/* [R2] 데이터 완성도 + 다음 단계(최종검증) 이동 게이트 — STEP3~4 반복 자료수집 구간 */}
-      {mapContext && summary && !locked && (
+      {/* [R2] 데이터 완성도 + 협력사 단계별(차수) 뷰 — gaps(scopedGapNodes) 기준. summary 없어도 맵 데이터가 있으면 표시. */}
+      {mapContext && (mapStats.supplierCount > 0 || summary) && !locked && (
         <div className="mx-6 mt-3 rounded-md border border-slate-200 bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-ink-100">데이터 완성도</span>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                  summary.readyForFinal ? 'border border-ok-border bg-ok-bg text-ok-text' : 'border border-warn-border bg-warn-bg text-warn-text'
+                  summary?.readyForFinal ? 'border border-ok-border bg-ok-bg text-ok-text' : 'border border-warn-border bg-warn-bg text-warn-text'
                 }`}>
-                  {summary.readyForFinal
+                  {summary?.readyForFinal
                     ? '최종 검증 준비 완료'
                     : activeDepth != null ? `${activeDepth}차 진행 중` : '입력 진행 중'}
                 </span>
@@ -668,7 +712,7 @@ export default function SupplyChainHub() {
                     {depthStats.map(s => {
                       const pct = s.total > 0 ? Math.round((s.complete / s.total) * 100) : 0;
                       const done = pct === 100;
-                      const isActive = s.depth === activeDepth && !summary.readyForFinal;
+                      const isActive = s.depth === activeDepth && !summary?.readyForFinal;
                       return (
                         <div
                           key={s.depth}
@@ -700,16 +744,16 @@ export default function SupplyChainHub() {
                 </div>
               )}
               <div className="mt-1.5 text-[11px] text-slate-500">
-                협력사 {mapStats.supplierCount}곳 · 완비 {mapStats.complete}곳 · 미보유 {mapStats.totalGapCount}건 · 비율검증 {summary.ratioValid ? 'OK' : '불일치'}
+                협력사 {mapStats.supplierCount}곳 · 완비 {mapStats.complete}곳 · 미보유 {mapStats.totalGapCount}건 · 비율검증 {summary ? (summary.ratioValid ? 'OK' : '불일치') : '—'}
                 <span className="ml-1 text-slate-400">
-                  — {activeDepth != null && !summary.readyForFinal
+                  — {activeDepth != null && !summary?.readyForFinal
                     ? `현재 ${activeDepth}차 자료 수집 중, 하위(n차)가 제출하면 다음 칸이 채워집니다.`
                     : '협력사·하위(n차)가 자료를 제출하면 완성도가 채워집니다.'}
                 </span>
               </div>
             </div>
             <div className="flex shrink-0 gap-2">
-              {!summary.readyForFinal && mapStats.nodesWithGaps > 0 && (
+              {!summary?.readyForFinal && mapStats.nodesWithGaps > 0 && (
                 <button
                   type="button"
                   onClick={requestIncomplete}
@@ -723,8 +767,8 @@ export default function SupplyChainHub() {
               <button
                 type="button"
                 onClick={() => { markVisited(4); setActiveModal('mapManage'); }}
-                disabled={!summary.readyForFinal}
-                title={summary.readyForFinal ? '' : '모든 협력사 데이터가 채워지면 이동할 수 있어요'}
+                disabled={!summary?.readyForFinal}
+                title={summary?.readyForFinal ? '' : '모든 협력사 데이터가 채워지면 이동할 수 있어요'}
                 className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 최종 검증으로 이동
@@ -732,6 +776,34 @@ export default function SupplyChainHub() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 맵 기준 — STEP1에서 고른 기준(고객사/제품/BOM/단위기간). 데이터 완성도 아래에 표시. */}
+      {mapContext && (
+        <div className="mx-6 mt-3 flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-brand">맵 기준</span>
+          {([
+            ['고객사', mapContext.customer],
+            ['제품', mapContext.product + (mapContext.productCode ? ` (${mapContext.productCode})` : '')],
+            ['BOM', mapContext.bomVersion],
+            ['단위기간', (mapContext.periodFrom || mapContext.periodTo) ? `${toDateInput(mapContext.periodFrom) || '…'} ~ ${toDateInput(mapContext.periodTo) || '…'}` : '전체'],
+          ] as const).map(([label, value]) => (
+            <span key={label} className="flex items-baseline gap-1.5 text-sm">
+              <span className="text-xs text-slate-400">{label}</span>
+              <span className="font-semibold text-ink-100">{value}</span>
+            </span>
+          ))}
+          {!locked && (
+            <button
+              type="button"
+              onClick={() => setActiveModal('mapCreate')}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-400 hover:border-brand hover:text-brand"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              기준 변경
+            </button>
+          )}
         </div>
       )}
 
@@ -836,7 +908,7 @@ export default function SupplyChainHub() {
       {/* 협력사 상세(general review) 팝업 — 맵 표 행 클릭 시. 닫으면 이 공급망 맵으로 바로 복귀. */}
       {reviewSupplier && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 md:p-8"
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 md:p-8"
           onClick={() => setReviewSupplier(null)}
         >
           <div
@@ -1000,11 +1072,14 @@ export default function SupplyChainHub() {
         <DataReviewModal
           suppliers={mapSuppliers}
           gapNodes={scopedGapNodes}
+          allConfirmed={dataReviewDone}
           onRequest={id =>
             createDataRequest({ targetSupplierId: id, requestedDataType: 'general_info' })
               .then(() => { if (selectedProductId) getValidationSummary(selectedProductId, activeBomVersionId).then(setSummary).catch(() => {}); })
               .catch(() => {})
           }
+          onConfirmAll={() => setDataReviewDone(true)}
+          onOpenReview={(id, name) => openSupplierReview(id, name)}
           onClose={close}
         />
       )}
@@ -1012,9 +1087,12 @@ export default function SupplyChainHub() {
       {activeModal === 'dataRequest' && (
         <DataRequestModal
           supplierLabel={requestLabel ?? (activeSupplierId ? `${activeNodeLabel} · ${activeSupplierId}` : activeNodeLabel)}
-          supplierId={activeSupplierId}
+          supplierId={requestSupplierId ?? activeSupplierId}
+          gaps={requestGaps}
           onClose={() => {
             setRequestLabel(null);
+            setRequestSupplierId(null);
+            setRequestGaps([]);
             close();
           }}
           onBack={() => setActiveModal('mapManage')}
@@ -1027,13 +1105,17 @@ export default function SupplyChainHub() {
 
       {activeModal === 'mapManage' && (
         <MapManageModal
-          pool={pool}
+          // 최종 검증 대상 = 이 맵 트리에 편입된 협력사 '전부'(전 차수). 1차 확정분(pool)만이 아니라
+          //   트리가 구성되며 붙은 하위(n차)까지 검증한다. mapSuppliers는 트리 성장에 따라 커진다.
+          pool={mapSuppliers}
           {...(selectedProductId ? { productId: selectedProductId } : {})}
           {...(activeBomVersionId ? { bomVersionId: activeBomVersionId } : {})}
           onClose={close}
           onVerified={onStep4Verified}
-          onRequestUpdate={supplier => {
+          onRequestUpdate={(supplier, gaps) => {
             setRequestLabel(supplier.companyName);
+            setRequestSupplierId(supplier.supplierId);
+            setRequestGaps(gaps);
             setActiveModal('dataRequest');
           }}
         />
@@ -1044,11 +1126,15 @@ export default function SupplyChainHub() {
 
 // 흐름 안내 배너 — 현재 단계와 '다음 할 일'을 상태 기반으로 명시(사용자가 다음 액션을 알 수 있게).
 function FlowGuide({
-  hasProduct, poolCount, tier1Count, hasSelection, onOpenPool,
+  hasProduct, poolCount, tier1Count, step3Done, readyForFinal,
+  onOpenPool, onOpenSuppliers, onOpenDataReview, onOpenVerify,
 }: {
-  hasProduct: boolean; poolCount: number; tier1Count: number; hasSelection: boolean; onOpenPool: () => void;
+  hasProduct: boolean; poolCount: number; tier1Count: number;
+  step3Done: boolean; readyForFinal: boolean;
+  onOpenPool: () => void; onOpenSuppliers: () => void; onOpenDataReview: () => void; onOpenVerify: () => void;
 }) {
-  let step: string, title: string, desc: string, tone: 'info' | 'warn' | 'ok', cta = false;
+  let step: string, title: string, desc: string, tone: 'info' | 'warn' | 'ok';
+  let cta: { label: string; onClick: () => void } | null = null;
   if (!hasProduct) {
     step = 'STEP 1'; tone = 'info';
     title = '대표 제품을 선택하세요';
@@ -1058,13 +1144,25 @@ function FlowGuide({
     title = '이 제품은 다음 단계로 진행할 수 없습니다';
     desc = '등록된 1차 협력사가 없어 협력사 Pool을 구성할 수 없습니다. 다른 제품을 선택하세요.';
   } else if (poolCount === 0) {
-    step = 'STEP 2'; tone = 'info'; cta = true;
+    step = 'STEP 2'; tone = 'info';
     title = '협력사 Pool을 구성하세요';
     desc = `상단 "STEP 2 협력사 Pool 구성"을 눌러 1차 협력사 ${tier1Count}개사 중 작업 대상을 선택·확정하면 STEP 3~5가 열립니다.`;
+    cta = { label: '협력사 Pool 구성', onClick: onOpenPool };
+  } else if (!step3Done) {
+    step = 'STEP 3'; tone = 'info';
+    title = '협력사를 확인하세요';
+    desc = '이 공급망 맵에 편입된 협력사를 전부 확인하고, 필요하면 협력사별 정보요청 메일·동의서를 보내세요. 전부 확인하면 STEP 4가 열립니다.';
+    cta = { label: '협력사 확인', onClick: onOpenSuppliers };
+  } else if (!readyForFinal) {
+    step = 'STEP 4'; tone = 'info';
+    title = '자료 수집 · 보완을 검토하세요';
+    desc = '협력사가 제출한 자료의 입력 누락·문서 문제를 확인하고, 미완료 협력사에 알림 요청하거나 문제 문서를 검토하세요.';
+    cta = { label: '자료 검토', onClick: onOpenDataReview };
   } else {
-    step = 'STEP 3'; tone = 'ok';
-    title = '맵 구성 완료 — 협력사를 확인하세요';
-    desc = '상단 "STEP 3 협력사 확인·자료 요청"에서 연결 협력사를 확인하거나 자료를 일괄 요청하세요. 협력사 노드를 클릭하면 상세 정보가 맵에 바로 표시됩니다.';
+    step = 'STEP 5'; tone = 'ok';
+    title = '자료 수집 완료 — 최종 검증으로 진행하세요';
+    desc = '모든 협력사 데이터가 준비됐습니다. 최종 검증에서 판정·요약을 확인하고 고객사 데이터를 내보내세요.';
+    cta = { label: '최종 검증', onClick: onOpenVerify };
   }
   const toneCls =
     tone === 'ok' ? 'border-ok-border bg-ok-bg text-ok-text'
@@ -1082,10 +1180,10 @@ function FlowGuide({
       {cta && (
         <button
           type="button"
-          onClick={onOpenPool}
+          onClick={cta.onClick}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-bold text-white hover:bg-brand-hover"
         >
-          협력사 Pool 구성
+          {cta.label}
           <ArrowRight className="h-4 w-4" />
         </button>
       )}
