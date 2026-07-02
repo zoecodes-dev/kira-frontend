@@ -37,8 +37,8 @@ export default function HitlReviewCard() {
   async function approve(x: AiExtraction) {
     setBusyId(x.requestId);
     try {
-      if (x.batchId && x.hitlReviewId) await approveHitl(x.batchId, 'HITL AI 파싱 검토 완료').catch(() => {});
-      await approveDataRequest(x.requestId, 'HITL AI 파싱 검토 완료').catch(() => {});
+      if (x.batchId && x.hitlReviewId) await approveHitl(x.batchId, '검토 완료').catch(() => {});
+      await approveDataRequest(x.requestId, '검토 완료').catch(() => {});
       await load();
     } finally { setBusyId(null); }
   }
@@ -46,7 +46,7 @@ export default function HitlReviewCard() {
   async function reject(x: AiExtraction) {
     setBusyId(x.requestId);
     try {
-      if (x.batchId && x.hitlReviewId) await rejectHitl(x.batchId, 'AI 파싱값 검토 반려 — 재요청').catch(() => {});
+      if (x.batchId && x.hitlReviewId) await rejectHitl(x.batchId, '검토 반려 — 재요청').catch(() => {});
       await load();
     } finally { setBusyId(null); }
   }
@@ -60,16 +60,16 @@ export default function HitlReviewCard() {
       <div className="flex items-center justify-between gap-3 border-b border-ink-700 px-5 py-3">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-brand" />
-          <h2 className="text-sm font-bold text-ink-100">협력사 승인 (HITL) · AI 파싱 검토</h2>
+          <h2 className="text-sm font-bold text-ink-100">협력사 검토 · 승인</h2>
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-ink-400">{items.length}건</span>
         </div>
-        <span className="text-[11px] font-medium text-slate-500">협력사 제출 → AI 파싱 → 사람 검증 · 자료 요청과 연결</span>
+        <span className="text-[11px] font-medium text-slate-500">협력사 제출 → AI → 사람 검증 · 자료 요청과 연결</span>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-10 text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /><span className="text-sm font-semibold">AI 파싱 결과 불러오는 중…</span></div>
       ) : items.length === 0 ? (
-        <div className="px-5 py-10 text-center text-sm text-slate-500">검토할 AI 파싱 결과가 없습니다. 협력사가 자료를 제출하면 여기에 나타납니다.</div>
+        <div className="px-5 py-10 text-center text-sm text-slate-500">검토할 자료가 없습니다. 협력사가 자료를 제출하면 여기에 나타납니다.</div>
       ) : (
         <ul className="divide-y divide-slate-100">
           {items.map(x => {
@@ -148,13 +148,13 @@ export default function HitlReviewCard() {
                           {x.unparsedFields.map(k => (
                             <tr key={`u-${k}`} className="bg-alert-bg/30">
                               <td className="px-3 py-2 font-semibold text-ink-100">{k}</td>
-                              <td className="px-3 py-2 text-alert-text" colSpan={3}>AI가 추출하지 못함 — 협력사에 재요청 필요</td>
+                              <td className="px-3 py-2 text-alert-text" colSpan={3}>협력사에 재요청 필요</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                    <p className="mt-2 text-[11px] text-slate-500">신뢰도 80% 미만은 사람 검증 대상, 그 이상은 AI가 자동통과시킨 값입니다. 모두 확인 후 "승인"하면 자료 요청이 완료됩니다.</p>
+                    <p className="mt-2 text-[11px] text-slate-500">모두 확인 후 "승인"하면 자료 요청이 완료됩니다.</p>
                   </div>
                 )}
               </li>

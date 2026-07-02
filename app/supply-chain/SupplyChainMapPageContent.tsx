@@ -42,6 +42,12 @@ const progressToneCls: Record<'ok' | 'warn' | 'accent', string> = {
   warn: 'border-warn-border bg-warn-bg text-warn-text',
 };
 
+// 공급사 유형(provider_type enum) → 한글 라벨.
+const PROVIDER_LABEL: Record<string, string> = {
+  manufacturer: '제조사', recycler: '재활용', trader: '유통', miner: '광산', smelter: '제련소',
+};
+const providerKo = (t: string) => PROVIDER_LABEL[t] ?? t;
+
 export function SupplyChainMapPageContent({
   formationMode = false,
   dataset = emptyDataset,
@@ -691,7 +697,7 @@ export function SupplyChainMapPageContent({
           <div className="flex items-start justify-between gap-4 border-b border-ink-700 bg-ink-800/40 px-5 py-4">
             <div>
               <h2 className="text-base font-bold text-ink-100">협력사별 진행 사항 확인</h2>
-              <p className="mt-0.5 text-xs text-ink-500">이 공급망 맵에 편입된 협력사·품목별 공급 정보와 진행 단계입니다. 행을 누르면 해당 협력사 상세(general review)로 이동합니다.</p>
+              <p className="mt-0.5 text-xs text-ink-500">이 공급망 맵에 편입된 협력사 진행 단계 확인. 누르면 해당 협력사 상세로 이동.</p>
             </div>
             <div className="flex shrink-0 gap-2">
               <button type="button" onClick={downloadCsv} className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-400 hover:bg-ink-800">
@@ -795,14 +801,13 @@ function SupplyMapTree({
       {/* 헤더와 행을 같은 가로 스크롤 컨테이너에 두어 가로 스크롤 시 함께 움직이고 컬럼이 어긋나지 않게 한다.
           헤더는 sticky top-0 으로 세로 스크롤에도 위에 고정. */}
       <div className="max-h-[70vh] overflow-auto">
-        <div className="min-w-[980px]">
-          <div className="sticky top-0 z-10 grid grid-cols-[minmax(270px,1.35fr)_80px_120px_minmax(170px,.85fr)_90px_90px_132px_54px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
+        <div className="min-w-[890px]">
+          <div className="sticky top-0 z-10 grid grid-cols-[minmax(270px,1.35fr)_80px_120px_minmax(170px,.85fr)_90px_132px_54px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
             <span>제품/부품명</span>
             <span>Tier</span>
             <span>공급사 유형</span>
             <span>공급사 / 광산명</span>
             <span>공급 비율</span>
-            <span>검증률</span>
             <span>리스크 상태</span>
             <span>상세</span>
           </div>
@@ -847,7 +852,7 @@ function SupplyMapRow({
   const hideFormationValues = formationMode;
 
   return (
-    <div className="relative min-w-[980px]">
+    <div className="relative min-w-[890px]">
       {node.depth > 0 && (
         <>
           <div
@@ -864,7 +869,7 @@ function SupplyMapRow({
         type="button"
         data-testid={node.row ? `supply-map-node-${node.row.part_id}` : `supply-map-node-${node.key}`}
         onClick={() => onSelect(node.key)}
-        className={`grid min-h-[72px] w-full grid-cols-[minmax(270px,1.35fr)_80px_120px_minmax(170px,.85fr)_90px_90px_132px_54px] items-center border-b border-slate-100 px-4 text-left transition ${
+        className={`grid min-h-[72px] w-full grid-cols-[minmax(270px,1.35fr)_80px_120px_minmax(170px,.85fr)_90px_132px_54px] items-center border-b border-slate-100 px-4 text-left transition ${
           selected || isProduct
             ? 'bg-ok-bg'
             : rowTone === 'danger'
@@ -883,12 +888,11 @@ function SupplyMapRow({
           </span>
         </div>
         <span className={`text-sm text-ink-400 ${isProduct ? 'font-semibold' : 'font-medium'}`}>{hideFormationValues ? '-' : node.tier}</span>
-        <span className="text-sm font-medium text-ink-400">{hideFormationValues || isProduct ? '-' : node.providerType}</span>
+        <span className="text-sm font-medium text-ink-400">{hideFormationValues || isProduct ? '-' : providerKo(node.providerType)}</span>
         <span className={`flex min-w-0 items-center gap-1.5 truncate text-sm font-medium ${isProduct || hideFormationValues ? 'text-ink-400' : 'text-ink-100'}`}>
           <span className="truncate">{hideFormationValues || isProduct ? '-' : node.supplierName}</span>
         </span>
         <span className="text-sm font-medium text-ink-100">{hideFormationValues ? '-' : node.supplyRatio}</span>
-        <span className="text-sm font-medium text-ink-100">{hideFormationValues ? '-' : node.verificationProgress}</span>
         {hideFormationValues ? <span className="text-sm font-medium text-ink-400">-</span> : <StatusBadge status={node.status} />}
         <span
           role="button"

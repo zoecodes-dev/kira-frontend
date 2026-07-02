@@ -446,8 +446,12 @@ export function getDepth(part: Part): TraceRow['depth'] {
 }
 
 export function getMaterialLabel(part: Part) {
-  if (part.kind === 'component') return part.material_type;
-  return `${part.material_type} / ${part.part_name}`;
+  const mt = (part.material_type ?? '').trim();
+  if (part.kind === 'component') return mt;
+  // 원재료/광물: material_type이 있으면 'material_type / part_name', 없으면 part_name만.
+  //   (material_type 미제공 시 선행 '/'가 붙던 문제 방지)
+  const pn = (part.part_name ?? '').trim();
+  return mt ? (pn ? `${mt} / ${pn}` : mt) : pn;
 }
 
 export function getApplicableRules(rowStatus: RiskStatus, country: string) {
@@ -506,9 +510,15 @@ export function buildTraceRows(ds: SupplyChainDataset, bomVersionId: string, per
         ? ratios.filter(ratio => !factoryId || factoryId === 'ALL' || ratio.factory_id === factoryId)
         : [{ ratio_id: `${mapRow.map_id}:na`, map_id: mapRow.map_id, factory_id: '', ratio_percentage: 0, volume: 0 }];
 
+      // 이 협력사의 공장(원산지) — ratio가 특정 공장에 연결 안 됐을 때 사업장·국가 폴백용.
+      const supplierFactory = ds.supplier_factories.find(item => item.supplier_id === supplier.supplier_id);
+
       return effectiveRatios
         .flatMap(ratio => {
-          const factory = ds.supplier_factories.find(item => item.factory_id === ratio.factory_id) ?? {
+          // 공장: ratio 연결 공장 우선 → 없으면 협력사 공장(원산지) → 그래도 없으면 placeholder.
+          const factory = (ratio.factory_id ? ds.supplier_factories.find(item => item.factory_id === ratio.factory_id) : undefined)
+            ?? supplierFactory
+            ?? {
             factory_id: ratio.factory_id || '',
             factory_name: '-',
             factory_name_en: '',
@@ -606,9 +616,12 @@ export function getInvitationContext(node: SelectedNode) {
 }
 
 export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomVersion: BomVersion, rows: TraceRow[]): ExplorerNode {
-  const rowsByPartId = new Map<string, TraceRow>();
+  // 부품당 여러 행 허용 — 같은 부품을 여러 협력사/차수가 공급(겸업·멀티소스)하면 모두 노드로 띄운다.
+  const rowsByPartId = new Map<string, TraceRow[]>();
   rows.forEach(row => {
-    if (!rowsByPartId.has(row.part_id)) rowsByPartId.set(row.part_id, row);
+    const arr = rowsByPartId.get(row.part_id) ?? [];
+    arr.push(row);
+    rowsByPartId.set(row.part_id, arr);
   });
 
   // 형제 노드 정렬 키 = 차수(tier) 오름차순. "Tier N"/part.tier_level에서 숫자 추출(없으면 큰 값=뒤로).
@@ -624,8 +637,7 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
     const part = ds.parts.find(item => item.part_id === row.part_id);
     const childPartNodes = ds.parts
       .filter(item => item.parent_part_id === row.part_id)
-      .map(item => rowsByPartId.get(item.part_id))
-      .filter((item): item is TraceRow => Boolean(item))
+      .flatMap(item => rowsByPartId.get(item.part_id) ?? [])
       .sort(byTier)
       .map(childRow => buildPartNode(childRow, depth + 1));
 
@@ -657,8 +669,7 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
   const partIdSet = new Set(ds.parts.map(p => p.part_id));
   const rootRows = ds.parts
     .filter(part => !part.parent_part_id || !partIdSet.has(part.parent_part_id) || !rowsByPartId.has(part.parent_part_id))
-    .map(part => rowsByPartId.get(part.part_id))
-    .filter((item): item is TraceRow => Boolean(item))
+    .flatMap(part => rowsByPartId.get(part.part_id) ?? [])
     .sort(byTier);
   // 실 공급망은 차수를 건너뛰어(예: Module/t1 누락) 트리가 여러 forest-root로 끊긴다.
   // 차수 오름차순으로 단일 체인 연결 → product → tier0 → … → 광산 으로 쭉 내려간다.
