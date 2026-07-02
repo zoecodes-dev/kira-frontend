@@ -438,9 +438,10 @@ export default function SupplyChainHub() {
             riskLevel: s.riskLevel ?? 'low',
           }));
         setTier1Pool(tier1List);
-        // 기존/완료 공급망은 1차 협력사가 이미 연결돼 있으므로 Pool을 하이드레이션 →
-        // STEP2가 'Pool 구성' 프롬프트 대신 완료로 보이게(빈 Pool 버그 수정).
-        setPool(tier1List);
+        // 이미 검증된 협력사가 있는 기존 공급망만 Pool 자동 하이드레이션(STEP2 완료 표시).
+        // 신규/building 공급망(전부 unverified)은 사용자가 직접 Pool 구성해야 함.
+        const hasVerified = map.supplyChainMap.some(n => n.verificationStatus === 'verified');
+        if (hasVerified) setPool(tier1List);
         // STEP3 verify 대상 BOM 버전 저장 + 백엔드 verification_status로 '확인' 상태 하이드레이션.
         setActiveBomVersionId(activeVersionId);
         setConfirmedSuppliers(new Set(
