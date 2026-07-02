@@ -50,12 +50,17 @@ function initialDraft(s: SupplierBrief): DraftState {
 
 export default function InviteMailModal({
   pool,
+  initialSupplierId,
   onClose,
 }: {
   pool: SupplierBrief[];
+  // STEP3에서 특정 협력사 '메일'로 진입 시 그 협력사를 초기 선택(없으면 첫 번째).
+  initialSupplierId?: string;
   onClose: () => void;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(pool[0]?.supplierId ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    (initialSupplierId && pool.some(s => s.supplierId === initialSupplierId) ? initialSupplierId : pool[0]?.supplierId) ?? null,
+  );
   const [drafts, setDrafts] = useState<Record<string, DraftState>>(() => {
     const map: Record<string, DraftState> = {};
     pool.forEach(s => {
@@ -104,7 +109,7 @@ export default function InviteMailModal({
   return (
     <ModalShell
       title="정보 입력 요청 (초대 메일)"
-      subtitle="시스템 표준 템플릿으로 선택한 1차 협력사에 공급망 정보 입력을 요청합니다."
+      subtitle="시스템 표준 템플릿으로 선택한 협력사에 공급망 정보 입력을 요청합니다."
       onClose={onClose}
       maxWidth="max-w-4xl"
       footer={

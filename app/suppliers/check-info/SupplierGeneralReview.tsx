@@ -102,7 +102,6 @@ const supplierSummary = {
   total: 11,
   lastSubmittedAt: '2025-05-14 11:20',
   reviewStatus: '확인 필요' as ReviewStatus,
-  dataSource: '협력사 포털 직접 입력',
   nextDueDate: '2025-05-28',
 };
 
@@ -685,7 +684,7 @@ function SectionContent({ section, real, editable = false, isOem = false, suppli
           </div>
           {contactsDraft && setContactsDraft && (
             <div>
-              <div className="mb-2 text-xs font-bold text-ink-500">공장 담당자 (연락처)</div>
+              <div className="mb-2 text-xs font-bold text-ink-500">협력사 담당자 (PIC · 연락처)</div>
               <ContactEditor rows={contactsDraft} onChange={setContactsDraft} />
             </div>
           )}
@@ -716,7 +715,7 @@ function SectionContent({ section, real, editable = false, isOem = false, suppli
         <div className="space-y-4">
           {factoryRows.length ? <DataTable headers={['공장명', '원산지', '주소', '공급비율', '공장 담당자', '직책', '연락처', '메일', '상태']} rows={factoryRows} /> : <EmptyData />}
           <div>
-            <div className="mb-2 text-xs font-bold text-ink-500">담당자 (연락처)</div>
+            <div className="mb-2 text-xs font-bold text-ink-500">협력사 담당자 (PIC · 연락처)</div>
             {contactRowsView.length ? <DataTable headers={['이름', '직책', '이메일', '연락처', '대표', '상태']} rows={contactRowsView} /> : <EmptyData />}
           </div>
         </div>
@@ -1259,7 +1258,7 @@ export function SupplierGeneralReviewContent({
             <span className="text-xs font-medium text-ink-500">{displayRole} <span className="mx-1.5 text-ink-700">|</span> {displayCountry}</span>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-500">
-            <span className="font-semibold text-ink-100">담당자</span>
+            <span className="font-semibold text-ink-100">협력사 담당자 (PIC)</span>
             <span>{displayManager}</span>
             <span className="h-3 w-px bg-ink-700" />
             <span>{displayEmail}</span>
@@ -1326,8 +1325,7 @@ export function SupplierGeneralReviewContent({
         ))}
       </section>
 
-      <section className="mt-4 grid rounded-sm border border-ink-700 bg-white shadow-control md:grid-cols-3">
-        <MetaItem label="데이터 출처" value={supplierSummary.dataSource} />
+      <section className="mt-4 grid rounded-sm border border-ink-700 bg-white shadow-control md:grid-cols-2">
         <MetaItem label="마지막 업데이트" value={displayLastUpdated} />
         <MetaItem label="다음 제출 예정일" value={displayNextDue} />
       </section>
