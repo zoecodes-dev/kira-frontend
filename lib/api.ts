@@ -743,6 +743,7 @@ export interface SupplyChainGapNode {
   company_name: string;
   provider_type: string;
   depth: number;
+  is_root_anchor?: boolean;   // 원청(Tier0) 앵커 — 협력사 진행 현황에서 제외
   missing_fields: SupplyChainGapField[];
   gap_count: number;
 }
