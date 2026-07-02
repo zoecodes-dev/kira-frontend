@@ -29,6 +29,8 @@ export interface SignupData {
   department: string;
   registrationDocName: string; // 업로드된 사업자등록증 파일명 (표시용)
   registrationDocS3Key: string; // 업로드 결과 s3 key (제출 payload)
+  envReportName: string; // 환경성적서 파일명(표시용)
+  envReportS3Key: string; // 환경성적서 s3 key(제출 payload)
   unverified: boolean; // 미확인 상태로 등록 (문서 미보유 예외)
   accountEmail: string; // 로그인 계정 이메일
   password: string; // 로그인 계정 비밀번호
@@ -43,6 +45,8 @@ const emptySignup: SignupData = {
   department: '',
   registrationDocName: '',
   registrationDocS3Key: '',
+  envReportName: '',
+  envReportS3Key: '',
   unverified: false,
   accountEmail: '',
   password: '',
@@ -118,6 +122,9 @@ export default function SupplierOnboarding() {
         },
         businessRegDoc: signup.registrationDocS3Key
           ? { s3Key: signup.registrationDocS3Key, fileName: signup.registrationDocName }
+          : null,
+        environmentalReport: signup.envReportS3Key
+          ? { s3Key: signup.envReportS3Key, fileName: signup.envReportName }
           : null,
         unverified: signup.unverified,
         // 첫 번째 담당자를 대표(is_primary)로. department는 백엔드가 회사 부서로 보강.

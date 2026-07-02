@@ -857,6 +857,8 @@ export interface OnboardingSubmitInput {
   };
   /** 사업자등록증 업로드 결과(uploadFile 반환). 미보유(미확인 등록)면 null. */
   businessRegDoc: { s3Key: string; fileName: string } | null;
+  /** 환경성적서 업로드 결과. 미보유면 null(AI 확인은 로그인 후 자료입력에서). */
+  environmentalReport?: { s3Key: string; fileName: string } | null;
   unverified: boolean;
   contacts: Array<{
     name: string;
@@ -917,6 +919,9 @@ export const submitSupplierOnboarding = (supplierId: string, input: OnboardingSu
     },
     business_reg_doc: input.businessRegDoc
       ? { s3_key: input.businessRegDoc.s3Key, file_name: input.businessRegDoc.fileName }
+      : null,
+    environmental_report: input.environmentalReport
+      ? { s3_key: input.environmentalReport.s3Key, file_name: input.environmentalReport.fileName }
       : null,
     unverified: input.unverified,
     consent_agreed: true,
