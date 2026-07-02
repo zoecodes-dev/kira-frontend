@@ -25,6 +25,7 @@ import {
   getSuppliers,
   getSupplierReliability,
   getSupplierContacts,
+  getSupplierDetail,
   type SupplierBrief,
   type SupplierContact,
   type SupplierReliabilityResponse,
@@ -48,6 +49,8 @@ interface SupplierRowData {
   brief: SupplierBrief;
   reliability: SupplierReliabilityResponse | null;
   primaryContact: SupplierContact | null;
+  country: string | null;        // 소재 국가(getSupplierDetail) — 목록 국가 컬럼용
+  companyNameEn: string | null;  // 영문 회사명 — UUID 대신 회사명 아래 보조 표기
 }
 
 const statusMeta: Record<SupplierStatusCode, { label: string; tone: 'ok' | 'warn' | 'alert' | 'info' | 'neutral'; dot: string }> = {
@@ -93,7 +96,7 @@ function isSlaOverdue(rel: SupplierReliabilityResponse | null): boolean {
 }
 
 function SupplierRow({ row }: { row: SupplierRowData }) {
-  const { brief, reliability, primaryContact } = row;
+  const { brief, reliability, primaryContact, country, companyNameEn } = row;
   const status = statusMeta[brief.status] ?? statusMeta.supplier_pending;
   const riskLevel = riskMeta[brief.riskLevel] ?? riskMeta.low;
   const rate = reliability?.completenessScore ?? 0;
@@ -115,9 +118,7 @@ function SupplierRow({ row }: { row: SupplierRowData }) {
               {brief.companyName}
             </Link>
             <div className="mt-1 flex items-center gap-2 text-[11px] text-ink-500">
-              <span className="num-mono">{brief.supplierId}</span>
-              <span className="text-ink-600">·</span>
-              <span>{providerTypeLabel[brief.providerType] ?? brief.providerType}</span>
+              <span className="truncate">{companyNameEn || (providerTypeLabel[brief.providerType] ?? brief.providerType)}</span>
             </div>
           </div>
         </div>
@@ -129,7 +130,7 @@ function SupplierRow({ row }: { row: SupplierRowData }) {
       </td>
 
       <td className="px-5 py-4 align-top">
-        <div className="text-xs text-ink-500">—</div>
+        <div className="text-xs text-ink-200">{country || '—'}</div>
       </td>
 
       <td className="px-5 py-4 align-top">
@@ -300,9 +301,10 @@ export default function SuppliersPage() {
         const visible = briefs.filter(s => s.supplierId !== REQUEST_NODE_ID);
         const enriched = await Promise.all(
           visible.map(async (brief): Promise<SupplierRowData> => {
-            const [reliability, contactRes] = await Promise.allSettled([
+            const [reliability, contactRes, detailRes] = await Promise.allSettled([
               getSupplierReliability(brief.supplierId),
               getSupplierContacts(brief.supplierId),
+              getSupplierDetail(brief.supplierId),
             ]);
             const primaryContact =
               contactRes.status === 'fulfilled'
@@ -312,6 +314,8 @@ export default function SuppliersPage() {
               brief,
               reliability: reliability.status === 'fulfilled' ? reliability.value : null,
               primaryContact,
+              country: detailRes.status === 'fulfilled' ? (detailRes.value.country ?? null) : null,
+              companyNameEn: detailRes.status === 'fulfilled' ? (detailRes.value.companyNameEn ?? null) : null,
             };
           }),
         );
@@ -406,7 +410,7 @@ export default function SuppliersPage() {
       <div className="space-y-6 p-8">
         <section className="grid grid-cols-4 gap-4">
           <SummaryCard
-            label="시연 협력사"
+            label="협력사"
             value={rows.length}
             hint="개사"
             active={summaryFilter === 'all'}
@@ -524,7 +528,7 @@ export default function SuppliersPage() {
                     />
                   </th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
-                    Tier · 역할
+                    역할
                   </th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-normal text-ink-500">
                     국가
