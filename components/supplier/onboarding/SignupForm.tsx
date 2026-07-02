@@ -2,7 +2,7 @@
 
 // STEP 1 (n차) — 회원가입 기본 정보 + 필요 문서 + 로그인 계정. "미확인 등록" 예외 경로 지원.
 import { useRef, useState } from 'react';
-import { FileUp, Loader2, Upload, KeyRound } from 'lucide-react';
+import { CheckCircle2, FileUp, Loader2, Upload, KeyRound } from 'lucide-react';
 import { uploadFile } from '@/lib/api';
 import type { SignupData } from './SupplierOnboarding';
 import StepFooter from './StepFooter';
@@ -167,6 +167,12 @@ export default function SignupForm({
             {envUploading ? '업로드 중…' : '환경성적서'}
           </button>
         </div>
+        {data.envReportS3Key && (
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-ok-border bg-ok-bg px-2.5 py-1 text-[11px] font-semibold text-ok-text">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            업로드됨 · AI 파싱 확인은 로그인 후 자료입력에서 진행
+          </div>
+        )}
         {uploadError && <div className="mt-2 text-xs font-semibold text-alert-text">{uploadError}</div>}
         <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-semibold text-warn-text">
           <input

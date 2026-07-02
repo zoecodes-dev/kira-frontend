@@ -9,9 +9,10 @@ import OnboardingEntry from './OnboardingEntry';
 import SignupForm from './SignupForm';
 import PicRegister from './PicRegister';
 import OnboardingComplete from './OnboardingComplete';
+import OnboardingConfirm from './OnboardingConfirm';
 
 export type OnboardingType = 'firstTier' | 'nTier';
-export type OnboardingStep = 'entry' | 'form' | 'pic' | 'complete';
+export type OnboardingStep = 'entry' | 'confirm' | 'form' | 'pic' | 'complete';
 
 export interface PicContact {
   company: string; // 1차: 하위 협력사 회사명 (n차: 미사용)
@@ -58,11 +59,12 @@ function emptyPic(): PicContact {
 
 /** 1차는 회원가입(form) 단계를 건너뛴다 */
 function stepsFor(type: OnboardingType): OnboardingStep[] {
-  return type === 'firstTier' ? ['entry', 'pic', 'complete'] : ['entry', 'form', 'pic', 'complete'];
+  return type === 'firstTier' ? ['entry', 'pic', 'complete'] : ['entry', 'confirm', 'form', 'pic', 'complete'];
 }
 
 const stepLabel: Record<OnboardingStep, string> = {
   entry: '진입 · 동의 확인',
+  confirm: '정보 확인',
   form: '회원가입',
   pic: '담당자(PIC) 등록',
   complete: '승인 대기',
@@ -81,10 +83,12 @@ export default function SupplierOnboarding() {
   const [consentChecked, setConsentChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [prefillDetail, setPrefillDetail] = useState<OnboardingPrefill | null>(null);
 
   const currentIndex = steps.indexOf(step);
 
   function handlePrefill(detail: OnboardingPrefill) {
+    setPrefillDetail(detail);
     setSignup(prev => ({ ...prev, companyName: prev.companyName || detail.companyName }));
   }
 
@@ -192,6 +196,10 @@ export default function SupplierOnboarding() {
             onPrefill={handlePrefill}
             onNext={goNext}
           />
+        )}
+
+        {step === 'confirm' && (
+          <OnboardingConfirm detail={prefillDetail} invitedCompany={invitedCompany} onBack={goBack} onNext={goNext} />
         )}
 
         {step === 'form' && (
