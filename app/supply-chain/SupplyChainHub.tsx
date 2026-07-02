@@ -3,22 +3,26 @@
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil, X } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
-import { ApiError, confirmPool, createDataRequest, getSupplyChainGaps, getSupplyChainMaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, verifySupplier, type SupplierBrief, type SupplyChainGapsResult } from '@/lib/api';
+import { ApiError, confirmPool, createDataRequest, getSupplyChainGaps, getSupplyChainMaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, getValidationSummary, verifySupplier, type SupplierBrief, type SupplyChainGapsResult, type ValidationSummary } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
+import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
 import PageHeader from '@/components/PageHeader';
 import HubStepBar from '@/components/supply-chain/HubStepBar';
+import ModalShell from '@/components/supply-chain/ModalShell';
 import PoolModal from '@/components/supply-chain/PoolModal';
 import ConnectedSuppliersModal from '@/components/supply-chain/ConnectedSuppliersModal';
+import DataReviewModal from '@/components/supply-chain/DataReviewModal';
 import DataRequestModal from '@/components/supply-chain/DataRequestModal';
 import InviteMailModal from '@/components/supply-chain/InviteMailModal';
 import MapManageModal from '@/components/supply-chain/MapManageModal';
 
-export type HubModal = null | 'pool' | 'suppliers' | 'dataRequest' | 'invite' | 'mapManage';
+export type HubModal = null | 'mapCreate' | 'pool' | 'suppliers' | 'dataReview' | 'dataRequest' | 'invite' | 'mapManage';
 
-// 진입 게이트 통합 목록의 한 행 = (제품 × 고객사 × 단위기간[BOM Lot]).
+// 진입 게이트 통합 목록의 한 행 = (제품 × 고객사 × BOM 버전). 각 BOM은 생산기간(period)을 가진다.
+// 단위기간은 이 BOM들과 분리된 광범위 시간창이며, 그 안에 여러 BOM이 편입된다.
 interface EntryChainRow {
   productId: string;
   productName: string;
@@ -28,6 +32,29 @@ interface EntryChainRow {
   versionNumber: string;
   periodFrom: string | null;
   periodTo: string | null;
+}
+
+// 날짜 문자열 → <input type="date"> 값(YYYY-MM-DD). null/빈값은 ''.
+const toDateInput = (s: string | null | undefined) => (s ? s.slice(0, 10) : '');
+
+// 주어진 행들의 생산기간을 모두 감싸는 최소~최대 경계(단위기간 기본값).
+function periodBounds(rows: EntryChainRow[]): { from: string; to: string } {
+  const froms = rows.map(r => toDateInput(r.periodFrom)).filter(Boolean);
+  const tos = rows.map(r => toDateInput(r.periodTo)).filter(Boolean);
+  return {
+    from: froms.length ? froms.reduce((a, b) => (a < b ? a : b)) : '',
+    to: tos.length ? tos.reduce((a, b) => (a > b ? a : b)) : '',
+  };
+}
+
+// BOM(봄)의 생산기간이 선택 단위기간 [from,to]와 겹치면 그 기간에 편입된 것으로 본다.
+// 기간 미입력(빈값)이면 제한 없음, BOM 날짜가 null이면 경계를 열어(±무한) 항상 포함.
+function bomInPeriod(r: EntryChainRow, from: string, to: string): boolean {
+  const bf = toDateInput(r.periodFrom);
+  const bt = toDateInput(r.periodTo);
+  if (from && bt && bt < from) return false; // BOM이 기간 시작 전에 끝남
+  if (to && bf && bf > to) return false; //     BOM이 기간 종료 후에 시작함
+  return true;
 }
 
 export default function SupplyChainHub() {
@@ -42,11 +69,14 @@ export default function SupplyChainHub() {
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>(initialProductId);
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [activeModal, setActiveModal] = useState<HubModal>(null);
+  // 맵 표에서 협력사 행 클릭 시 general review를 팝업으로 — 닫으면 맵으로 바로 복귀(페이지 이탈 X).
+  const [reviewSupplier, setReviewSupplier] = useState<{ id: string; name: string } | null>(null);
+  // STEP3에서 특정 협력사 '메일' 클릭 시 초대 메일 팝업을 그 협력사로 미리 선택해 연다.
+  const [mailInitialSupplierId, setMailInitialSupplierId] = useState<string | null>(null);
   // 사용자가 수행한 액션 단계(STEP 4 검증). STEP 1·2는 데이터, STEP 3은 협력사 확인 완료로 판정.
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
   // STEP 3 — 연결 협력사별 '확인' 처리 집합 + 일괄 자료요청 진행중 플래그 + 활성 BOM 버전(verify 대상).
   const [confirmedSuppliers, setConfirmedSuppliers] = useState<Set<string>>(new Set());
-  const [requesting, setRequesting] = useState(false);
   const [activeBomVersionId, setActiveBomVersionId] = useState<string | undefined>(undefined);
   // 맵 관리에서 시작한 자료요청은 협력사명을 직접 지정 (없으면 선택 노드 기준)
   const [requestLabel, setRequestLabel] = useState<string | null>(null);
@@ -59,9 +89,48 @@ export default function SupplyChainHub() {
   const [loadStatus, setLoadStatus] = useState<'auth' | 'error' | null>(null);
   // 규제 갭 — 제품 선택 시 fetch. null=미로드, nodes=[]이면 갭 없음.
   const [gaps, setGaps] = useState<SupplyChainGapsResult | null>(null);
+  const [summary, setSummary] = useState<ValidationSummary | null>(null);  // [R1] 데이터 완성도 rollup
+  const [requestingGaps, setRequestingGaps] = useState(false);             // [R2] 미완성 일괄요청 진행중
 
-  // 완료 공급망 = Pool 채워짐 + 연결 협력사 전부 확인(verification_status verified).
-  const chainComplete = pool.length > 0 && pool.every(p => confirmedSuppliers.has(p.supplierId));
+  // 이 공급망 맵에 편입된 협력사 id 집합(parent/child, 현재 BOM 버전) — 스코프/대상 산출의 기준.
+  const mapSupplierIds = useMemo(() => {
+    const ids = new Set<string>();
+    dataset.supply_chain_map
+      .filter(r => !activeBomVersionId || r.bom_version_id === activeBomVersionId)
+      .forEach(r => {
+        if (r.child_supplier_id) ids.add(r.child_supplier_id);
+        if (r.parent_supplier_id) ids.add(r.parent_supplier_id);
+      });
+    return ids;
+  }, [dataset.supply_chain_map, activeBomVersionId]);
+
+  // 이 공급망 맵에 편입된 협력사 전부(1~n차) — STEP3 확인/메일 대상. dataset.suppliers(맵 병합 시 전 차수 포함)에서 도출.
+  const mapSuppliers = useMemo<SupplierBrief[]>(
+    () =>
+      dataset.suppliers
+        .filter(s => mapSupplierIds.has(s.supplier_id))
+        .map(s => ({
+          supplierId: s.supplier_id,
+          companyName: s.company_name,
+          providerType: s.provider_type as SupplierBrief['providerType'],
+          status: (s.status || 'active') as SupplierBrief['status'],
+          riskLevel: (s.risk_level ?? 'low') as SupplierBrief['riskLevel'],
+        }))
+        .sort((a, b) => {
+          const ta = dataset.suppliers.find(s => s.supplier_id === a.supplierId)?.tier ?? 99;
+          const tb = dataset.suppliers.find(s => s.supplier_id === b.supplierId)?.tier ?? 99;
+          return ta - tb || a.companyName.localeCompare(b.companyName);
+        }),
+    [dataset.suppliers, mapSupplierIds],
+  );
+
+  // STEP3 완료 = 이 맵에 편입된 협력사 '전부' 확인. (Pool=1차만이 아니라 전 차수 기준)
+  const step3Done = mapSuppliers.length > 0 && mapSuppliers.every(p => confirmedSuppliers.has(p.supplierId));
+
+  // 완료 공급망 = 전 차수 협력사 확인(step3Done) + 데이터 완성도 준비 완료(readyForFinal).
+  //   요약이 없으면(데모 등) 완성도 게이트는 적용하지 않는다.
+  const dataReady = summary ? summary.readyForFinal : true;
+  const chainComplete = step3Done && dataReady;
   // 완료 공급망은 '수정'을 누르기 전까지 전체 완료·잠금 상태로 본다.
   const [editMode, setEditMode] = useState(false);
   const locked = chainComplete && !editMode;
@@ -71,9 +140,10 @@ export default function SupplyChainHub() {
     const s = new Set<number>(visitedSteps);
     if (selectedProductId) s.add(1);
     if (pool.length > 0) s.add(2);
-    if (chainComplete) { s.add(3); s.add(4); }
+    if (step3Done) s.add(3);          // STEP3(협력사 전부 확인) 완료 → 완료 색
+    if (chainComplete) s.add(4);      // STEP5(최종 검증) 완료
     return s;
-  }, [visitedSteps, selectedProductId, pool.length, chainComplete]);
+  }, [visitedSteps, selectedProductId, pool.length, step3Done, chainComplete]);
   const markVisited = (n: number) => setVisitedSteps(prev => (prev.has(n) ? prev : new Set(prev).add(n)));
 
   // STEP 3 — 협력사 확인 토글 / 전체 확인 / 자료 일괄 요청. 확인은 supply-chain/verify로 백엔드 영속.
@@ -92,8 +162,9 @@ export default function SupplyChainHub() {
       return n;
     });
   const confirmAll = () => {
-    setConfirmedSuppliers(new Set(pool.map(p => p.supplierId)));
-    pool.forEach(p => persistVerify(p.supplierId, true));
+    // 이 맵에 편입된 협력사 전부 확인(전 차수). mapSuppliers는 아래에서 도출되지만 호출 시점엔 이미 초기화됨.
+    setConfirmedSuppliers(new Set(mapSuppliers.map(p => p.supplierId)));
+    mapSuppliers.forEach(p => persistVerify(p.supplierId, true));
   };
   // STEP4 최종 검증 결과 영속 — 환경성적서 통과=verified, 실패=unverified로 백엔드 반영.
   const onStep4Verified = (results: { supplierId: string; passed: boolean }[]) => {
@@ -106,26 +177,16 @@ export default function SupplyChainHub() {
       return n;
     });
   };
-  async function requestAllSuppliers() {
-    const targets = pool.filter(p => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(p.supplierId));
-    if (!targets.length) return;
-    setRequesting(true);
-    const due = new Date(Date.now() + 7 * 86400000).toISOString();
-    for (const t of targets) {
-      try {
-        await createDataRequest({ targetSupplierId: t.supplierId, requestedDataType: '자료 보완 일괄 요청', dueDate: due });
-      } catch { /* 일부 실패해도 계속 (데모) */ }
-    }
-    setRequesting(false);
-  }
-
-  // ④ 진입 게이트 — 첫 진입 시 빈 상태에서 (제품×고객사×단위기간) 통합 목록에서 한 줄을 골라 맵을 연다.
+  // ④ 진입 게이트 — 첫 진입 시 빈 상태에서 고객사 → 제품 → 단위기간 → BOM(봄)을 골라 맵을 연다.
   // URL 제품 진입·데모는 게이트 스킵.
   const [mapStarted, setMapStarted] = useState(Boolean(initialProductId));
   const [entryProductId, setEntryProductId] = useState(initialProductId ?? '');
   const [entryCustomer, setEntryCustomer] = useState('');
   const [entryBomVersionId, setEntryBomVersionId] = useState<string | undefined>(undefined);
-  // 통합 목록 행 = (제품 × 고객사 × 단위기간[BOM Lot]). 제품마다 BOM 버전을 조회해 구성.
+  // 단위기간 — BOM(봄)과 분리된 광범위 시간창. 이 범위에 겹치는 BOM들만 봄 드롭다운에 뜬다.
+  const [entryPeriodFrom, setEntryPeriodFrom] = useState('');
+  const [entryPeriodTo, setEntryPeriodTo] = useState('');
+  // 통합 목록 행 = (제품 × 고객사 × BOM 버전). 제품마다 BOM 버전을 조회해 구성.
   const [entryRows, setEntryRows] = useState<EntryChainRow[]>([]);
   const [entryRowsLoading, setEntryRowsLoading] = useState(false);
 
@@ -159,11 +220,13 @@ export default function SupplyChainHub() {
     };
   }, []);
 
-  // 제품 선택 시 규제 갭 조회 — 어떤 협력사가 어떤 필수 데이터를 빠뜨렸는지.
+  // 제품 선택 시 규제 갭 + 데이터 완성도(요약/판정) 조회 — 협력사들이 자료를 채워갈수록 갱신.
+  //   confirmedSuppliers(협력사 확인/자료제출 반영)가 바뀔 때도 재조회해 완성도를 최신화.
   useEffect(() => {
-    if (!selectedProductId || isDemo) { setGaps(null); return; }
+    if (!selectedProductId || isDemo) { setGaps(null); setSummary(null); return; }
     getSupplyChainGaps(selectedProductId).then(setGaps).catch(() => {});
-  }, [selectedProductId, isDemo]);
+    getValidationSummary(selectedProductId, activeBomVersionId).then(setSummary).catch(() => setSummary(null));
+  }, [selectedProductId, activeBomVersionId, isDemo, confirmedSuppliers]);
 
   // 진입 게이트 통합 목록 — 제품마다 BOM 버전(단위기간 Lot)을 조회해 (제품×고객사×기간) 행으로 펼친다.
   // 게이트가 떠 있을 때만(맵 미시작·실데이터) 1회 구성.
@@ -220,9 +283,16 @@ export default function SupplyChainHub() {
         setEntryRowsLoading(false);
         // 기본 선택값 — 첫 행(고객사→제품→기간 정렬 기준). 이미 고른 값은 유지.
         const first = rows[0];
+        const defProductId = entryProductId || first?.productId || '';
         setEntryCustomer(c => c || first?.customerName || '');
         setEntryProductId(p => p || first?.productId || '');
-        setEntryBomVersionId(b => b ?? first?.bomVersionId);
+        // 단위기간 기본값 = 그 제품 BOM 전체를 감싸는 범위. 그 안 첫 BOM을 봄으로 선택.
+        const prodRows = rows.filter(r => r.productId === defProductId);
+        const b = periodBounds(prodRows);
+        setEntryPeriodFrom(prev => prev || b.from);
+        setEntryPeriodTo(prev => prev || b.to);
+        const firstBom = prodRows.find(r => bomInPeriod(r, b.from, b.to));
+        setEntryBomVersionId(bv => bv ?? firstBom?.bomVersionId);
       }
     })();
     return () => {
@@ -241,29 +311,46 @@ export default function SupplyChainHub() {
         .map(r => [r.productId, r]),
     ).values(),
   );
-  const entryPeriods = entryRows.filter(r => r.productId === entryProductId);
+  // 선택 제품의 모든 BOM 행 → 그중 단위기간에 겹치는 BOM만 봄 드롭다운 후보.
+  const entryProductRows = entryRows.filter(r => r.productId === entryProductId);
+  const entryBoms = entryProductRows.filter(r => bomInPeriod(r, entryPeriodFrom, entryPeriodTo));
 
-  // 고객사 변경 → 그 고객사의 첫 제품·첫 기간으로 리셋.
+  // 제품 확정 시 공통 — 단위기간을 그 제품 BOM 전체를 감싸는 범위로 리셋하고 첫 봄 선택.
+  function applyProduct(productId: string) {
+    setEntryProductId(productId);
+    const prodRows = entryRows.filter(r => r.productId === productId);
+    const b = periodBounds(prodRows);
+    setEntryPeriodFrom(b.from);
+    setEntryPeriodTo(b.to);
+    const firstBom = prodRows.find(r => bomInPeriod(r, b.from, b.to));
+    setEntryBomVersionId(firstBom?.bomVersionId);
+  }
+  // 고객사 변경 → 그 고객사의 첫 제품으로 리셋 + 그 제품 기준 단위기간/봄 재설정.
   function onEntryCustomerChange(name: string) {
     setEntryCustomer(name);
     const firstProd = entryRows.find(r => !name || r.customerName === name);
-    setEntryProductId(firstProd?.productId ?? '');
-    const firstPeriod = entryRows.find(r => r.productId === firstProd?.productId);
-    setEntryBomVersionId(firstPeriod?.bomVersionId);
+    applyProduct(firstProd?.productId ?? '');
   }
-  // 제품 변경 → 그 제품의 고객사 자동 반영 + 첫 기간으로 리셋.
+  // 제품 변경 → 그 제품의 고객사 자동 반영 + 단위기간/봄 재설정.
   function onEntryProductChange(productId: string) {
-    setEntryProductId(productId);
     const row = entryRows.find(r => r.productId === productId);
     if (row?.customerName) setEntryCustomer(row.customerName);
-    const firstPeriod = entryRows.find(r => r.productId === productId);
-    setEntryBomVersionId(firstPeriod?.bomVersionId);
+    applyProduct(productId);
+  }
+  // 단위기간 변경 → 선택된 봄이 새 범위 밖이면 범위 내 첫 봄으로 옮긴다.
+  function onPeriodChange(from: string, to: string) {
+    setEntryPeriodFrom(from);
+    setEntryPeriodTo(to);
+    const inRange = entryProductRows.filter(r => bomInPeriod(r, from, to));
+    if (!inRange.some(r => r.bomVersionId === entryBomVersionId)) {
+      setEntryBomVersionId(inRange[0]?.bomVersionId);
+    }
   }
 
   // '맵 생성' → 선택한 제품·단위기간(Lot)으로 맵 생성/진입(페이지 전환).
   function startMapFromSelection() {
     if (!entryProductId) return;
-    const versionId = entryBomVersionId ?? entryPeriods[0]?.bomVersionId;
+    const versionId = entryBomVersionId ?? entryBoms[0]?.bomVersionId;
     setEntryBomVersionId(versionId);
     setMapStarted(true);
     handleProductChange(entryProductId, versionId);
@@ -395,12 +482,116 @@ export default function SupplyChainHub() {
 
   const close = () => setActiveModal(null);
 
+  // [P1] 맵 생성 시 고른 기준(고객사·제품·BOM버전·단위기간) — 흐름상 이후 화면에서도 고정 표출.
+  const ctxRow = entryRows.find(
+    r => r.productId === entryProductId && (!entryBomVersionId || r.bomVersionId === entryBomVersionId),
+  );
+  const mapContext = mapStarted
+    ? {
+        customer: ctxRow?.customerName || entryCustomer || '—',
+        product: ctxRow?.productName || '—',
+        productCode: ctxRow?.productCode,
+        bomVersion: ctxRow?.versionNumber || '—',
+        periodFrom: entryPeriodFrom || ctxRow?.periodFrom || '',
+        periodTo: entryPeriodTo || ctxRow?.periodTo || '',
+      }
+    : null;
+
+  const scopedGapNodes = useMemo(
+    () =>
+      (gaps?.nodes ?? []).filter(
+        n => !n.is_root_anchor && (mapSupplierIds.size === 0 || mapSupplierIds.has(n.supplier_id)),
+      ),
+    [gaps, mapSupplierIds],
+  );
+
+  // [R2] hop(차수)별 진행 구획 — 공급망은 원청→1차→…→n차로 edge가 연결되며 내려간다.
+  //   depth(=hop)마다 칸을 하나씩 만들어, 지금 어느 차수까지 진행됐는지 한눈에 보이게 한다.
+  //   각 칸: 그 차수 협력사 중 완비(미보유 0) 비율. 100%면 완료(초록), 일부면 진행(브랜드), 0이면 대기(회색).
+  const depthStats = useMemo(() => {
+    const byDepth = new Map<number, { depth: number; total: number; complete: number; confirmed: number; gaps: number }>();
+    for (const n of scopedGapNodes) {
+      const s = byDepth.get(n.depth) ?? { depth: n.depth, total: 0, complete: 0, confirmed: 0, gaps: 0 };
+      s.total += 1;
+      if (n.gap_count === 0) {
+        s.complete += 1;
+        if (confirmedSuppliers.has(n.supplier_id)) s.confirmed += 1;
+      } else {
+        s.gaps += n.gap_count;
+      }
+      byDepth.set(n.depth, s);
+    }
+    return [...byDepth.values()].sort((a, b) => a.depth - b.depth);
+  }, [scopedGapNodes, confirmedSuppliers]);
+
+  // 현재 진행 중인 차수 = 아직 완비되지 않은 가장 얕은 차수(위에서부터 채워 내려가므로).
+  //   전 차수 완비면 가장 깊은 차수(도달한 최전선)를 '완료' 표시로 쓴다.
+  const activeDepth = useMemo(() => {
+    const pending = depthStats.find(s => s.complete < s.total);
+    return pending ? pending.depth : (depthStats.length ? depthStats[depthStats.length - 1].depth : null);
+  }, [depthStats]);
+
+  // [R2] 데이터 완성도 요약 — '이 공급망 맵'(scopedGapNodes) 기준으로 집계한다.
+  //   summary(getValidationSummary)는 제품+BOM 롤업이라 이 맵과 범위가 다를 수 있으므로, 맵 스코프로 다시 센다.
+  const mapStats = useMemo(() => {
+    const supplierCount = scopedGapNodes.length;
+    const nodesWithGaps = scopedGapNodes.filter(n => n.gap_count > 0).length;
+    const totalGapCount = scopedGapNodes.reduce((sum, n) => sum + n.gap_count, 0);
+    return { supplierCount, nodesWithGaps, complete: supplierCount - nodesWithGaps, totalGapCount };
+  }, [scopedGapNodes]);
+
+  // 완성도(%) — 맵 협력사 중 미보유 없는 곳 비율. 맵 노드가 없으면(gaps 미로드 등) summary로 폴백.
+  const completePct = mapStats.supplierCount > 0
+    ? Math.round((mapStats.complete / mapStats.supplierCount) * 100)
+    : (summary && summary.supplierCount > 0
+        ? Math.round(((summary.supplierCount - summary.nodesWithGaps) / summary.supplierCount) * 100)
+        : (summary ? 0 : null));
+
+  // 맵 표(협력사별 진행 사항 확인)의 '진행 단계' 배지 — supplier_id → {label, tone}. gaps + 확인 상태 기준.
+  const progressBySupplier = useMemo(() => {
+    const m: Record<string, { label: string; tone: 'ok' | 'warn' | 'accent' }> = {};
+    for (const n of scopedGapNodes) {
+      const complete = n.gap_count === 0;
+      const confirmed = confirmedSuppliers.has(n.supplier_id);
+      m[n.supplier_id] = complete
+        ? (confirmed ? { label: '승인', tone: 'ok' } : { label: '데이터 완비', tone: 'accent' })
+        : { label: `미보유 ${n.gap_count}건`, tone: 'warn' };
+    }
+    return m;
+  }, [scopedGapNodes, confirmedSuppliers]);
+
+  // 맵 표 행 클릭 → 해당 협력사 general review를 팝업으로 표시(mock S-ID면 실 detail id로 브리지).
+  //   페이지 이동 대신 모달이라 닫으면 곧바로 이 공급망 맵으로 복귀한다.
+  function openSupplierReview(supplierId: string, name: string) {
+    const realId = supplierDetailIdMap[supplierId] ?? supplierId;
+    setReviewSupplier({ id: realId, name });
+  }
+
+  // [R2] 미완성(미보유 필드 보유) 협력사에 자료 일괄 요청 → 완성도 재조회.
+  async function requestIncomplete() {
+    if (!summary) return;
+    setRequestingGaps(true);
+    try {
+      await Promise.all(
+        summary.gapsBySupplier
+          .filter(n => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(n.supplierId))
+          // 이 공급망 맵에 편입된 협력사에만 요청(맵 스코프 밖 협력사 제외).
+          .filter(n => mapSupplierIds.size === 0 || mapSupplierIds.has(n.supplierId))
+          .map(n => createDataRequest({ targetSupplierId: n.supplierId, requestedDataType: 'general_info' }).catch(() => {})),
+      );
+      if (selectedProductId) {
+        getValidationSummary(selectedProductId, activeBomVersionId).then(setSummary).catch(() => {});
+      }
+    } finally {
+      setRequestingGaps(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-white text-ink-100">
       <PageHeader
         title="공급망 맵 허브"
-        description="대표 제품을 고르고 MBOM 기준으로 1차 협력사를 자동 맵핑한 뒤, 협력사 정보 확인·자료 요청·초대·만료 관리까지 관리합니다.
-      </p>"
+        description="고객사·제품·BOM버전·단위기간 기준으로 맵을 생성하고, 1차 협력사 확인·Pool 확정·자료 요청·초대·최종 검증까지 이어갑니다."
         tabs={[
           { label: '공급망 목록', href: '/supply-chain' },
           { label: '공급망 맵', href: '/supply-chain/map', active: true },
@@ -411,11 +602,18 @@ export default function SupplyChainHub() {
           hasProduct={Boolean(selectedProductId)}
           completed={completed}
           locked={locked}
+          step3Done={step3Done}
+          readyForFinal={summary?.readyForFinal ?? false}
+          completePct={completePct}
           onOpenPool={() => setActiveModal('pool')}
           onOpenSuppliers={() => setActiveModal('suppliers')}
+          onOpenDataReview={() => setActiveModal('dataReview')}
           onOpenVerify={() => { markVisited(4); setActiveModal('mapManage'); }}
         />
       </PageHeader>
+
+      {/* [P1] 맵 기준(고객사/제품/BOM/단위기간)은 별도 고정 바가 아니라 아래 맵 필터 칸(STEP2)에 표시된다.
+          — 진입 게이트에서 고른 값이 initialProductId/BomVersionId/PeriodFrom·To로 필터 칸에 채워진다. */}
 
       {loadStatus === null && !productsLoading && dataset.products.length > 0 && mapStarted && !locked && (
         <FlowGuide
@@ -445,6 +643,95 @@ export default function SupplyChainHub() {
             <Pencil className="h-4 w-4" />
             수정
           </button>
+        </div>
+      )}
+
+      {/* [R2] 데이터 완성도 + 다음 단계(최종검증) 이동 게이트 — STEP3~4 반복 자료수집 구간 */}
+      {mapContext && summary && !locked && (
+        <div className="mx-6 mt-3 rounded-md border border-slate-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-ink-100">데이터 완성도</span>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                  summary.readyForFinal ? 'border border-ok-border bg-ok-bg text-ok-text' : 'border border-warn-border bg-warn-bg text-warn-text'
+                }`}>
+                  {summary.readyForFinal
+                    ? '최종 검증 준비 완료'
+                    : activeDepth != null ? `${activeDepth}차 진행 중` : '입력 진행 중'}
+                </span>
+              </div>
+              {depthStats.length > 0 ? (
+                <div className="mt-2 flex items-center gap-3">
+                  {/* hop(차수)별 구획 — edge가 한 단계 더 연결될 때마다 칸이 하나씩 늘어난다. */}
+                  <div className="flex w-full max-w-md gap-1.5">
+                    {depthStats.map(s => {
+                      const pct = s.total > 0 ? Math.round((s.complete / s.total) * 100) : 0;
+                      const done = pct === 100;
+                      const isActive = s.depth === activeDepth && !summary.readyForFinal;
+                      return (
+                        <div
+                          key={s.depth}
+                          className="flex-1"
+                          title={`${s.depth}차 · 완비 ${s.complete}/${s.total}곳${s.confirmed ? ` · 승인 ${s.confirmed}곳` : ''}${s.gaps ? ` · 미보유 ${s.gaps}건` : ''}`}
+                        >
+                          <div className={`flex items-center justify-between text-[10px] font-bold ${isActive ? 'text-brand' : 'text-slate-500'}`}>
+                            <span>{s.depth}차{isActive ? ' ●' : ''}</span>
+                            <span className="num-mono">{s.complete}/{s.total}</span>
+                          </div>
+                          <div className={`mt-1 h-2 overflow-hidden rounded-full bg-slate-100 ${isActive ? 'ring-1 ring-brand/40' : ''}`}>
+                            <div
+                              className={`h-full rounded-full transition-all ${done ? 'bg-ok-text' : s.complete > 0 ? 'bg-brand' : 'bg-slate-200'}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <span className="num-mono text-sm font-bold text-ink-100">{completePct ?? 0}%</span>
+                </div>
+              ) : (
+                <div className="mt-2 flex items-center gap-3">
+                  <div className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-slate-100">
+                    <div className={`h-full rounded-full transition-all ${completePct === 100 ? 'bg-ok-text' : 'bg-brand'}`} style={{ width: `${completePct ?? 0}%` }} />
+                  </div>
+                  <span className="num-mono text-sm font-bold text-ink-100">{completePct ?? 0}%</span>
+                </div>
+              )}
+              <div className="mt-1.5 text-[11px] text-slate-500">
+                협력사 {mapStats.supplierCount}곳 · 완비 {mapStats.complete}곳 · 미보유 {mapStats.totalGapCount}건 · 비율검증 {summary.ratioValid ? 'OK' : '불일치'}
+                <span className="ml-1 text-slate-400">
+                  — {activeDepth != null && !summary.readyForFinal
+                    ? `현재 ${activeDepth}차 자료 수집 중, 하위(n차)가 제출하면 다음 칸이 채워집니다.`
+                    : '협력사·하위(n차)가 자료를 제출하면 완성도가 채워집니다.'}
+                </span>
+              </div>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              {!summary.readyForFinal && mapStats.nodesWithGaps > 0 && (
+                <button
+                  type="button"
+                  onClick={requestIncomplete}
+                  disabled={requestingGaps}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-warn-border bg-warn-bg px-3 py-2 text-sm font-semibold text-warn-text hover:opacity-90 disabled:opacity-50"
+                >
+                  {requestingGaps ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                  미완성 {mapStats.nodesWithGaps}개사 자료 일괄 요청
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { markVisited(4); setActiveModal('mapManage'); }}
+                disabled={!summary.readyForFinal}
+                title={summary.readyForFinal ? '' : '모든 협력사 데이터가 채워지면 이동할 수 있어요'}
+                className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                최종 검증으로 이동
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -498,7 +785,7 @@ export default function SupplyChainHub() {
         </button>
       </div>
 
-      {/* ④ 진입 게이트: 제품·고객사·단위기간 리스트를 골라 '맵 생성'으로 진입. */}
+      {/* ④ 진입 게이트: 고객사·제품·단위기간·BOM(봄)을 골라 '맵 생성'으로 진입. */}
       {!mapStarted && loadStatus === null && !productsLoading && dataset.products.length > 0 && (
         <div className="mx-6 mt-6 rounded-md border border-slate-200 bg-white p-10 text-center shadow-sm">
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-ok-bg text-ok-text">
@@ -506,7 +793,7 @@ export default function SupplyChainHub() {
           </span>
           <h2 className="mt-4 text-lg font-bold text-ink-100">공급망 맵 생성</h2>
           <p className="mt-1 text-sm text-slate-500">
-            제품 · 고객사 · 단위기간(생산 Lot)을 선택하고 맵을 생성하면, 해당 공급망의 1차 협력사부터 자동 맵핑됩니다.
+            고객사 · 제품 · 단위기간을 고르고, 그 기간에 편입된 BOM(생산 Lot) 하나를 선택해 맵을 생성하면, 해당 공급망의 1차 협력사부터 자동 맵핑됩니다.
           </p>
 
           {entryRowsLoading ? (
@@ -515,57 +802,16 @@ export default function SupplyChainHub() {
               불러오는 중…
             </div>
           ) : (
-            <div className="mt-6 flex flex-wrap items-end justify-center gap-3">
-              <label className="flex flex-col gap-1.5 text-left">
-                <span className="text-[11px] font-bold text-slate-500">고객사</span>
-                <select
-                  value={entryCustomer}
-                  onChange={e => onEntryCustomerChange(e.target.value)}
-                  className="min-w-[180px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none"
-                >
-                  {entryCustomers.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1.5 text-left">
-                <span className="text-[11px] font-bold text-slate-500">제품</span>
-                <select
-                  value={entryProductId}
-                  onChange={e => onEntryProductChange(e.target.value)}
-                  className="min-w-[240px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none"
-                >
-                  {entryProducts.map(p => (
-                    <option key={p.productId} value={p.productId}>{p.productName}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1.5 text-left">
-                <span className="text-[11px] font-bold text-slate-500">단위기간 (생산 Lot)</span>
-                <select
-                  value={entryBomVersionId ?? ''}
-                  onChange={e => setEntryBomVersionId(e.target.value || undefined)}
-                  className="min-w-[220px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink-100 focus:border-brand focus:outline-none"
-                >
-                  {entryPeriods.length === 0 && <option value="">전체</option>}
-                  {entryPeriods.map(r => (
-                    <option key={r.bomVersionId ?? 'na'} value={r.bomVersionId ?? ''}>
-                      {r.periodFrom ? `${r.periodFrom} ~ ${r.periodTo ?? '진행중'}` : '전체'}
-                      {r.versionNumber ? ` (v${r.versionNumber})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                onClick={startMapFromSelection}
-                disabled={!entryProductId}
-                className="inline-flex items-center gap-1.5 rounded-md bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-hover disabled:opacity-50"
-              >
-                <ArrowRight className="h-4 w-4" />
-                맵 생성하기
-              </button>
-            </div>
+            // 필터는 STEP2(협력사 Pool)와 동일한 모달(ModalShell) 양식으로 연다.
+            // 모달에서 고른 고객사/제품/단위기간/BOM이 그대로 다음 화면(맵 필터 칸)으로 승계된다.
+            <button
+              type="button"
+              onClick={() => setActiveModal('mapCreate')}
+              className="mt-6 inline-flex h-11 items-center gap-1.5 rounded-md bg-brand px-5 text-sm font-bold text-white hover:bg-brand-hover"
+            >
+              <ArrowRight className="h-4 w-4" />
+              맵 생성 조건 선택
+            </button>
           )}
         </div>
       )}
@@ -576,40 +822,137 @@ export default function SupplyChainHub() {
           embedded
           initialProductId={initialProductId ?? entryProductId}
           initialBomVersionId={initialBomVersionId ?? entryBomVersionId}
+          initialPeriodFrom={entryPeriodFrom}
+          initialPeriodTo={entryPeriodTo}
           highlightSupplierIds={new Set(pool.map(s => s.supplierId))}
           onNodeSelect={setSelectedNode}
           onConnectClick={() => setActiveModal('invite')}
           onProductChange={handleProductChange}
+          progressBySupplier={progressBySupplier}
+          onRowClick={row => openSupplierReview(row.supplier_id, row.supplier_name)}
         />
       )}
 
-      {/* 규제 갭 패널 — 제품 선택 후 gap 있는 협력사가 있을 때만 표시 */}
-      {gaps && gaps.nodes.filter(n => n.gap_count > 0).length > 0 && (
-        <div className="mx-6 mt-4 rounded-md border border-warn-border bg-warn-bg p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-warn-text" />
-            <span className="text-sm font-bold text-warn-text">
-              규제 갭 — {gaps.nodes.filter(n => n.gap_count > 0).length}개 협력사에 누락 데이터 있음
-            </span>
-          </div>
-          <div className="space-y-2">
-            {gaps.nodes.filter(n => n.gap_count > 0).map(node => (
-              <div key={node.supplier_id} className="rounded border border-warn-border bg-white px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-ink-300">{node.company_name || node.supplier_id.slice(0, 8)} ({node.provider_type})</span>
-                  <span className="text-xs font-semibold text-warn-text">누락 {node.gap_count}건</span>
-                </div>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {node.missing_fields.map(f => (
-                    <span key={f.field_name} className="inline-flex items-center rounded-full bg-warn-bg border border-warn-border px-2 py-0.5 text-[11px] text-warn-text">
-                      {f.field_label || f.field_name} · {f.regulation_code}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
+      {/* 협력사 상세(general review) 팝업 — 맵 표 행 클릭 시. 닫으면 이 공급망 맵으로 바로 복귀. */}
+      {reviewSupplier && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 md:p-8"
+          onClick={() => setReviewSupplier(null)}
+        >
+          <div
+            className="relative w-full max-w-5xl rounded-sm border border-ink-700 bg-white shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-ink-700 bg-white px-5 py-3">
+              <div className="text-sm font-bold text-ink-100">협력사 상세 — {reviewSupplier.name}</div>
+              <button
+                type="button"
+                onClick={() => setReviewSupplier(null)}
+                aria-label="닫기"
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-4">
+              <SupplierGeneralReviewContent supplierId={reviewSupplier.id} supplierName={reviewSupplier.name} embedded mode="oem" />
+            </div>
           </div>
         </div>
+      )}
+
+      {/* STEP1 맵 생성 조건 — STEP2(Pool)와 동일한 ModalShell 양식. 여기서 고른 값이 맵 필터 칸으로 승계된다. */}
+      {activeModal === 'mapCreate' && (
+        <ModalShell
+          title="공급망 맵 생성"
+          subtitle="고객사 · 제품 · 단위기간 · BOM(생산 Lot)을 고르면 1차 협력사부터 자동 맵핑됩니다."
+          onClose={close}
+          footer={
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={close}
+                className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => { startMapFromSelection(); close(); }}
+                disabled={!entryProductId || entryBoms.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ArrowRight className="h-4 w-4" />
+                맵 생성하기
+              </button>
+            </div>
+          }
+        >
+          <div className="grid gap-4">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold text-slate-500">고객사</span>
+              <select
+                value={entryCustomer}
+                onChange={e => onEntryCustomerChange(e.target.value)}
+                className="h-11 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-ink-100 shadow-sm outline-none focus:border-ok-border"
+              >
+                {entryCustomers.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold text-slate-500">제품</span>
+              <select
+                value={entryProductId}
+                onChange={e => onEntryProductChange(e.target.value)}
+                className="h-11 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-ink-100 shadow-sm outline-none focus:border-ok-border"
+              >
+                {entryProducts.map(p => (
+                  <option key={p.productId} value={p.productId}>{p.productName}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold text-slate-500">단위기간</span>
+              <div className="flex h-11 w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-3 shadow-sm focus-within:border-ok-border">
+                <input
+                  type="date"
+                  value={entryPeriodFrom}
+                  max={entryPeriodTo || undefined}
+                  onChange={e => onPeriodChange(e.target.value, entryPeriodTo)}
+                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-ink-400 outline-none"
+                  aria-label="단위기간 시작일"
+                />
+                <span className="text-xs font-bold text-slate-400">~</span>
+                <input
+                  type="date"
+                  value={entryPeriodTo}
+                  min={entryPeriodFrom || undefined}
+                  onChange={e => onPeriodChange(entryPeriodFrom, e.target.value)}
+                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-ink-400 outline-none"
+                  aria-label="단위기간 종료일"
+                />
+              </div>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold text-slate-500">BOM</span>
+              <select
+                value={entryBomVersionId ?? ''}
+                onChange={e => setEntryBomVersionId(e.target.value || undefined)}
+                disabled={entryBoms.length === 0}
+                className="h-11 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border disabled:opacity-50"
+              >
+                {entryBoms.length === 0 && <option value="">해당 기간에 편입된 BOM 없음</option>}
+                {entryBoms.map(r => (
+                  <option key={r.bomVersionId ?? 'na'} value={r.bomVersionId ?? ''}>
+                    {r.versionNumber ? `v${r.versionNumber}` : 'BOM'}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </ModalShell>
       )}
 
       {activeModal === 'pool' && (
@@ -642,13 +985,26 @@ export default function SupplyChainHub() {
       {/* STEP 3 — 연결 협력사 확인 + 자료 일괄 요청 */}
       {activeModal === 'suppliers' && (
         <ConnectedSuppliersModal
-          suppliers={pool}
+          suppliers={mapSuppliers}
           confirmed={confirmedSuppliers}
-          requesting={requesting}
           onToggleConfirm={toggleConfirm}
           onConfirmAll={confirmAll}
-          onRequestAll={requestAllSuppliers}
-          onOpenMail={() => setActiveModal('invite')}
+          onOpenMail={() => { setMailInitialSupplierId(null); setActiveModal('invite'); }}
+          onOpenMailFor={id => { setMailInitialSupplierId(id); setActiveModal('invite'); }}
+          onClose={close}
+        />
+      )}
+
+      {/* STEP4 — 자료 수집·보완 검토: 편입 협력사의 입력 누락·문서 문제 확인·요청·AI 파싱 검토 */}
+      {activeModal === 'dataReview' && (
+        <DataReviewModal
+          suppliers={mapSuppliers}
+          gapNodes={scopedGapNodes}
+          onRequest={id =>
+            createDataRequest({ targetSupplierId: id, requestedDataType: 'general_info' })
+              .then(() => { if (selectedProductId) getValidationSummary(selectedProductId, activeBomVersionId).then(setSummary).catch(() => {}); })
+              .catch(() => {})
+          }
           onClose={close}
         />
       )}
@@ -666,12 +1022,14 @@ export default function SupplyChainHub() {
       )}
 
       {activeModal === 'invite' && (
-        <InviteMailModal pool={pool} onClose={close} />
+        <InviteMailModal pool={mapSuppliers} initialSupplierId={mailInitialSupplierId ?? undefined} onClose={close} />
       )}
 
       {activeModal === 'mapManage' && (
         <MapManageModal
           pool={pool}
+          {...(selectedProductId ? { productId: selectedProductId } : {})}
+          {...(activeBomVersionId ? { bomVersionId: activeBomVersionId } : {})}
           onClose={close}
           onVerified={onStep4Verified}
           onRequestUpdate={supplier => {

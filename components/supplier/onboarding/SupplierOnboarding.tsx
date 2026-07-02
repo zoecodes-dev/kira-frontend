@@ -9,9 +9,10 @@ import OnboardingEntry from './OnboardingEntry';
 import SignupForm from './SignupForm';
 import PicRegister from './PicRegister';
 import OnboardingComplete from './OnboardingComplete';
+import OnboardingConfirm from './OnboardingConfirm';
 
 export type OnboardingType = 'firstTier' | 'nTier';
-export type OnboardingStep = 'entry' | 'form' | 'pic' | 'complete';
+export type OnboardingStep = 'entry' | 'confirm' | 'form' | 'pic' | 'complete';
 
 export interface PicContact {
   company: string; // 1차: 하위 협력사 회사명 (n차: 미사용)
@@ -29,6 +30,8 @@ export interface SignupData {
   department: string;
   registrationDocName: string; // 업로드된 사업자등록증 파일명 (표시용)
   registrationDocS3Key: string; // 업로드 결과 s3 key (제출 payload)
+  envReportName: string; // 환경성적서 파일명(표시용)
+  envReportS3Key: string; // 환경성적서 s3 key(제출 payload)
   unverified: boolean; // 미확인 상태로 등록 (문서 미보유 예외)
   accountEmail: string; // 로그인 계정 이메일
   password: string; // 로그인 계정 비밀번호
@@ -43,6 +46,8 @@ const emptySignup: SignupData = {
   department: '',
   registrationDocName: '',
   registrationDocS3Key: '',
+  envReportName: '',
+  envReportS3Key: '',
   unverified: false,
   accountEmail: '',
   password: '',
@@ -54,11 +59,12 @@ function emptyPic(): PicContact {
 
 /** 1차는 회원가입(form) 단계를 건너뛴다 */
 function stepsFor(type: OnboardingType): OnboardingStep[] {
-  return type === 'firstTier' ? ['entry', 'pic', 'complete'] : ['entry', 'form', 'pic', 'complete'];
+  return type === 'firstTier' ? ['entry', 'pic', 'complete'] : ['entry', 'confirm', 'form', 'pic', 'complete'];
 }
 
 const stepLabel: Record<OnboardingStep, string> = {
   entry: '진입 · 동의 확인',
+  confirm: '정보 확인',
   form: '회원가입',
   pic: '담당자(PIC) 등록',
   complete: '승인 대기',
@@ -77,10 +83,12 @@ export default function SupplierOnboarding() {
   const [consentChecked, setConsentChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [prefillDetail, setPrefillDetail] = useState<OnboardingPrefill | null>(null);
 
   const currentIndex = steps.indexOf(step);
 
   function handlePrefill(detail: OnboardingPrefill) {
+    setPrefillDetail(detail);
     setSignup(prev => ({ ...prev, companyName: prev.companyName || detail.companyName }));
   }
 
@@ -118,6 +126,9 @@ export default function SupplierOnboarding() {
         },
         businessRegDoc: signup.registrationDocS3Key
           ? { s3Key: signup.registrationDocS3Key, fileName: signup.registrationDocName }
+          : null,
+        environmentalReport: signup.envReportS3Key
+          ? { s3Key: signup.envReportS3Key, fileName: signup.envReportName }
           : null,
         unverified: signup.unverified,
         // 첫 번째 담당자를 대표(is_primary)로. department는 백엔드가 회사 부서로 보강.
@@ -185,6 +196,10 @@ export default function SupplierOnboarding() {
             onPrefill={handlePrefill}
             onNext={goNext}
           />
+        )}
+
+        {step === 'confirm' && (
+          <OnboardingConfirm detail={prefillDetail} invitedCompany={invitedCompany} onBack={goBack} onNext={goNext} />
         )}
 
         {step === 'form' && (

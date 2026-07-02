@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ExcelJS from 'exceljs';
 import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
+import { getSupplierDetail, getSupplierContacts, getSupplierFactories, getSupplierRiskProfile } from '@/lib/api';
 import {
   Box,
   ChevronDown,
@@ -31,13 +32,27 @@ import {
   type RiskStatus,
 } from '@/lib/supply-chain-mock';
 
+// 실 협력사(백엔드 UUID) 여부 — general review 조회/이동 대상 판별.
+const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
+
+// 진행 단계 배지 색조.
+const progressToneCls: Record<'ok' | 'warn' | 'accent', string> = {
+  ok: 'border-ok-border bg-ok-bg text-ok-text',
+  accent: 'border-accent-100 bg-accent-50 text-accent-700',
+  warn: 'border-warn-border bg-warn-bg text-warn-text',
+};
+
 export function SupplyChainMapPageContent({
   formationMode = false,
   dataset = mockDataset,
   embedded = false,
   initialProductId,
   initialBomVersionId,
+  initialPeriodFrom,
+  initialPeriodTo,
   highlightSupplierIds,
+  progressBySupplier,
+  onRowClick,
   onNodeSelect,
   onConnectClick,
   onProductChange,
@@ -49,8 +64,15 @@ export function SupplyChainMapPageContent({
   initialProductId?: string;
   // 공급망 목록에서 넘어온 초기 BOM 버전(생산 Lot). 해당 버전을 드롭다운에서 우선 선택한다.
   initialBomVersionId?: string;
+  // 진입 게이트에서 고른 단위기간(선택). 전달되면 단위기간 필터 칸의 초기값으로 채운다.
+  initialPeriodFrom?: string;
+  initialPeriodTo?: string;
   // STEP 2에서 확정된 Pool의 supplierId 집합(선택). 해당 협력사 행을 맵에서 하이라이트한다.
   highlightSupplierIds?: Set<string>;
+  // 협력사별 진행 단계(supplier_id → 배지). 허브가 gaps 기준으로 계산해 넘긴다. 표의 '진행 단계' 컬럼에 표시.
+  progressBySupplier?: Record<string, { label: string; tone: 'ok' | 'warn' | 'accent' }>;
+  // 표 행 클릭 위임(선택). 허브가 해당 협력사 general review 페이지로 이동시킨다. 미전달 시 노드 선택으로 폴백.
+  onRowClick?: (row: TraceRow) => void;
   // 데이터 주입(선택): 미전달 시 데모 mockDataset. 허브는 빈/API/데모 dataset을 넘긴다.
   dataset?: SupplyChainDataset;
   // 허브 연동용(선택): 노드 선택 변화 통지 / "하위 공급망 연결" 클릭을 허브 모달로 위임
@@ -65,15 +87,18 @@ export function SupplyChainMapPageContent({
     [dataset, selectedProductId],
   );
   const [selectedBomVersionId, setSelectedBomVersionId] = useState(availableBomVersions[0]?.bom_version_id ?? '');
-  // 기본은 '전체 기간'(빈 값) — 특정 월로 고정하면 그 기간에 생산 안 된 공급망이 통째로 숨겨진다(§10.2a 기간과 불일치).
-  const [period, setPeriod] = useState(' ~ ');
+  // 단위기간(period) — BOM(봄)의 생산기간이 겹치는지로 BOM 드롭다운 후보를 거른다. 기본은 '전체'(빈 값).
+  // 진입 게이트에서 고른 단위기간이 넘어오면 그 값으로 초기화해 필터 칸에 그대로 표시한다.
+  const [period, setPeriod] = useState(
+    initialPeriodFrom || initialPeriodTo ? `${initialPeriodFrom ?? ''} ~ ${initialPeriodTo ?? ''}` : ' ~ ',
+  );
   const [selectedFactoryId, setSelectedFactoryId] = useState('ALL');
-  const [selectedPoNumber, setSelectedPoNumber] = useState('ALL');
   const [selectedNodeKey, setSelectedNodeKey] = useState(dataset.products[0] ? `product:${dataset.products[0].product_id}` : '');
   const [collapsedNodeKeys, setCollapsedNodeKeys] = useState<Set<string>>(() => new Set());
   const [generatedAt, setGeneratedAt] = useState('');
   const [showConnectConfirm, setShowConnectConfirm] = useState(false);
   const [formationGenerated, setFormationGenerated] = useState(!formationMode);
+  const [customerDownloading, setCustomerDownloading] = useState(false);  // 고객사 데이터(하이브리드 xlsx) 생성중
 
   const selectedProduct = dataset.products.find(product => product.product_id === selectedProductId) ?? dataset.products[0];
   const selectedBomVersion = dataset.bom_versions.find(version => version.bom_version_id === selectedBomVersionId) ?? availableBomVersions[0];
@@ -89,14 +114,18 @@ export function SupplyChainMapPageContent({
     return dataset.supplier_factories.filter(factory => factoryIds.has(factory.factory_id));
   }, [dataset, selectedBomVersionId]);
 
-  const poOptions = useMemo(
-    () => Array.from(new Set(dataset.supply_chain_map.filter(row => row.bom_version_id === selectedBomVersionId).map(row => row.po_number))),
-    [dataset, selectedBomVersionId],
-  );
+  // 단위기간(period) 창에 생산기간이 겹치는 BOM 버전만 BOM 드롭다운 후보로 — 한 단위기간에 여러 봄이 있을 수 있다.
+  const bomOptions = useMemo(() => {
+    if (!periodFrom || !periodTo) return availableBomVersions;
+    return availableBomVersions.filter(
+      v => v.effective_from <= periodTo && (v.effective_to ?? '9999-12-31') >= periodFrom,
+    );
+  }, [availableBomVersions, periodFrom, periodTo]);
 
+  // 단위기간은 BOM 후보를 거르는 용도 — 선택된 BOM의 맵은 전체 행을 보여준다(맵 생성과 동일 의미).
   const traceRows = useMemo(
-    () => (selectedBomVersion ? buildTraceRows(dataset, selectedBomVersionId, period, selectedFactoryId, selectedPoNumber) : []),
-    [dataset, selectedBomVersion, selectedBomVersionId, period, selectedFactoryId, selectedPoNumber],
+    () => (selectedBomVersion ? buildTraceRows(dataset, selectedBomVersionId, ' ~ ', selectedFactoryId, 'ALL') : []),
+    [dataset, selectedBomVersion, selectedBomVersionId, selectedFactoryId],
   );
 
   const explorerTree = useMemo(
@@ -120,9 +149,8 @@ export function SupplyChainMapPageContent({
     const nextVersions = dataset.bom_versions.filter(version => version.product_id === productId);
     setSelectedProductId(productId);
     setSelectedBomVersionId(nextVersions[0]?.bom_version_id ?? '');
-    setPeriod(' ~ ');  // 전체 기간(특정 월 고정 시 §10.2a 기간과 불일치로 공급망이 숨겨짐)
+    setPeriod(' ~ ');  // 단위기간 전체
     setSelectedFactoryId('ALL');
-    setSelectedPoNumber('ALL');
     setSelectedNodeKey(`product:${productId}`);
     setCollapsedNodeKeys(new Set());
     onProductChange?.(productId);
@@ -181,12 +209,35 @@ export function SupplyChainMapPageContent({
     setCollapsedNodeKeys(new Set());
   }
 
+  // 단위기간 창에 안 맞는 BOM이 선택돼 있으면 창 안 첫 BOM으로 옮긴다.
+  function reselectBomForPeriod(from: string, to: string) {
+    const inWindow = availableBomVersions.filter(
+      v => !from || !to || (v.effective_from <= to && (v.effective_to ?? '9999-12-31') >= from),
+    );
+    if (!inWindow.some(v => v.bom_version_id === selectedBomVersionId)) {
+      setSelectedBomVersionId(inWindow[0]?.bom_version_id ?? '');
+    }
+  }
+
   function handlePeriodFromChange(value: string) {
-    setPeriod(`${value} ~ ${periodTo || value}`);
+    const to = periodTo || value;
+    setPeriod(`${value} ~ ${to}`);
+    reselectBomForPeriod(value, to);
   }
 
   function handlePeriodToChange(value: string) {
-    setPeriod(`${periodFrom || value} ~ ${value}`);
+    const from = periodFrom || value;
+    setPeriod(`${from} ~ ${value}`);
+    reselectBomForPeriod(from, value);
+  }
+
+  // 필터 초기화 — 단위기간/BOM/선택 노드를 기본값으로 되돌린다.
+  function handleReset() {
+    setPeriod(' ~ ');
+    setSelectedFactoryId('ALL');
+    setSelectedBomVersionId(availableBomVersions[0]?.bom_version_id ?? '');
+    if (selectedProduct) setSelectedNodeKey(`product:${selectedProduct.product_id}`);
+    setCollapsedNodeKeys(new Set());
   }
 
   function toggleNode(key: string) {
@@ -263,10 +314,140 @@ export function SupplyChainMapPageContent({
   const stamp = new Date().toISOString().slice(0, 10);
   const code = selectedProduct?.product_code ?? 'export';
 
+  // 고객사 제출용(단일 시트) — 맵 행마다 그 협력사의 general review 컬럼을 오른쪽에 붙인 넓은 표(+상단 제품 헤더 블록).
+  // 필터 무시하고 이 BOM의 전체 공급망을 내보낸다. general review는 맵에 편입된 실 협력사(UUID)를 API로 조회해 합친다.
+  const CUSTOMER_HEADERS = [
+    '차수', '품목/부품', '원재료/광물', '공급사', '사업장', '국가(원산지)', '공급기간', '공급비율(%)', '리스크 상태',
+    '영문명', '사업자등록번호', '본사 국가', '업종', 'smelter 구분', '핵심광물(Li/Co/Ni %)',
+    'PIC 이름', 'PIC 직책', 'PIC 이메일', 'PIC 연락처', '공장(원산지·비율·담당자)',
+    '탄소집약도', '에너지원', '실사 자가진단', '사업자등록증', '환경성적서',
+  ];
+  const CUSTOMER_WIDTHS = [
+    8, 22, 16, 22, 16, 10, 20, 12, 12,
+    18, 16, 10, 12, 12, 18,
+    14, 12, 24, 16, 40,
+    12, 14, 12, 12, 12,
+  ];
+  const RATIO_COL = 8; // 공급비율(%) 열 번호
+
   async function downloadCustomerExcel() {
-    // 고객사 제출용 — 필터(기간/공장/PO) 무시하고 전체 공급망을 내보낸다.
-    const fullRows = selectedBomVersion ? buildTraceRows(dataset, selectedBomVersionId, ' ~ ', 'ALL', 'ALL') : [];
-    await writeXlsx(`고객사제출_${code}_${stamp}.xlsx`, '공급망 제출', getExportRows(fullRows, '전체'));
+    if (!selectedBomVersion || customerDownloading) return;
+    setCustomerDownloading(true);
+    try {
+      const fullRows = buildTraceRows(dataset, selectedBomVersionId, ' ~ ', 'ALL', 'ALL');
+      // 맵에 편입된 실 협력사(UUID)별 general review 조회 — supplier_id → 상세 번들.
+      const uniqIds = [...new Set(fullRows.filter(r => isUuid(r.supplier_id)).map(r => r.supplier_id))];
+      const bundles = await Promise.all(
+        uniqIds.map(async id => {
+          const [detail, contactsRes, factoriesRes, risk] = await Promise.all([
+            getSupplierDetail(id).catch(() => null),
+            getSupplierContacts(id).catch(() => null),
+            getSupplierFactories(id).catch(() => null),
+            getSupplierRiskProfile(id).catch(() => null),
+          ]);
+          return [id, { detail, contacts: contactsRes?.contacts ?? [], factories: factoriesRes?.factories ?? [], risk }] as const;
+        }),
+      );
+      await writeCustomerWorkbook(fullRows, new Map(bundles));
+    } finally {
+      setCustomerDownloading(false);
+    }
+  }
+
+  async function writeCustomerWorkbook(
+    rows: TraceRow[],
+    bySupplier: Map<string, {
+      detail: Awaited<ReturnType<typeof getSupplierDetail>> | null;
+      contacts: Awaited<ReturnType<typeof getSupplierContacts>>['contacts'];
+      factories: Awaited<ReturnType<typeof getSupplierFactories>>['factories'];
+      risk: Awaited<ReturnType<typeof getSupplierRiskProfile>> | null;
+    }>,
+  ) {
+    const thin = { style: 'thin' as const, color: { argb: 'FFD9D9D9' } };
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('공급망 제출');
+    ws.columns = CUSTOMER_WIDTHS.map(w => ({ width: w }));
+
+    // 상단 제품 정보 헤더 블록.
+    ([
+      ['제품', selectedProduct?.product_name ?? '-'],
+      ['제품 코드', selectedProduct?.product_code ?? '-'],
+      ['고객사', customerName],
+      ['BOM 버전', selectedBomVersion?.version_number ?? '-'],
+      ['단위기간', (periodFrom || periodTo) ? `${periodFrom || '…'} ~ ${periodTo || '…'}` : '전체'],
+      ['생성일', stamp],
+    ] as [string, string][]).forEach(([k, v]) => {
+      const r = ws.addRow([k, v]);
+      r.getCell(1).font = { bold: true, color: { argb: 'FF14532D' } };
+    });
+    ws.addRow([]);
+
+    // 표 헤더.
+    const headerRow = ws.addRow(CUSTOMER_HEADERS);
+    headerRow.height = 22;
+    headerRow.eachCell(cell => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14532D' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      cell.border = { top: thin, bottom: thin, left: thin, right: thin };
+    });
+    const headerRowNum = headerRow.number;
+    const dataFrom = ws.rowCount + 1;
+
+    // 맵 행 + 협력사 general review 병합(같은 협력사 행마다 상세 반복).
+    rows.forEach(row => {
+      const b = bySupplier.get(row.supplier_id);
+      const dt = b?.detail as unknown as Record<string, unknown> | null;
+      const cm = (dt?.coreMinerals ?? {}) as Record<string, number | undefined>;
+      const md = (dt?.manufacturerDetail ?? {}) as Record<string, unknown>;
+      const pic = b?.contacts.find(c => c.isPrimary) ?? b?.contacts[0];
+      const sr = b?.risk?.selfReportedRiskLevel;
+      const factoryStr = (b?.factories ?? [])
+        .filter(f => f.isActive !== false)
+        .map(f => `${f.factoryName ?? '-'}(${f.country ?? '-'}·${f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-'}·${f.factoryManagerName ?? '-'})`)
+        .join(' / ');
+      ws.addRow([
+        // ── 맵 정보 ──
+        row.tier, row.part_name, row.material_or_mineral, row.supplier_name,
+        row.factory_name, row.country, row.supply_period, row.supply_ratio, statusMeta[row.risk_status].label,
+        // ── 협력사 general review ──
+        (dt?.companyNameEn as string) ?? '-',
+        (dt?.businessRegNo as string) ?? '-',
+        (dt?.country as string) ?? '-',
+        (dt?.providerType as string) ?? '-',
+        (dt?.smelterType as string) ?? '-',
+        [cm.Li, cm.Co, cm.Ni].map(v => (v != null ? v : '-')).join(' / '),
+        pic?.name ?? '-',
+        pic?.role ?? '-',
+        pic?.email ?? '-',
+        pic?.mobile ?? pic?.phone ?? '-',
+        factoryStr || '-',
+        md.carbonIntensity != null ? (md.carbonIntensity as number) : '-',
+        (md.energySource as string) ?? '-',
+        sr && sr !== 'unknown' ? sr : '-',
+        (dt?.businessRegDocUrl as string) ? '있음' : '없음',
+        (dt?.environmentalReportUrl as string) ? '있음' : '없음',
+      ]);
+    });
+
+    for (let i = dataFrom; i <= ws.rowCount; i++) {
+      ws.getRow(i).eachCell(cell => {
+        cell.border = { top: thin, bottom: thin, left: thin, right: thin };
+        cell.alignment = { vertical: 'middle' };
+      });
+    }
+    ws.getColumn(RATIO_COL).numFmt = '0"%"';
+    ws.views = [{ state: 'frozen', ySplit: headerRowNum }];
+    ws.autoFilter = { from: { row: headerRowNum, column: 1 }, to: { row: headerRowNum, column: CUSTOMER_HEADERS.length } };
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `고객사제출_${code}_${stamp}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function downloadExcel() {
@@ -336,20 +517,12 @@ export function SupplyChainMapPageContent({
               ))}
             </select>
           </FilterSelect>
-          <FilterSelect label="단위기간 (생산 Lot)">
-            <select value={selectedBomVersionId} onChange={event => setSelectedBomVersionId(event.target.value)} className="h-11 min-w-[230px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border">
-              {availableBomVersions.map(version => (
-                <option key={version.bom_version_id} value={version.bom_version_id}>
-                  {version.effective_from ? `${version.effective_from} ~ ${version.effective_to ?? '진행중'}` : '전체'} (v{version.version_number})
-                </option>
-              ))}
-            </select>
-          </FilterSelect>
-          <FilterSelect label="조회 기간">
+          <FilterSelect label="단위기간">
             <div className="flex h-11 min-w-[300px] items-center gap-2 rounded-md border border-slate-200 bg-white px-3 shadow-sm focus-within:border-ok-border">
               <input
                 type="date"
                 value={periodFrom}
+                max={periodTo || undefined}
                 onChange={event => handlePeriodFromChange(event.target.value)}
                 className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-ink-400 outline-none"
                 aria-label="단위기간 시작일"
@@ -358,15 +531,31 @@ export function SupplyChainMapPageContent({
               <input
                 type="date"
                 value={periodTo}
+                min={periodFrom || undefined}
                 onChange={event => handlePeriodToChange(event.target.value)}
                 className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-ink-400 outline-none"
                 aria-label="단위기간 종료일"
               />
             </div>
           </FilterSelect>
+          <FilterSelect label="BOM">
+            <select
+              value={selectedBomVersionId}
+              onChange={event => setSelectedBomVersionId(event.target.value)}
+              disabled={bomOptions.length === 0}
+              className="h-11 min-w-[160px] rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-ink-400 shadow-sm outline-none focus:border-ok-border disabled:opacity-50"
+            >
+              {bomOptions.length === 0 && <option value="">해당 단위기간에 편입된 BOM 없음</option>}
+              {bomOptions.map(version => (
+                <option key={version.bom_version_id} value={version.bom_version_id}>
+                  {version.version_number}
+                </option>
+              ))}
+            </select>
+          </FilterSelect>
           <button
             type="button"
-            onClick={handleGenerate}
+            onClick={handleReset}
             className="inline-flex h-11 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-ink-400 shadow-sm hover:bg-slate-50"
           >
             <RefreshCw className="h-4 w-4" />
@@ -481,8 +670,8 @@ export function SupplyChainMapPageContent({
         <section className="mt-4 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
           <div className="flex items-start justify-between gap-4 border-b border-ink-700 bg-ink-800/40 px-5 py-4">
             <div>
-              <h2 className="text-base font-bold text-ink-100">제출 데이터 확인</h2>
-              <p className="mt-0.5 text-xs text-ink-500">공급망 맵을 표 형태로 제공합니다.</p>
+              <h2 className="text-base font-bold text-ink-100">협력사별 진행 사항 확인</h2>
+              <p className="mt-0.5 text-xs text-ink-500">이 공급망 맵에 편입된 협력사·품목별 공급 정보와 진행 단계입니다. 행을 누르면 해당 협력사 상세(general review)로 이동합니다.</p>
             </div>
             <div className="flex shrink-0 gap-2">
               <button type="button" onClick={downloadCsv} className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-400 hover:bg-ink-800">
@@ -494,9 +683,9 @@ export function SupplyChainMapPageContent({
                 Excel 다운로드
               </button>
               {!formationMode && (
-                <button type="button" onClick={downloadCustomerExcel} className="inline-flex items-center gap-1.5 rounded-xs border border-ok-border bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover">
+                <button type="button" onClick={downloadCustomerExcel} disabled={customerDownloading} className="inline-flex items-center gap-1.5 rounded-xs border border-ok-border bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover disabled:opacity-60">
                   <FileSpreadsheet className="h-3.5 w-3.5" />
-                  고객사 데이터 다운로드
+                  {customerDownloading ? '생성 중…' : '고객사 데이터 다운로드'}
                 </button>
               )}
             </div>
@@ -505,7 +694,7 @@ export function SupplyChainMapPageContent({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-ink-700 bg-ink-800/30">
-                  {['Tier', '품목/부품', '원재료/광물', '공급사', '사업장', '국가', 'PO 번호', '공급기간', '공급비율', '규제/리스크 상태'].map(header => (
+                  {['Tier', '품목/부품', '원재료/광물', '공급사', '사업장', '국가', '공급기간', '공급비율', '규제/리스크 상태', '진행 단계'].map(header => (
                     <th key={header} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold text-ink-500">
                       {header}
                     </th>
@@ -513,11 +702,14 @@ export function SupplyChainMapPageContent({
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-700/40">
-                {traceRows.map(row => (
+                {traceRows.map(row => {
+                  const progress = formationMode ? null : progressBySupplier?.[row.supplier_id];
+                  return (
                   <tr
                     key={row.node_key}
                     className={`cursor-pointer hover:bg-ink-800/30 ${selectedNodeKey === row.node_key ? 'bg-accent-50/60' : ''}`}
-                    onClick={() => setSelectedNodeKey(row.node_key)}
+                    onClick={() => (onRowClick ? onRowClick(row) : setSelectedNodeKey(row.node_key))}
+                    title={onRowClick && !formationMode ? `${row.supplier_name} 상세 보기` : undefined}
                   >
                     <td className="whitespace-nowrap px-4 py-3 text-xs font-bold text-ink-400">{row.tier}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-bold text-ink-100">
@@ -532,12 +724,17 @@ export function SupplyChainMapPageContent({
                     <td className="whitespace-nowrap px-4 py-3 text-ink-300">{formationMode ? '-' : row.supplier_name}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-ink-400">{formationMode ? '-' : row.factory_name}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-ink-400">{formationMode ? '-' : row.country}</td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-ink-400">{formationMode ? '-' : row.po_number}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-ink-400">{formationMode ? '-' : row.supply_period}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-bold text-ink-300">{formationMode ? '-' : `${row.supply_ratio}%`}</td>
                     <td className="whitespace-nowrap px-4 py-3">{formationMode ? <span className="text-sm font-medium text-ink-400">-</span> : <StatusBadge status={row.risk_status} />}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      {progress
+                        ? <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-bold ${progressToneCls[progress.tone]}`}>{progress.label}</span>
+                        : <span className="text-sm font-medium text-ink-400">-</span>}
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
