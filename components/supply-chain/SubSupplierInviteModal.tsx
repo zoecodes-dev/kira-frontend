@@ -26,14 +26,22 @@ export default function SubSupplierInviteModal({
   inviterSupplierId,
   onClose,
   onInvited,
+  initial,
 }: {
   inviterSupplierId?: string | null;
   onClose: () => void;
   onInvited?: (supplierId: string) => void;
+  // [M1] 기 입력된 하위 협력사 정보 재확인용 prefill(회사명/유형/PIC). 미가입 하위 재초대 시 사용.
+  initial?: { companyName?: string; providerType?: ProviderType; pics?: { name?: string; email?: string; phone?: string }[] };
 }) {
-  const [companyName, setCompanyName] = useState('');
-  const [providerType, setProviderType] = useState<ProviderType>('manufacturer');
-  const [pics, setPics] = useState<Pic[]>(EMPTY_PICS);
+  const [companyName, setCompanyName] = useState(initial?.companyName ?? '');
+  const [providerType, setProviderType] = useState<ProviderType>(initial?.providerType ?? 'manufacturer');
+  const [pics, setPics] = useState<Pic[]>(() => {
+    if (!initial?.pics?.length) return EMPTY_PICS;
+    const seeded = initial.pics.slice(0, 3).map(p => ({ name: p.name ?? '', email: p.email ?? '', phone: p.phone ?? '' }));
+    while (seeded.length < 3) seeded.push({ name: '', email: '', phone: '' });
+    return seeded;
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,10 +78,13 @@ export default function SubSupplierInviteModal({
     }
   }
 
+  const reconfirm = Boolean(initial);
   return (
     <ModalShell
-      title="하위 협력사 초대"
-      subtitle="회사명과 담당자(PIC)를 입력하면 가입 요청 메일이 발송되고 공급망에 편입됩니다."
+      title={reconfirm ? '하위 협력사 초대 재확인' : '하위 협력사 초대'}
+      subtitle={reconfirm
+        ? '기 입력된 하위 협력사 정보를 확인하고, 아직 미가입이면 가입 요청 메일을 재발송합니다. (동일 일자 중복 발송은 자동 방지)'
+        : '회사명과 담당자(PIC)를 입력하면 가입 요청 메일이 발송되고 공급망에 편입됩니다.'}
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3">
@@ -93,7 +104,7 @@ export default function SubSupplierInviteModal({
               className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              초대하기
+              {reconfirm ? '가입 요청 재발송' : '초대하기'}
             </button>
           </div>
         </div>
