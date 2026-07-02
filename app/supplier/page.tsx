@@ -32,6 +32,7 @@ import EightStageStepper from '@/components/supplier/EightStageStepper';
 import SupplyChainMap from '@/components/supplier/SupplyChainMap';
 import ViolationReportModal from '@/components/supplier/ViolationReportModal';
 import SelfReportModal from '@/components/supplier/SelfReportModal';
+import SubSupplierInviteModal from '@/components/supply-chain/SubSupplierInviteModal';
 import SupplierNotificationBell from '@/components/supplier/SupplierNotificationBell';
 import AiParsingView from '@/components/supplier/AiParsingView';
 import { suppliers, supplyEdges } from '@/lib/data';
@@ -629,6 +630,7 @@ export default function SupplierPage() {
   const [violationId, setViolationId] = useState<string | null>(null);
   // ── 자진 신고 모달 상태 (기획서 E-3) ─────────────────────────────────────────
   const [selfReportOpen, setSelfReportOpen] = useState(false);
+  const [subInviteOpen, setSubInviteOpen] = useState(false);
   // 5-3. 정보 수정 승인 요청 상태 — true면 company-info에 "정보 변경 검토 중" 표시
   const [isProfilePending, setIsProfilePending] = useState(false);
   // ── 공급망 연결 화면 — 선택된 노드 ID (supply-chain 뷰 상세 패널 연동) ──────
@@ -863,6 +865,15 @@ export default function SupplierPage() {
 
         {activeView === 'dashboard' && (
         <>
+        {/* [P4] 제출 진행 현황 — 제출→AI파싱→협력사확인→원청접수/검토→최종승인 (실 submissions) */}
+        {submissions.length > 0 && (
+          <section>
+            <EightStageStepper
+              submissions={submissions}
+              onResubmit={() => setActiveView('company-info')}
+            />
+          </section>
+        )}
         {/* ── 영역 B: 진행 현황 KPI (상단 가로 4개) ── */}
         <section className="grid grid-cols-4 gap-4">
           <div
@@ -1305,6 +1316,21 @@ export default function SupplierPage() {
 
           return (
             <div className="space-y-6">
+              {/* [P3] 하위 협력사 초대 — 회사명+PIC 등록 → 가입요청 메일(SES)·공급망 편입 */}
+              <div className="flex items-center justify-between rounded-sm border border-ink-700 bg-white p-4">
+                <div>
+                  <div className="text-xs font-bold text-ink-200">하위 협력사 초대</div>
+                  <div className="mt-0.5 text-[11px] text-ink-500">우리 회사의 하위 협력사(회사명·담당자)를 등록하면 가입 요청 메일이 발송되고 공급망에 편입됩니다.</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSubInviteOpen(true)}
+                  className="shrink-0 rounded-xs bg-accent-600 px-3 py-2 text-xs font-semibold text-white hover:bg-accent-700"
+                >
+                  + 하위 협력사 초대
+                </button>
+              </div>
+
               <SupplyChainMap
                 supplierId={supplierId}
                 upstream={upstream as never}
@@ -1540,6 +1566,17 @@ export default function SupplierPage() {
         onClose={() => setSelfReportOpen(false)}
         parentSupplierId={supplierId}
       />
+      {/* [P3] 하위 협력사 초대 — inviter=로그인 협력사 본인. createSupplier로 stub+가입요청 메일+PIC 저장 */}
+      {subInviteOpen && (
+        <SubSupplierInviteModal
+          inviterSupplierId={supplierUuid}
+          onClose={() => setSubInviteOpen(false)}
+          onInvited={() => {
+            setSubInviteOpen(false);
+            alert('하위 협력사 가입 요청 메일이 발송되었습니다.');
+          }}
+        />
+      )}
     </main>
   );
 }

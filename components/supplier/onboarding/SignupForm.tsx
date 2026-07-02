@@ -2,7 +2,7 @@
 
 // STEP 1 (n차) — 회원가입 기본 정보 + 필요 문서 + 로그인 계정. "미확인 등록" 예외 경로 지원.
 import { useRef, useState } from 'react';
-import { FileUp, Loader2, Upload, KeyRound } from 'lucide-react';
+import { CheckCircle2, FileUp, Loader2, Upload, KeyRound } from 'lucide-react';
 import { uploadFile } from '@/lib/api';
 import type { SignupData } from './SupplierOnboarding';
 import StepFooter from './StepFooter';
@@ -40,6 +40,8 @@ export default function SignupForm({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [envUploading, setEnvUploading] = useState(false);
+  const envFileRef = useRef<HTMLInputElement>(null);
 
   function set(patch: Partial<SignupData>) {
     onChange({ ...data, ...patch });
@@ -59,6 +61,22 @@ export default function SignupForm({
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  async function handleEnvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError(null);
+    setEnvUploading(true);
+    try {
+      const res = await uploadFile(file, supplierId ? `env-report:${supplierId}` : 'env-report');
+      set({ envReportName: res.fileName || file.name, envReportS3Key: res.s3Key });
+    } catch {
+      setUploadError('환경성적서 업로드에 실패했습니다. 미보유면 아래 "미확인 등록"을 선택하세요.');
+    } finally {
+      setEnvUploading(false);
+      if (envFileRef.current) envFileRef.current.value = '';
     }
   }
 
@@ -133,6 +151,28 @@ export default function SignupForm({
             {uploading ? '업로드 중…' : '업로드'}
           </button>
         </div>
+
+        {/* [P6] 환경성적서 — 회원가입 시 수집. AI 확인은 로그인 후 자료입력의 AI 파싱뷰에서. */}
+        <p className="mt-3 text-xs text-slate-500">환경성적서(기본 정보 확인용) — 로그인 후 자료입력에서 AI 파싱뷰로 확인합니다. 미보유면 아래 '미확인 등록'.</p>
+        <div className="mt-2 flex items-center gap-2">
+          <input value={data.envReportName} readOnly disabled={data.unverified} placeholder="첨부된 파일 없음" className={inputCls} />
+          <input ref={envFileRef} type="file" className="hidden" onChange={handleEnvFile} accept=".pdf,.png,.jpg,.jpeg" />
+          <button
+            type="button"
+            disabled={data.unverified || envUploading}
+            onClick={() => envFileRef.current?.click()}
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {envUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {envUploading ? '업로드 중…' : '환경성적서'}
+          </button>
+        </div>
+        {data.envReportS3Key && (
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-ok-border bg-ok-bg px-2.5 py-1 text-[11px] font-semibold text-ok-text">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            업로드됨 · AI 파싱 확인은 로그인 후 자료입력에서 진행
+          </div>
+        )}
         {uploadError && <div className="mt-2 text-xs font-semibold text-alert-text">{uploadError}</div>}
         <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-semibold text-warn-text">
           <input

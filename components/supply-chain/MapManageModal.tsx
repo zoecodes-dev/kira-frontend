@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { CheckCircle2, FileSignature, Leaf, Loader2, Paperclip, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
 import ModalShell from './ModalShell';
-import { getDataConsents, getSupplierCarbonDeclarations, listFilesByContext, uploadFile, type CarbonDeclaration, type DataConsent, type SupplierBrief } from '@/lib/api';
+import { downloadSupplyChainExcel, getDataConsents, getSupplierCarbonDeclarations, getValidationSummary, listFilesByContext, uploadFile, type CarbonDeclaration, type DataConsent, type SupplierBrief, type ValidationSummary } from '@/lib/api';
 
 type EpdStatus = 'verified' | 'declared' | 'expired' | 'missing';
 
@@ -54,12 +54,16 @@ export default function MapManageModal({
   onClose,
   onRequestUpdate,
   onVerified,
+  productId,
+  bomVersionId,
 }: {
   pool: SupplierBrief[];
   onClose: () => void;
   onRequestUpdate: (supplier: SupplierBrief) => void;
   // 검증 완료 시 협력사별 환경성적서 통과 여부를 백엔드(verification_status)에 영속.
   onVerified?: (results: { supplierId: string; passed: boolean }[]) => void;
+  productId?: string;         // [P7] 최종 검증 요약/판정 + 고객사 엑셀용
+  bomVersionId?: string;
 }) {
   const [rows, setRows] = useState<VerifyRow[]>([]);
   const [loading, setLoading] = useState(pool.length > 0);
@@ -67,6 +71,37 @@ export default function MapManageModal({
   const [reload, setReload] = useState(0);       // 업로드 후 재조회 트리거
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<ValidationSummary | null>(null);   // [P7]
+  const [downloading, setDownloading] = useState(false);
+
+  // [P7] 최종 검증 요약/판정 조회 (get_gaps + 비율검증 롤업).
+  useEffect(() => {
+    if (!productId) return;
+    let cancelled = false;
+    getValidationSummary(productId, bomVersionId)
+      .then(s => { if (!cancelled) setSummary(s); })
+      .catch(() => { if (!cancelled) setSummary(null); });
+    return () => { cancelled = true; };
+  }, [productId, bomVersionId, reload]);
+
+  // [P7] 고객사 제출용 엑셀(서버 생성) 다운로드.
+  async function handleDownloadExcel() {
+    if (!productId) return;
+    setDownloading(true);
+    try {
+      const blob = await downloadSupplyChainExcel(productId, bomVersionId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `공급망_고객사제출_${productId}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('엑셀 다운로드에 실패했습니다.');
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   useEffect(() => {
     if (pool.length === 0) { setLoading(false); return; }
@@ -138,6 +173,53 @@ export default function MapManageModal({
         </div>
       }
     >
+      {/* [P7] 공급망 최종 검증 요약 + 고객사 제출용 엑셀 */}
+      {summary && (
+        <section className="mb-4 rounded-md border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-ink-100">공급망 최종 검증 요약</span>
+              <span className={clsx('rounded-full px-2 py-0.5 text-[11px] font-bold',
+                summary.readyForFinal ? 'border border-ok-border bg-ok-bg text-ok-text' : 'border border-warn-border bg-warn-bg text-warn-text')}>
+                {summary.readyForFinal ? '최종 검증 준비 완료' : '입력 미흡'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleDownloadExcel}
+              disabled={downloading}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-brand hover:text-brand disabled:opacity-50"
+            >
+              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              고객사 제출용 엑셀
+            </button>
+          </div>
+          <div className="grid grid-cols-4 gap-3">
+            {([
+              ['협력사', summary.supplierCount],
+              ['최대 차수', summary.maxTier],
+              ['미보유 필드', summary.totalGapCount],
+              ['비율 검증', summary.ratioValid ? 'OK' : '불일치'],
+            ] as const).map(([label, value]) => (
+              <div key={label} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-center">
+                <div className="text-[11px] text-slate-500">{label}</div>
+                <div className="num-mono mt-0.5 text-lg font-bold text-ink-100">{value}</div>
+              </div>
+            ))}
+          </div>
+          {summary.gapsBySupplier.length > 0 && (
+            <ul className="mt-3 space-y-1">
+              {summary.gapsBySupplier.map(n => (
+                <li key={n.supplierId} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-1.5 text-xs">
+                  <span className="font-semibold text-ink-100">{n.companyName}</span>
+                  <span className="text-alert-text">미보유 {n.gapCount}건</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       <section className="mb-4 grid grid-cols-3 gap-3">
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-center">
           <div className="text-xs font-semibold text-slate-500">Pool 협력사</div>

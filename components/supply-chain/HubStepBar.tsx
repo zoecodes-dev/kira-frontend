@@ -1,56 +1,57 @@
 'use client';
 
-// 원청 공급망 맵 허브 상단의 흐름 액션 바 (5단계)
-import { CheckCircle2, ClipboardCheck, FileSpreadsheet, PackageSearch, ShieldCheck, Users } from 'lucide-react';
+// 원청 공급망 맵 허브 상단 — 흐름 순서 스텝 바.
+// 맵생성 → Pool → 협력사확인·동의·요청 → 자료수집(반복) → 최종검증 → 다운로드.
+// STEP 3~4는 여러 협력사·하위(n차)가 자료를 주고받는 '반복' 구간이라 완성도(%)로 진행을 표시하고,
+// 최종검증은 데이터 완성도가 준비(readyForFinal)돼야 열린다.
+import { CheckCircle2, ClipboardCheck, FileSpreadsheet, PackageSearch, RefreshCw, ShieldCheck, Users } from 'lucide-react';
 
 interface HubStepBarProps {
   poolCount: number;
   hasProduct: boolean;
-  completed: Set<number>; // 완료된 단계 번호 — 상단 버튼에 완료 색(초록+체크) 표시
-  locked?: boolean;       // 완료 공급망 — '수정' 전까지 단계 버튼 잠금(읽기 전용)
+  completed: Set<number>;
+  locked?: boolean;
+  step3Done?: boolean;           // 협력사 전부 확인 → STEP4(자료 수집·보완) 개방
+  readyForFinal?: boolean;       // 데이터 완성도 준비 완료 → 최종검증 개방
+  completePct?: number | null;   // 자료수집 반복 구간 진행률(%)
   onOpenPool: () => void;
-  onOpenSuppliers: () => void; // STEP 3 — 연결 협력사 확인·자료 요청(목록)
-  onOpenVerify: () => void;    // STEP 4 — 최종 검증(만료·실데이터)
+  onOpenSuppliers: () => void;   // 협력사 확인·동의·정보요청 메일(ConnectedSuppliersModal)
+  onOpenDataReview: () => void;  // 자료 수집·보완 검토(DataReviewModal)
+  onOpenVerify: () => void;      // 최종 검증(MapManageModal)
 }
 
-function StepButton({
-  index,
-  label,
-  hint,
-  Icon,
-  onClick,
-  disabled = false,
-  done = false,
+function StepTile({
+  index, label, hint, Icon, onClick, disabled = false, done = false, current = false, badge,
 }: {
-  index: number;
+  index: number | string;
   label: string;
   hint?: string;
   Icon: typeof Users;
-  onClick: () => void;
+  onClick?: () => void;
   disabled?: boolean;
   done?: boolean;
+  current?: boolean;
+  badge?: string;
 }) {
+  const cls = done
+    ? 'border-ok-border bg-ok-bg ring-1 ring-ok-border'
+    : current
+      ? 'border-brand bg-white ring-1 ring-brand'
+      : 'border-slate-200 bg-white';
+  const interactive = Boolean(onClick);
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
-      className={`group flex min-w-[150px] flex-1 items-center gap-3 rounded-md border px-3 py-2.5 text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
-        done
-          ? 'border-ok-border bg-ok-bg ring-1 ring-ok-border'
-          : 'border-slate-200 bg-white hover:border-ok-border hover:bg-ok-bg disabled:hover:border-slate-200 disabled:hover:bg-white'
-      }`}
+      disabled={disabled || !interactive}
+      className={`group flex min-w-[150px] flex-1 items-center gap-3 rounded-md border px-3 py-2.5 text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${cls} ${interactive && !disabled ? 'hover:border-brand hover:bg-slate-50' : ''}`}
     >
-      <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
-          done ? 'bg-ok-text text-white' : 'bg-slate-100 text-ink-400 group-enabled:group-hover:bg-ok-bg group-enabled:group-hover:text-ok-text'
-        }`}
-      >
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${done ? 'bg-ok-text text-white' : current ? 'bg-brand text-white' : 'bg-slate-100 text-ink-400'}`}>
         {done ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
       </span>
       <span className="min-w-0">
-        <span className={`block text-[11px] font-bold ${done ? 'text-ok-text' : 'text-slate-400'}`}>
-          STEP {index}{done ? ' · 완료' : ''}
+        <span className={`block text-[11px] font-bold ${done ? 'text-ok-text' : current ? 'text-brand' : 'text-slate-400'}`}>
+          STEP {index}{done ? ' · 완료' : current ? ' · 진행' : ''}{badge ? ` · ${badge}` : ''}
         </span>
         <span className="block truncate text-sm font-bold text-ink-100">{label}</span>
         {hint && <span className="block truncate text-[11px] font-medium text-slate-500">{hint}</span>}
@@ -64,74 +65,81 @@ export default function HubStepBar({
   hasProduct,
   completed,
   locked = false,
+  step3Done = false,
+  readyForFinal = false,
+  completePct = null,
   onOpenPool,
   onOpenSuppliers,
+  onOpenDataReview,
   onOpenVerify,
 }: HubStepBarProps) {
-  const poolDone = poolCount > 0; // STEP 2 완료
-  const step1Done = completed.has(1); // 제품 선택 완료
+  const step1Done = completed.has(1);
+  const poolDone = poolCount > 0;
+  const collecting = poolDone && !readyForFinal;   // 자료수집 반복 진행중
   return (
     <section className="border-b border-slate-200 bg-white px-6 pt-6">
       <div className="mt-4 flex flex-wrap gap-2 pb-4">
-        {/* STEP 1 — 맵 생성·제품 선택 (제품 선택 시 완료) */}
-        <div
-          className={`flex min-w-[150px] flex-1 items-center gap-3 rounded-md border px-3 py-2.5 ${
-            step1Done ? 'border-ok-border bg-ok-bg ring-1 ring-ok-border' : 'border-slate-200 bg-white'
-          }`}
-        >
-          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${step1Done ? 'bg-ok-text text-white' : 'bg-slate-100 text-ink-400'}`}>
-            {step1Done ? <CheckCircle2 className="h-4 w-4" /> : <PackageSearch className="h-4 w-4" />}
-          </span>
-          <span className="min-w-0">
-            <span className={`block text-[11px] font-bold ${step1Done ? 'text-ok-text' : 'text-slate-400'}`}>STEP 1{step1Done ? ' · 완료' : ''}</span>
-            <span className="block truncate text-sm font-bold text-ink-100">맵 생성 · 대표 제품 선택</span>
-            <span className={`block truncate text-[11px] font-medium ${step1Done ? 'text-ok-text' : 'text-slate-500'}`}>
-              {step1Done ? '제품 선택됨' : '아래에서 제품을 선택하세요'}
-            </span>
-          </span>
-        </div>
-
-        <StepButton
+        {/* 1 — 맵 생성·제품 선택 */}
+        <StepTile
+          index={1}
+          label="맵 생성 · 대표 제품"
+          hint={step1Done ? '고객·제품·BOM·기간 확정' : '아래에서 선택'}
+          Icon={PackageSearch}
+          done={step1Done}
+          current={!step1Done}
+        />
+        {/* 2 — 협력사 Pool 구성 */}
+        <StepTile
           index={2}
           label="협력사 Pool 구성"
-          hint={!hasProduct ? '제품을 먼저 선택' : poolDone ? `${poolCount}개사 선택됨` : '1차 협력사 선택'}
+          hint={!hasProduct ? '제품 먼저' : poolDone ? `${poolCount}개사 확정` : '1차 협력사 선택'}
           Icon={Users}
           onClick={onOpenPool}
           disabled={!hasProduct || locked}
           done={completed.has(2)}
+          current={step1Done && !poolDone}
         />
-
-        {/* STEP 3 — 연결 협력사 목록에서 확인 + 자료 요청(정보입력 요청 포함)을 한꺼번에 */}
-        <StepButton
+        {/* 3 — 협력사 확인·동의·정보요청 메일 */}
+        <StepTile
           index={3}
-          label="협력사 확인 · 자료 요청"
-          hint={!poolDone ? 'Pool 확정 후' : `연결 협력사 ${poolCount}개사 확인·요청`}
+          label="확인 · 동의 · 정보요청"
+          hint={!poolDone ? 'Pool 확정 후' : '일반정보 확인·제3자 동의·메일 발송'}
           Icon={ClipboardCheck}
           onClick={onOpenSuppliers}
           disabled={!poolDone || locked}
           done={completed.has(3)}
         />
-
-        {/* STEP 4 — 만료 여부 등 실데이터 가져와 최종 검증 */}
-        <StepButton
+        {/* 4 — 자료 수집·보완 (입력 누락·문서 문제 검토·요청). STEP3(협력사 전부 확인) 후 개방 */}
+        <StepTile
           index={4}
+          label="자료 수집 · 보완"
+          hint={!step3Done ? '협력사 전부 확인 후' : collecting ? '입력 누락·문서 문제 검토' : '수집 완료'}
+          Icon={RefreshCw}
+          onClick={onOpenDataReview}
+          disabled={!step3Done || locked}
+          done={poolDone && readyForFinal}
+          current={step3Done && collecting}
+          badge={poolDone && completePct !== null ? `완성도 ${completePct}%` : undefined}
+        />
+        {/* 5 — 최종 검증 (완성도 준비 시 개방) */}
+        <StepTile
+          index={5}
           label="최종 검증"
-          hint={!poolDone ? 'Pool 확정 후' : '만료·실데이터 검증'}
+          hint={!poolDone ? 'Pool 확정 후' : readyForFinal ? '요약·판정·엑셀' : '완성도 100% 후 개방'}
           Icon={ShieldCheck}
           onClick={onOpenVerify}
-          disabled={!poolDone || locked}
+          disabled={!readyForFinal || locked}
           done={completed.has(4)}
         />
-
-        {/* STEP 5 — 고객사 데이터 다운로드 (아래 추적 테이블에서) */}
+        {/* 6 — 고객사 데이터 다운로드 (아래 추적 테이블) */}
         <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2.5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-ink-400">
             <FileSpreadsheet className="h-4 w-4" />
           </span>
           <span className="min-w-0">
-            <span className="block text-[11px] font-bold text-slate-400">STEP 5</span>
+            <span className="block text-[11px] font-bold text-slate-400">STEP 6</span>
             <span className="block truncate text-sm font-bold text-ink-100">고객사 데이터 다운로드</span>
-            <span className="block truncate text-[11px] font-medium text-slate-500">아래 추적 테이블에서 내보내기</span>
+            <span className="block truncate text-[11px] font-medium text-slate-500">최종 검증 · 추적 테이블에서 엑셀</span>
           </span>
         </div>
       </div>
