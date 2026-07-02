@@ -148,7 +148,7 @@ export default function MapManageModal({
 
   return (
     <ModalShell
-      title="최종 검증 · 환경성적서(탄소발자국)"
+      title="최종 검증"
       subtitle="연결 협력사의 환경성적서(EU 배터리법 Art7 탄소발자국)를 핵심으로 실데이터를 검증합니다."
       onClose={onClose}
       footer={

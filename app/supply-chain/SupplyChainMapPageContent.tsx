@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import {
-  mockDataset,
+  emptyDataset,
   statusMeta,
   getRiskTone,
   buildTraceRows,
@@ -44,7 +44,7 @@ const progressToneCls: Record<'ok' | 'warn' | 'accent', string> = {
 
 export function SupplyChainMapPageContent({
   formationMode = false,
-  dataset = mockDataset,
+  dataset = emptyDataset,
   embedded = false,
   initialProductId,
   initialBomVersionId,
@@ -81,7 +81,14 @@ export function SupplyChainMapPageContent({
   // 제품 선택 변화 통지 (허브가 해당 제품 BOM을 API로 불러오도록)
   onProductChange?: (productId: string) => void;
 }) {
-  const [selectedProductId, setSelectedProductId] = useState(dataset.products[0]?.product_id ?? '');
+  // 허브가 고른 제품(initialProductId)이 이미 로드된 데이터셋에 있으면 그걸로 시작한다.
+  //   (허브는 products 전체가 로드된 뒤 이 컴포넌트를 마운트하므로 products[0]로 초기화하면
+  //    고른 제품이 아닌 첫 제품을 보게 되고, 그 제품 BOM은 미로드라 'BOM 비어있음'으로 뜬다.)
+  const preferredInitialProductId =
+    (initialProductId && dataset.products.some(p => p.product_id === initialProductId)
+      ? initialProductId
+      : dataset.products[0]?.product_id) ?? '';
+  const [selectedProductId, setSelectedProductId] = useState(preferredInitialProductId);
   const availableBomVersions = useMemo(
     () => dataset.bom_versions.filter(version => version.product_id === selectedProductId),
     [dataset, selectedProductId],
@@ -93,7 +100,7 @@ export function SupplyChainMapPageContent({
     initialPeriodFrom || initialPeriodTo ? `${initialPeriodFrom ?? ''} ~ ${initialPeriodTo ?? ''}` : ' ~ ',
   );
   const [selectedFactoryId, setSelectedFactoryId] = useState('ALL');
-  const [selectedNodeKey, setSelectedNodeKey] = useState(dataset.products[0] ? `product:${dataset.products[0].product_id}` : '');
+  const [selectedNodeKey, setSelectedNodeKey] = useState(preferredInitialProductId ? `product:${preferredInitialProductId}` : '');
   const [collapsedNodeKeys, setCollapsedNodeKeys] = useState<Set<string>>(() => new Set());
   const [generatedAt, setGeneratedAt] = useState('');
   const [showConnectConfirm, setShowConnectConfirm] = useState(false);
@@ -173,16 +180,25 @@ export function SupplyChainMapPageContent({
     if (prod) handleProductChange(prod.product_id);
   }
 
-  // 제품 목록이 로드되면(또는 데이터셋 교체 시) 유효한 제품을 자동 선택.
-  // 목록에서 넘어온 initialProductId 가 현재 목록에 있으면 그 제품을 우선 선택한다.
+  // 허브가 고른 제품(initialProductId)에 내부 선택을 맞춘다 — 현재 선택이 유효해도 전환한다.
+  //   (예전엔 selectedProductId 가 '무효'일 때만 전환해, 허브가 products 전체를 먼저 로드해 두면
+  //    products[0]로 초기화된 채 고른 제품으로 넘어가지 않아 트리가 비었다.)
+  //   전환은 setState 로만 — onProductChange(허브 재로드·Pool 리셋)를 다시 부르면 안 되므로.
   useEffect(() => {
-    if (dataset.products.length > 0 && !dataset.products.some(p => p.product_id === selectedProductId)) {
-      const preferred = initialProductId && dataset.products.find(p => p.product_id === initialProductId);
-      handleProductChange((preferred || dataset.products[0]).product_id);
+    if (dataset.products.length === 0) return;
+    const hasInitial = initialProductId && dataset.products.some(p => p.product_id === initialProductId);
+    if (hasInitial && initialProductId !== selectedProductId) {
+      setSelectedProductId(initialProductId!);
+      setSelectedNodeKey(`product:${initialProductId}`);
+      return;
     }
-    // dataset.products 변화에만 반응
+    // initialProductId 가 없거나 이미 맞으면, 현재 선택이 무효일 때만 첫 제품으로 폴백.
+    if (!dataset.products.some(p => p.product_id === selectedProductId)) {
+      handleProductChange(dataset.products[0].product_id);
+    }
+    // dataset.products / initialProductId 변화에 반응
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataset.products]);
+  }, [dataset.products, initialProductId]);
 
   // 선택 제품의 BOM이 도착하면 BOM 버전(단위기간 Lot)을 선택.
   // 게이트/목록에서 넘어온 initialBomVersionId 는 1회 '강제 적용'해 고정한다 — 기본 첫 버전으로
@@ -776,26 +792,30 @@ function SupplyMapTree({
 }) {
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-      <div className="grid min-w-[980px] grid-cols-[minmax(270px,1.35fr)_80px_120px_minmax(170px,.85fr)_90px_90px_132px_54px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
-        <span>제품/부품명</span>
-        <span>Tier</span>
-        <span>공급사 유형</span>
-        <span>공급사 / 광산명</span>
-        <span>공급 비율</span>
-        <span>검증률</span>
-        <span>리스크 상태</span>
-        <span>상세</span>
-      </div>
-      <div className="overflow-x-auto">
-        <SupplyMapRow
-          node={root}
-          selectedNodeKey={selectedNodeKey}
-          collapsedNodeKeys={collapsedNodeKeys}
-          onSelect={onSelect}
-          onToggle={onToggle}
-          formationMode={formationMode}
-          highlightSupplierIds={highlightSupplierIds}
-        />
+      {/* 헤더와 행을 같은 가로 스크롤 컨테이너에 두어 가로 스크롤 시 함께 움직이고 컬럼이 어긋나지 않게 한다.
+          헤더는 sticky top-0 으로 세로 스크롤에도 위에 고정. */}
+      <div className="max-h-[70vh] overflow-auto">
+        <div className="min-w-[980px]">
+          <div className="sticky top-0 z-10 grid grid-cols-[minmax(270px,1.35fr)_80px_120px_minmax(170px,.85fr)_90px_90px_132px_54px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
+            <span>제품/부품명</span>
+            <span>Tier</span>
+            <span>공급사 유형</span>
+            <span>공급사 / 광산명</span>
+            <span>공급 비율</span>
+            <span>검증률</span>
+            <span>리스크 상태</span>
+            <span>상세</span>
+          </div>
+          <SupplyMapRow
+            node={root}
+            selectedNodeKey={selectedNodeKey}
+            collapsedNodeKeys={collapsedNodeKeys}
+            onSelect={onSelect}
+            onToggle={onToggle}
+            formationMode={formationMode}
+            highlightSupplierIds={highlightSupplierIds}
+          />
+        </div>
       </div>
     </div>
   );
