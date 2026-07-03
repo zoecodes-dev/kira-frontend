@@ -25,6 +25,21 @@ const nextConfig = {
       },
     ];
   },
+  // 협력사 전용 프론트 페이지 라우트를 /supplier에서 /partner로 이동(2026-07).
+  // /suppliers(원청사 협력사 관리 화면)와는 무관 — 기존에 나간 초대 메일/북마크가
+  // 계속 동작하도록 예전 경로를 새 경로로 리다이렉트만 해 둔다.
+  async redirects() {
+    return [
+      // 예전 activeView 쿼리 링크(?view=xxx)가 있었다면 대응 화면으로 직접 매핑.
+      { source: "/supplier", has: [{ type: "query", key: "view", value: "company-info" }], destination: "/partner/company-info", permanent: false },
+      { source: "/supplier", has: [{ type: "query", key: "view", value: "ai-parsing" }], destination: "/partner/ai-parsing", permanent: false },
+      { source: "/supplier", has: [{ type: "query", key: "view", value: "supply-chain" }], destination: "/partner/supply-chain", permanent: false },
+      { source: "/supplier", has: [{ type: "query", key: "view", value: "notifications" }], destination: "/partner/notifications", permanent: false },
+      { source: "/supplier", has: [{ type: "query", key: "view", value: "edit-info" }], destination: "/partner/settings", permanent: false },
+      { source: "/supplier", destination: "/partner", permanent: false },
+      { source: "/supplier/:path*", destination: "/partner/:path*", permanent: false },
+    ];
+  },
 };
 
 module.exports = nextConfig;
