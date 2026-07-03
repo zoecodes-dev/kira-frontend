@@ -4,12 +4,14 @@
 //  · 시스템 제공 표준 템플릿 / 제3자 정보 확인 동의서 첨부 / 본인인증 담당자(PIC) 재확인
 //  · 발송 = 제3자 동의서(데이터 계약) 생성 + (실 UUID 협력사) 자료요청 생성
 //    → 백엔드가 협력사 담당자에게 in-app 알림 + 이메일(SES) 실발송
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { CheckCircle2, FileSignature, Loader2, Paperclip, Send, ShieldCheck, Users } from 'lucide-react';
 import ModalShell from './ModalShell';
-import { createDataConsent, createDataRequest, type SupplierBrief } from '@/lib/api';
+import { createDataConsent, createDataRequest, getSupplierContacts, type SupplierBrief } from '@/lib/api';
 import { CONSENT_ATTACHMENT, INVITE_MAIL_SUBJECT, buildInviteMailBody } from '@/lib/supply-chain-mail-template';
+
+const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
 
 // 메일에 첨부하는 제3자 정보제공 동의서 = 데이터 계약(Data Contract) 조건.
 const SCOPE_OPTIONS: { key: string; label: string }[] = [
@@ -28,6 +30,7 @@ interface DraftState {
   picEmail: string;
   picPhone: string;
   picConfirmed: boolean;
+  picPrefilled: boolean;   // 상위 협력사가 가입 시 등록한 PIC(supplier_contacts)에서 자동 채움 여부
   subject: string;
   body: string;
   attachment: string;
@@ -41,6 +44,7 @@ function initialDraft(s: SupplierBrief): DraftState {
     picEmail: '',
     picPhone: '',
     picConfirmed: false,
+    picPrefilled: false,
     subject: INVITE_MAIL_SUBJECT,
     body: buildInviteMailBody(s.companyName),
     attachment: '',
@@ -82,6 +86,42 @@ export default function InviteMailModal({
   function patch(id: string, p: Partial<DraftState>) {
     setDrafts(prev => ({ ...prev, [id]: { ...prev[id], ...p } }));
   }
+
+  // 담당자(PIC) 자동 프리필 — 상위 협력사가 가입 시 등록한 하위 협력사 PIC(supplier_contacts)를 조회해
+  //   대표(is_primary) 담당자로 3칸·수신자 이메일을 채운다. 사용자가 이미 입력한 값·발송 건은 보존.
+  //   실 UUID 협력사만 조회(mock/데모 제외), 404(권한 없음 등)는 빈칸으로 폴백.
+  const [fetchedPics, setFetchedPics] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!selected) return;
+    const id = selected.supplierId;
+    if (fetchedPics.has(id) || !isUuid(id)) return;
+    let cancelled = false;
+    getSupplierContacts(id)
+      .then(res => {
+        if (cancelled) return;
+        setFetchedPics(prev => new Set(prev).add(id));
+        const list = res.contacts ?? [];
+        const primary = list.find(c => c.isPrimary) ?? list[0];
+        if (!primary) return;
+        setDrafts(prev => {
+          const d = prev[id];
+          if (!d || d.sent) return prev;
+          return {
+            ...prev,
+            [id]: {
+              ...d,
+              picName: d.picName || primary.name || '',
+              picEmail: d.picEmail || primary.email || '',
+              picPhone: d.picPhone || primary.phone || primary.mobile || '',
+              email: d.email || primary.email || '',
+              picPrefilled: Boolean(primary.name || primary.email || primary.phone || primary.mobile),
+            },
+          };
+        });
+      })
+      .catch(() => { if (!cancelled) setFetchedPics(prev => new Set(prev).add(id)); });
+    return () => { cancelled = true; };
+  }, [selected, fetchedPics]);
 
   // 발송 = 제3자 동의서(데이터 계약 'requested') 생성 + 자료요청 생성.
   //   자료요청은 백엔드에서 협력사 담당자에게 in-app 알림 + 이메일(SES)을 실발송한다.
@@ -162,6 +202,9 @@ export default function InviteMailModal({
                 <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ok-text">
                   <ShieldCheck className="h-4 w-4" />
                   본인인증 담당자 재확인
+                  {draft.picPrefilled && (
+                    <span className="rounded-full border border-ok-border bg-white px-1.5 py-0.5 text-[10px] font-bold text-ok-text">가입 시 등록 담당자</span>
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <input value={draft.picName} onChange={e => patch(selected.supplierId, { picName: e.target.value })} placeholder="담당자명" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand" />
