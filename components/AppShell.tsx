@@ -7,7 +7,7 @@ import NavLink from '@/components/NavLink';
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  if (pathname === '/' || pathname === '/login' || pathname === '/supplier' || pathname.startsWith('/supplier/')) {
+  if (pathname === '/' || pathname === '/login' || pathname === '/partner' || pathname.startsWith('/partner/')) {
     return <>{children}</>;
   }
 
