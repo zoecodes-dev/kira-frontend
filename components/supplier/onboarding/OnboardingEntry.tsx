@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { FileCheck2, Info, Loader2, Mail } from 'lucide-react';
 import { getOnboardingPrefill, type OnboardingPrefill } from '@/lib/api';
+import { buildConsentDocument } from '@/lib/consent-clauses';
 import type { OnboardingType } from './SupplierOnboarding';
 import StepFooter from './StepFooter';
 
@@ -63,6 +64,22 @@ export default function OnboardingEntry({
 
   const companyName = detail?.companyName ?? invitedCompany;
 
+  // 원청이 보낸 대기중 동의서가 있으면, 그 조건으로 원문을 재조립해 그대로 보여준다
+  // (메일에 담겨 나간 문서와 동일). 없으면 기존 안내 문구로 폴백.
+  const consent = detail?.consent ?? null;
+  const consentDoc = consent
+    ? buildConsentDocument({
+        providerCompany: companyName ?? '정보제공자',
+        purpose: consent.purpose,
+        dataScope: consent.dataScope,
+        thirdPartySharing: consent.thirdPartySharing,
+        allowedRecipients: consent.allowedRecipients,
+        validFrom: consent.validFrom,
+        validTo: consent.validTo,
+        revocable: consent.revocable,
+      })
+    : null;
+
   return (
     <div className="rounded-sm border border-slate-200 bg-white p-6 shadow-sm">
       {/* 초대 안내 */}
@@ -121,9 +138,20 @@ export default function OnboardingEntry({
           <FileCheck2 className="h-4 w-4 text-brand" />
           제3자 정보 확인 동의서
         </div>
-        <p className="mt-2 text-xs leading-5 text-slate-500">
-          원청이 보낸 메일에 첨부된 제3자 정보 확인 동의서를 확인해 주세요. 동의서 확인 후 정보 입력을 진행할 수 있습니다.
-        </p>
+        {consentDoc ? (
+          <>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              원청이 보낸 아래 제3자 정보 제공 동의서를 확인하고 동의해 주세요. 동의해야 정보 입력을 진행할 수 있으며, 동의 내역은 이력으로 기록됩니다.
+            </p>
+            <pre className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-3 text-[11px] leading-5 text-ink-200">
+              {consentDoc}
+            </pre>
+          </>
+        ) : (
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            원청이 보낸 메일에 첨부된 제3자 정보 확인 동의서를 확인해 주세요. 동의서 확인 후 정보 입력을 진행할 수 있습니다.
+          </p>
+        )}
         <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-semibold text-ink-300">
           <input
             type="checkbox"
@@ -131,7 +159,7 @@ export default function OnboardingEntry({
             onChange={e => onConsentChange(e.target.checked)}
             className="h-4 w-4 accent-brand"
           />
-          메일로 받은 제3자 정보 확인 동의서를 확인했습니다.
+          위 제3자 정보 제공 동의서의 내용을 확인하였으며, 이에 동의합니다.
         </label>
       </div>
 

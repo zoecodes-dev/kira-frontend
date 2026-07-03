@@ -8,17 +8,10 @@ import { CheckCircle2, FileSignature, Loader2, Paperclip, Send, ShieldCheck, Use
 import ModalShell from './ModalShell';
 import { createDataConsent, type SupplierBrief } from '@/lib/api';
 import { CONSENT_ATTACHMENT, INVITE_MAIL_SUBJECT, buildInviteMailBody } from '@/lib/supply-chain-mail-template';
+import { buildConsentDocument, PURPOSE_LABEL, PURPOSE_ORDER, SCOPE_LABEL, SCOPE_ORDER } from '@/lib/consent-clauses';
 
-// 메일에 첨부하는 제3자 정보제공 동의서 = 데이터 계약(Data Contract) 조건.
-const SCOPE_OPTIONS: { key: string; label: string }[] = [
-  { key: 'company', label: '기업 기본정보' },
-  { key: 'contacts', label: '담당자 연락처' },
-  { key: 'factories', label: '공장·사업장' },
-  { key: 'carbon_epd', label: '환경성적서(탄소)' },
-  { key: 'origin', label: '원산지/규제' },
-  { key: 'sub_suppliers', label: '하위 협력사' },
-];
-const PURPOSE_OPTIONS = ['EU_BATTERY', 'SUPPLY_CHAIN_DD', 'CSDDD', 'CONFLICT_MINERALS'];
+// 메일에 첨부하는 제3자 정보제공 동의서 = 데이터 계약(Data Contract) 조건. 라벨은 consent-clauses가 SSOT.
+const SCOPE_OPTIONS = SCOPE_ORDER.map(key => ({ key, label: SCOPE_LABEL[key] }));
 
 interface DraftState {
   email: string;
@@ -70,7 +63,25 @@ export default function InviteMailModal({
   const [scope, setScope] = useState<Set<string>>(new Set(['company', 'contacts', 'factories', 'carbon_epd', 'origin']));
   const [purpose, setPurpose] = useState('EU_BATTERY');
   const [thirdParty, setThirdParty] = useState(true);
+  const [recipients, setRecipients] = useState('');
   const [sendingId, setSendingId] = useState<string | null>(null);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const recipientList = recipients.split(',').map(s => s.trim()).filter(Boolean);
+
+  // 선택 조건으로 동의서 본문을 조립 — 이 결과가 메일에 담겨 나가고, 협력사도 시스템에서 동일 문서를 본다.
+  const consentDoc = useMemo(() => {
+    if (!selected) return '';
+    return buildConsentDocument({
+      providerCompany: selected.companyName,
+      purpose,
+      dataScope: Array.from(scope),
+      thirdPartySharing: thirdParty,
+      allowedRecipients: recipientList,
+      validFrom: today,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, purpose, scope, thirdParty, recipients]);
 
   function patch(id: string, p: Partial<DraftState>) {
     setDrafts(prev => ({ ...prev, [id]: { ...prev[id], ...p } }));
@@ -85,7 +96,8 @@ export default function InviteMailModal({
         dataScope: Array.from(scope),
         purpose,
         thirdPartySharing: thirdParty,
-        validFrom: new Date().toISOString().slice(0, 10),
+        allowedRecipients: thirdParty ? recipientList : undefined,
+        validFrom: today,
         formVersion: 'v1.0',
       }).catch(() => {});
       patch(id, { sent: true });
@@ -231,7 +243,7 @@ export default function InviteMailModal({
                   <label className="flex items-center gap-2 text-xs font-semibold text-ink-400">
                     목적
                     <select value={purpose} disabled={draft.sent} onChange={e => setPurpose(e.target.value)} className="rounded-sm border border-slate-200 px-2 py-1 text-xs font-semibold text-ink-100">
-                      {PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                      {PURPOSE_ORDER.map(p => <option key={p} value={p}>{PURPOSE_LABEL[p]}</option>)}
                     </select>
                   </label>
                   <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-ink-400">
@@ -239,6 +251,27 @@ export default function InviteMailModal({
                     제3자(고객사·규제기관) 재공유 허용
                   </label>
                 </div>
+                {thirdParty && (
+                  <input
+                    value={recipients}
+                    onChange={e => setRecipients(e.target.value)}
+                    disabled={draft.sent}
+                    placeholder="재공유 대상 (쉼표로 구분 — 예: BMW AG, 삼성SDI)"
+                    className="mt-2 h-9 w-full rounded-sm border border-slate-200 px-2.5 text-xs outline-none focus:border-brand disabled:bg-slate-50"
+                  />
+                )}
+              </div>
+
+              {/* 동의서 미리보기 — 발송 시 PDF로 첨부될 문서(메일 본문에는 인라인하지 않음) */}
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ink-300">
+                  <FileSignature className="h-4 w-4 text-brand" />
+                  동의서 미리보기 · 발송 시 PDF로 첨부 예정
+                  <span className="ml-auto font-normal text-slate-400">선택 조건이 바뀌면 즉시 갱신됩니다</span>
+                </div>
+                <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-sm border border-slate-200 bg-white p-3 text-[11px] leading-5 text-ink-200">
+                  {consentDoc}
+                </pre>
               </div>
 
               <div className="flex justify-end pt-1">

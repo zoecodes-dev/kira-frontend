@@ -16,7 +16,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { login, setToken, ApiError, isSupplierRole } from '@/lib/api';
+import { login, setToken, setSessionUser, ApiError, isSupplierRole } from '@/lib/api';
 
 // API 모드 여부 — true면 실제 POST /auth/login, 아니면 데모 권한분기 흐름 유지
 const USE_API = process.env.NEXT_PUBLIC_USE_API === 'true';
@@ -71,6 +71,7 @@ export default function LoginPage() {
     try {
       const res = await login(email, password);
       setToken(res.token);
+      setSessionUser({ displayName: res.displayName, role: res.role, userId: res.userId });
       // 백엔드 role 은 supplier_ceo/supplier_esg 등 세분화 값 → 접두사로 협력사 판별.
       // 온보딩 미완료(onboardingComplete===false)면 회원가입 경로로(전방호환; Phase1은 항상 완료).
       if (isSupplierRole(res.role)) {
