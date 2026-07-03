@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil, RefreshCw, X } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
-import { ApiError, confirmPool, createDataRequest, getSupplyChainGaps, getSupplyChainMaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, getValidationSummary, verifySupplier, type SupplierBrief, type SupplyChainGapsResult, type ValidationSummary } from '@/lib/api';
+import { ApiError, confirmPool, createDataRequest, getDataConsents, getDataRequests, getSupplyChainGaps, getSupplyChainMaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, getValidationSummary, verifySupplier, type SupplierBrief, type SupplyChainGapsResult, type ValidationSummary } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
 import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
 import PageHeader from '@/components/PageHeader';
@@ -14,12 +14,16 @@ import HubStepBar from '@/components/supply-chain/HubStepBar';
 import ModalShell from '@/components/supply-chain/ModalShell';
 import PoolModal from '@/components/supply-chain/PoolModal';
 import ConnectedSuppliersModal from '@/components/supply-chain/ConnectedSuppliersModal';
+import ConsentReviewModal from '@/components/supply-chain/ConsentReviewModal';
 import DataReviewModal from '@/components/supply-chain/DataReviewModal';
 import DataRequestModal, { type RequestGapItem } from '@/components/supply-chain/DataRequestModal';
 import InviteMailModal from '@/components/supply-chain/InviteMailModal';
 import MapManageModal from '@/components/supply-chain/MapManageModal';
 
-export type HubModal = null | 'mapCreate' | 'pool' | 'suppliers' | 'dataReview' | 'dataRequest' | 'invite' | 'mapManage';
+export type HubModal = null | 'mapCreate' | 'pool' | 'suppliers' | 'consent' | 'dataReview' | 'dataRequest' | 'invite' | 'mapManage';
+
+// 실 협력사 UUID 판별 — 데모/mock(S-ID 등) 대상은 백엔드 영속·조회에서 제외.
+const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
 
 // 진입 게이트 통합 목록의 한 행 = (제품 × 고객사 × BOM 버전). 각 BOM은 생산기간(period)을 가진다.
 // 단위기간은 이 BOM들과 분리된 광범위 시간창이며, 그 안에 여러 BOM이 편입된다.
@@ -75,12 +79,15 @@ export default function SupplyChainHub() {
   const [reviewSupplier, setReviewSupplier] = useState<{ id: string; name: string } | null>(null);
   // STEP3에서 특정 협력사 '메일' 클릭 시 초대 메일 팝업을 그 협력사로 미리 선택해 연다.
   const [mailInitialSupplierId, setMailInitialSupplierId] = useState<string | null>(null);
-  // STEP4(자료 수집·보완) '전체 확인' 완료 여부 — 이걸 눌러야 STEP5(최종 검증)로 넘어간다.
+  // STEP5(자료 수집·보완) '전체 확인' 완료 여부 — 이걸 눌러야 STEP6(최종 검증)로 넘어간다.
   const [dataReviewDone, setDataReviewDone] = useState(false);
-  // 사용자가 수행한 액션 단계(STEP 4 검증). STEP 1·2는 데이터, STEP 3은 협력사 확인 완료로 판정.
+  // 사용자가 방문/수행한 액션 단계. STEP1·2는 데이터, STEP3은 발송, STEP4는 동의서 수신 확인으로 판정.
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
-  // STEP 3 — 연결 협력사별 '확인' 처리 집합 + 일괄 자료요청 진행중 플래그 + 활성 BOM 버전(verify 대상).
+  // STEP 4 — 협력사별 '동의서 수신 확인' 집합(= 차수 노출 게이트) + 활성 BOM 버전(verify 대상).
   const [confirmedSuppliers, setConfirmedSuppliers] = useState<Set<string>>(new Set());
+  // STEP 3 — 동의 메일/요청 발송된 협력사 id 집합(발송 완료 판정용). STEP 4 — 동의서 수신 자동 판정 새로고침 트리거.
+  const [mailedIds, setMailedIds] = useState<Set<string>>(new Set());
+  const [consentRefresh, setConsentRefresh] = useState(0);
   const [activeBomVersionId, setActiveBomVersionId] = useState<string | undefined>(undefined);
   // 이 맵의 완료 상태(building/completed) — 차수별 점진 노출 게이트 기준(§신규).
   //   completed면 기존처럼 전체 노출(과거 시드 호환), building이면 확인된 차수까지만 노출.
@@ -207,29 +214,36 @@ export default function SupplyChainHub() {
     });
   }, [activeMapStatus, mapSuppliers, edgesByTier, maxVisibleTier]);
 
-  // STEP3 완료 = 이 맵에 편입된 협력사 '전부' 확인. (Pool=1차만이 아니라 전 차수 기준)
-  const step3Done = mapSuppliers.length > 0 && mapSuppliers.every(p => confirmedSuppliers.has(p.supplierId));
+  // STEP3 완료(제3자 동의 메일 발송) = 현재 노출된 협력사(광산 제외) 전부에 동의/요청 메일 발송.
+  //   demo/mock(실 UUID 없음)은 발송 이력을 추적할 수 없으므로 STEP3 방문으로 대체.
+  const consentTargets = visibleMapSuppliers.filter(s => s.providerType !== 'miner');
+  const trackable = mapSuppliers.some(s => isUuid(s.supplierId));
+  const step3Done = trackable
+    ? consentTargets.length > 0 && consentTargets.every(s => !isUuid(s.supplierId) || mailedIds.has(s.supplierId))
+    : visitedSteps.has(3);
+  // STEP4 완료(제3자 동의서 수신 확인) = 이 맵에 편입된 협력사 '전부' 수신 확인 → 전 차수 노출 완료.
+  const step4Done = mapSuppliers.length > 0 && mapSuppliers.every(p => confirmedSuppliers.has(p.supplierId));
 
-  // 완료 공급망(=STEP5 최종검증까지 done) = 협력사 전부 확인(STEP3) + 자료 검토 전체 확인(STEP4) + 완성도 준비(readyForFinal).
+  // 완료 공급망(=STEP6 최종검증까지 done) = 동의서 전부 수신 확인(STEP4) + 자료 검토 전체 확인(STEP5) + 완성도 준비(readyForFinal).
   const dataReady = summary?.readyForFinal ?? false;
-  const chainComplete = step3Done && dataReviewDone && dataReady;
+  const chainComplete = step4Done && dataReviewDone && dataReady;
   // 완료 공급망은 '수정'을 누르기 전까지 전체 완료·잠금 상태로 본다.
   const [editMode, setEditMode] = useState(false);
   const locked = chainComplete && !editMode;
 
-  // 완료 단계 — STEP1(제품)·2(Pool)는 상태 기반, 3(전부 확인)·4(검증)는 완료 공급망이면 done.
+  // 완료 단계 — STEP1(제품)·2(Pool)는 상태 기반, 3(동의 발송)·4(수신 확인)·6(최종검증)은 상태/완료 기반.
   const completed = useMemo(() => {
     const s = new Set<number>(visitedSteps);
     if (selectedProductId) s.add(1);
     if (pool.length > 0) s.add(2);
-    if (step3Done) s.add(3);          // STEP3(협력사 전부 확인) 완료 → 완료 색
-    if (chainComplete) s.add(4);      // STEP5(최종 검증) 완료
+    if (step3Done) s.add(3);          // STEP3(동의 메일 발송) 완료 → 완료 색
+    if (step4Done) s.add(4);          // STEP4(동의서 수신 확인) 완료 → 완료 색
+    if (chainComplete) s.add(6);      // STEP6(최종 검증) 완료
     return s;
-  }, [visitedSteps, selectedProductId, pool.length, step3Done, chainComplete]);
+  }, [visitedSteps, selectedProductId, pool.length, step3Done, step4Done, chainComplete]);
   const markVisited = (n: number) => setVisitedSteps(prev => (prev.has(n) ? prev : new Set(prev).add(n)));
 
-  // STEP 3 — 협력사 확인 토글 / 전체 확인 / 자료 일괄 요청. 확인은 supply-chain/verify로 백엔드 영속.
-  const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
+  // STEP 4 — 협력사 수신 확인 토글 / 전체 확인 / 자료 일괄 요청. 확인은 supply-chain/verify로 백엔드 영속.
   const persistVerify = (id: string, verified: boolean) => {
     if (activeBomVersionId && isUuid(id)) {
       verifySupplier({ bomVersionId: activeBomVersionId, supplierId: id, verified }).catch(() => {});
@@ -248,7 +262,43 @@ export default function SupplyChainHub() {
     setConfirmedSuppliers(prev => new Set([...prev, ...visibleMapSuppliers.map(p => p.supplierId)]));
     visibleMapSuppliers.forEach(p => persistVerify(p.supplierId, true));
   };
-  // STEP4 최종 검증 결과 영속 — 환경성적서 통과=verified, 실패=unverified로 백엔드 반영.
+
+  // STEP3(동의 메일 발송)·STEP4(동의서 수신 확인) 상태 집계 — 편입 협력사(광산 제외, 실 UUID)의
+  //   동의/요청 이력을 조회해 (1) 발송 여부(mailed)로 STEP3 완료를 판정하고,
+  //   (2) 동의서 회신 수신(returned/agreed)된 협력사는 자동으로 수신 확인 처리(자동+수동 병행)해 차수 노출에 반영한다.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const targets = mapSuppliers.filter(s => s.providerType !== 'miner' && isUuid(s.supplierId));
+      if (targets.length === 0) { if (!cancelled) setMailedIds(new Set()); return; }
+      const rows = await Promise.all(
+        targets.map(async s => {
+          const [consents, requests] = await Promise.all([
+            getDataConsents(s.supplierId).catch(() => []),
+            getDataRequests({ supplierId: s.supplierId }).catch(() => []),
+          ]);
+          const mailed = (consents ?? []).length > 0 || (requests ?? []).length > 0;
+          const received = (consents ?? []).some(c => c.status === 'returned' || c.status === 'agreed');
+          return { id: s.supplierId, mailed, received };
+        }),
+      );
+      if (cancelled) return;
+      setMailedIds(new Set(rows.filter(r => r.mailed).map(r => r.id)));
+      // 자동 판정 — 수신된 동의서는 수신 확인으로 자동 반영(사용자 수동 확인과 병행). 차수 노출 게이트에 즉시 반영.
+      const autoReceived = rows.filter(r => r.received).map(r => r.id);
+      if (autoReceived.length) {
+        setConfirmedSuppliers(prev => {
+          let changed = false;
+          const next = new Set(prev);
+          autoReceived.forEach(id => { if (!next.has(id)) { next.add(id); changed = true; persistVerify(id, true); } });
+          return changed ? next : prev;
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapSuppliers, consentRefresh]);
+  // STEP6 최종 검증 결과 영속 — 환경성적서 통과=verified, 실패=unverified로 백엔드 반영.
   const onStep4Verified = (results: { supplierId: string; passed: boolean }[]) => {
     setConfirmedSuppliers(prev => {
       const n = new Set(prev);
@@ -711,13 +761,15 @@ export default function SupplyChainHub() {
           completed={completed}
           locked={locked}
           step3Done={step3Done}
-          step4Done={dataReviewDone}
+          step4Done={step4Done}
+          step5Done={dataReviewDone}
           readyForFinal={summary?.readyForFinal ?? false}
           completePct={completePct}
           onOpenPool={() => setActiveModal('pool')}
-          onOpenSuppliers={() => setActiveModal('suppliers')}
+          onOpenSuppliers={() => { markVisited(3); setActiveModal('suppliers'); }}
+          onOpenConsent={() => setActiveModal('consent')}
           onOpenDataReview={() => setActiveModal('dataReview')}
-          onOpenVerify={() => { markVisited(4); setActiveModal('mapManage'); }}
+          onOpenVerify={() => { markVisited(6); setActiveModal('mapManage'); }}
         />
       </PageHeader>
 
@@ -727,11 +779,13 @@ export default function SupplyChainHub() {
           poolCount={pool.length}
           tier1Count={tier1Pool.length}
           step3Done={step3Done}
+          step4Done={step4Done}
           readyForFinal={summary?.readyForFinal ?? false}
           onOpenPool={() => setActiveModal('pool')}
-          onOpenSuppliers={() => setActiveModal('suppliers')}
+          onOpenSuppliers={() => { markVisited(3); setActiveModal('suppliers'); }}
+          onOpenConsent={() => setActiveModal('consent')}
           onOpenDataReview={() => setActiveModal('dataReview')}
-          onOpenVerify={() => { markVisited(4); setActiveModal('mapManage'); }}
+          onOpenVerify={() => { markVisited(6); setActiveModal('mapManage'); }}
         />
       )}
 
@@ -832,7 +886,7 @@ export default function SupplyChainHub() {
               )}
               <button
                 type="button"
-                onClick={() => { markVisited(4); setActiveModal('mapManage'); }}
+                onClick={() => { markVisited(6); setActiveModal('mapManage'); }}
                 disabled={!summary?.readyForFinal}
                 title={summary?.readyForFinal ? '' : '모든 협력사 데이터가 채워지면 이동할 수 있어요'}
                 className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
@@ -1121,20 +1175,28 @@ export default function SupplyChainHub() {
         />
       )}
 
-      {/* STEP 3 — 연결 협력사 확인 + 자료 일괄 요청 */}
+      {/* STEP 3 — 제3자 동의 메일 발송 */}
       {activeModal === 'suppliers' && (
         <ConnectedSuppliersModal
+          suppliers={visibleMapSuppliers}
+          onOpenMail={() => { setMailInitialSupplierId(null); setActiveModal('invite'); }}
+          onOpenMailFor={id => { setMailInitialSupplierId(id); setActiveModal('invite'); }}
+          onClose={() => { setConsentRefresh(x => x + 1); close(); }}
+        />
+      )}
+
+      {/* STEP 4 — 제3자 동의서 수신 확인(= 차수 노출 게이트) */}
+      {activeModal === 'consent' && (
+        <ConsentReviewModal
           suppliers={visibleMapSuppliers}
           confirmed={confirmedSuppliers}
           onToggleConfirm={toggleConfirm}
           onConfirmAll={confirmAll}
-          onOpenMail={() => { setMailInitialSupplierId(null); setActiveModal('invite'); }}
-          onOpenMailFor={id => { setMailInitialSupplierId(id); setActiveModal('invite'); }}
-          onClose={close}
+          onClose={() => { setConsentRefresh(x => x + 1); close(); }}
         />
       )}
 
-      {/* STEP4 — 자료 수집·보완 검토: 편입 협력사의 입력 누락·문서 문제 확인·요청·AI 파싱 검토 */}
+      {/* STEP5 — 자료 수집·보완 검토: 편입 협력사의 입력 누락·문서 문제 확인·요청·AI 파싱 검토 */}
       {activeModal === 'dataReview' && (
         <DataReviewModal
           suppliers={mapSuppliers}
@@ -1167,7 +1229,7 @@ export default function SupplyChainHub() {
       )}
 
       {activeModal === 'invite' && (
-        <InviteMailModal pool={visibleMapSuppliers} initialSupplierId={mailInitialSupplierId ?? undefined} onClose={close} />
+        <InviteMailModal pool={visibleMapSuppliers} initialSupplierId={mailInitialSupplierId ?? undefined} onClose={() => { setConsentRefresh(x => x + 1); close(); }} />
       )}
 
       {activeModal === 'mapManage' && (
@@ -1193,12 +1255,12 @@ export default function SupplyChainHub() {
 
 // 흐름 안내 배너 — 현재 단계와 '다음 할 일'을 상태 기반으로 명시(사용자가 다음 액션을 알 수 있게).
 function FlowGuide({
-  hasProduct, poolCount, tier1Count, step3Done, readyForFinal,
-  onOpenPool, onOpenSuppliers, onOpenDataReview, onOpenVerify,
+  hasProduct, poolCount, tier1Count, step3Done, step4Done, readyForFinal,
+  onOpenPool, onOpenSuppliers, onOpenConsent, onOpenDataReview, onOpenVerify,
 }: {
   hasProduct: boolean; poolCount: number; tier1Count: number;
-  step3Done: boolean; readyForFinal: boolean;
-  onOpenPool: () => void; onOpenSuppliers: () => void; onOpenDataReview: () => void; onOpenVerify: () => void;
+  step3Done: boolean; step4Done: boolean; readyForFinal: boolean;
+  onOpenPool: () => void; onOpenSuppliers: () => void; onOpenConsent: () => void; onOpenDataReview: () => void; onOpenVerify: () => void;
 }) {
   let step: string, title: string, desc: string, tone: 'info' | 'warn' | 'ok';
   let cta: { label: string; onClick: () => void } | null = null;
@@ -1213,20 +1275,25 @@ function FlowGuide({
   } else if (poolCount === 0) {
     step = 'STEP 2'; tone = 'info';
     title = '협력사 Pool을 구성하세요';
-    desc = `상단 "STEP 2 협력사 Pool 구성"을 눌러 1차 협력사 ${tier1Count}개사 중 작업 대상을 선택·확정하면 STEP 3~5가 열립니다.`;
+    desc = `상단 "STEP 2 협력사 Pool 구성"을 눌러 1차 협력사 ${tier1Count}개사 중 작업 대상을 선택·확정하면 STEP 3~6이 열립니다.`;
     cta = { label: '협력사 Pool 구성', onClick: onOpenPool };
   } else if (!step3Done) {
     step = 'STEP 3'; tone = 'info';
-    title = '협력사를 확인하세요';
-    desc = '이 공급망 맵에 편입된 협력사를 전부 확인하고, 필요하면 협력사별 정보요청 메일·동의서를 보내세요. 전부 확인하면 STEP 4가 열립니다.';
-    cta = { label: '협력사 확인', onClick: onOpenSuppliers };
-  } else if (!readyForFinal) {
+    title = '제3자 동의 메일을 발송하세요';
+    desc = '이 공급망 맵에 편입된(노출된 차수) 협력사에 정보요청 메일·제3자 정보제공 동의서를 발송하세요. 전부 발송하면 STEP 4가 열립니다.';
+    cta = { label: '동의 메일 발송', onClick: onOpenSuppliers };
+  } else if (!step4Done) {
     step = 'STEP 4'; tone = 'info';
+    title = '제3자 동의서 수신을 확인하세요';
+    desc = '협력사가 회신·서명한 동의서 수신 여부를 확인하세요. 한 차수를 전부 수신 확인하면 하위(n차) 협력사가 맵에 노출되고, 전 차수 완료 시 STEP 5가 열립니다.';
+    cta = { label: '동의서 수신 확인', onClick: onOpenConsent };
+  } else if (!readyForFinal) {
+    step = 'STEP 5'; tone = 'info';
     title = '자료 수집 · 보완을 검토하세요';
     desc = '협력사가 제출한 자료의 입력 누락·문서 문제를 확인하고, 미완료 협력사에 알림 요청하거나 문제 문서를 검토하세요.';
     cta = { label: '자료 검토', onClick: onOpenDataReview };
   } else {
-    step = 'STEP 5'; tone = 'ok';
+    step = 'STEP 6'; tone = 'ok';
     title = '자료 수집 완료 — 최종 검증으로 진행하세요';
     desc = '모든 협력사 데이터가 준비됐습니다. 최종 검증에서 판정·요약을 확인하고 고객사 데이터를 내보내세요.';
     cta = { label: '최종 검증', onClick: onOpenVerify };
