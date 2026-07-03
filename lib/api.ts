@@ -880,6 +880,19 @@ export interface OnboardingPrefill {
   companyName: string;
   providerType: string;
   country: string | null;
+  businessRegNo?: string | null;
+  dunsNumber?: string | null;
+  address?: string | null;
+  // 이미 등록된 본인(대표) 담당자 — 있으면 회원가입 폼에 미리 채워 확인·최신화한다.
+  contact?: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    department?: string | null;
+  } | null;
+  // 이미 업로드된 사업자등록증(있으면) — 재업로드 없이 확인만.
+  businessRegDoc?: { s3Key: string; fileName?: string | null } | null;
+  unverified?: boolean; // 미확인(서류 미보유)으로 등록돼 있는지
   consent?: OnboardingConsentSummary | null;
 }
 /** 공개 prefill — 비민감 필드(회사명/유형/국가) + 대기중 동의서 요약. 없으면 404. */
@@ -887,7 +900,8 @@ export const getOnboardingPrefill = (supplierId: string) =>
   api.get<OnboardingPrefill>(`/suppliers/${supplierId}/onboarding/prefill`);
 
 export interface OnboardingSubmitInput {
-  account: { email: string; password: string };
+  // 1차 협력사는 MES 기반 계정을 이미 보유 → account=null(신규 계정 생성 안 함).
+  account: { email: string; password: string } | null;
   company: {
     companyName: string;
     country: string;
@@ -947,7 +961,9 @@ export const createSupplier = (input: CreateSupplierInput) =>
 /** 공개 submit — 회사정보+문서+PIC+동의+계정 생성을 한 번에. 재제출/이메일중복 409. */
 export const submitSupplierOnboarding = (supplierId: string, input: OnboardingSubmitInput) =>
   api.post<OnboardingSubmitResult>(`/suppliers/${supplierId}/onboarding/submit`, {
-    account: { email: input.account.email, password: input.account.password },
+    account: input.account
+      ? { email: input.account.email, password: input.account.password }
+      : null,
     company: {
       company_name: input.company.companyName,
       country: input.company.country,

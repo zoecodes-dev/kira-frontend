@@ -86,11 +86,9 @@ export default function OnboardingEntry({
       <div className="flex items-start gap-3 rounded-md border border-ok-border bg-ok-bg p-4">
         <Mail className="mt-0.5 h-5 w-5 shrink-0 text-ok-text" />
         <div>
-          <div className="text-sm font-bold text-ink-100">원청으로부터 공급망 정보 입력 요청을 받았습니다.</div>
+          <div className="text-sm font-bold text-ink-100">원청 또는 직상위 협력사로부터 공급망 정보 입력 요청을 받았습니다.</div>
           <p className="mt-1 text-xs leading-5 text-ok-text">
-            {type === 'firstTier'
-              ? '1차 협력사로서 하위 협력사의 담당자(PIC) 정보를 등록해 주세요.'
-              : '아래 회원가입 절차에 따라 기본 정보와 필요 문서를 등록해 주세요.'}
+            아래 절차에 따라 회사 정보를 확인·입력하고, 하위 협력사 담당자를 등록해 주세요.
           </p>
         </div>
       </div>
@@ -138,32 +136,39 @@ export default function OnboardingEntry({
           <FileCheck2 className="h-4 w-4 text-brand" />
           제3자 정보 확인 동의서
         </div>
-        {consentDoc ? (
+        {/* 유효한 초대(대기중 동의서)가 있을 때만 원문+동의 체크를 노출한다.
+            없으면 안내문만 → 체크박스가 없어 다음 단계로 넘어갈 수 없다(무단 진입 차단). */}
+        {loading ? (
+          <p className="mt-2 text-xs leading-5 text-slate-500">동의서를 확인하는 중…</p>
+        ) : consentDoc ? (
           <>
             <p className="mt-2 text-xs leading-5 text-slate-500">
-              원청이 보낸 아래 제3자 정보 제공 동의서를 확인하고 동의해 주세요. 동의해야 정보 입력을 진행할 수 있으며, 동의 내역은 이력으로 기록됩니다.
+              직상위 협력사가 요청한 아래 제3자 정보 제공 동의서를 확인하고 동의해 주세요. 동의해야 다음 단계를 진행할 수 있으며, 동의 내역은 이력으로 기록됩니다.
             </p>
             <pre className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-3 text-[11px] leading-5 text-ink-200">
               {consentDoc}
             </pre>
+            <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-semibold text-ink-300">
+              <input
+                type="checkbox"
+                checked={consentChecked}
+                onChange={e => onConsentChange(e.target.checked)}
+                className="h-4 w-4 accent-brand"
+              />
+              위 제3자 정보 제공 동의서의 내용을 확인하였으며, 이에 동의합니다.
+            </label>
           </>
         ) : (
-          <p className="mt-2 text-xs leading-5 text-slate-500">
-            원청이 보낸 메일에 첨부된 제3자 정보 확인 동의서를 확인해 주세요. 동의서 확인 후 정보 입력을 진행할 수 있습니다.
-          </p>
+          <div className="mt-2 rounded-md border border-warn-border bg-warn-bg px-3 py-2.5 text-xs leading-5 text-warn-text">
+            메일의 초대 링크를 통해 접속하시면, 원청 또는 직상위 협력사가 요청한 동의서 내용을 확인·동의하신 후 다음 단계를 진행하실 수 있습니다.
+          </div>
         )}
-        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-semibold text-ink-300">
-          <input
-            type="checkbox"
-            checked={consentChecked}
-            onChange={e => onConsentChange(e.target.checked)}
-            className="h-4 w-4 accent-brand"
-          />
-          위 제3자 정보 제공 동의서의 내용을 확인하였으며, 이에 동의합니다.
-        </label>
       </div>
 
-      <StepFooter onNext={onNext} nextDisabled={!consentChecked} nextLabel="정보 입력 시작" />
+      {/* ⚠️ 임시(원복 대상) — 확인용으로 동의서/체크 없이도 다음 단계로 넘어갈 수 있게 게이트를 열어둠.
+          작업 확인 끝나면 아래 줄을 원본으로 되돌릴 것:
+          <StepFooter onNext={onNext} nextDisabled={!consentDoc || !consentChecked} nextLabel="정보 입력 시작" /> */}
+      <StepFooter onNext={onNext} nextDisabled={false} nextLabel="정보 입력 시작" />
     </div>
   );
 }
