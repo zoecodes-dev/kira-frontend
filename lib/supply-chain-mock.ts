@@ -88,7 +88,7 @@ export interface MockSupplierFactory {
 export interface SupplyChainMapRow {
   map_id: string;
   bom_version_id: string;
-  parent_supplier_id: string;
+  parent_supplier_id: string | null;
   child_supplier_id: string;
   part_id: string;
   hop_level?: number | null; // 이 엣지(노드 연결)의 차수 — 겸업 시 노드별 tier 분리용(같은 협력사라도 hop마다 다름)
@@ -125,6 +125,7 @@ export interface TraceRow {
   bom_percentage: number;
   mineral_ratio: number;
   supplier_id: string;
+  parent_supplier_id: string | null; // 이 엣지의 진짜 부모 협력사 ID — buildExplorerTree가 part_id 교차조인 없이 정확한 부모를 찾는 데 사용
   supplier_name: string;
   factory_id: string;
   factory_name: string;
@@ -546,6 +547,7 @@ export function buildTraceRows(ds: SupplyChainDataset, bomVersionId: string, per
             bom_percentage: bomItem.percentage,
             mineral_ratio: part.kind === 'component' ? 0 : bomItem.percentage,
             supplier_id: supplier.supplier_id,
+            parent_supplier_id: mapRow.parent_supplier_id,
             supplier_name: supplier.company_name,
             factory_id: factory.factory_id,
             factory_name: factory.factory_name,
@@ -624,6 +626,35 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
     rowsByPartId.set(row.part_id, arr);
   });
 
+  // [FIX] 같은 (part_id, supplier_id) 조합이 공장별로 여러 행이면(다중공장), 트리 노드는 회사당
+  // 1개만 만든다. 데이터 모델에는 "이 회사의 어느 공장이 상대 회사의 어느 공장한테 가는지"라는
+  // 연결이 아예 없어서(공급망 링크는 회사 단위, 공장 분할은 각 회사 내부 속성), 부모·자식 양쪽
+  // 다 공장이 여러 개면 이전엔 N×M으로 교차조인돼 트리가 곱셈으로 부풀려졌다.
+  for (const [partId, rowList] of rowsByPartId) {
+    const bySupplier = new Map<string, TraceRow[]>();
+    rowList.forEach(r => {
+      const arr = bySupplier.get(r.supplier_id) ?? [];
+      arr.push(r);
+      bySupplier.set(r.supplier_id, arr);
+    });
+    const deduped: TraceRow[] = [];
+    for (const group of bySupplier.values()) {
+      if (group.length === 1) {
+        deduped.push(group[0]);
+        continue;
+      }
+      // 대표 행 = 공급비율 최댓값 공장. factory_name엔 전체 공장을 합쳐 보여주고,
+      // supply_ratio는 회사 전체 기준 100%(공장 분할 합)로 표시.
+      const primary = [...group].sort((a, b) => b.supply_ratio - a.supply_ratio)[0];
+      deduped.push({
+        ...primary,
+        factory_name: group.map(g => g.factory_name).join(', '),
+        supply_ratio: 100,
+      });
+    }
+    rowsByPartId.set(partId, deduped);
+  }
+
   // 형제 노드 정렬 키 = 차수(tier) 오름차순. "Tier N"/part.tier_level에서 숫자 추출(없으면 큰 값=뒤로).
   const tierOrder = (row: TraceRow): number => {
     const fromTier = parseInt(String(row.tier).replace(/[^0-9]/g, ''), 10);
@@ -638,6 +669,11 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
     const childPartNodes = ds.parts
       .filter(item => item.parent_part_id === row.part_id)
       .flatMap(item => rowsByPartId.get(item.part_id) ?? [])
+      // [FIX] part_id만으로 묶으면, 이 부품/자식부품 양쪽 다 공장(행)이 여러 개일 때
+      // 서로 무관한 조합까지 전부 교차조인되어 자식 수가 곱으로 부풀려진다(예: 2공장×2공장=4행).
+      // 실제 부모-자식 협력사 관계(parent_supplier_id)가 이 row의 supplier_id와 일치하는 것만 연결.
+      // parent_supplier_id가 없는(구버전) 데이터는 폴백으로 기존 동작(전부 연결) 유지.
+      .filter(childRow => childRow.parent_supplier_id == null || childRow.parent_supplier_id === row.supplier_id)
       .sort(byTier)
       .map(childRow => buildPartNode(childRow, depth + 1));
 
@@ -1046,7 +1082,7 @@ export function mergeSupplyChainMap(
   const supply_chain_map: SupplyChainMapRow[] = resp.supplyChainMap.map(n => ({
     map_id: n.mapId,
     bom_version_id: bomVersionId,
-    parent_supplier_id: n.supplierId, // 백엔드 맵 노드는 child만 제공(트리 구조는 ratios의 누적 경로로)
+    parent_supplier_id: n.parentSupplierId ?? null, // §10.2a — 진짜 부모(트리 조립 시 part_id 교차조인 방지용)
     child_supplier_id: n.supplierId,
     part_id: n.partId,
     hop_level: n.hopLevel ?? null, // 엣지별 차수(SSOT) — 겸업 노드 tier 분리용
