@@ -175,12 +175,13 @@ export default function SupplyChainHub() {
     return m;
   }, [activeMapStatus, dataset.supply_chain_map, activeBomVersionId]);
 
-  // building 맵만 게이트: Tier0·1은 항상 노출, Tier N(N>=2)은 Tier(N-1) 협력사가
-  //   전부 confirmedSuppliers에 들어와야(STEP3 '확인') 열린다.
+  // building 맵만 게이트: Tier0(원청)만 항상 노출. Tier1(1차)은 STEP2에서 Pool을
+  //   실제로 '확정'(pool.length > 0)해야 열린다 — 후보로 뜨는 것과 확정은 다르다.
+  //   Tier N(N>=2)은 Tier(N-1) 협력사가 전부 confirmedSuppliers에 들어와야(STEP3 '확인') 열린다.
   const maxVisibleTier = useMemo(() => {
     if (activeMapStatus !== 'building') return Infinity;
     const tiers = [...edgesByTier.keys()].sort((a, b) => a - b);
-    let visible = 1;
+    let visible = pool.length > 0 ? 1 : 0;
     for (const tier of tiers) {
       if (tier <= visible) continue;
       const prevTierSuppliers = edgesByTier.get(tier - 1);
@@ -190,7 +191,7 @@ export default function SupplyChainHub() {
       visible = tier;
     }
     return visible;
-  }, [activeMapStatus, edgesByTier, confirmedSuppliers]);
+  }, [activeMapStatus, edgesByTier, confirmedSuppliers, pool.length]);
 
   // STEP3 모달(ConnectedSuppliersModal)에 넘길 협력사 — maxVisibleTier까지만.
   //   아직 안 열린 하위 차수를 순서 무시하고 먼저 '확인'해버리는 것을 막는다.

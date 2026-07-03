@@ -1191,6 +1191,7 @@ export interface ApiSupplyChainMapNode {
   partName?: string | null;  // §10.2a SELECT에 추가됨(맵 트리 부품명용)
   partCode?: string | null;
   supplierId: string;        // child_supplier_id
+  parentSupplierId: string | null;  // 진짜 부모 협력사 ID(§10.2a) — 트리 조립 시 part_id만으로 묶지 않고 이 값으로 실제 부모-자식을 확정
   factoryId: string | null;
   tierLevel: number | null;
   hopLevel?: number | null;  // §10.2a — 차수 SSOT(원청=0, 1차=1). 1차 판정·차수 표시용
