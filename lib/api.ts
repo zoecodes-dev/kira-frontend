@@ -544,6 +544,9 @@ export interface SupplierCompleteness {
   filledFieldCount: number | null;
   completionRate: number | null;
   missingFields: string[];
+  // provider_type별 '필수 필드 키' 전체(백엔드 SSOT). 섹션별 총계·'해당 없음' 판정에 사용.
+  //   미입력 키는 missingFields ⊆ requiredFields. 광산 등 비대상은 빈 배열.
+  requiredFields: string[];
   lastUpdatedAt: string | null;
 }
 export const getSupplierCompleteness = (id: string) =>
