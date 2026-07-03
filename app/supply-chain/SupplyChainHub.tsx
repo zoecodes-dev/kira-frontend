@@ -82,6 +82,9 @@ export default function SupplyChainHub() {
   // STEP 3 — 연결 협력사별 '확인' 처리 집합 + 일괄 자료요청 진행중 플래그 + 활성 BOM 버전(verify 대상).
   const [confirmedSuppliers, setConfirmedSuppliers] = useState<Set<string>>(new Set());
   const [activeBomVersionId, setActiveBomVersionId] = useState<string | undefined>(undefined);
+  // 이 맵의 완료 상태(building/completed) — 차수별 점진 노출 게이트 기준(§신규).
+  //   completed면 기존처럼 전체 노출(과거 시드 호환), building이면 확인된 차수까지만 노출.
+  const [activeMapStatus, setActiveMapStatus] = useState<'building' | 'completed' | null>(null);
   // 맵 관리에서 시작한 자료요청은 협력사명을 직접 지정 (없으면 선택 노드 기준)
   const [requestLabel, setRequestLabel] = useState<string | null>(null);
   // 자료 요청 대상 협력사 id + 그 협력사의 미흡 항목(최종 검증에서 계산). DataRequestModal에 전달.
@@ -98,6 +101,20 @@ export default function SupplyChainHub() {
   const [gaps, setGaps] = useState<SupplyChainGapsResult | null>(null);
   const [summary, setSummary] = useState<ValidationSummary | null>(null);  // [R1] 데이터 완성도 rollup
   const [requestingGaps, setRequestingGaps] = useState(false);             // [R2] 미완성 일괄요청 진행중
+
+  // activeBomVersionId가 바뀔 때마다 이 맵의 완료 상태(building/completed)를 조회 — 차수별 노출 게이트용.
+  useEffect(() => {
+    if (!activeBomVersionId) { setActiveMapStatus(null); return; }
+    let cancelled = false;
+    getSupplyChainMaps()
+      .then(maps => {
+        if (cancelled) return;
+        const header = maps.find(m => m.bomVersionId === activeBomVersionId);
+        setActiveMapStatus(header?.status ?? null);
+      })
+      .catch(() => { if (!cancelled) setActiveMapStatus(null); });
+    return () => { cancelled = true; };
+  }, [activeBomVersionId]);
 
   // 이 공급망 맵에 편입된 협력사 id 집합(parent/child, 현재 BOM 버전) — 스코프/대상 산출의 기준.
   const mapSupplierIds = useMemo(() => {
@@ -141,6 +158,55 @@ export default function SupplyChainHub() {
       });
   }, [dataset.suppliers, mapSupplierIds, rootAnchorIds]);
 
+  // 차수별 점진 노출(§신규) — 이 맵의 hop_level별 협력사 id 집합. completed 맵(과거 시드 포함)이면
+  //   빈 맵을 반환해 게이트를 아예 안 거치게(아래 maxVisibleTier가 바로 Infinity로 빠짐).
+  const edgesByTier = useMemo(() => {
+    const m = new Map<number, Set<string>>();
+    if (activeMapStatus !== 'building') return m;
+    dataset.supply_chain_map
+      .filter(r => !activeBomVersionId || r.bom_version_id === activeBomVersionId)
+      .forEach(r => {
+        const hop = r.hop_level ?? 0;
+        if (hop <= 0 || !r.child_supplier_id) return;
+        const set = m.get(hop) ?? new Set<string>();
+        set.add(r.child_supplier_id);
+        m.set(hop, set);
+      });
+    return m;
+  }, [activeMapStatus, dataset.supply_chain_map, activeBomVersionId]);
+
+  // building 맵만 게이트: Tier0·1은 항상 노출, Tier N(N>=2)은 Tier(N-1) 협력사가
+  //   전부 confirmedSuppliers에 들어와야(STEP3 '확인') 열린다.
+  const maxVisibleTier = useMemo(() => {
+    if (activeMapStatus !== 'building') return Infinity;
+    const tiers = [...edgesByTier.keys()].sort((a, b) => a - b);
+    let visible = 1;
+    for (const tier of tiers) {
+      if (tier <= visible) continue;
+      const prevTierSuppliers = edgesByTier.get(tier - 1);
+      const prevAllConfirmed = !!prevTierSuppliers && prevTierSuppliers.size > 0
+        && [...prevTierSuppliers].every(id => confirmedSuppliers.has(id));
+      if (!prevAllConfirmed) break;
+      visible = tier;
+    }
+    return visible;
+  }, [activeMapStatus, edgesByTier, confirmedSuppliers]);
+
+  // STEP3 모달(ConnectedSuppliersModal)에 넘길 협력사 — maxVisibleTier까지만.
+  //   아직 안 열린 하위 차수를 순서 무시하고 먼저 '확인'해버리는 것을 막는다.
+  const visibleMapSuppliers = useMemo(() => {
+    if (activeMapStatus !== 'building') return mapSuppliers; // completed는 기존처럼 전부
+    const hopOf = new Map<string, number>();
+    edgesByTier.forEach((ids, hop) => ids.forEach(id => {
+      const cur = hopOf.get(id);
+      if (cur == null || hop < cur) hopOf.set(id, hop);
+    }));
+    return mapSuppliers.filter(s => {
+      const hop = hopOf.get(s.supplierId);
+      return hop == null || hop <= maxVisibleTier;
+    });
+  }, [activeMapStatus, mapSuppliers, edgesByTier, maxVisibleTier]);
+
   // STEP3 완료 = 이 맵에 편입된 협력사 '전부' 확인. (Pool=1차만이 아니라 전 차수 기준)
   const step3Done = mapSuppliers.length > 0 && mapSuppliers.every(p => confirmedSuppliers.has(p.supplierId));
 
@@ -178,9 +244,9 @@ export default function SupplyChainHub() {
       return n;
     });
   const confirmAll = () => {
-    // 이 맵에 편입된 협력사 전부 확인(전 차수). mapSuppliers는 아래에서 도출되지만 호출 시점엔 이미 초기화됨.
-    setConfirmedSuppliers(new Set(mapSuppliers.map(p => p.supplierId)));
-    mapSuppliers.forEach(p => persistVerify(p.supplierId, true));
+    // 지금 노출된(=maxVisibleTier 이하) 협력사만 확인 — 전부 한번에 확인하면 차수 게이트가 무의미해진다.
+    setConfirmedSuppliers(prev => new Set([...prev, ...visibleMapSuppliers.map(p => p.supplierId)]));
+    visibleMapSuppliers.forEach(p => persistVerify(p.supplierId, true));
   };
   // STEP4 최종 검증 결과 영속 — 환경성적서 통과=verified, 실패=unverified로 백엔드 반영.
   const onStep4Verified = (results: { supplierId: string; passed: boolean }[]) => {
@@ -537,7 +603,7 @@ export default function SupplyChainHub() {
         missingFields: n.missing_fields as { field_name: string; field_label?: string }[],
       }));
     }
-    return mapSuppliers.map(s => ({
+    return visibleMapSuppliers.map(s => ({
       supplierId: s.supplierId,
       companyName: s.companyName,
       providerType: s.providerType,
@@ -545,7 +611,7 @@ export default function SupplyChainHub() {
       gapCount: 0,
       missingFields: [] as { field_name: string; field_label?: string }[],
     }));
-  }, [scopedGapNodes, mapSuppliers, dataset.suppliers]);
+  }, [scopedGapNodes, visibleMapSuppliers, dataset.suppliers]);
 
   // [R2] hop(차수)별 진행 구획 — 공급망은 원청→1차→…→n차로 edge가 연결되며 내려간다.
   //   depth(=hop)마다 칸을 하나씩 만들어, 지금 어느 차수까지 진행됐는지 한눈에 보이게 한다.
@@ -902,6 +968,7 @@ export default function SupplyChainHub() {
           onProductChange={handleProductChange}
           progressBySupplier={progressBySupplier}
           onRowClick={row => openSupplierReview(row.supplier_id, row.supplier_name)}
+          maxVisibleTier={maxVisibleTier}
         />
       )}
 
@@ -1057,7 +1124,7 @@ export default function SupplyChainHub() {
       {/* STEP 3 — 연결 협력사 확인 + 자료 일괄 요청 */}
       {activeModal === 'suppliers' && (
         <ConnectedSuppliersModal
-          suppliers={mapSuppliers}
+          suppliers={visibleMapSuppliers}
           confirmed={confirmedSuppliers}
           onToggleConfirm={toggleConfirm}
           onConfirmAll={confirmAll}
@@ -1100,7 +1167,7 @@ export default function SupplyChainHub() {
       )}
 
       {activeModal === 'invite' && (
-        <InviteMailModal pool={mapSuppliers} initialSupplierId={mailInitialSupplierId ?? undefined} onClose={close} />
+        <InviteMailModal pool={visibleMapSuppliers} initialSupplierId={mailInitialSupplierId ?? undefined} onClose={close} />
       )}
 
       {activeModal === 'mapManage' && (
