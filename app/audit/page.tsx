@@ -1,22 +1,52 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
-import { sampleAuditTrail, type AuditEntry } from '@/lib/data';
+import { type AuditEntry } from '@/lib/data';
+import { getAuditTrail, type AuditTrailItem } from '@/lib/api';
 import { Search, Bot, Wrench, User, ChevronDown, ChevronRight, Hash, Clock } from 'lucide-react';
 import clsx from 'clsx';
 
+function adaptAuditItem(item: AuditTrailItem): AuditEntry {
+  return {
+    step: item.stepNumber,
+    timestamp: item.timestamp,
+    nodeType: item.nodeType,
+    nodeName: item.nodeName,
+    model: item.model ?? undefined,
+    promptVersion: item.promptVersion ?? undefined,
+    durationMs: item.durationMs,
+    inputHash: item.inputHash,
+    outputHash: item.outputHash,
+    decision: item.decision ?? undefined,
+    citations: item.citations ?? undefined,
+  };
+}
+
 export default function AuditPage() {
   const [expandedStep, setExpandedStep] = useState<number | null>(7);
+  const [searchId, setSearchId] = useState('LOT-MIN-240514-D');
+  const [auditTrail, setAuditTrail] = useState<AuditEntry[]>([]);
+
+  const handleSearch = () => {
+    if (!searchId.trim()) return;
+    getAuditTrail(searchId.trim())
+      .then(items => { if (items && items.length > 0) setAuditTrail(items.map(adaptAuditItem)); })
+      .catch(() => {});
+  };
+
+  const totalDuration = auditTrail.reduce((s, e) => s + e.durationMs, 0);
+  const llmCalls = auditTrail.filter(e => e.nodeType === 'agent').length;
+  const toolCalls = auditTrail.filter(e => e.nodeType === 'tool').length;
 
   return (
     <>
       <PageHeader 
         title="감사 추적"
         description="Provenance 미들웨어가 자동 기록한 의사결정 경로 · 규제 당국 감사 대응용"
-        badge="DPP-2026-04982"
+        badge="LOT-MIN-240514-D"
       />
 
       <div className="p-8 space-y-6">
@@ -24,13 +54,14 @@ export default function AuditPage() {
         <Card>
           <div className="flex items-center gap-3">
             <Search className="w-4 h-4 text-ink-400" />
-            <input 
+            <input
               type="text"
-              placeholder="DPP ID 또는 배치 ID로 검색 (예: DPP-2026-04982 또는 LOT-MIN-240514-D)"
-              defaultValue="LOT-MIN-240514-D"
+              placeholder="배치 UUID로 검색 (예: ba111111-0000-4000-8000-000000000001)"
+              value={searchId}
+              onChange={e => setSearchId(e.target.value)}
               className="flex-1 bg-transparent text-sm text-ink-100 placeholder:text-ink-500 outline-none num-mono"
             />
-            <button className="px-3 py-1.5 rounded-xs bg-accent-700/20 border border-accent-700/30 text-accent-300 text-xs font-medium hover:bg-accent-700/30 transition-colors">
+            <button onClick={handleSearch} className="px-3 py-1.5 rounded-xs bg-accent-700/20 border border-accent-700/30 text-accent-300 text-xs font-medium hover:bg-accent-700/30 transition-colors">
               조회
             </button>
           </div>
@@ -38,10 +69,10 @@ export default function AuditPage() {
 
         {/* 조회 결과 요약 */}
         <div className="grid grid-cols-4 gap-4">
-          <SummaryStat label="총 단계 수" value="9" unit="steps" />
-          <SummaryStat label="총 소요 시간" value="18.3" unit="초" />
-          <SummaryStat label="LLM 호출" value="5" unit="회" />
-          <SummaryStat label="툴 호출" value="3" unit="회" />
+          <SummaryStat label="총 단계 수" value={auditTrail.length || '-'} unit="steps" />
+          <SummaryStat label="총 소요 시간" value={auditTrail.length ? (totalDuration / 1000).toFixed(1) : '-'} unit="초" />
+          <SummaryStat label="LLM 호출" value={auditTrail.length ? llmCalls : '-'} unit="회" />
+          <SummaryStat label="툴 호출" value={auditTrail.length ? toolCalls : '-'} unit="회" />
         </div>
 
         {/* 의사결정 경로 */}
@@ -56,7 +87,10 @@ export default function AuditPage() {
           }
         >
           <div className="space-y-2">
-            {sampleAuditTrail.map(entry => (
+            {auditTrail.length === 0 ? (
+              <div className="py-8 text-center text-xs text-ink-500">배치 UUID를 입력하고 조회하면 감사 추적이 표시됩니다</div>
+            ) : null}
+            {auditTrail.map(entry => (
               <AuditEntryRow 
                 key={entry.step}
                 entry={entry}
@@ -68,7 +102,7 @@ export default function AuditPage() {
 
           {/* 최종 결과 */}
           <div className="mt-6 pt-5 border-t border-ink-700">
-            <div className="rounded-xs border border-red-700/40 bg-red-500/5 p-4">
+            <div className="rounded-xs border border-alert-border bg-alert-bg p-4">
               <div className="flex items-start gap-3">
                 <Badge tone="alert" dot>최종 판정: 반려</Badge>
               </div>
@@ -101,8 +135,8 @@ function SummaryStat({ label, value, unit }: any) {
 function AuditEntryRow({ entry, expanded, onToggle }: { entry: AuditEntry; expanded: boolean; onToggle: () => void }) {
   const typeStyles = {
     agent: { icon: Bot,    bg: 'bg-accent-700/20', text: 'text-accent-300', border: 'border-accent-700/40' },
-    tool:  { icon: Wrench, bg: 'bg-blue-700/20',   text: 'text-blue-300',   border: 'border-blue-700/40' },
-    human: { icon: User,   bg: 'bg-amber-700/20',  text: 'text-amber-300',  border: 'border-amber-700/40' },
+    tool:  { icon: Wrench, bg: 'bg-info-bg',   text: 'text-info-text',   border: 'border-info-border' },
+    human: { icon: User,   bg: 'bg-warn-bg',  text: 'text-warn-text',  border: 'border-warn-border' },
   };
   const style = typeStyles[entry.nodeType];
   const Icon = style.icon;

@@ -3,6 +3,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AlertTriangle, Edit2, ChevronRight, Info, Save, CheckCircle2, Send } from 'lucide-react';
 import Badge from '@/components/Badge';
+import { updateSupplierDetail } from '@/lib/api';
+
+// AI 추출 fieldId → PATCH /suppliers/{id}/detail payload 키.
+// 인식하는 필드만 영속화한다(제조사 위주):
+//   carbon_intensity/energy_source → supplier_manufacturer_details
+//   origin_country                 → suppliers.country (협력사 위치 국가 = 원산지, ISO 3166-1 alpha-2)
+// 그 외(scope1/scope2/hs_code 등)는 현재 상세 테이블에 둘 곳이 없어 저장하지 않는다.
+const FIELD_TO_DETAIL: Record<string, 'carbon_intensity' | 'energy_source' | 'country'> = {
+  carbon_intensity: 'carbon_intensity',
+  energy_source: 'energy_source',
+  origin_country: 'country',
+};
 
 // 신뢰도에 따른 색상/톤 반환 함수 (기획서 D-3 스펙)
 // · 0.90 이상 → 초록(#F0FDF4) — 자동 확인 처리, 수동 검토 불필요
@@ -28,16 +40,16 @@ function getConfidenceStyle(confidence: number): {
     return {
       tone: 'warn',
       rowBg: 'bg-[#FFFBEB]',
-      inputBg: 'bg-amber-50',
-      inputBorder: 'border-amber-300 focus:border-amber-500',
+      inputBg: 'bg-warn-bg',
+      inputBorder: 'border-warn-border focus:border-warn-border',
       warningLevel: 'review',
     };
   }
   return {
     tone: 'alert',
     rowBg: 'bg-[#FEF2F2]',
-    inputBg: 'bg-red-50',
-    inputBorder: 'border-red-300 focus:border-red-500',
+    inputBg: 'bg-alert-bg',
+    inputBorder: 'border-alert-border focus:border-alert-border',
     warningLevel: 'required',
   };
 }
@@ -59,9 +71,11 @@ interface ExtractionTableProps {
   onConfirmComplete: () => void;
   /**
    * 현재 탭이 마지막 미완료 문서인지 여부
-   * true → 버튼 텍스트를 "원청사로 제출"로 변경 (submission-review → review 상태로 전송)
+   * true → 버튼 텍스트를 "원청사로 제출"로 변경 (review 상태로 전송)
    */
   isLastDoc?: boolean;
+  /** 'supplier'(협력사 제출) | 'oem'(원청 검토). 버튼·문구를 보는 주체에 맞게 분리. */
+  mode?: 'supplier' | 'oem';
 }
 
 // ─── 토스트 컴포넌트 ────────────────────────────────────────────────────────
@@ -83,7 +97,7 @@ function Toast({
     <div
       className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-sm border px-4 py-3 text-xs font-semibold shadow-lg transition-all ${
         tone === 'ok'
-          ? 'border-green-200 bg-green-50 text-green-800'
+          ? 'border-ok-border bg-ok-bg text-ok-text'
           : 'border-accent-100 bg-accent-50 text-accent-800'
       }`}
     >
@@ -111,26 +125,26 @@ function DraftBanner({
   onDiscard: () => void;
 }) {
   return (
-    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-5 py-2.5">
-      <div className="flex items-center gap-2 text-[11px] text-amber-800">
+    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-warn-border bg-warn-bg px-5 py-2.5">
+      <div className="flex items-center gap-2 text-[11px] text-warn-text">
         <Save className="h-3.5 w-3.5 shrink-0" />
         <span>
           이전에 저장된 초안이 있습니다.
-          <span className="ml-1 text-[10px] text-amber-600">({savedAt} 저장)</span>
+          <span className="ml-1 text-[10px] text-warn-text">({savedAt} 저장)</span>
         </span>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={onDiscard}
-          className="text-[11px] font-semibold text-amber-600 hover:text-amber-900"
+          className="text-[11px] font-semibold text-warn-text hover:text-warn-text"
         >
           무시
         </button>
         <button
           type="button"
           onClick={onRestore}
-          className="rounded-xs border border-amber-400 bg-white px-3 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100"
+          className="rounded-xs border border-warn-border bg-white px-3 py-1 text-[11px] font-bold text-warn-text hover:bg-warn-bg"
         >
           불러오기
         </button>
@@ -139,7 +153,8 @@ function DraftBanner({
   );
 }
 
-export default function ExtractionTable({ doc, supplierId, onConfirmComplete, isLastDoc = false }: ExtractionTableProps) {
+export default function ExtractionTable({ doc, supplierId, onConfirmComplete, isLastDoc = false, mode = 'supplier' }: ExtractionTableProps) {
+  const oem = mode === 'oem';
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
   const [unparsedInputs, setUnparsedInputs] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
@@ -196,14 +211,34 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
     }
   }, [editedValues, unparsedInputs, supplierId, doc.docId]);
 
-  // ── 최종 제출 — localStorage 초안 삭제 후 완료 ────────────────────────────
+  // ── 최종 제출 — 확정값을 백엔드 상세로 영속화 후 완료 ─────────────────────
+  // 인식하는 필드만 PATCH /suppliers/{id}/detail 로 보낸다(편집값 우선, 없으면 AI 추출값).
+  // 실 UUID 협력사일 때만 호출(mock S-ID는 데모 — 저장 생략하고 진행).
   const handleSubmit = async () => {
     setConfirming(true);
-    await new Promise(res => setTimeout(res, 800));
-    // 제출 완료 시 초안 삭제
-    localStorage.removeItem(draftKey(supplierId, doc.docId));
-    setConfirming(false);
-    onConfirmComplete();
+    try {
+      const isRealSupplier = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId);
+      const payload: Record<string, unknown> = {};
+      for (const f of (doc.extractionResult.fields as Array<{ fieldId: string; aiValue: string }>)) {
+        const key = FIELD_TO_DETAIL[f.fieldId];
+        if (!key) continue;
+        const raw = editedValues[f.fieldId] !== undefined ? editedValues[f.fieldId] : f.aiValue;
+        const v = (raw ?? '').toString().trim();
+        if (!v) continue;
+        // 탄소집약도만 숫자(천단위 콤마 제거). 나머지는 문자열 그대로.
+        // country 정규화(국가명→ISO alpha-2)는 백엔드 update_supplier_detail이 담당.
+        payload[key] = key === 'carbon_intensity' ? Number(v.replace(/,/g, '')) : v;
+      }
+      if (isRealSupplier && Object.keys(payload).length > 0) {
+        await updateSupplierDetail(supplierId, payload);
+      }
+      localStorage.removeItem(draftKey(supplierId, doc.docId));
+      onConfirmComplete();
+    } catch {
+      setToast({ message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', tone: 'ok' });
+    } finally {
+      setConfirming(false);
+    }
   };
 
   const handleEdit = (key: string, value: string) => {
@@ -239,16 +274,16 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
           <div className="space-y-4">
             {doc.extractionResult.fields.map((field: any) => {
               const style = getConfidenceStyle(field.confidence);
-              const currentValue = editedValues[field.key] !== undefined ? editedValues[field.key] : field.aiValue;
+              const currentValue = editedValues[field.fieldId] !== undefined ? editedValues[field.fieldId] : field.aiValue;
 
               return (
                 <div
-                  key={field.key}
+                  key={field.fieldId}
                   className={`rounded-xs border px-3 py-3 transition-colors ${
                     style.warningLevel === 'required'
-                      ? 'border-red-200'
+                      ? 'border-alert-border'
                       : style.warningLevel === 'review'
-                      ? 'border-amber-200'
+                      ? 'border-warn-border'
                       : 'border-transparent'
                   } ${style.rowBg}`}
                 >
@@ -256,13 +291,13 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
                     <label className="text-[11px] font-bold text-ink-400">{field.label}</label>
                     <div className="flex items-center gap-1.5">
                       {style.warningLevel === 'review' && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700">
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-warn-text">
                           <Info className="h-3 w-3" />
                           검토 권장
                         </span>
                       )}
                       {style.warningLevel === 'required' && (
-                        <span className="flex items-center gap-1 rounded-xs bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
+                        <span className="flex items-center gap-1 rounded-xs bg-alert-bg px-1.5 py-0.5 text-[10px] font-bold text-alert-text">
                           <AlertTriangle className="h-3 w-3" />
                           수정 필요
                         </span>
@@ -274,7 +309,7 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
                     <input
                       type="text"
                       value={currentValue}
-                      onChange={(e) => handleEdit(field.key, e.target.value)}
+                      onChange={(e) => handleEdit(field.fieldId, e.target.value)}
                       className={`w-full rounded-xs border px-3 py-2 text-xs font-bold outline-none transition-all pr-12 ${style.inputBg} ${style.inputBorder}`}
                     />
                     {field.unit && (
@@ -282,7 +317,7 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
                     )}
                   </div>
                   {field.warning && (
-                    <p className="mt-1.5 flex items-center gap-1 text-[10px] text-red-600 font-semibold">
+                    <p className="mt-1.5 flex items-center gap-1 text-[10px] text-alert-text font-semibold">
                       <AlertTriangle className="h-3 w-3" /> {field.warning}
                     </p>
                   )}
@@ -329,14 +364,14 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
             onClick={handleSubmit}
             disabled={confirming}
             className={`inline-flex items-center gap-1.5 rounded-xs px-5 py-2 text-xs font-bold text-white shadow-control transition-colors disabled:opacity-70 ${
-              isLastDoc ? 'bg-signal-ok hover:bg-emerald-600' : 'bg-accent-700 hover:bg-accent-900'
+              isLastDoc ? 'bg-signal-ok hover:bg-ok-solid' : 'bg-accent-700 hover:bg-accent-900'
             }`}
           >
             {confirming ? '처리 중...' : isLastDoc ? (
-              /* 마지막 문서 — submission-review의 review 상태로 원청사 Queue에 전송 */
-              <><Send className="h-3.5 w-3.5" /> 원청사로 제출</>
+              /* 마지막 문서 — 협력사: 원청사로 제출 / 원청: 검토 완료 */
+              <><Send className="h-3.5 w-3.5" /> {oem ? '검토 완료' : '원청사로 제출'}</>
             ) : (
-              <>저장 및 다음으로 <ChevronRight className="h-3.5 w-3.5" /></>
+              <>{oem ? '확인 및 다음으로' : '저장 및 다음으로'} <ChevronRight className="h-3.5 w-3.5" /></>
             )}
           </button>
         </div>

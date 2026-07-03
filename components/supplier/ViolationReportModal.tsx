@@ -84,7 +84,7 @@ function FieldLabel({ label, sub, required }: { label: string; sub?: string; req
     <div className="mb-1.5">
       <span className="text-xs font-bold text-ink-400">
         {label}
-        {required && <span className="ml-1 text-red-500">*</span>}
+        {required && <span className="ml-1 text-alert-text">*</span>}
       </span>
       {sub && <span className="ml-2 text-[10px] text-ink-600">{sub}</span>}
     </div>
@@ -194,8 +194,8 @@ export default function ViolationReportModal({
 
   if (!open) return null;
 
-  const severityColor = violation.severity === 'critical' ? 'text-red-600' : 'text-amber-600';
-  const severityBg    = violation.severity === 'critical' ? 'bg-red-600' : 'bg-amber-500';
+  const severityColor = violation.severity === 'critical' ? 'text-alert-text' : 'text-warn-text';
+  const severityBg    = violation.severity === 'critical' ? 'bg-alert-solid' : 'bg-warn-solid';
 
   return (
     /* ── 오버레이 ──────────────────────────────────────────────────────────── */
@@ -213,17 +213,17 @@ export default function ViolationReportModal({
       />
 
       {/* ── 모달 패널 ────────────────────────────────────────────────────── */}
-      <div className="relative z-10 flex w-full max-w-2xl flex-col rounded-sm border border-red-200 bg-white shadow-[0_24px_64px_rgba(0,0,0,0.20)] max-h-[92vh]">
+      <div className="relative z-10 flex w-full max-w-2xl flex-col rounded-sm border border-alert-border bg-white shadow-[0_24px_64px_rgba(0,0,0,0.20)] max-h-[92vh]">
 
         {/* ── 헤더 (빨간 경고 톤) ──────────────────────────────────────── */}
-        <div className="flex shrink-0 items-start justify-between gap-4 rounded-t-sm border-b border-red-200 bg-red-50 px-6 py-4">
+        <div className="flex shrink-0 items-start justify-between gap-4 rounded-t-sm border-b border-alert-border bg-alert-bg px-6 py-4">
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xs border border-red-200 bg-white">
-              <ShieldAlert className="h-5 w-5 text-red-600" strokeWidth={2.2} />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xs border border-alert-border bg-white">
+              <ShieldAlert className="h-5 w-5 text-alert-text" strokeWidth={2.2} />
             </div>
             <div>
-              <div className="text-xs font-bold text-red-800">시정 조치 계획 및 소명서 제출</div>
-              <div className="mt-0.5 text-[10px] text-red-600">
+              <div className="text-xs font-bold text-alert-text">시정 조치 계획 및 소명서 제출</div>
+              <div className="mt-0.5 text-[10px] text-alert-text">
                 규제 위반 적발 건에 대한 공식 소명 및 시정 계획을 원청사에 제출합니다
               </div>
             </div>
@@ -233,7 +233,7 @@ export default function ViolationReportModal({
               type="button"
               onClick={onClose}
               aria-label="모달 닫기"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xs border border-red-200 text-red-400 hover:border-red-400 hover:text-red-600"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xs border border-alert-border text-alert-text hover:border-alert-border hover:text-alert-text"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -269,14 +269,14 @@ export default function ViolationReportModal({
               {/* ① 위반 내역 (Read-only) ─────────────────────────────── */}
               <div>
                 <FieldLabel label="위반 내역" sub="원청사 판정 결과 · 수정 불가" />
-                <div className="rounded-xs border border-red-200 bg-red-50/60 px-4 py-3">
+                <div className="rounded-xs border border-alert-border bg-alert-bg px-4 py-3">
                   {/* 규제 배지 + ID */}
                   <div className="mb-2 flex items-center gap-2">
                     <span className={clsx(
                       'rounded-xs border px-2 py-0.5 text-[10px] font-bold',
                       violation.severity === 'critical'
-                        ? 'border-red-300 bg-red-100 text-red-700'
-                        : 'border-amber-300 bg-amber-100 text-amber-700'
+                        ? 'border-alert-border bg-alert-bg text-alert-text'
+                        : 'border-warn-border bg-warn-bg text-warn-text'
                     )}>
                       {violation.regulation}
                     </span>
@@ -286,12 +286,12 @@ export default function ViolationReportModal({
                     </span>
                   </div>
                   {/* 규제 전체명 */}
-                  <div className="text-xs font-bold text-red-800 mb-1">{violation.regulationLabel}</div>
+                  <div className="text-xs font-bold text-alert-text mb-1">{violation.regulationLabel}</div>
                   {/* 위반 요약 */}
-                  <div className="text-xs leading-5 text-red-700">{violation.summary}</div>
+                  <div className="text-xs leading-5 text-alert-text">{violation.summary}</div>
                   {/* 심각도 바 */}
                   <div className="mt-3 flex items-center gap-2">
-                    <div className="h-1.5 flex-1 rounded-full bg-red-100 overflow-hidden">
+                    <div className="h-1.5 flex-1 rounded-full bg-alert-bg overflow-hidden">
                       <div
                         className={clsx('h-full rounded-full', severityBg)}
                         style={{ width: violation.severity === 'critical' ? '100%' : '65%' }}
@@ -321,13 +321,13 @@ export default function ViolationReportModal({
                   rows={4}
                   className={clsx(
                     'w-full rounded-xs border px-3 py-2.5 text-xs text-ink-100 leading-5 resize-y',
-                    'placeholder:text-ink-600 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400',
+                    'placeholder:text-ink-600 focus:outline-none focus:ring-2 focus:ring-alert-border focus:border-alert-border',
                     'transition-colors',
-                    errors.reason ? 'border-red-400 bg-red-50' : 'border-ink-600 bg-white focus:border-red-400'
+                    errors.reason ? 'border-alert-border bg-alert-bg' : 'border-ink-600 bg-white focus:border-alert-border'
                   )}
                 />
                 {errors.reason && (
-                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-red-600">
+                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-alert-text">
                     <AlertTriangle className="h-3 w-3 shrink-0" />
                     {errors.reason}
                   </div>
@@ -351,13 +351,13 @@ export default function ViolationReportModal({
                   rows={4}
                   className={clsx(
                     'w-full rounded-xs border px-3 py-2.5 text-xs text-ink-100 leading-5 resize-y',
-                    'placeholder:text-ink-600 focus:outline-none focus:ring-2 focus:ring-red-500/20',
+                    'placeholder:text-ink-600 focus:outline-none focus:ring-2 focus:ring-alert-border',
                     'transition-colors',
-                    errors.plan ? 'border-red-400 bg-red-50' : 'border-ink-600 bg-white focus:border-red-400'
+                    errors.plan ? 'border-alert-border bg-alert-bg' : 'border-ink-600 bg-white focus:border-alert-border'
                   )}
                 />
                 {errors.plan && (
-                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-red-600">
+                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-alert-text">
                     <AlertTriangle className="h-3 w-3 shrink-0" />
                     {errors.plan}
                   </div>
@@ -379,13 +379,13 @@ export default function ViolationReportModal({
                     }}
                     className={clsx(
                       'w-full rounded-xs border pl-9 pr-3 py-2.5 text-xs text-ink-100',
-                      'focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-colors',
-                      errors.targetDate ? 'border-red-400 bg-red-50' : 'border-ink-600 bg-white focus:border-red-400'
+                      'focus:outline-none focus:ring-2 focus:ring-alert-border transition-colors',
+                      errors.targetDate ? 'border-alert-border bg-alert-bg' : 'border-ink-600 bg-white focus:border-alert-border'
                     )}
                   />
                 </div>
                 {errors.targetDate && (
-                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-red-600">
+                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-alert-text">
                     <AlertTriangle className="h-3 w-3 shrink-0" />
                     {errors.targetDate}
                   </div>
@@ -409,13 +409,13 @@ export default function ViolationReportModal({
                     'flex flex-col items-center justify-center gap-2 rounded-xs border-2 border-dashed',
                     'px-6 py-6 cursor-pointer select-none transition-colors',
                     dragging
-                      ? 'border-red-400 bg-red-50/60'
-                      : 'border-ink-600 bg-ink-800/20 hover:border-red-300 hover:bg-red-50/30'
+                      ? 'border-alert-border bg-alert-bg'
+                      : 'border-ink-600 bg-ink-800/20 hover:border-alert-border hover:bg-alert-bg'
                   )}
                 >
                   <Paperclip className={clsx(
                     'h-6 w-6 transition-colors',
-                    dragging ? 'text-red-500' : 'text-ink-500'
+                    dragging ? 'text-alert-text' : 'text-ink-500'
                   )} />
                   <div className="text-center">
                     <div className="text-xs font-semibold text-ink-300">
@@ -456,7 +456,7 @@ export default function ViolationReportModal({
                             <div
                               className={clsx(
                                 'h-full rounded-full transition-all duration-300',
-                                item.state === 'done' ? 'bg-signal-ok' : 'bg-red-500'
+                                item.state === 'done' ? 'bg-signal-ok' : 'bg-alert-solid'
                               )}
                               style={{ width: `${item.progress}%` }}
                             />
@@ -471,7 +471,7 @@ export default function ViolationReportModal({
                         <button
                           type="button"
                           onClick={() => removeFile(item.id)}
-                          className="shrink-0 rounded-xs p-1 text-ink-500 hover:bg-red-50 hover:text-red-500"
+                          className="shrink-0 rounded-xs p-1 text-ink-500 hover:bg-alert-bg hover:text-alert-text"
                           aria-label={`${item.file.name} 삭제`}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -483,9 +483,9 @@ export default function ViolationReportModal({
               </div>
 
               {/* 주의 안내 */}
-              <div className="flex items-start gap-2.5 rounded-xs border border-amber-200 bg-amber-50 px-3 py-3">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 mt-0.5" />
-                <div className="text-[10px] text-amber-800 leading-5">
+              <div className="flex items-start gap-2.5 rounded-xs border border-warn-border bg-warn-bg px-3 py-3">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warn-text mt-0.5" />
+                <div className="text-[10px] text-warn-text leading-5">
                   제출한 소명서는 원청사 규제 대응팀이 검토합니다. 허위 사실 기재 시 계약 해지 및 법적 책임이 발생할 수 있습니다.
                   제출 후 수정이 불가하므로 내용을 충분히 검토해 주세요.
                 </div>
@@ -495,7 +495,7 @@ export default function ViolationReportModal({
         </div>
 
         {/* ── 푸터: 액션 버튼 ──────────────────────────────────────────── */}
-        <div className="flex shrink-0 items-center justify-between gap-3 rounded-b-sm border-t border-red-100 bg-red-50/40 px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between gap-3 rounded-b-sm border-t border-alert-border bg-alert-bg px-6 py-4">
           <div className="text-[10px] text-ink-500">
             {submitted
               ? '검토까지 평균 1~2 영업일이 소요됩니다.'
@@ -523,8 +523,8 @@ export default function ViolationReportModal({
                     'inline-flex items-center gap-2 rounded-xs px-5 py-2.5',
                     'text-xs font-bold text-white shadow-control transition-colors',
                     submitting
-                      ? 'bg-red-400 cursor-not-allowed'
-                      : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
+                      ? 'bg-alert-solid cursor-not-allowed'
+                      : 'bg-alert-solid hover:bg-alert-solid active:bg-alert-solid'
                   )}
                 >
                   {submitting ? (
@@ -539,7 +539,7 @@ export default function ViolationReportModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex items-center gap-2 rounded-xs bg-signal-ok px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-600 shadow-control"
+                className="inline-flex items-center gap-2 rounded-xs bg-signal-ok px-5 py-2.5 text-xs font-bold text-white hover:bg-ok-solid shadow-control"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" /> 확인 후 닫기
               </button>

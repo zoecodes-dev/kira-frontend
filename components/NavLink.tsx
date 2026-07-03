@@ -7,7 +7,7 @@ import {
   UserCheck, Upload, GitBranch, Building2, Box, Map,
   AlertTriangle, Package, ChevronDown, ChevronRight,
   Layers, Send, BarChart3, Users, ClipboardCheck,
-  BookOpen, FileSearch, ClipboardList, FlaskConical, KanbanSquare,
+  BookOpen, FileSearch, FileText, ClipboardList, KanbanSquare,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
@@ -33,8 +33,8 @@ const icons: Record<string, any> = {
   'clipboard-check': ClipboardCheck,
   'book-open':    BookOpen,
   'file-search':  FileSearch,
+  'file-text':    FileText,
   'clipboard-list': ClipboardList,
-  flask:          FlaskConical,
   kanban:         KanbanSquare,
 };
 
@@ -65,28 +65,28 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
     return pathname === sub.href || pathname.startsWith(sub.href + '/');
   };
   const hasActiveSubItem = subItems?.some(isSubActive) ?? false;
-  const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href) || hasActiveSubItem;
+  const isLinkActive = href === '/' ? pathname === '/' : pathname === href || (!subItems && pathname.startsWith(href + '/'));
+  const isActive = subItems ? hasActiveSubItem || isLinkActive : isLinkActive;
   const Icon = icons[iconName] ?? Activity;
   const mainClassName = clsx(
-    'flex items-center gap-3 px-3 py-2.5 rounded-sm transition-colors group flex-1 min-w-0 text-left',
-    isActive
-      ? 'bg-accent-50 text-accent-900 border border-accent-100'
-      : 'text-ink-300 border border-transparent hover:bg-ink-800 hover:text-ink-100'
+    'flex items-center gap-3 px-3 py-2.5 rounded-none transition-colors group flex-1 min-w-0 text-left',
+    isLinkActive
+      ? 'bg-white text-[#11352A] font-semibold'
+      : 'bg-transparent text-white/90 font-medium hover:bg-white/8'
   );
 
   const mainContent = (
     <>
       <div className={clsx(
-        'w-8 h-8 rounded-sm flex items-center justify-center shrink-0 border',
-        isActive ? 'bg-accent-700 border-accent-700 text-white' : 'bg-white border-ink-700 text-ink-400 group-hover:text-ink-100'
+        'w-8 h-8 flex items-center justify-center shrink-0',
+        isLinkActive ? 'text-[#11352A]' : 'text-white/75'
       )}>
-        <Icon className="w-4 h-4" strokeWidth={isActive ? 2.5 : 2} />
+        <Icon className="w-4 h-4" strokeWidth={isLinkActive ? 2.5 : 2} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-semibold">{label}</div>
-        <div className="text-[10px] text-ink-500 truncate">{subtitle}</div>
+        <div className="text-[13px]">{label}</div>
+        <div className={clsx('text-[10px] truncate', isLinkActive ? 'text-[#11352A]/60' : 'text-white/50')}>{subtitle}</div>
       </div>
-      {isActive && !subItems && <div className="w-1 h-1 rounded-full bg-accent-500 shrink-0" />}
     </>
   );
 
@@ -119,7 +119,7 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
         {subItems && (
           <button
             onClick={() => setOpen(o => !o)}
-            className="p-2 text-ink-500 hover:text-ink-200 transition-colors shrink-0"
+            className="p-2 text-white/50 hover:text-white/88 transition-colors shrink-0"
           >
             {open
               ? <ChevronDown className="w-3.5 h-3.5" />
@@ -131,7 +131,7 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
 
       {/* 하위 메뉴 */}
       {subItems && open && (
-        <div className="ml-11 mt-1 space-y-0.5 border-l border-ink-700 pl-3">
+        <div className="ml-11 mt-1 space-y-0.5 border-l border-white/15 pl-3">
           {subItems.map(sub => {
             const subActive = isSubActive(sub);
             return (
@@ -139,24 +139,24 @@ export default function NavLink({ href, iconName, label, subtitle, subItems }: N
                 <Link
                   href={sub.href}
                   className={clsx(
-                    'block px-2 py-1.5 rounded-xs text-[12px] transition-colors',
+                    'block px-2 py-1.5 rounded-none text-[12px] transition-colors',
                     subActive
-                      ? 'text-accent-800 bg-accent-50 font-semibold'
-                      : 'text-ink-500 hover:text-ink-200 hover:bg-ink-800'
+                      ? 'bg-white text-[#11352A] font-semibold'
+                      : 'text-white/62 hover:text-white/88 hover:bg-white/8'
                   )}
                 >
                   {sub.label}
                 </Link>
                 {sub.children && subActive && (
-                  <div className="ml-3 mt-0.5 space-y-0.5 border-l border-ink-700 pl-2">
+                  <div className="ml-3 mt-0.5 space-y-0.5 border-l border-white/15 pl-2">
                     {sub.children.map(child => {
                       const childActive = isSubActive(child);
                       const childClassName = clsx(
-                        'block rounded-xs px-2 py-1.5 text-[12px] transition-colors',
+                        'block rounded-none px-2 py-1.5 text-[12px] transition-colors',
                         childActive
-                          ? 'bg-accent-50 text-accent-800 font-semibold'
-                          : 'text-ink-500 hover:bg-ink-800 hover:text-ink-200',
-                        child.disabled && 'cursor-default hover:bg-transparent hover:text-ink-500'
+                          ? 'bg-white text-[#11352A] font-semibold'
+                          : 'text-white/62 hover:bg-white/8 hover:text-white/88',
+                        child.disabled && 'cursor-default hover:bg-transparent hover:text-white/62'
                       );
                       if (child.disabled) {
                         return (

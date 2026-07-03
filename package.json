@@ -1,5 +1,5 @@
 {
-  "name": "dpp-dashboard",
+  "name": "kira-dashboard",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "lucide-react": "^0.408.0",
     "next": "14.2.33",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-pdf": "^10.4.1",
     "recharts": "^2.12.7"
   },
   "devDependencies": {

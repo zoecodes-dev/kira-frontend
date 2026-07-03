@@ -17,10 +17,10 @@ const destLabel: Record<string, string> = {
   EU: 'EU 납품', US: 'US 납품', BOTH: 'EU + US', KR: '국내',
 };
 const destColor: Record<string, string> = {
-  EU:   'border-blue-700/30 bg-blue-500/8 text-blue-600',
-  US:   'border-amber-700/30 bg-amber-500/8 text-amber-600',
+  EU:   'border-info-border bg-info-bg text-info-text',
+  US:   'border-warn-border bg-warn-bg text-warn-text',
   BOTH: 'border-purple-700/30 bg-purple-500/8 text-purple-600',
-  KR:   'border-emerald-700/30 bg-emerald-500/8 text-emerald-600',
+  KR:   'border-ok-border bg-ok-bg text-ok-text',
 };
 
 export function InfoFactoriesSection({ factories, hq, production }: {
@@ -31,8 +31,8 @@ export function InfoFactoriesSection({ factories, hq, production }: {
   return (
     <Section title="공장·사업장" subtitle={`${factories.length}개소 · 납품처별 규제 차등`}>
       {hq && (
-        <div className="mb-3 p-3 rounded-xs border border-blue-700/30 bg-blue-500/5">
-          <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 mb-1">
+        <div className="mb-3 p-3 rounded-xs border border-info-border bg-info-bg">
+          <div className="flex items-center gap-2 text-xs font-semibold text-info-text mb-1">
             <Building2 className="w-3.5 h-3.5" />
             본사 (Headquarters)
           </div>
@@ -63,7 +63,7 @@ export function InfoFactoriesSection({ factories, hq, production }: {
                   </span>
                 )}
                 {!f.isActive && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-xs border border-red-700/30 text-red-500">가동 중지</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-xs border border-alert-border text-alert-text">가동 중지</span>
                 )}
               </div>
             </div>
@@ -101,14 +101,14 @@ export function InfoFactoriesSection({ factories, hq, production }: {
                     return (
                       <span key={reg} className={clsx(
                         'text-[9px] px-1.5 py-0.5 rounded-xs border font-medium',
-                        m.color === 'emerald' && 'border-emerald-700/30 text-emerald-600 bg-emerald-500/5',
+                        m.color === 'emerald' && 'border-ok-border text-ok-text bg-ok-bg',
                         m.color === 'teal'    && 'border-teal-700/30 text-teal-600 bg-teal-500/5',
-                        m.color === 'amber'   && 'border-amber-700/30 text-amber-600 bg-amber-500/5',
-                        m.color === 'orange'  && 'border-orange-700/30 text-orange-600 bg-orange-500/5',
-                        m.color === 'blue'    && 'border-blue-700/30 text-blue-600 bg-blue-500/5',
+                        m.color === 'amber'   && 'border-warn-border text-warn-text bg-warn-bg',
+                        m.color === 'orange'  && 'border-warn-border text-warn-text bg-warn-bg',
+                        m.color === 'blue'    && 'border-info-border text-info-text bg-info-bg',
                         m.color === 'cyan'    && 'border-cyan-700/30 text-cyan-600 bg-cyan-500/5',
                         m.color === 'purple'  && 'border-purple-700/30 text-purple-600 bg-purple-500/5',
-                        m.color === 'red'     && 'border-red-700/30 text-red-600 bg-red-500/5',
+                        m.color === 'red'     && 'border-alert-border text-alert-text bg-alert-bg',
                         m.color === 'violet'  && 'border-violet-700/30 text-violet-600 bg-violet-500/5',
                         m.color === 'slate'   && 'border-slate-700/30 text-slate-600 bg-slate-500/5',
                       )}>

@@ -1,5 +1,5 @@
 // lib/data.ts — v2 (violationsByRegulation 11개 규제 확장)
-// 나머지 데이터(suppliers, supplyEdges, batches, dppRecords, productInstances, kpis)는 기존 그대로 유지
+// 나머지 데이터(suppliers, supplyEdges, batches, productInstances, kpis)는 기존 그대로 유지
 
 export type Tier = 1 | 2 | 3 | 4 | 5;
 
@@ -158,7 +158,6 @@ export const kpis = {
   todayBatches: 47,
   pendingReview: 8,
   violations: 3,
-  approvedDPP: 36,
   avgProcessingMinutes: 4.2,
   totalSuppliers: 187,
   displayedSuppliers: 10,
@@ -186,7 +185,6 @@ export const dailyProcessing = [
 // === 규제별 위반 분포 (v2 — 11개 규제) ===
 export const violationsByRegulation = [
   { regulation: 'UFLPA',              count: 12, percent: 38, region: 'US' },
-  { regulation: 'IRA/FEOC',           count: 8,  percent: 25, region: 'US' },
   { regulation: 'Conflict Minerals',  count: 7,  percent: 22, region: 'EU' },
   { regulation: 'EU 배터리법',         count: 6,  percent: 19, region: 'EU' },
   { regulation: 'CSDDD',              count: 5,  percent: 15, region: 'EU' },
@@ -228,32 +226,6 @@ export const batchesInProgress: BatchInProgress[] = [
   { id: 'B-2026051408', batchId: 'LOT-ANO-240514-H', supplier: 'Mitsui Anode Industries',    receivedAt: '2026-05-14 11:32', destination: 'EU', currentStage: 'supervisor',  stageStartedAt: '2026-05-14 11:33', agentModel: 'Haiku' },
 ];
 
-// === DPP 발행 이력 ===
-export interface DPP {
-  id: string;
-  productId: string;
-  serialNumber: string;
-  modelName: string;
-  manufacturer: string;
-  producedAtFactoryId: string;
-  producedAt: string;
-  issuedAt: string;
-  destination: 'US' | 'EU' | 'KR';
-  status: 'issued' | 'revoked' | 'pending';
-  carbonFootprint: number;
-  recycledContent: { Co: number; Ni: number; Li: number };
-  capacity: string;
-  approvedBy: string;
-}
-
-export const dppRecords: DPP[] = [
-  { id: 'DPP-2026-04982', productId: 'BAT-NCM811-100Ah', serialNumber: 'SN-2026-A1-082413', modelName: 'Premium NCM811 100Ah', manufacturer: 'Hanyang Cell Manufacturing', producedAtFactoryId: 'F-003', producedAt: '2026-05-12 14:22', issuedAt: '2026-05-14 09:47', destination: 'EU', status: 'issued', carbonFootprint: 84.3, recycledContent: { Co: 18, Ni: 8, Li: 7 }, capacity: '100Ah / 3.7V', approvedBy: '김정민 ESG팀장' },
-  { id: 'DPP-2026-04981', productId: 'BAT-NCA-80Ah',    serialNumber: 'SN-2026-A2-082398', modelName: 'Standard NCA 80Ah',    manufacturer: 'Hanyang Cell Manufacturing', producedAtFactoryId: 'F-003', producedAt: '2026-05-11 09:08', issuedAt: '2026-05-14 08:23', destination: 'EU', status: 'issued', carbonFootprint: 91.7, recycledContent: { Co: 16, Ni: 6, Li: 6 }, capacity: '80Ah / 3.7V',  approvedBy: '김정민 ESG팀장' },
-  { id: 'DPP-2026-04980', productId: 'BAT-LFP-120Ah',   serialNumber: 'SN-2026-A3-082375', modelName: 'LFP Power 120Ah',      manufacturer: 'Hanyang Cell Manufacturing', producedAtFactoryId: 'F-002', producedAt: '2026-05-10 16:45', issuedAt: '2026-05-13 17:14', destination: 'EU', status: 'issued', carbonFootprint: 67.2, recycledContent: { Co: 0,  Ni: 0, Li: 9 }, capacity: '120Ah / 3.2V', approvedBy: '박서연 ESG팀장' },
-  { id: 'DPP-2026-04979', productId: 'BAT-NCM622-90Ah', serialNumber: 'SN-2026-A1-082341', modelName: 'NCM622 90Ah',          manufacturer: 'Hanyang Cell Manufacturing', producedAtFactoryId: 'F-002', producedAt: '2026-05-09 11:18', issuedAt: '2026-05-13 15:48', destination: 'US', status: 'issued', carbonFootprint: 78.9, recycledContent: { Co: 17, Ni: 7, Li: 6 }, capacity: '90Ah / 3.7V',  approvedBy: '박서연 ESG팀장' },
-  { id: 'DPP-2026-04978', productId: 'BAT-NCM811-100Ah', serialNumber: 'SN-2026-A1-082319', modelName: 'Premium NCM811 100Ah', manufacturer: 'Hanyang Cell Manufacturing', producedAtFactoryId: 'F-003', producedAt: '2026-05-08 13:55', issuedAt: '2026-05-13 14:02', destination: 'EU', status: 'issued', carbonFootprint: 85.1, recycledContent: { Co: 19, Ni: 8, Li: 7 }, capacity: '100Ah / 3.7V', approvedBy: '김정민 ESG팀장' },
-];
-
 // === 제품 인스턴스 ===
 export interface ProductInstance {
   serialNumber: string;
@@ -262,19 +234,17 @@ export interface ProductInstance {
   producedAtFactoryId: string;
   producedAt: string;
   destination: 'US' | 'EU' | 'KR';
-  dppStatus: 'issued' | 'pending' | 'in_progress' | 'not_started';
-  dppId?: string;
 }
 
 export const productInstances: ProductInstance[] = [
-  { serialNumber: 'SN-2026-A1-082413', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-12 14:22', destination: 'EU', dppStatus: 'issued',      dppId: 'DPP-2026-04982' },
-  { serialNumber: 'SN-2026-A2-082398', productId: 'BAT-NCA-80Ah',    modelName: 'Standard NCA 80Ah',    producedAtFactoryId: 'F-003', producedAt: '2026-05-11 09:08', destination: 'EU', dppStatus: 'issued',      dppId: 'DPP-2026-04981' },
-  { serialNumber: 'SN-2026-A3-082375', productId: 'BAT-LFP-120Ah',   modelName: 'LFP Power 120Ah',      producedAtFactoryId: 'F-002', producedAt: '2026-05-10 16:45', destination: 'EU', dppStatus: 'issued',      dppId: 'DPP-2026-04980' },
-  { serialNumber: 'SN-2026-A1-082341', productId: 'BAT-NCM622-90Ah', modelName: 'NCM622 90Ah',          producedAtFactoryId: 'F-002', producedAt: '2026-05-09 11:18', destination: 'US', dppStatus: 'issued',      dppId: 'DPP-2026-04979' },
-  { serialNumber: 'SN-2026-A1-082319', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-08 13:55', destination: 'EU', dppStatus: 'issued',     dppId: 'DPP-2026-04978' },
-  { serialNumber: 'SN-2026-A1-082427', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-13 10:32', destination: 'EU', dppStatus: 'in_progress' },
-  { serialNumber: 'SN-2026-A1-082451', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-14 08:15', destination: 'US', dppStatus: 'in_progress' },
-  { serialNumber: 'SN-2026-A2-082468', productId: 'BAT-NCA-80Ah',    modelName: 'Standard NCA 80Ah',    producedAtFactoryId: 'F-003', producedAt: '2026-05-14 11:42', destination: 'EU', dppStatus: 'pending' },
+  { serialNumber: 'SN-2026-A1-082413', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-12 14:22', destination: 'EU' },
+  { serialNumber: 'SN-2026-A2-082398', productId: 'BAT-NCA-80Ah',    modelName: 'Standard NCA 80Ah',    producedAtFactoryId: 'F-003', producedAt: '2026-05-11 09:08', destination: 'EU' },
+  { serialNumber: 'SN-2026-A3-082375', productId: 'BAT-LFP-120Ah',   modelName: 'LFP Power 120Ah',      producedAtFactoryId: 'F-002', producedAt: '2026-05-10 16:45', destination: 'EU' },
+  { serialNumber: 'SN-2026-A1-082341', productId: 'BAT-NCM622-90Ah', modelName: 'NCM622 90Ah',          producedAtFactoryId: 'F-002', producedAt: '2026-05-09 11:18', destination: 'US' },
+  { serialNumber: 'SN-2026-A1-082319', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-08 13:55', destination: 'EU' },
+  { serialNumber: 'SN-2026-A1-082427', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-13 10:32', destination: 'EU' },
+  { serialNumber: 'SN-2026-A1-082451', productId: 'BAT-NCM811-100Ah', modelName: 'Premium NCM811 100Ah', producedAtFactoryId: 'F-003', producedAt: '2026-05-14 08:15', destination: 'US' },
+  { serialNumber: 'SN-2026-A2-082468', productId: 'BAT-NCA-80Ah',    modelName: 'Standard NCA 80Ah',    producedAtFactoryId: 'F-003', producedAt: '2026-05-14 11:42', destination: 'EU' },
 ];
 
 // === 감사 추적 엔트리 ===
@@ -299,7 +269,7 @@ export const auditTrail: AuditEntry[] = [
   { step: 4, timestamp: '2026-05-14 09:12:08.589', nodeType: 'tool',  nodeName: 'verify_citation',                                         durationMs: 442,  inputHash: '0xc341...7e82', outputHash: '0xd892...1f44' },
   { step: 5, timestamp: '2026-05-14 09:12:09.058', nodeType: 'agent', nodeName: 'Verification', model: 'opus-4',   promptVersion: 'v3.0.1', durationMs: 1876, inputHash: '0xd892...1f44', outputHash: '0xe123...8c91', decision: 'confidence_0.96' },
   { step: 6, timestamp: '2026-05-14 09:12:10.967', nodeType: 'agent', nodeName: 'Compliance',   model: 'opus-4',   promptVersion: 'v4.2.0', durationMs: 3201, inputHash: '0xe123...8c91', outputHash: '0xf456...2b73', decision: 'all_passed' },
-  { step: 7, timestamp: '2026-05-14 09:12:14.218', nodeType: 'agent', nodeName: 'Action',       model: 'haiku-4',  promptVersion: 'v1.4.0', durationMs: 1012, inputHash: '0xf623...5b41', outputHash: '0x1a87...9f53', decision: 'issue_dpp' },
+  { step: 7, timestamp: '2026-05-14 09:12:14.218', nodeType: 'agent', nodeName: 'Action',       model: 'haiku-4',  promptVersion: 'v1.4.0', durationMs: 1012, inputHash: '0xf623...5b41', outputHash: '0x1a87...9f53', decision: 'complete_processing' },
 ];
 
 export const sampleAuditTrail = auditTrail;

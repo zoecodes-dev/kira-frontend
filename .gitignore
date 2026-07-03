@@ -12,5 +12,15 @@ dist/
 .vscode/
 .idea/
 
+# 진단/임시 스크립트 (실수 커밋 방지)
+_diag_tmp.mjs
+*_tmp.mjs
+
 next-env.d.ts
 .claude/
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
+
+# 기타 추가
+claude.md

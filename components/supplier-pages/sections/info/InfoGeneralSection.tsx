@@ -48,7 +48,7 @@ export function InfoGeneralSection({ supplier, name, ext, ctiDetails }: {
 
         {ext?.website && (
           <a href={ext.website} target="_blank" rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-400 transition-colors"
+            className="mt-3 inline-flex items-center gap-1.5 text-xs text-info-text hover:text-info-text transition-colors"
           >
             <Globe className="w-3.5 h-3.5" />
             {ext.website}
@@ -56,9 +56,10 @@ export function InfoGeneralSection({ supplier, name, ext, ctiDetails }: {
         )}
       </Section>
 
-      {ext && (
-        <Section title="업종별 CTI 상세" subtitle="supplier_type별 필수 상세 필드">
-          <ProviderTypeDetails providerType={ext.providerType} details={ctiDetails} />
+      {/* CTI 상세는 detail 엔드포인트로 백킹 — ext(사업자정보, API 없음) 유무와 무관하게 표시 */}
+      {ctiDetails && (
+        <Section title="업종별 CTI 상세" subtitle="provider_type별 필수 상세 필드">
+          <ProviderTypeDetails providerType={ctiDetails.providerType} details={ctiDetails} />
         </Section>
       )}
     </>
@@ -85,7 +86,7 @@ function ProviderTypeDetails({
     return (
       <div className={clsx(
         'rounded-xs border p-4',
-        isLowDisclosure ? 'border-amber-700/40 bg-amber-500/5' : 'border-ink-700/60 bg-ink-900/20',
+        isLowDisclosure ? 'border-warn-border bg-warn-bg' : 'border-ink-700/60 bg-ink-900/20',
       )}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <InfoRow label="상위 공급망 공개율" value={`${details.disclosureCompleteness}%`} mono />
@@ -94,9 +95,9 @@ function ProviderTypeDetails({
           <InfoRow label="Readiness 입력값" value={details.readinessInput} />
         </div>
         {isLowDisclosure && (
-          <div className="mt-3 flex items-center gap-1.5 text-[11px] text-amber-600">
+          <div className="mt-3 flex items-center gap-1.5 text-[11px] text-warn-text">
             <AlertCircle className="w-3 h-3 shrink-0" />
-            공개율 75% 미만입니다. FEOC gray-zone 및 DPP readiness 보완 항목으로 표시됩니다.
+            공개율 75% 미만입니다. 규제 대응 보완 항목으로 표시됩니다.
           </div>
         )}
       </div>

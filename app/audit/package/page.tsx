@@ -5,13 +5,13 @@ import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 import TopStatCard from '@/components/TopStatCard';
-import { auditTrail, dppRecords } from '@/lib/data';
+import { auditTrail } from '@/lib/data';
 import { CheckCircle2, Download, FileArchive, FileText, LockKeyhole, ShieldCheck } from 'lucide-react';
 import clsx from 'clsx';
 
 const packages = [
-  { id: 'AP-2026-001', target: 'DPP-2026-04982', type: 'DPP 발행 감사', status: 'ready', evidence: 18, gaps: 0, owner: '감사팀 정유진' },
-  { id: 'AP-2026-002', target: 'SN-2026-A1-082451', type: 'FEOC 보류 감사', status: 'gap', evidence: 11, gaps: 3, owner: '컴플라이언스 이서윤' },
+  { id: 'AP-2026-001', target: 'LOT-NCM-240514-A', type: '배치 처리 감사', status: 'ready', evidence: 18, gaps: 0, owner: '감사팀 정유진' },
+  { id: 'AP-2026-002', target: 'SN-2026-A1-082451', type: '원산지 보류 감사', status: 'gap', evidence: 11, gaps: 3, owner: '컴플라이언스 이서윤' },
   { id: 'AP-2026-003', target: 'S-MINE-002', type: '인권 실사 감사', status: 'collecting', evidence: 9, gaps: 2, owner: '구매실사 최하린' },
 ];
 
@@ -20,14 +20,13 @@ const checklist = [
   { label: '자동 검증 로그', done: true },
   { label: 'HITL 판단 사유', done: false },
   { label: '리스크 조치 이력', done: true },
-  { label: 'DPP payload', done: true },
+  { label: '판정 결과 스냅샷', done: true },
   { label: '해시 체인 검증', done: true },
 ];
 
 export default function AuditPackagePage() {
   const [selectedId, setSelectedId] = useState(packages[0].id);
   const selected = packages.find(item => item.id === selectedId) ?? packages[0];
-  const latestDpp = dppRecords[0];
 
   return (
     <>
@@ -45,7 +44,7 @@ export default function AuditPackagePage() {
           <Metric label="감사 로그" value={auditTrail.length} tone="info" />
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.4fr] gap-6">
+        <div className="space-y-[14px]">
           <Card title="감사 패키지 목록" subtitle="제품, 배치, 협력사 기준 증거 묶음">
             <div className="space-y-2">
               {packages.map(pkg => (
@@ -70,23 +69,10 @@ export default function AuditPackagePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {checklist.map(item => (
                   <div key={item.label} className="flex items-center justify-between rounded-xs border border-ink-700/60 bg-ink-900/30 px-3 py-2">
-                    <div className="flex items-center gap-2 text-xs text-ink-200">{item.done ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <FileText className="w-3.5 h-3.5 text-amber-400" />}{item.label}</div>
+                    <div className="flex items-center gap-2 text-xs text-ink-200">{item.done ? <CheckCircle2 className="w-3.5 h-3.5 text-ok-text" /> : <FileText className="w-3.5 h-3.5 text-warn-text" />}{item.label}</div>
                     <Badge tone={item.done ? 'ok' : 'warn'}>{item.done ? '포함' : '누락'}</Badge>
                   </div>
                 ))}
-              </div>
-            </Card>
-
-            <Card title="대표 DPP 근거" subtitle="issued 이후 수정 불가 상태">
-              <div className="rounded-xs border border-ink-700/60 bg-ink-900/30 p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-sm font-semibold text-ink-100">{latestDpp.id}</div>
-                    <div className="text-xs text-ink-400 mt-1">{latestDpp.serialNumber} · {latestDpp.modelName}</div>
-                    <div className="text-[11px] text-ink-500 mt-1">approved by {latestDpp.approvedBy}</div>
-                  </div>
-                  <Badge tone="ok">issued · locked</Badge>
-                </div>
               </div>
             </Card>
 
@@ -96,7 +82,7 @@ export default function AuditPackagePage() {
                   <div key={entry.step} className="flex items-center gap-3 rounded-xs border border-ink-700/60 bg-ink-900/30 px-3 py-2">
                     <div className="w-7 h-7 rounded-full border border-ink-700 flex items-center justify-center text-[11px] text-accent-500 num-mono">{entry.step}</div>
                     <div className="min-w-0 flex-1"><div className="text-xs font-semibold text-ink-100">{entry.nodeName}</div><div className="text-[10px] text-ink-500 truncate">{entry.inputHash} → {entry.outputHash}</div></div>
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                    <ShieldCheck className="w-3.5 h-3.5 text-ok-text" />
                   </div>
                 ))}
               </div>

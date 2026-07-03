@@ -7,8 +7,8 @@ Next.js 14, TypeScript, Tailwind CSS 기반으로 구성되어 있습니다.
 
 | 계정 유형 | 아이디 | 비밀번호 | 이동 화면 |
 | --- | --- | --- | --- |
-| 원청사 | `oem@kira-dpp.com` | `demo1234` | `/dashboard` |
-| 협력사 | `supplier@sulawesi-nickel.com` | `demo1234` | `/supplier` |
+| 원청사 | `oem@kira.demo` | `demo1234` | `/dashboard` |
+| 협력사 | `supplier@hanyang-cell.com` | `demo1234` | `/supplier` |
 
 `/` 경로는 로그인 화면입니다. 입력한 계정 권한에 따라 원청사 화면과 협력사 화면으로 자동 분기됩니다.
 
@@ -20,10 +20,10 @@ Next.js 14, TypeScript, Tailwind CSS 기반으로 구성되어 있습니다.
 | `/dashboard` | 원청사 대시보드 | 운영 KPI, 우선 조치, 고위험/제출/발행 상태 요약 |
 | `/suppliers` | 협력사 목록 | 상태, 리스크, SLA, 제출 현황 기반 협력사 탐색 |
 | `/suppliers/[id]/info` | 협력사 상세 | 기업 정보, 담당자, 사업장, 인증서, 데이터 완성도 |
-| `/supply-chain/product-map` | 제품별 공급망 맵 | 제품/협력사 기준 공급망 탐색, 선택 상세 패널 |
-| `/supply-chain/request-map` | 입력 요청 맵 | 협력사별 요청 상태와 완성도 확인 |
-| `/submission-review` | 제출 자료 검토 | 승인, 반려, 재요청 업무 |
-| `/supplier` | 협력사 업무공간 | 내 기업 정보, 자료 제출, 검토 현황, 직접 연결 공급망 |
+| `/supply-chain` | 공급망 맵 허브(원청) | 고객·제품·BOM 선택 → 맵 생성/조회, 협력사 Pool 확정, 자료 일괄요청, 최종 검증 요약·엑셀 다운로드 |
+| `/supply-chain/map` | 공급망 맵 상세 | N차 트리·공급비율·검증 상태 시각화 |
+| `/supplier` | 협력사 업무공간 | 내 기업 정보, 자료 제출(AI 파싱 확인), 원청 알림, 하위 협력사 초대 |
+| `/supplier/onboarding` | 협력사 온보딩(URL 초대 진입) | 제3자 정보제공 동의 → 회사·PIC·필요문서 등록(회원가입 전 진입점) |
 
 ## 화면 구성
 
@@ -67,4 +67,7 @@ Vercel에서 GitHub 저장소를 연결한 뒤 Framework Preset을 `Next.js`로 
 npm run build
 ```
 
-현재 데모는 별도 환경변수 없이 빌드됩니다.
+### API 프록시 / 환경변수
+브라우저는 항상 상대경로 `/api/*` 로 호출하고, `next.config.js`의 rewrite가 이를 `BACKEND_ORIGIN`으로 프록시한다.
+- 로컬: `BACKEND_ORIGIN=http://localhost:8000` (미설정 시 기본값 동일). 단, 도커 스택은 백엔드를 nginx(:80)로만 노출하므로 로컬 백엔드 연동 시 origin을 실제 노출 포트에 맞춘다.
+- 운영(Vercel): 프로젝트 환경변수 `BACKEND_ORIGIN`에 EC2 origin 지정.

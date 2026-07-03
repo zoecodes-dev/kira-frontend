@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { exportAuditPackage } from '@/lib/api';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -76,7 +77,7 @@ export const mockSubmissions: Submission[] = [
       { no: 5, label: '원청 접수',   sublabel: '원청사 검토 큐 진입',            status: 'done',    completedAt: '2026-05-21 10:00' },
       { no: 6, label: '원청 검토중', sublabel: '원청사 담당자 내용 검토 중',     status: 'active' },
       { no: 7, label: '보완 요청',   sublabel: '미비 사항 재제출 요청',          status: 'pending' },
-      { no: 8, label: '최종 승인',   sublabel: 'DPP 발행 승인 완료',            status: 'pending' },
+      { no: 8, label: '최종 승인',   sublabel: '규제 적합성 최종 승인 완료',     status: 'pending' },
     ],
   },
   {
@@ -93,19 +94,27 @@ export const mockSubmissions: Submission[] = [
       { no: 5, label: '원청 접수',   sublabel: '원청사 검토 큐 진입',            status: 'done',    completedAt: '2026-05-23 10:00' },
       { no: 6, label: '원청 검토중', sublabel: '원청사 담당자 내용 검토 중',     status: 'done',    completedAt: '2026-05-27 16:20' },
       { no: 7, label: '보완 요청',   sublabel: '미비 사항 재제출 요청',          status: 'rejected',completedAt: '2026-05-27 16:22' },
-      { no: 8, label: '최종 승인',   sublabel: 'DPP 발행 승인 완료',            status: 'pending' },
+      { no: 8, label: '최종 승인',   sublabel: '규제 적합성 최종 승인 완료',     status: 'pending' },
     ],
   },
 ];
 
-// batch.status 분기용 Mock — 기획서 E-3 스펙
-// · batch_completed  → DPP QR 다운로드 버튼 표시
+// batch.status 분기 — 기획서 E-3 스펙
+// · batch_completed  → 완료 증빙 다운로드 버튼 표시
 // · batch_rejected   → 시정 완료 회신 버튼 (page.tsx에서 ViolationReportModal 연결)
 // · batch_processing → 조회만 가능
 // · batch_hitl_wait  → 보완 제출 딥링크
+// 실 데이터원: api.ts getBatch(batchId).status (BatchStatusCode 와 동일 코드). 소비처에서
+// getBatch 로 받아 <EightStageStepper batchStatus={...} /> 로 주입한다. 미주입 시 표시 생략.
 export type BatchStatus = 'batch_processing' | 'batch_hitl_wait' | 'batch_completed' | 'batch_rejected';
 
-export const MOCK_BATCH_STATUS: BatchStatus = 'batch_processing'; // 시나리오 전환용
+// 상태 칩 표기 — 요약 바에 현재 배치 상태를 부가 표시(주입된 경우만).
+const BATCH_STATUS_META: Record<BatchStatus, { label: string; cls: string }> = {
+  batch_processing: { label: '처리 중',   cls: 'border-ink-700 bg-ink-800 text-ink-400' },
+  batch_hitl_wait:  { label: 'HITL 대기',  cls: 'border-warn-border bg-warn-bg text-warn-text' },
+  batch_completed:  { label: '배치 완료',  cls: 'border-signal-ok/30 bg-signal-ok/10 text-signal-ok' },
+  batch_rejected:   { label: '배치 반려',  cls: 'border-alert-border bg-alert-bg text-alert-text' },
+};
 
 // ─── 단계 노드 ──────────────────────────────────────────────────────────────────
 
@@ -122,7 +131,7 @@ function StageNode({
   const nodeStyle = {
     done:     'border-signal-ok    bg-signal-ok    text-white',
     active:   'border-accent-600   bg-white        text-accent-600   ring-4 ring-accent-100 animate-pulse',
-    rejected: 'border-red-500      bg-red-500      text-white        ring-4 ring-red-100',
+    rejected: 'border-alert-border      bg-alert-solid      text-white        ring-4 ring-alert-border',
     pending:  'border-ink-600      bg-white        text-ink-500',
   }[stage.status];
 
@@ -130,7 +139,7 @@ function StageNode({
   const lineStyle = {
     done:     'bg-signal-ok',
     active:   'bg-gradient-to-r from-signal-ok to-ink-600',
-    rejected: 'bg-red-400',
+    rejected: 'bg-alert-solid',
     pending:  'bg-ink-700',
   }[stage.status];
 
@@ -138,14 +147,14 @@ function StageNode({
   const labelStyle = {
     done:     'text-signal-ok     font-semibold',
     active:   'text-accent-700    font-bold',
-    rejected: 'text-red-600       font-bold',
+    rejected: 'text-alert-text       font-bold',
     pending:  'text-ink-500       font-medium',
   }[stage.status];
 
   const dateStyle = {
     done:     'text-ink-500',
     active:   'text-accent-600',
-    rejected: 'text-red-500',
+    rejected: 'text-alert-text',
     pending:  'text-ink-700',
   }[stage.status];
 
@@ -217,7 +226,7 @@ function SubmissionStepperCard({
   const headerBadge = isDone
     ? { label: '최종 승인',   cls: 'bg-signal-ok/10 text-signal-ok   border-signal-ok/30' }
     : isRejected
-    ? { label: '보완 요청',   cls: 'bg-red-50       text-red-600     border-red-200' }
+    ? { label: '보완 요청',   cls: 'bg-alert-bg       text-alert-text     border-alert-border' }
     : activeStage
     ? { label: '검토 진행 중', cls: 'bg-accent-50    text-accent-700  border-accent-200' }
     : { label: '대기 중',      cls: 'bg-ink-800      text-ink-400     border-ink-700' };
@@ -226,7 +235,7 @@ function SubmissionStepperCard({
     <div
       className={`
         rounded-sm border shadow-control overflow-hidden
-        ${isRejected ? 'border-red-300' : 'border-ink-700'}
+        ${isRejected ? 'border-alert-border' : 'border-ink-700'}
         bg-white
       `}
     >
@@ -242,7 +251,7 @@ function SubmissionStepperCard({
             className={`
               flex h-9 w-9 shrink-0 items-center justify-center rounded-xs border
               ${isRejected
-                ? 'border-red-200 bg-red-50 text-red-500'
+                ? 'border-alert-border bg-alert-bg text-alert-text'
                 : 'border-accent-100 bg-accent-50 text-accent-700'
               }
             `}
@@ -273,7 +282,7 @@ function SubmissionStepperCard({
                 </span>
               )}
               {rejectedStage && (
-                <span className="ml-2 text-red-500 font-semibold">
+                <span className="ml-2 text-alert-text font-semibold">
                   · {rejectedStage.no}단계에서 반려됨
                 </span>
               )}
@@ -295,7 +304,7 @@ function SubmissionStepperCard({
         <div className="px-5 pb-3">
           <div className="h-1.5 w-full rounded-full bg-ink-700 overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all ${isRejected ? 'bg-red-500' : 'bg-signal-ok'}`}
+              className={`h-full rounded-full transition-all ${isRejected ? 'bg-alert-solid' : 'bg-signal-ok'}`}
               style={{
                 width: `${(submission.stages.filter(s => s.status === 'done' || s.status === 'rejected').length / 8) * 100}%`,
               }}
@@ -310,7 +319,7 @@ function SubmissionStepperCard({
 
       {/* ── 펼쳐진 스테퍼 본문 ───────────────────────────── */}
       {expanded && (
-        <div className={`border-t px-5 pt-5 pb-4 ${isRejected ? 'border-red-200 bg-red-50/30' : 'border-ink-700 bg-ink-800/20'}`}>
+        <div className={`border-t px-5 pt-5 pb-4 ${isRejected ? 'border-alert-border bg-alert-bg' : 'border-ink-700 bg-ink-800/20'}`}>
 
           {/* 가로 Stepper */}
           <div className="flex items-start w-full overflow-x-auto pb-1">
@@ -325,18 +334,18 @@ function SubmissionStepperCard({
 
           {/* ── 반려 패널 ──────────────────────────────────── */}
           {isRejected && rejectedStage && (
-            <div className="mt-5 rounded-xs border border-red-300 bg-red-50 p-4">
+            <div className="mt-5 rounded-xs border border-alert-border bg-alert-bg p-4">
               {/* 반려 헤더 */}
               <div className="flex items-start gap-2.5">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-red-400 bg-red-100">
-                  <AlertTriangle className="h-3.5 w-3.5 text-red-600" strokeWidth={2.5} />
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-alert-border bg-alert-bg">
+                  <AlertTriangle className="h-3.5 w-3.5 text-alert-text" strokeWidth={2.5} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold text-red-800">
+                  <div className="text-xs font-bold text-alert-text">
                     {rejectedStage.no}단계 &ldquo;{rejectedStage.label}&rdquo; 에서 보완 요청되었습니다
                   </div>
                   {rejectedStage.completedAt && (
-                    <div className="mt-0.5 text-[10px] text-red-500 num-mono">
+                    <div className="mt-0.5 text-[10px] text-alert-text num-mono">
                       {rejectedStage.completedAt}
                     </div>
                   )}
@@ -345,9 +354,9 @@ function SubmissionStepperCard({
 
               {/* 반려 사유 */}
               {submission.rejectionReason && (
-                <div className="mt-3 rounded-xs border border-red-200 bg-white px-3 py-2.5">
-                  <div className="text-[10px] font-bold text-red-500 mb-1">사유</div>
-                  <p className="text-xs text-red-800 leading-5">
+                <div className="mt-3 rounded-xs border border-alert-border bg-white px-3 py-2.5">
+                  <div className="text-[10px] font-bold text-alert-text mb-1">사유</div>
+                  <p className="text-xs text-alert-text leading-5">
                     {submission.rejectionReason}
                   </p>
                 </div>
@@ -366,10 +375,10 @@ function SubmissionStepperCard({
                   }}
                   className="
                     inline-flex items-center gap-2
-                    rounded-xs border border-red-400 bg-white
-                    px-4 py-2 text-xs font-bold text-red-600
+                    rounded-xs border border-alert-border bg-white
+                    px-4 py-2 text-xs font-bold text-alert-text
                     shadow-control
-                    hover:bg-red-600 hover:text-white hover:border-red-600
+                    hover:bg-alert-solid hover:text-white hover:border-alert-border
                     transition-colors duration-150
                   "
                 >
@@ -380,7 +389,7 @@ function SubmissionStepperCard({
             </div>
           )}
 
-          {/* ── 승인 완료 패널 + DPP QR 다운로드 (기획서 E-3: batch_completed) ── */}
+          {/* ── 승인 완료 패널 + 완료 증빙 다운로드 (기획서 E-3: batch_completed) ── */}
           {isDone && (
             <div className="mt-5 rounded-xs border border-signal-ok/40 bg-signal-ok/5 p-4">
               <div className="flex items-center gap-2.5">
@@ -388,17 +397,30 @@ function SubmissionStepperCard({
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-signal-ok">최종 승인 완료</div>
                   <div className="text-[10px] text-ink-500 mt-0.5">
-                    DPP가 발행됐습니다. QR 코드를 다운로드해 고객사에 제출하세요.
+                    규제 적합성 검증이 완료됐습니다. 완료 증빙을 다운로드해 고객사에 제출하세요.
                   </div>
                 </div>
-                {/* DPP QR 다운로드 버튼 — 기획서 E-3: stage_issuance + batch_completed 시 표시 */}
+                {/* 완료 증빙 다운로드 버튼 — 기획서 E-3: stage_issuance + batch_completed 시 표시 */}
                 <button
                   type="button"
-                  onClick={() => alert('DPP QR 코드 다운로드 (API 연동 예정)')}
+                  onClick={async () => {
+                    try {
+                      const res = await exportAuditPackage(submission.id);
+                      if (res.exportUrl) {
+                        window.open(res.exportUrl, '_blank');
+                      } else if (res.error) {
+                        alert(res.error);
+                      } else {
+                        alert('완료 증빙 파일이 아직 준비되지 않았습니다.');
+                      }
+                    } catch {
+                      alert('완료 증빙 다운로드 중 오류가 발생했습니다.');
+                    }
+                  }}
                   className="inline-flex shrink-0 items-center gap-2 rounded-xs border border-signal-ok bg-white px-3 py-2 text-xs font-bold text-signal-ok shadow-control hover:bg-signal-ok hover:text-white transition-colors"
                 >
                   <QrCode className="h-3.5 w-3.5" />
-                  DPP QR 다운로드
+                  증빙 다운로드
                   <Download className="h-3 w-3" />
                 </button>
               </div>
@@ -418,7 +440,7 @@ function SubmissionStepperCard({
 //    <EightStageStepper
 //      submissions={mockSubmissions}        // 기본값으로 내장 mockSubmissions 사용
 //      onResubmit={(id, name) => {
-//        openWizardRework(name);            // SubmitWizardModal의 reWork 진입
+//        setActiveView('company-info');     // master-form(자료 제출) 탭으로 이동
 //      }}
 //    />
 
@@ -437,11 +459,14 @@ interface EightStageStepperProps {
   submissions?: Submission[];
   /** submissionId, requestItems 라벨(매핑 완료), 반려 사유 */
   onResubmit?: (submissionId: string, requestLabel: string, reason?: string) => void;
+  /** 실 배치 상태(api.ts getBatch(batchId).status). 주입 시 요약 바에 상태 칩 표시. */
+  batchStatus?: BatchStatus;
 }
 
 export default function EightStageStepper({
   submissions = mockSubmissions,
   onResubmit,
+  batchStatus,
 }: EightStageStepperProps) {
   const rejectedCount = submissions.filter(s => s.stages.some(st => st.status === 'rejected')).length;
   const activeCount   = submissions.filter(s => s.stages.some(st => st.status === 'active')).length;
@@ -454,6 +479,11 @@ export default function EightStageStepper({
         <span className="text-xs font-bold text-ink-400">
           {submissions.length}건 추적 중
         </span>
+        {batchStatus && (
+          <span className={`inline-flex items-center gap-1 rounded-xs border px-2 py-0.5 text-[10px] font-semibold ${BATCH_STATUS_META[batchStatus].cls}`}>
+            배치 {BATCH_STATUS_META[batchStatus].label}
+          </span>
+        )}
         <span className="h-3 w-px bg-ink-700" />
         {doneCount > 0 && (
           <span className="inline-flex items-center gap-1 rounded-xs border border-signal-ok/30 bg-signal-ok/10 px-2 py-0.5 text-[10px] font-semibold text-signal-ok">
@@ -466,7 +496,7 @@ export default function EightStageStepper({
           </span>
         )}
         {rejectedCount > 0 && (
-          <span className="inline-flex items-center gap-1 rounded-xs border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+          <span className="inline-flex items-center gap-1 rounded-xs border border-alert-border bg-alert-bg px-2 py-0.5 text-[10px] font-semibold text-alert-text">
             <AlertTriangle className="h-3 w-3" /> 보완 요청 {rejectedCount}건
           </span>
         )}

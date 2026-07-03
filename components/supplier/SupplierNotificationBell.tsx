@@ -43,7 +43,7 @@ const MOCK_NOTIFICATIONS: Notification[] = [
     body: '환경영향평가 갱신본이 기준을 충족하지 않아 반려되었습니다. 시정 완료 회신 폼을 제출해 주세요.',
     status: 'pending',
     created_at: '2026-06-07T14:20:00Z',
-    deep_link: 'submission-status',
+    deep_link: 'company-info',
   },
   {
     notification_id: 'notif-003',
@@ -69,14 +69,14 @@ const TYPE_CONFIG: Record<
 > = {
   sla_warning: {
     icon: Clock,
-    iconClass: 'text-amber-500',
-    barClass: 'bg-amber-500',
+    iconClass: 'text-warn-text',
+    barClass: 'bg-warn-solid',
     label: '기한 임박',
   },
   violation: {
     icon: AlertTriangle,
-    iconClass: 'text-red-500',
-    barClass: 'bg-red-500',
+    iconClass: 'text-alert-text',
+    barClass: 'bg-alert-solid',
     label: '위반 지적',
   },
   approval_needed: {
@@ -230,7 +230,7 @@ export default function SupplierNotificationBell({
               absolute -top-1.5 -right-1.5
               min-w-[16px] h-4 px-[3px]
               flex items-center justify-center
-              rounded-full bg-red-500
+              rounded-full bg-alert-solid
               text-[9px] font-bold leading-none text-white
               ring-2 ring-white
               pointer-events-none
@@ -275,7 +275,7 @@ export default function SupplierNotificationBell({
             <Bell className="h-4 w-4 text-ink-500" />
             <span className="text-xs font-bold text-ink-100">알림</span>
             {unreadCount > 0 && (
-              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-xs bg-red-50 text-red-600 border border-red-200">
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-xs bg-alert-bg text-alert-text border border-alert-border">
                 미확인 {unreadCount}
               </span>
             )}
@@ -340,7 +340,7 @@ export default function SupplierNotificationBell({
                             {notif.subject}
                           </p>
                           {isUnread && (
-                            <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-red-500 mt-1" aria-hidden="true" />
+                            <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-alert-solid mt-1" aria-hidden="true" />
                           )}
                         </div>
                         <p className="text-[10px] text-ink-500 leading-relaxed line-clamp-2">
