@@ -517,11 +517,50 @@ function sectionStatusFrom(completed: number, total: number): ReviewStatus {
   return completed >= total ? '완료' : '확인 필요';
 }
 
+// 백엔드 완성도 필드 키(네임스페이스) → 섹션·표시 라벨. provider_type별 필수셋은 백엔드가 SSOT.
+const FIELD_META: Record<string, { section: SectionKey; label: string }> = {
+  'company.company_name': { section: 'company', label: '회사명' },
+  'company.country': { section: 'company', label: '소재 국가' },
+  'company.business_reg_no': { section: 'company', label: '사업자 등록번호' },
+  'company.provider_type': { section: 'company', label: '업종(provider type)' },
+  'materials.Li': { section: 'materials', label: 'Li 함량' },
+  'materials.Co': { section: 'materials', label: 'Co 함량' },
+  'materials.Ni': { section: 'materials', label: 'Ni 함량' },
+  'materials.any': { section: 'materials', label: '핵심광물 함량(최소 1종)' },
+  'factories': { section: 'factories', label: '공장 정보' },
+  'regulation.carbon_intensity': { section: 'regulation', label: '탄소집약도' },
+  'regulation.energy_source': { section: 'regulation', label: '에너지원' },
+  'regulation.self_reported_risk_level': { section: 'regulation', label: '실사 자가진단' },
+  'documents.business_reg_doc_url': { section: 'documents', label: '사업자등록증' },
+  'documents.environmental_report_url': { section: 'documents', label: '환경성적서' },
+};
+const sectionOfField = (f: string): SectionKey | undefined =>
+  FIELD_META[f]?.section ?? (f.includes('.') ? undefined : (f as SectionKey));
+const labelOfField = (f: string): string => FIELD_META[f]?.label ?? f;
+
+// 백엔드 완성도(provider_type별 필수셋)로 섹션 집계 도출 — requiredFields/missingFields가 SSOT.
+//   해당 섹션 필수 필드가 0개면 '해당 없음'(예: 광산의 소재구성·규제, 유통사의 소재구성).
+function deriveSectionMetaFromBackend(
+  key: SectionKey,
+  comp: ApiCompleteness,
+): Pick<CollectionSection, 'completed' | 'total' | 'status' | 'missing'> {
+  const req = (comp.requiredFields ?? []).filter(f => sectionOfField(f) === key);
+  const missSet = new Set(comp.missingFields ?? []);
+  const missing = req.filter(f => missSet.has(f)).map(labelOfField);
+  const completed = req.length - missing.length;
+  return { completed, total: req.length, missing, status: sectionStatusFrom(completed, req.length) };
+}
+
 // 실 협력사 데이터로 섹션별 집계(완료/전체/상태/미입력)를 도출 — 하드코딩 금지(요약카드·헤더·요청 모두 이 값 사용).
+//   백엔드 완성도가 집계돼 있으면(requiredFields 존재) 그걸 SSOT로, 없으면(mock·집계 전) 아래 클라이언트 폴백.
 function deriveSectionMeta(
   key: SectionKey,
   real: RealData,
 ): Pick<CollectionSection, 'completed' | 'total' | 'status' | 'missing'> {
+  const comp = real.comp;
+  if (comp && comp.requiredFieldCount != null && Array.isArray(comp.requiredFields)) {
+    return deriveSectionMetaFromBackend(key, comp);
+  }
   const has = (v: unknown) => v !== null && v !== undefined && v !== '';
   const d = real.detail;
   if (key === 'company') {
@@ -854,7 +893,10 @@ export function SupplierGeneralReviewContent({
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);   // 저장하기 직후 '저장됨' 피드백
-  const editable = isSupplier && editing;
+  // 광산 안내 배너 — 광산은 입력 주체가 아니고, '공장 정보'만 상위 제련소(정보관리 주체)가
+  //   입력한 데이터로 채운다. 광산 리뷰는 읽기 전용(편집/자료 제출 비활성).
+  const [managedBanner, setManagedBanner] = useState<{ mineName: string } | null>(null);
+  const editable = isSupplier && editing && !managedBanner;
   const formRef = useRef<HTMLElement>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -869,9 +911,11 @@ export function SupplierGeneralReviewContent({
   const [factoriesDraft, setFactoriesDraft] = useState<FactoryDraft[]>([]);
   const [contactsDraft, setContactsDraft] = useState<ContactDraft[]>([]);
   useEffect(() => {
-    if (!isRealSupplier) { setApi(null); setLatestRequest(null); return; }
+    if (!isRealSupplier) { setApi(null); setLatestRequest(null); setManagedBanner(null); return; }
     let cancelled = false;
     (async () => {
+      // 광산이어도 자기 id로 조회한다 — 백엔드가 광산의 공장 정보를 '정보관리 주체'인 상위
+      //   제련소의 supplier_factories 로 알아서 리다이렉트해 돌려준다(공장=곧 광산, 광산은 보기만).
       const [detail, contactsRes, factoriesRes, comp, itemsRes, riskRes, requestsRes] = await Promise.all([
         getSupplierDetail(supplierId).catch(() => null),
         getSupplierContacts(supplierId).catch(() => null),
@@ -890,6 +934,8 @@ export function SupplierGeneralReviewContent({
         items: itemsRes?.items ?? [],
         riskProfile: riskRes,
       });
+      // 광산은 입력 주체가 아니라 읽기 전용 + 공장 정보는 상위 제련소 입력값을 안내.
+      setManagedBanner(detail?.providerType === 'miner' ? { mineName: detail.companyName } : null);
       // 가장 최신 요청(requestedAt 기준 내림차순 첫 번째)
       const sorted = (requestsRes ?? []).sort((a: ApiDataRequest, b: ApiDataRequest) =>
         (b.requestedAt ?? '').localeCompare(a.requestedAt ?? '')
@@ -1169,6 +1215,14 @@ export function SupplierGeneralReviewContent({
 
   return (
     <main ref={formRef} className={embedded ? '' : 'min-h-screen bg-slate-50 px-7 py-5'}>
+      {managedBanner && (
+        <div className="mb-4 flex items-start gap-2 rounded-sm border border-info-border bg-info-bg px-4 py-3 text-sm text-info-text">
+          <Building2 className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <b>{managedBanner.mineName}</b>은 데이터 입력 주체가 아닙니다. 공장 정보는 정보관리 주체인 상위 제련소가 입력한 데이터입니다(읽기 전용).
+          </span>
+        </div>
+      )}
       <div className="mb-4 flex items-center justify-between gap-4">
         {embedded || !isOem ? (
           <span className="text-sm font-medium text-ink-500">
@@ -1202,7 +1256,7 @@ export function SupplierGeneralReviewContent({
             </div>
           )}
           {/* 협력사: 보기 ↔ 입력 토글 (라우트 변경 없이 같은 양식의 칸만 전환) */}
-          {isSupplier && !editing && (
+          {isSupplier && !editing && !managedBanner && (
             <button
               type="button"
               onClick={() => {
