@@ -62,6 +62,7 @@ export function SupplyChainMapPageContent({
   onNodeSelect,
   onConnectClick,
   onProductChange,
+  maxVisibleTier = 1,
 }: {
   formationMode?: boolean;
   // 허브 안에 임베드될 때 true — 중복 헤더와 별도 "맵 형성하기" 링크를 숨긴다.
@@ -86,6 +87,9 @@ export function SupplyChainMapPageContent({
   onConnectClick?: (context: ReturnType<typeof getInvitationContext> & { supplierId: string }) => void;
   // 제품 선택 변화 통지 (허브가 해당 제품 BOM을 API로 불러오도록)
   onProductChange?: (productId: string) => void;
+  // 노출할 최대 차수. 안전 기본값 = 1(Tier0·Tier1만 노출) — Pool 확정 전엔 하위 차수를
+  // 아직 모르는 상태라 숨긴다. 허브가 Pool 확정 후 undefined(무제한)로 넘긴다.
+  maxVisibleTier?: number;
 }) {
   // 허브가 고른 제품(initialProductId)이 이미 로드된 데이터셋에 있으면 그걸로 시작한다.
   //   (허브는 products 전체가 로드된 뒤 이 컴포넌트를 마운트하므로 products[0]로 초기화하면
@@ -136,10 +140,14 @@ export function SupplyChainMapPageContent({
   }, [availableBomVersions, periodFrom, periodTo]);
 
   // 단위기간은 BOM 후보를 거르는 용도 — 선택된 BOM의 맵은 전체 행을 보여준다(맵 생성과 동일 의미).
-  const traceRows = useMemo(
-    () => (selectedBomVersion ? buildTraceRows(dataset, selectedBomVersionId, ' ~ ', selectedFactoryId, 'ALL') : []),
-    [dataset, selectedBomVersion, selectedBomVersionId, selectedFactoryId],
-  );
+  // maxVisibleTier로 점진 노출 — Pool 확정 전(기본 1)엔 Tier0·1까지만, 확정 후엔 허브가 큰 값을 넘겨 전체 노출.
+  const traceRows = useMemo(() => {
+    const rows = selectedBomVersion ? buildTraceRows(dataset, selectedBomVersionId, ' ~ ', selectedFactoryId, 'ALL') : [];
+    return rows.filter(row => {
+      const tierNum = parseInt(String(row.tier).replace(/[^0-9]/g, ''), 10);
+      return Number.isNaN(tierNum) || tierNum <= maxVisibleTier;
+    });
+  }, [dataset, selectedBomVersion, selectedBomVersionId, selectedFactoryId, maxVisibleTier]);
 
   const explorerTree = useMemo(
     () => (selectedProduct && selectedBomVersion ? buildExplorerTree(dataset, selectedProduct, selectedBomVersion, traceRows) : null),
