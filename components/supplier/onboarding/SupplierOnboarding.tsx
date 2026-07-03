@@ -26,12 +26,15 @@ export interface SignupData {
   businessRegNo: string;
   dunsNumber: string;
   address: string;
-  department: string;
+  department: string; // 본인(담당자) 부서명
+  contactName: string; // 본인(담당자) 이름
+  contactEmail: string; // 본인(담당자) 이메일
+  contactPhone: string; // 본인(담당자) 연락처
   registrationDocName: string; // 업로드된 사업자등록증 파일명 (표시용)
   registrationDocS3Key: string; // 업로드 결과 s3 key (제출 payload)
   unverified: boolean; // 미확인 상태로 등록 (문서 미보유 예외)
-  accountEmail: string; // 로그인 계정 이메일
-  password: string; // 로그인 계정 비밀번호
+  accountEmail: string; // 로그인 계정 이메일 (n차만 — 1차는 MES 계정 사용)
+  password: string; // 로그인 계정 비밀번호 (n차만)
 }
 
 const emptySignup: SignupData = {
@@ -41,6 +44,9 @@ const emptySignup: SignupData = {
   dunsNumber: '',
   address: '',
   department: '',
+  contactName: '',
+  contactEmail: '',
+  contactPhone: '',
   registrationDocName: '',
   registrationDocS3Key: '',
   unverified: false,
@@ -52,15 +58,15 @@ function emptyPic(): PicContact {
   return { company: '', name: '', email: '', phone: '' };
 }
 
-/** 1차는 회원가입(form) 단계를 건너뛴다 */
-function stepsFor(type: OnboardingType): OnboardingStep[] {
-  return type === 'firstTier' ? ['entry', 'pic', 'complete'] : ['entry', 'form', 'pic', 'complete'];
+/** 1차·n차 동일한 단계 흐름. 1차는 회원가입 폼이 DB 정보로 prefill되고 로그인계정 섹션만 생략된다. */
+function stepsFor(_type: OnboardingType): OnboardingStep[] {
+  return ['entry', 'form', 'pic', 'complete'];
 }
 
 const stepLabel: Record<OnboardingStep, string> = {
   entry: '진입 · 동의 확인',
   form: '회원가입',
-  pic: '담당자(PIC) 등록',
+  pic: '하위협력사 담당자 등록',
   complete: '승인 대기',
 };
 
@@ -80,8 +86,27 @@ export default function SupplierOnboarding() {
 
   const currentIndex = steps.indexOf(step);
 
+  // DB에 이미 있는 값으로 회원가입 폼을 전부 채운다(1차: OEM ingest, n차: 상위가 입력한 stub).
+  //   온보딩 submit이 저장하는 경로(suppliers·supplier_contacts·문서 URL·미확인)를 역으로 받아와 채운다.
+  //   사용자가 이미 고친 값은 덮어쓰지 않는다(prev 우선) → 확인 후 필요한 부분만 최신화.
   function handlePrefill(detail: OnboardingPrefill) {
-    setSignup(prev => ({ ...prev, companyName: prev.companyName || detail.companyName }));
+    setSignup(prev => ({
+      ...prev,
+      companyName: prev.companyName || detail.companyName,
+      country: prev.country || detail.country || '',
+      businessRegNo: prev.businessRegNo || detail.businessRegNo || '',
+      dunsNumber: prev.dunsNumber || detail.dunsNumber || '',
+      address: prev.address || detail.address || '',
+      department: prev.department || detail.contact?.department || '',
+      contactName: prev.contactName || detail.contact?.name || '',
+      contactEmail: prev.contactEmail || detail.contact?.email || '',
+      contactPhone: prev.contactPhone || detail.contact?.phone || '',
+      // 이미 업로드된 사업자등록증 — 파일명/키를 채워 '첨부됨'으로 보이게(재확인).
+      registrationDocName: prev.registrationDocName || detail.businessRegDoc?.fileName || '',
+      registrationDocS3Key: prev.registrationDocS3Key || detail.businessRegDoc?.s3Key || '',
+      // 미확인 등록 상태는 DB 값을 반영(사용자가 아직 안 건드렸을 때만).
+      unverified: prev.unverified || Boolean(detail.unverified),
+    }));
   }
 
   function goNext() {
@@ -93,12 +118,9 @@ export default function SupplierOnboarding() {
     if (prev) setStep(prev);
   }
 
-  // PIC 단계 '제출하기' — n차는 실제 회원가입 제출(공개 submit), 1차는 하위 PIC 등록(캐스케이드는 Phase 2라 로컬 진행).
+  // 최종 '제출하기' — 회사정보 + 본인 담당자 + 문서 + 동의(+ n차 계정)를 공개 submit으로 영속화.
+  //   하위협력사 담당자(pics)는 캐스케이드 초대용(Phase 2)이라 여기 제출에 포함하지 않고 로컬로만 유지한다.
   async function handleSubmit() {
-    if (type === 'firstTier') {
-      goNext();
-      return;
-    }
     if (!supplierId) {
       setSubmitError('초대 링크가 올바르지 않습니다. (supplierId 없음)');
       return;
@@ -107,7 +129,8 @@ export default function SupplierOnboarding() {
     setSubmitting(true);
     try {
       const input: OnboardingSubmitInput = {
-        account: { email: signup.accountEmail, password: signup.password },
+        // 1차는 MES 계정을 이미 보유 → account=null(신규 생성 안 함). n차는 입력한 로그인 계정 생성.
+        account: type === 'firstTier' ? null : { email: signup.accountEmail, password: signup.password },
         company: {
           companyName: signup.companyName,
           country: signup.country,
@@ -120,8 +143,14 @@ export default function SupplierOnboarding() {
           ? { s3Key: signup.registrationDocS3Key, fileName: signup.registrationDocName }
           : null,
         unverified: signup.unverified,
-        // 첫 번째 담당자를 대표(is_primary)로. department는 백엔드가 회사 부서로 보강.
-        contacts: pics.map((p, i) => ({ name: p.name, email: p.email, phone: p.phone, isPrimary: i === 0 })),
+        // 본인(대표) 담당자 — 회원가입 폼에서 확인·입력한 값. supplier_contacts로 저장된다.
+        contacts: [{
+          name: signup.contactName,
+          email: signup.contactEmail,
+          phone: signup.contactPhone,
+          department: signup.department,
+          isPrimary: true,
+        }],
       };
       await submitSupplierOnboarding(supplierId, input);
       setStep('complete');
@@ -145,7 +174,7 @@ export default function SupplierOnboarding() {
           </div>
           <div>
             <div className="text-sm font-bold text-ink-100">KIRA Battery · 협력사 온보딩</div>
-            <div className="text-[11px] text-slate-500">{type === 'firstTier' ? '1차 협력사 — 하위 협력사 정보 등록' : 'n차 협력사 — 회원가입'}</div>
+            <div className="text-[11px] text-slate-500">{type === 'firstTier' ? '1차 협력사 — 정보 확인 및 하위협력사 등록' : 'n차 협력사 — 회원가입 및 하위협력사 등록'}</div>
           </div>
         </div>
       </header>
@@ -188,12 +217,11 @@ export default function SupplierOnboarding() {
         )}
 
         {step === 'form' && (
-          <SignupForm data={signup} onChange={setSignup} supplierId={supplierId} onBack={goBack} onNext={goNext} />
+          <SignupForm type={type} data={signup} onChange={setSignup} supplierId={supplierId} onBack={goBack} onNext={goNext} />
         )}
 
         {step === 'pic' && (
           <PicRegister
-            type={type}
             pics={pics}
             onChange={setPics}
             onBack={goBack}

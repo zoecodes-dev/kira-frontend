@@ -1,10 +1,11 @@
 'use client';
 
-// STEP 1 (n차) — 회원가입 기본 정보 + 필요 문서 + 로그인 계정. "미확인 등록" 예외 경로 지원.
+// 회원가입 — 회사 기본정보 + 본인(담당자) 정보확인 + 필요 문서 (+ n차 로그인 계정). "미확인 등록" 예외 경로 지원.
+//   1차는 DB에 이미 있는 정보가 prefill되어 확인·최신화만 하고, MES 계정을 쓰므로 로그인 계정 섹션이 없다.
 import { useRef, useState } from 'react';
-import { FileUp, Loader2, Upload, KeyRound } from 'lucide-react';
+import { FileUp, Loader2, Upload, KeyRound, UserCheck, Info } from 'lucide-react';
 import { uploadFile } from '@/lib/api';
-import type { SignupData } from './SupplierOnboarding';
+import type { OnboardingType, SignupData } from './SupplierOnboarding';
 import StepFooter from './StepFooter';
 
 function Labeled({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
@@ -23,18 +24,21 @@ const inputCls = 'h-10 w-full rounded-md border border-slate-200 px-3 text-sm ou
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignupForm({
+  type,
   data,
   onChange,
   supplierId,
   onBack,
   onNext,
 }: {
+  type: OnboardingType;
   data: SignupData;
   onChange: (data: SignupData) => void;
   supplierId?: string;
   onBack: () => void;
   onNext: () => void;
 }) {
+  const isFirstTier = type === 'firstTier';
   const [touched, setTouched] = useState(false);
   const [confirm, setConfirm] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -68,9 +72,14 @@ export default function SignupForm({
     data.businessRegNo.trim() &&
     data.address.trim() &&
     data.department.trim();
+  // 본인(담당자) 정보 확인 — 이름·이메일·연락처 필수.
+  const contactOk =
+    Boolean(data.contactName.trim()) && emailRe.test(data.contactEmail.trim()) && Boolean(data.contactPhone.trim());
   const docOk = data.unverified || Boolean(data.registrationDocS3Key);
-  const accountOk = emailRe.test(data.accountEmail.trim()) && data.password.length >= 8 && data.password === confirm;
-  const valid = Boolean(requiredFilled) && docOk && accountOk;
+  // 로그인 계정은 n차만 필수. 1차는 MES 계정을 쓰므로 검증 대상이 아니다.
+  const accountOk =
+    isFirstTier || (emailRe.test(data.accountEmail.trim()) && data.password.length >= 8 && data.password === confirm);
+  const valid = Boolean(requiredFilled) && contactOk && docOk && accountOk;
 
   function handleNext() {
     setTouched(true);
@@ -79,8 +88,18 @@ export default function SignupForm({
 
   return (
     <div className="rounded-sm border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="text-base font-bold text-ink-100">회원가입 · 기본 정보</div>
-      <p className="mt-1 text-sm text-slate-500">회사 기본 정보·필요 문서·로그인 계정을 등록하세요. 표시된 항목은 필수입니다.</p>
+      <div className="text-base font-bold text-ink-100">회원가입 · 회사 기본 정보</div>
+      <p className="mt-1 text-sm text-slate-500">
+        {isFirstTier
+          ? '이미 등록된 정보를 불러왔습니다. 내용을 확인하고 변경이 필요한 부분만 수정하세요.'
+          : '회사 기본 정보·본인 담당자 정보·필요 문서·로그인 계정을 등록하세요. 표시된 항목은 필수입니다.'}
+      </p>
+      {isFirstTier && (
+        <div className="mt-3 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-500">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
+          기존 등록 정보(원청 제공)를 확인·최신화하는 단계입니다. 로그인 계정은 기존 MES 계정을 그대로 사용합니다.
+        </div>
+      )}
 
       <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
@@ -97,12 +116,32 @@ export default function SignupForm({
         <Labeled label="DUNS 번호 (선택)">
           <input value={data.dunsNumber} onChange={e => set({ dunsNumber: e.target.value })} className={inputCls} placeholder="00-000-0000" />
         </Labeled>
-        <Labeled label="담당자(본인) 부서명" required>
-          <input value={data.department} onChange={e => set({ department: e.target.value })} className={inputCls} placeholder="예: ESG팀" />
-        </Labeled>
         <div className="sm:col-span-2">
           <Labeled label="주소" required>
             <input value={data.address} onChange={e => set({ address: e.target.value })} className={inputCls} placeholder="회사 주소" />
+          </Labeled>
+        </div>
+      </div>
+
+      {/* 본인(담당자) 정보 확인 */}
+      <div className="mt-5 rounded-md border border-slate-200 p-4">
+        <div className="flex items-center gap-1.5 text-sm font-bold text-ink-100">
+          <UserCheck className="h-4 w-4 text-brand" />
+          본인(담당자) 정보 확인
+        </div>
+        <p className="mt-1 text-xs text-slate-500">이 온보딩을 진행하는 본인(대표 담당자)의 정보를 확인해 주세요.</p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Labeled label="이름" required>
+            <input value={data.contactName} onChange={e => set({ contactName: e.target.value })} className={inputCls} placeholder="담당자 이름" />
+          </Labeled>
+          <Labeled label="부서명" required>
+            <input value={data.department} onChange={e => set({ department: e.target.value })} className={inputCls} placeholder="예: ESG팀" />
+          </Labeled>
+          <Labeled label="이메일" required>
+            <input type="email" value={data.contactEmail} onChange={e => set({ contactEmail: e.target.value })} className={inputCls} placeholder="name@company.com" />
+          </Labeled>
+          <Labeled label="연락처" required>
+            <input value={data.contactPhone} onChange={e => set({ contactPhone: e.target.value })} className={inputCls} placeholder="010-0000-0000" />
           </Labeled>
         </div>
       </div>
@@ -145,7 +184,8 @@ export default function SignupForm({
         </label>
       </div>
 
-      {/* 로그인 계정 */}
+      {/* 로그인 계정 — n차만. 1차는 MES 계정을 그대로 사용하므로 이 섹션이 없다. */}
+      {!isFirstTier && (
       <div className="mt-5 rounded-md border border-slate-200 p-4">
         <div className="flex items-center gap-1.5 text-sm font-bold text-ink-100">
           <KeyRound className="h-4 w-4 text-brand" />
@@ -190,10 +230,13 @@ export default function SignupForm({
           <div className="mt-2 text-xs font-semibold text-alert-text">비밀번호가 일치하지 않습니다.</div>
         )}
       </div>
+      )}
 
       {touched && !valid && (
         <div className="mt-4 rounded-md border border-alert-border bg-alert-bg px-3 py-2 text-xs font-semibold text-alert-text">
-          필수 항목·필요 문서(또는 미확인 등록)·로그인 계정(이메일/8자 이상 비밀번호 일치)을 확인해 주세요.
+          {isFirstTier
+            ? '필수 항목(회사 기본정보·본인 담당자)·필요 문서(또는 미확인 등록)를 확인해 주세요.'
+            : '필수 항목·본인 담당자·필요 문서(또는 미확인 등록)·로그인 계정(이메일/8자 이상 비밀번호 일치)을 확인해 주세요.'}
         </div>
       )}
 
