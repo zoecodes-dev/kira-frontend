@@ -34,7 +34,7 @@ const demoAccounts: Record<LoginRole, { email: string; password: string; label: 
     email: 'supplier@hanyang-cell.com',
     password: 'demo1234',
     label: '협력사 계정',
-    target: '/supplier',
+    target: '/partner',
   },
 };
 
@@ -74,7 +74,7 @@ export default function LoginPage() {
       // 백엔드 role 은 supplier_ceo/supplier_esg 등 세분화 값 → 접두사로 협력사 판별.
       // 온보딩 미완료(onboardingComplete===false)면 회원가입 경로로(전방호환; Phase1은 항상 완료).
       if (isSupplierRole(res.role)) {
-        router.push(res.onboardingComplete === false ? '/supplier/onboarding' : '/supplier');
+        router.push(res.onboardingComplete === false ? '/partner/onboarding' : '/partner');
       } else {
         router.push('/dashboard');
       }
@@ -97,7 +97,7 @@ export default function LoginPage() {
   // useSearchParams 훅 대신 클릭 시점 window.location 사용 → Suspense/빌드 이슈 회피.
   const goSignup = () => {
     const qs = typeof window !== 'undefined' ? window.location.search : '';
-    router.push(`/supplier/onboarding${qs}`);
+    router.push(`/partner/onboarding${qs}`);
   };
 
   return (

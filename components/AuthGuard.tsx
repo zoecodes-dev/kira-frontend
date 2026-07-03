@@ -8,7 +8,7 @@ import { AlertTriangle } from 'lucide-react';
 import { AUTH_EXPIRED_EVENT } from '@/lib/api';
 
 // 로그인/회원가입/온보딩 흐름에선 오버레이를 띄우지 않는다(로그인 자체를 방해하지 않도록).
-const AUTH_FLOW_PREFIXES = ['/login', '/signup', '/onboarding'];
+const AUTH_FLOW_PREFIXES = ['/login', '/signup', '/partner/onboarding'];
 
 export default function AuthGuard() {
   const [expired, setExpired] = useState(false);
