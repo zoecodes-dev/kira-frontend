@@ -28,7 +28,7 @@ function initialDraft(s: SupplierBrief): DraftState {
   return {
     email: '',
     subject: INVITE_MAIL_SUBJECT,
-    body: buildInviteMailBody(s.companyName),
+    body: buildInviteMailBody(s.companyName, isUuid(s.supplierId) ? s.supplierId : undefined),
     sent: false,
   };
 }
