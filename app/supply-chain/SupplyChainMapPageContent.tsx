@@ -69,7 +69,7 @@ export function SupplyChainMapPageContent({
   embedded?: boolean;
   // 공급망 목록에서 넘어온 초기 선택 제품(선택). 제품 목록 로드 후 이 제품을 우선 선택한다.
   initialProductId?: string;
-  // 공급망 목록에서 넘어온 초기 BOM 버전(생산 Lot). 해당 버전을 드롭다운에서 우선 선택한다.
+  // 공급망 목록에서 넘어온 초기 BOM 버전. 해당 버전을 드롭다운에서 우선 선택한다.
   initialBomVersionId?: string;
   // 진입 게이트에서 고른 단위기간(선택). 전달되면 단위기간 필터 칸의 초기값으로 채운다.
   initialPeriodFrom?: string;
@@ -214,7 +214,7 @@ export function SupplyChainMapPageContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset.products, initialProductId]);
 
-  // 선택 제품의 BOM이 도착하면 BOM 버전(단위기간 Lot)을 선택.
+  // 선택 제품의 BOM이 도착하면 BOM 버전을 선택.
   // 게이트/목록에서 넘어온 initialBomVersionId 는 1회 '강제 적용'해 고정한다 — 기본 첫 버전으로
   // 덮이면(예: GLC 2024가 첫 버전) 게이트에서 고른 2025 Lot이 사라지는 문제를 막는다.
   const appliedInitialBom = useRef<string | undefined>(undefined);
