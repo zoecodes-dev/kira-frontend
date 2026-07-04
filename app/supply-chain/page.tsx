@@ -11,9 +11,9 @@ import SupplyChainMapsPanel from '@/components/supply-chain/SupplyChainMapsPanel
 import {
   ApiError,
   getToken,
-  getProductBomVersions,
   getProductSupplyChainMap,
   getProducts,
+  getSupplyChainMaps,
 } from '@/lib/api';
 import {
   apiProductsToDataset,
@@ -56,43 +56,39 @@ export default function SupplyChainListPage() {
         return;
       }
       try {
-        const apiProducts = await getProducts();
-        // 제품마다 모든 BOM 버전을 돌며 §10.2a 맵을 조회 → 맵이 있는 버전마다 공급망 1건.
-        // (같은 제품의 기간별 BOM 버전도 각각 별도 공급망으로 잡힌다 — 예: GLC 2024 / 2025.)
-        const perProduct = await Promise.all(
-          apiProducts.map(async p => {
-            const versions = await getProductBomVersions(p.productId).catch(() => []);
-            const versionMaps = await Promise.all(
-              versions.map(async v => {
-                try {
-                  const map = await getProductSupplyChainMap(p.productId, { bomVersionId: v.bomVersionId });
-                  return map.supplyChainMap.length > 0 ? { version: v, map } : null;
-                } catch {
-                  return null;
-                }
-              }),
-            );
-            return { productId: p.productId, versionMaps: versionMaps.filter(Boolean) };
-          }),
-        );
+        // 공급망 목록 = 실제 생성된 맵(제품 × BOM 버전=단위기간) 단위.
+        // GET /supply-chain/maps 한 번으로 실맵 헤더(제품·고객사·단위기간)를 받고,
+        // 협력사 수·리스크·완성도 집계에 필요한 노드만 실제 맵별로 조회한다.
+        // (구: 제품 전체 × BOM 버전 전체를 순회하며 빈 맵까지 probe 하던 N×M 낭비 제거)
+        const [apiProducts, headers] = await Promise.all([getProducts(), getSupplyChainMaps()]);
 
         let ds: SupplyChainDataset = { ...emptyDataset, products: apiProductsToDataset(apiProducts) };
-        for (const { productId, versionMaps } of perProduct) {
-          for (const vm of versionMaps) {
-            if (!vm) continue;
-            const { version, map } = vm;
-            const bomVersion: BomVersion = {
-              bom_version_id: version.bomVersionId,
-              product_id: productId,
-              version_number: version.versionNumber,
-              effective_from: version.productionFrom ?? '',
-              effective_to: version.productionTo,
-              status: (version.status as BomVersion['status']) ?? 'active',
-              source_system: version.sourceSystem ?? 'API',
-            };
-            ds = { ...ds, bom_versions: [...ds.bom_versions, bomVersion] };
-            ds = mergeSupplyChainMap(ds, productId, version.bomVersionId, map);
-          }
+        // 실맵 헤더 → BOM 버전(단위기간) 데이터셋. 백엔드가 조인해준 생산기간/버전을 그대로 사용.
+        const bomVersions: BomVersion[] = headers.map(h => ({
+          bom_version_id: h.bomVersionId,
+          product_id: h.productId,
+          version_number: h.versionNumber ?? '',
+          effective_from: h.productionFrom ?? '',
+          effective_to: h.productionTo ?? null,
+          status: 'active',
+          source_system: 'API',
+        }));
+        ds = { ...ds, bom_versions: [...ds.bom_versions, ...bomVersions] };
+
+        // 실제 존재하는 맵만 상세 조회 → 협력사/리스크/완성도 집계 (빈 버전 probe 없음).
+        const detailed = await Promise.all(
+          headers.map(async h => {
+            try {
+              const map = await getProductSupplyChainMap(h.productId, { bomVersionId: h.bomVersionId });
+              return { header: h, map };
+            } catch {
+              return null;
+            }
+          }),
+        );
+        for (const d of detailed) {
+          if (!d) continue;
+          ds = mergeSupplyChainMap(ds, d.header.productId, d.header.bomVersionId, d.map);
         }
 
         if (!cancelled) setChains(buildSupplyChainList(ds));
