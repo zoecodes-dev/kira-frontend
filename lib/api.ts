@@ -41,6 +41,35 @@ export function setToken(token: string): void {
 export function clearToken(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(TOKEN_KEY);
+  clearSessionUser();
+}
+
+// ───────────────────────────────────────────────────────────
+// 로그인 세션(담당자 표시명) — JWT에는 name 클레임이 없어 별도 저장.
+// 동의서 "로그인한 담당자" 서명자 자동표기 등에 사용. (localStorage 'kira_user')
+// ───────────────────────────────────────────────────────────
+const SESSION_KEY = "kira_user";
+export interface SessionUser {
+  displayName: string;
+  role: string;
+  userId: string;
+}
+export function setSessionUser(user: SessionUser): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+}
+export function getSessionUser(): SessionUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(SESSION_KEY);
+    return raw ? (JSON.parse(raw) as SessionUser) : null;
+  } catch {
+    return null;
+  }
+}
+export function clearSessionUser(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(SESSION_KEY);
 }
 
 // 인증 만료(401) 전역 알림 — 어느 페이지에서든 로그인 오버레이를 띄우도록 브라우저 이벤트를 쏜다.
@@ -856,17 +885,43 @@ export const getSupplierDetail = (id: string) =>
 //   초대 링크 ?supplierId= 키잉. 토큰이 있어도/없어도 동작(백엔드가 공개).
 //   요청 래퍼는 camel→snake 변환을 안 하므로 body는 snake_case로 직접 조립한다.
 // ───────────────────────────────────────────────────────────
+/** 온보딩 진입 시 표시할 대기중 제3자 정보제공 동의서 요약. 이 조건으로 원문을 재조립해 보여준다. */
+export interface OnboardingConsentSummary {
+  consentId: string;
+  dataScope: string[];
+  purpose: string;
+  thirdPartySharing: boolean;
+  allowedRecipients?: string[] | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  revocable: boolean;
+}
 export interface OnboardingPrefill {
   companyName: string;
   providerType: string;
   country: string | null;
+  businessRegNo?: string | null;
+  dunsNumber?: string | null;
+  address?: string | null;
+  // 이미 등록된 본인(대표) 담당자 — 있으면 회원가입 폼에 미리 채워 확인·최신화한다.
+  contact?: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    department?: string | null;
+  } | null;
+  // 이미 업로드된 사업자등록증(있으면) — 재업로드 없이 확인만.
+  businessRegDoc?: { s3Key: string; fileName?: string | null } | null;
+  unverified?: boolean; // 미확인(서류 미보유)으로 등록돼 있는지
+  consent?: OnboardingConsentSummary | null;
 }
-/** 공개 prefill — 비민감 필드(회사명/유형/국가). 없으면 404. */
+/** 공개 prefill — 비민감 필드(회사명/유형/국가) + 대기중 동의서 요약. 없으면 404. */
 export const getOnboardingPrefill = (supplierId: string) =>
   api.get<OnboardingPrefill>(`/suppliers/${supplierId}/onboarding/prefill`);
 
 export interface OnboardingSubmitInput {
-  account: { email: string; password: string };
+  // 1차 협력사는 MES 기반 계정을 이미 보유 → account=null(신규 계정 생성 안 함).
+  account: { email: string; password: string } | null;
   company: {
     companyName: string;
     country: string;
@@ -928,7 +983,9 @@ export const createSupplier = (input: CreateSupplierInput) =>
 /** 공개 submit — 회사정보+문서+PIC+동의+계정 생성을 한 번에. 재제출/이메일중복 409. */
 export const submitSupplierOnboarding = (supplierId: string, input: OnboardingSubmitInput) =>
   api.post<OnboardingSubmitResult>(`/suppliers/${supplierId}/onboarding/submit`, {
-    account: { email: input.account.email, password: input.account.password },
+    account: input.account
+      ? { email: input.account.email, password: input.account.password }
+      : null,
     company: {
       company_name: input.company.companyName,
       country: input.company.country,
