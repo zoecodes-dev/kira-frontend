@@ -761,7 +761,7 @@ export default function SupplierPage() {
     edge: { from: supplierId, to: 'OEM-001', material: '배터리 셀 (전량 납품)', volume: '연 120만 셀' },
     supplier: {
       id:      'OEM-001',
-      name:    'Hanyang Motor Group (원청사)',
+      name:    'Hanyang Motor Group (고객사)',
       role:    '최종 완성차 조립 · OEM',
       region:  '대한민국 · 서울',
       country: 'KR',

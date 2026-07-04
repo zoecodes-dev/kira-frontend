@@ -537,7 +537,7 @@ export default function SupplyChainHub() {
       try {
         const map = await getProductSupplyChainMap(productId, { bomVersionId: activeVersionId });
         setDataset(ds => mergeSupplyChainMap(ds, productId, activeVersionId, map));
-        // STEP 2 Pool 후보 = 이 제품의 '1차 협력사'(OEM 바로 아래 단계) 협력사만 (전역 목록 금지).
+        // STEP 2 Pool 후보 = 이 제품의 '1차 협력사'(원청 바로 아래 단계) 협력사만 (전역 목록 금지).
         // 1차 정의: 차수 SSOT = supply_chain_map.hop_level(원청=0, 1차=1). 스키마 보장 축.
         //   hop_level 미배포(undefined) 백엔드면 tierLevel 최소 비-0으로 폴백.
         const hasHop = map.supplyChainMap.some(n => typeof n.hopLevel === 'number');
@@ -1049,7 +1049,7 @@ export default function SupplyChainHub() {
               </button>
             </div>
             <div className="p-4">
-              <SupplierGeneralReviewContent supplierId={reviewSupplier.id} supplierName={reviewSupplier.name} embedded mode="oem" />
+              <SupplierGeneralReviewContent supplierId={reviewSupplier.id} supplierName={reviewSupplier.name} embedded mode="prime" />
             </div>
           </div>
         </div>

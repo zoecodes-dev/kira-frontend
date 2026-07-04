@@ -681,12 +681,12 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId }: { la
 }
 
 // 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
-// editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isOem)만 노출.
-function SectionContent({ section, real, editable = false, isOem = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft }: {
+// editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isPrime)만 노출.
+function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft }: {
   section: CollectionSection;
   real?: RealData | null;
   editable?: boolean;
-  isOem?: boolean;
+  isPrime?: boolean;
   supplierId: string;
   factoriesDraft?: FactoryDraft[];
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
@@ -776,11 +776,11 @@ function SectionContent({ section, real, editable = false, isOem = false, suppli
       ['에너지원', (es as string) ?? '-', fieldFilled(es)],
       ['실사 자가진단', srRaw, srRaw ? '완료' : '미입력'],
       // DD 보고서는 원청 전용 — 협력사 폼에는 표시하지 않는다.
-      ...(isOem ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
+      ...(isPrime ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
     ];
     content = (
       <div className="space-y-3">
-        <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isOem ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} />
+        <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isPrime ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} />
         {/* 실사 자가진단 보고서 — 실사관리 페이지 대체. 내 기업 정보에서 업로드·확인. */}
         <DocUploadField label="실사 자가진단 보고서" field="regulation.selfAssessmentDocUrl" initialUrl={d?.selfAssessmentDocUrl} editable={editable} supplierId={supplierId} />
       </div>
@@ -808,7 +808,7 @@ function AccordionSection({
   real,
   editable = false,
   showRequest = true,
-  isOem = false,
+  isPrime = false,
   supplierId,
   factoriesDraft,
   setFactoriesDraft,
@@ -820,7 +820,7 @@ function AccordionSection({
   real?: RealData | null;
   editable?: boolean;       // 입력 모드(자료 제출) — 값 셀을 입력칸으로
   showRequest?: boolean;    // 원청 전용 '미입력 N건 요청' 버튼 노출 여부
-  isOem?: boolean;          // 원청 모드 — DD 보고서 등 원청 전용 항목 노출
+  isPrime?: boolean;          // 원청 모드 — DD 보고서 등 원청 전용 항목 노출
   supplierId: string;       // 필요문서 업로드 context 태깅용
   factoriesDraft?: FactoryDraft[];
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
@@ -858,7 +858,7 @@ function AccordionSection({
         section={section}
         real={real}
         editable={editable}
-        isOem={isOem}
+        isPrime={isPrime}
         supplierId={supplierId}
         factoriesDraft={factoriesDraft}
         setFactoriesDraft={setFactoriesDraft}
@@ -874,7 +874,7 @@ export function SupplierGeneralReviewContent({
   supplierName: supplierNameProp,
   openRequest: openRequestProp,
   embedded = false,
-  mode = 'oem',
+  mode = 'prime',
 }: {
   supplierId?: string;
   supplierName?: string;
@@ -882,12 +882,12 @@ export function SupplierGeneralReviewContent({
   // 임베드 모드: 공급망 워크스페이스 모달 안에서 표준 양식을 그대로 재사용(돌아가기 바·풀페이지 배경 제거).
   embedded?: boolean;
   // 같은 표준 양식을 공유한다:
-  //  - 'oem'      : 원청 정보확인 + 자료요청(기본, 기존 동작)
+  //  - 'prime'      : 원청 정보확인 + 자료요청(기본, 기존 동작)
   //  - 'supplier' : 협력사 — 한 페이지에서 '내 기업 정보(보기)' ↔ '자료 제출(입력)'을
   //                 화면 전환 없이 같은 양식의 칸만 토글한다.
-  mode?: 'oem' | 'supplier';
+  mode?: 'prime' | 'supplier';
 } = {}) {
-  const isOem = mode === 'oem';
+  const isPrime = mode === 'prime';
   const isSupplier = mode === 'supplier';
   // 협력사: 보기(읽기 전용) ↔ 입력(자료 제출) — 라우트 변경 없이 editable 토글.
   const [editing, setEditing] = useState(false);
@@ -1224,7 +1224,7 @@ export function SupplierGeneralReviewContent({
         </div>
       )}
       <div className="mb-4 flex items-center justify-between gap-4">
-        {embedded || !isOem ? (
+        {embedded || !isPrime ? (
           <span className="text-sm font-medium text-ink-500">
             {isSupplier
               ? (editing ? '자료 제출 · 표준 양식 입력' : '내 기업 정보 · 입력 완료 현황')
@@ -1238,7 +1238,7 @@ export function SupplierGeneralReviewContent({
         )}
         <div className="flex items-center gap-2">
           {/* 원청 전용: 추가 자료 요청 */}
-          {isOem && (
+          {isPrime && (
             <div className="relative">
               <button
                 type="button"
@@ -1373,8 +1373,8 @@ export function SupplierGeneralReviewContent({
             onRequestSection={openRequestForSection}
             real={api}
             editable={editable}
-            showRequest={isOem}
-            isOem={isOem}
+            showRequest={isPrime}
+            isPrime={isPrime}
             supplierId={supplierId}
             factoriesDraft={factoriesDraft}
             setFactoriesDraft={setFactoriesDraft}
@@ -1389,7 +1389,7 @@ export function SupplierGeneralReviewContent({
         <MetaItem label="다음 제출 예정일" value={displayNextDue} />
       </section>
 
-      {isOem && isRequestModalOpen && (
+      {isPrime && isRequestModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
           <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-sm border border-ink-700 bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
