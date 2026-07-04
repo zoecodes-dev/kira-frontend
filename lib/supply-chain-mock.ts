@@ -760,7 +760,7 @@ export function buildExplorerTree(ds: SupplyChainDataset, product: Product, bomV
 // ── 공급망 목록(랜딩) ──
 // "지금까지 생성된 모든 공급망" = supply_chain_map 이 형성된 (제품 × BOM 버전) 단위.
 // 단위기간 = BOM 버전의 생산기간(effective_from/to) — 고객사 납품기간을 생산기간으로 관리하므로
-// 같은 제품이라도 생산 Lot(기간)이 다르면 별도 공급망 행이 된다(예: GLC 2024 Lot / 2025 Lot).
+// 같은 제품이라도 생산기간이 다르면 별도 공급망 행이 된다(예: GLC 2024 / 2025).
 export type ChainRiskLevel = 'low' | 'medium' | 'high';
 
 export interface SupplyChainSummary {
@@ -839,7 +839,7 @@ export function isSentinelPeriod(from: string, to: string) {
 
 /**
  * 데이터셋의 공급망 맵을 (제품 × BOM 버전) 단위로 묶어 목록 행을 만든다.
- * - 묶음 키 = bom_version_id (제품·고객사·생산기간을 함의). 같은 제품의 다른 Lot은 별도 행.
+ * - 묶음 키 = bom_version_id (제품·고객사·생산기간을 함의). 같은 제품의 다른 BOM 버전은 별도 행.
  * - 단위기간: BOM 버전의 생산기간(effective_from/to).
  * - 협력사 수: child_supplier_id 중복 제거.
  * - 리스크: 묶음 내 협력사 위험도 최악값(critical/high→고위험).

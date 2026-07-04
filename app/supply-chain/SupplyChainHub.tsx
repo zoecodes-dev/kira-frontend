@@ -361,7 +361,7 @@ export default function SupplyChainHub() {
     getValidationSummary(selectedProductId, activeBomVersionId).then(setSummary).catch(() => setSummary(null));
   }, [selectedProductId, activeBomVersionId, isDemo, confirmedSuppliers]);
 
-  // 진입 게이트 통합 목록 — 제품마다 BOM 버전(단위기간 Lot)을 조회해 (제품×고객사×기간) 행으로 펼친다.
+  // 진입 게이트 통합 목록 — 제품마다 BOM 버전을 조회해 (제품×고객사×기간) 행으로 펼친다.
   // 게이트가 떠 있을 때만(맵 미시작·실데이터) 1회 구성.
   useEffect(() => {
     if (isDemo || mapStarted) return;
@@ -433,7 +433,7 @@ export default function SupplyChainHub() {
     };
   }, [dataset.products, isDemo, mapStarted]);
 
-  // 진입 게이트 3개 드롭다운 파생 목록 — 고객사 → (그 고객사) 제품 → (그 제품) 단위기간(Lot).
+  // 진입 게이트 3개 드롭다운 파생 목록 — 고객사 → (그 고객사) 제품 → (그 제품) 단위기간.
   const entryCustomers = Array.from(
     new Map(entryRows.filter(r => r.customerName).map(r => [r.customerName, r.customerName])).keys(),
   );
@@ -480,7 +480,7 @@ export default function SupplyChainHub() {
     }
   }
 
-  // '맵 생성' → 선택한 제품·단위기간(Lot)으로 맵 생성/진입(페이지 전환).
+  // '맵 생성' → 선택한 제품·단위기간으로 맵 생성/진입(페이지 전환).
   function startMapFromSelection() {
     if (!entryProductId) return;
     const versionId = entryBomVersionId ?? entryBoms[0]?.bomVersionId;
@@ -986,7 +986,7 @@ export default function SupplyChainHub() {
           </span>
           <h2 className="mt-4 text-lg font-bold text-ink-100">공급망 맵 생성</h2>
           <p className="mt-1 text-sm text-slate-500">
-            고객사 · 제품 · 단위기간을 고르고, 그 기간에 편입된 BOM(생산 Lot) 하나를 선택해 맵을 생성하면, 해당 공급망의 1차 협력사부터 자동 맵핑됩니다.
+            고객사 · 제품 · 단위기간을 고르고, 그 기간에 편입된 BOM 버전 하나를 선택해 맵을 생성하면, 해당 공급망의 1차 협력사부터 자동 맵핑됩니다.
           </p>
 
           {entryRowsLoading ? (
@@ -1059,7 +1059,7 @@ export default function SupplyChainHub() {
       {activeModal === 'mapCreate' && (
         <ModalShell
           title="공급망 맵 생성"
-          subtitle="고객사 · 제품 · 단위기간 · BOM(생산 Lot)을 고르면 1차 협력사부터 자동 맵핑됩니다."
+          subtitle="고객사 · 제품 · 단위기간 · BOM 버전을 고르면 1차 협력사부터 자동 맵핑됩니다."
           onClose={close}
           footer={
             <div className="flex items-center justify-end gap-2">

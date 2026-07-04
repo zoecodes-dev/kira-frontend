@@ -57,8 +57,8 @@ export default function SupplyChainListPage() {
       }
       try {
         const apiProducts = await getProducts();
-        // 제품마다 모든 BOM 버전(생산 Lot)을 돌며 §10.2a 맵을 조회 → 맵이 있는 버전마다 공급망 1건.
-        // (같은 제품의 기간별 Lot도 각각 별도 공급망으로 잡힌다 — 예: GLC 2024 / 2025.)
+        // 제품마다 모든 BOM 버전을 돌며 §10.2a 맵을 조회 → 맵이 있는 버전마다 공급망 1건.
+        // (같은 제품의 기간별 BOM 버전도 각각 별도 공급망으로 잡힌다 — 예: GLC 2024 / 2025.)
         const perProduct = await Promise.all(
           apiProducts.map(async p => {
             const versions = await getProductBomVersions(p.productId).catch(() => []);
