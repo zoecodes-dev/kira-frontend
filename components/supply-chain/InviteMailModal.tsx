@@ -1,16 +1,16 @@
 'use client';
 
 // 단계6 — 1차 협력사에 정보 입력을 요청하는 표준 템플릿 메일 팝업
-//  · 시스템 제공 표준 템플릿 / 제3자 정보 확인 동의서 첨부 / 본인인증 담당자(PIC) 재확인
+//  · 시스템 제공 표준 템플릿 / 제3자 정보 확인 동의서 첨부
 //  · 발송 = 제3자 동의서(데이터 계약) 생성 + (실 UUID 협력사) 자료요청 생성
 //    → 백엔드가 협력사 담당자에게 in-app 알림 + 이메일(SES) 실발송
 import { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { CheckCircle2, FileSignature, Loader2, Paperclip, Send, ShieldCheck, Users } from 'lucide-react';
+import { CheckCircle2, FileSignature, Loader2, Paperclip, Send, Users } from 'lucide-react';
 import ModalShell from './ModalShell';
 import { createDataConsent, createDataRequest, getSupplierContacts, type SupplierBrief } from '@/lib/api';
 import { CONSENT_ATTACHMENT, INVITE_MAIL_SUBJECT, buildInviteMailBody } from '@/lib/supply-chain-mail-template';
-import { buildConsentDocument, PURPOSE_LABEL, PURPOSE_ORDER, SCOPE_LABEL, SCOPE_ORDER } from '@/lib/consent-clauses';
+import { buildConsentDocument, SCOPE_LABEL, SCOPE_ORDER } from '@/lib/consent-clauses';
 
 const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
 
@@ -19,28 +19,16 @@ const SCOPE_OPTIONS = SCOPE_ORDER.map(key => ({ key, label: SCOPE_LABEL[key] }))
 
 interface DraftState {
   email: string;
-  picName: string;
-  picEmail: string;
-  picPhone: string;
-  picConfirmed: boolean;
-  picPrefilled: boolean;   // 상위 협력사가 가입 시 등록한 PIC(supplier_contacts)에서 자동 채움 여부
   subject: string;
   body: string;
-  attachment: string;
   sent: boolean;
 }
 
 function initialDraft(s: SupplierBrief): DraftState {
   return {
     email: '',
-    picName: '',
-    picEmail: '',
-    picPhone: '',
-    picConfirmed: false,
-    picPrefilled: false,
     subject: INVITE_MAIL_SUBJECT,
     body: buildInviteMailBody(s.companyName),
-    attachment: '',
     sent: false,
   };
 }
@@ -72,9 +60,10 @@ export default function InviteMailModal({
 
   // 메일에 첨부할 동의서(데이터 계약) 조건 — 표준 양식이라 발송 대상 공통.
   const [scope, setScope] = useState<Set<string>>(new Set(['company', 'contacts', 'factories', 'carbon_epd', 'origin']));
-  const [purpose, setPurpose] = useState('EU_BATTERY');
-  const [thirdParty, setThirdParty] = useState(true);
-  const [recipients, setRecipients] = useState('');
+  // 목적·재공유 편집 UI 제거 — 표준값으로 고정(범위만 위 칩에서 선택)
+  const purpose = 'EU_BATTERY';
+  const thirdParty = true;
+  const recipients = '';
   const [sendingId, setSendingId] = useState<string | null>(null);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -98,8 +87,8 @@ export default function InviteMailModal({
     setDrafts(prev => ({ ...prev, [id]: { ...prev[id], ...p } }));
   }
 
-  // 담당자(PIC) 자동 프리필 — 상위 협력사가 가입 시 등록한 하위 협력사 PIC(supplier_contacts)를 조회해
-  //   대표(is_primary) 담당자로 3칸·수신자 이메일을 채운다. 사용자가 이미 입력한 값·발송 건은 보존.
+  // 수신자 이메일 자동 프리필 — 상위 협력사가 가입 시 등록한 하위 협력사 PIC(supplier_contacts)의
+  //   대표(is_primary) 담당자 이메일을 채운다. 사용자가 이미 입력한 값·발송 건은 보존.
   //   실 UUID 협력사만 조회(mock/데모 제외), 404(권한 없음 등)는 빈칸으로 폴백.
   const [fetchedPics, setFetchedPics] = useState<Set<string>>(new Set());
   useEffect(() => {
@@ -113,21 +102,11 @@ export default function InviteMailModal({
         setFetchedPics(prev => new Set(prev).add(id));
         const list = res.contacts ?? [];
         const primary = list.find(c => c.isPrimary) ?? list[0];
-        if (!primary) return;
+        if (!primary?.email) return;
         setDrafts(prev => {
           const d = prev[id];
-          if (!d || d.sent) return prev;
-          return {
-            ...prev,
-            [id]: {
-              ...d,
-              picName: d.picName || primary.name || '',
-              picEmail: d.picEmail || primary.email || '',
-              picPhone: d.picPhone || primary.phone || primary.mobile || '',
-              email: d.email || primary.email || '',
-              picPrefilled: Boolean(primary.name || primary.email || primary.phone || primary.mobile),
-            },
-          };
+          if (!d || d.sent || d.email) return prev;
+          return { ...prev, [id]: { ...d, email: primary.email } };
         });
       })
       .catch(() => { if (!cancelled) setFetchedPics(prev => new Set(prev).add(id)); });
@@ -209,26 +188,6 @@ export default function InviteMailModal({
           {/* 메일 작성 */}
           {selected && draft && (
             <div className="space-y-3">
-              {/* 본인인증 담당자 재확인 */}
-              <div className="rounded-md border border-ok-border bg-ok-bg p-3">
-                <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ok-text">
-                  <ShieldCheck className="h-4 w-4" />
-                  본인인증 담당자 재확인
-                  {draft.picPrefilled && (
-                    <span className="rounded-full border border-ok-border bg-white px-1.5 py-0.5 text-[10px] font-bold text-ok-text">가입 시 등록 담당자</span>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <input value={draft.picName} onChange={e => patch(selected.supplierId, { picName: e.target.value })} placeholder="담당자명" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand" />
-                  <input value={draft.picEmail} onChange={e => patch(selected.supplierId, { picEmail: e.target.value })} placeholder="이메일" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand" />
-                  <input value={draft.picPhone} onChange={e => patch(selected.supplierId, { picPhone: e.target.value })} placeholder="전화번호" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand" />
-                </div>
-                <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs font-semibold text-ok-text">
-                  <input type="checkbox" checked={draft.picConfirmed} onChange={e => patch(selected.supplierId, { picConfirmed: e.target.checked })} className="h-3.5 w-3.5 accent-brand" />
-                  담당자 정보가 정확함을 확인했습니다.
-                </label>
-              </div>
-
               <label className="block">
                 <span className="text-xs font-semibold text-slate-600">수신자</span>
                 <input
@@ -268,13 +227,6 @@ export default function InviteMailModal({
                   {CONSENT_ATTACHMENT}
                   <span className="rounded-full border border-ok-border bg-white px-1.5 py-0.5 text-[10px]">필수 동의서</span>
                 </div>
-                <input
-                  value={draft.attachment}
-                  onChange={e => patch(selected.supplierId, { attachment: e.target.value })}
-                  disabled={draft.sent}
-                  placeholder="추가 첨부 (예: BOM_Request_Template.xlsx)"
-                  className="mt-2 h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-brand disabled:bg-slate-50"
-                />
               </div>
 
               {/* 첨부 동의서 = 데이터 계약(Data Contract) 조건. 발송 시 이 조건으로 동의가 생성된다. */}
@@ -294,27 +246,6 @@ export default function InviteMailModal({
                     </button>
                   ))}
                 </div>
-                <div className="mt-2.5 flex flex-wrap items-center gap-4">
-                  <label className="flex items-center gap-2 text-xs font-semibold text-ink-400">
-                    목적
-                    <select value={purpose} disabled={draft.sent} onChange={e => setPurpose(e.target.value)} className="rounded-sm border border-slate-200 px-2 py-1 text-xs font-semibold text-ink-100">
-                      {PURPOSE_ORDER.map(p => <option key={p} value={p}>{PURPOSE_LABEL[p]}</option>)}
-                    </select>
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-ink-400">
-                    <input type="checkbox" checked={thirdParty} disabled={draft.sent} onChange={e => setThirdParty(e.target.checked)} className="h-3.5 w-3.5 accent-brand" />
-                    제3자(고객사·규제기관) 재공유 허용
-                  </label>
-                </div>
-                {thirdParty && (
-                  <input
-                    value={recipients}
-                    onChange={e => setRecipients(e.target.value)}
-                    disabled={draft.sent}
-                    placeholder="재공유 대상 (쉼표로 구분 — 예: BMW AG, 삼성SDI)"
-                    className="mt-2 h-9 w-full rounded-sm border border-slate-200 px-2.5 text-xs outline-none focus:border-brand disabled:bg-slate-50"
-                  />
-                )}
               </div>
 
               {/* 동의서 미리보기 — 발송 시 PDF로 첨부될 문서(메일 본문에는 인라인하지 않음) */}
@@ -339,8 +270,7 @@ export default function InviteMailModal({
                   <button
                     type="button"
                     onClick={() => send(selected.supplierId)}
-                    disabled={!draft.picConfirmed || !draft.email.trim() || scope.size === 0 || sendingId === selected.supplierId}
-                    title={!draft.picConfirmed ? '담당자(PIC) 재확인이 필요합니다.' : undefined}
+                    disabled={!draft.email.trim() || scope.size === 0 || sendingId === selected.supplierId}
                     className="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {sendingId === selected.supplierId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

@@ -10,7 +10,7 @@ export function buildInviteMailBody(companyName: string): string {
     '',
     '· 입력 항목: 자재 spec / 공장별 공급비율 / 원산지 / 인증서 / 규제 증빙(탄소발자국·실사)',
     '· 동의 사항: 첨부된 제3자 정보 확인 동의서 확인 후 진행해 주세요.',
-    '· 본인인증: 담당자(PIC) 정보가 정확한지 확인 후 로그인해 주세요.',
+    '· 본인인증: 담당자 정보가 정확한지 확인 후 로그인해 주세요.',
     '',
     '[공급망 정보 입력 바로가기] → /partner/onboarding',
     '',
