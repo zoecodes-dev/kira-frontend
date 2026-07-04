@@ -1105,7 +1105,7 @@ export function getProcesses(supplierId: string): ManufacturingProcess[] {
 // ============================================================
 // 13. 권한 제어 헬퍼 (기존 유지)
 // ============================================================
-export type ViewerRole = 'oem' | 'tier1_supplier' | 'auditor';
+export type ViewerRole = 'prime' | 'tier1_supplier' | 'auditor';
 export const tier1ViewerSupplierId = 'S-CELL-001';
 
 // ============================================================

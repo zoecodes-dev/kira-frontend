@@ -34,7 +34,7 @@ import {
   type ProviderType,
 } from '@/lib/api';
 
-// §4.2 — 요청 노드(KIRA, OEM/tier0)는 협력사 목록에서 제외
+// §4.2 — 요청 노드(KIRA=원청, tier0)는 협력사 목록에서 제외
 const REQUEST_NODE_ID = 'a0000000-0000-4000-8000-000000000000';
 
 type StatusFilter = 'all' | SupplierStatusCode;
@@ -102,7 +102,7 @@ function SupplierRow({ row }: { row: SupplierRowData }) {
   const rate = reliability?.completenessScore ?? 0;
   const progress = completenessMeta(rate);
   const slaOver = isSlaOverdue(reliability);
-  // 협력사 관리는 단일 공유 폼 '페이지'로 이동(check-info, mode=oem). 불필요한 [id]/info 상세 미사용.
+  // 협력사 관리는 단일 공유 폼 '페이지'로 이동(check-info, mode=prime). 불필요한 [id]/info 상세 미사용.
   const detailHref = `/suppliers/check-info?supplierId=${brief.supplierId}&supplier=${encodeURIComponent(brief.companyName)}`;
 
   return (

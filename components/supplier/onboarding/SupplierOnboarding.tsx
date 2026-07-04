@@ -90,7 +90,7 @@ export default function SupplierOnboarding() {
 
   const currentIndex = steps.indexOf(step);
 
-  // DB에 이미 있는 값으로 회원가입 폼을 전부 채운다(1차: OEM ingest, n차: 상위가 입력한 stub).
+  // DB에 이미 있는 값으로 회원가입 폼을 전부 채운다(1차: 원청 ingest, n차: 상위가 입력한 stub).
   //   온보딩 submit이 저장하는 경로(suppliers·supplier_contacts·문서 URL·미확인)를 역으로 받아와 채운다.
   //   사용자가 이미 고친 값은 덮어쓰지 않는다(prev 우선) → 확인 후 필요한 부분만 최신화.
   function handlePrefill(detail: OnboardingPrefill) {

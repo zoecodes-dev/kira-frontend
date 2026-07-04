@@ -2,7 +2,7 @@
 
 // 협력사 입력현황/목록에서 협력사를 누르면 이 모달로 '단일 공유 폼'(SupplierGeneralReviewContent)을 띄운다.
 // 별도 상세 페이지로 이탈하지 않으므로 닫으면 곧바로 협력사 목록으로 복귀한다.
-// 협력사 포털과 동일한 단일 폼(mode='oem' = 원청 정보확인 + 자료요청).
+// 협력사 포털과 동일한 단일 폼(mode='prime' = 원청 정보확인 + 자료요청).
 import { Suspense } from 'react';
 import { X } from 'lucide-react';
 import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
@@ -35,7 +35,7 @@ export default function SupplierInfoModal({
             <SupplierGeneralReviewContent
               supplierId={supplierId}
               supplierName={supplierName}
-              mode="oem"
+              mode="prime"
               openRequest={openRequest}
               embedded
             />
