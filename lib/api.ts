@@ -80,7 +80,7 @@ export function notifyAuthExpired(): void {
   window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
 }
 
-// JWT payload 의 supplier_id 클레임(협력사 본인 식별 §0.5). 클라이언트 전용·미로그인/OEM 이면 null.
+// JWT payload 의 supplier_id 클레임(협력사 본인 식별 §0.5). 클라이언트 전용·미로그인/원청 이면 null.
 // 협력사 포털이 로그인한 본인 supplier 로 스코프를 잡는 소스.
 export function getTokenSupplierId(): string | null {
   const token = getToken();
@@ -234,7 +234,7 @@ export const api = {
 //   응답은 snake_case → camelCase 변환됨(token 키는 단어라 그대로).
 // ───────────────────────────────────────────────────────────
 // 백엔드 user.role 실제 값(docker/01_schema.sql chk_user_role).
-// 원청(OEM) 측: admin·owner_esg·owner_purchasing / 협력사 측: supplier_ceo·supplier_esg.
+// 원청 측: admin·owner_esg·owner_purchasing / 협력사 측: supplier_ceo·supplier_esg.
 export type UserRole =
   | "admin"
   | "owner_esg"

@@ -21,10 +21,10 @@ import { login, setToken, setSessionUser, ApiError, isSupplierRole } from '@/lib
 // API 모드 여부 — true면 실제 POST /auth/login, 아니면 데모 권한분기 흐름 유지
 const USE_API = process.env.NEXT_PUBLIC_USE_API === 'true';
 
-type LoginRole = 'oem' | 'supplier';
+type LoginRole = 'prime' | 'supplier';
 
 const demoAccounts: Record<LoginRole, { email: string; password: string; label: string; target: string }> = {
-  oem: {
+  prime: {
     email: 'oem@kira.demo',
     password: 'demo1234',
     label: '원청사 계정',
@@ -43,13 +43,13 @@ function inferRole(email: string): LoginRole {
   if (normalized.includes('supplier') || normalized.includes('vendor') || normalized.includes('hanyang')) {
     return 'supplier';
   }
-  return 'oem';
+  return 'prime';
 }
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState(demoAccounts.oem.email);
-  const [password, setPassword] = useState(demoAccounts.oem.password);
+  const [email, setEmail] = useState(demoAccounts.prime.email);
+  const [password, setPassword] = useState(demoAccounts.prime.password);
   const [showPassword, setShowPassword] = useState(false);
   const role = useMemo(() => inferRole(email), [email]);
   const account = demoAccounts[role];
@@ -154,7 +154,7 @@ export default function LoginPage() {
           <div className="w-full max-w-md">
             <div className="mb-5 rounded-sm border border-ink-700 bg-white p-3 shadow-control">
               <div className="grid grid-cols-2 gap-2">
-                {(['oem', 'supplier'] as LoginRole[]).map(item => (
+                {(['prime', 'supplier'] as LoginRole[]).map(item => (
                   <button
                     key={item}
                     type="button"
@@ -225,11 +225,11 @@ export default function LoginPage() {
                   <div>
                     <div className="text-xs font-bold text-ink-100">접속 대상</div>
                     <div className="mt-0.5 text-[11px] text-ink-500">
-                      {role === 'oem' ? '원청사 전체 관제 대시보드' : '협력사 제한 포털'}
+                      {role === 'prime' ? '원청사 전체 관제 대시보드' : '협력사 제한 포털'}
                     </div>
                   </div>
                   <div className="flex h-8 w-8 items-center justify-center rounded-xs border border-ink-700 bg-white">
-                    {role === 'oem'
+                    {role === 'prime'
                       ? <Network className="h-4 w-4 text-accent-700" />
                       : <Factory className="h-4 w-4 text-info-text" />
                     }
