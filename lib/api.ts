@@ -1392,6 +1392,13 @@ export interface SupplyChainMapHeader {
   bomVersionId: string;
   productId: string;
   productName: string;
+  productCode?: string | null;
+  customerId?: string | null;
+  customerName?: string | null;
+  // BOM 버전(=생산 단위기간) 메타 — 목록이 제품×생산기간×고객사로 바로 렌더링하도록 백엔드가 조인해 제공.
+  versionNumber?: string | null;
+  productionFrom?: string | null;
+  productionTo?: string | null;
   status: "building" | "completed";
   completedAt?: string | null;
   edgeCount: number;
