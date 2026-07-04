@@ -1,6 +1,6 @@
-# KIRA Battery DPP Dashboard
+# KIRA Battery Dashboard
 
-배터리 DPP 규제 대응을 위한 원청사/협력사 분리형 운영 관제 데모입니다.  
+배터리 공급망 생성 및 규제 대응을 위한 원청사/협력사 분리형 운영 관제 데모입니다.  
 Next.js 14, TypeScript, Tailwind CSS 기반으로 구성되어 있습니다.
 
 ## 데모 로그인
