@@ -348,7 +348,7 @@ export function SupplyChainMapPageContent({
   // 필터 무시하고 이 BOM의 전체 공급망을 내보낸다. general review는 맵에 편입된 실 협력사(UUID)를 API로 조회해 합친다.
   const CUSTOMER_HEADERS = [
     '차수', '품목/부품', '원재료/광물', '공급사', '사업장', '국가(원산지)', '공급기간', '공급비율(%)', '리스크 상태',
-    '영문명', '사업자등록번호', '본사 국가', '업종', 'smelter 구분', '핵심광물(Li/Co/Ni %)',
+    '영문명', '사업자등록번호', '본사 국가', '업종', 'smelter 구분', '핵심광물(함량 %)',
     'PIC 이름', 'PIC 직책', 'PIC 이메일', 'PIC 연락처', '공장(원산지·비율·담당자)',
     '탄소집약도', '에너지원', '실사 자가진단', '사업자등록증', '환경성적서',
   ];
@@ -446,7 +446,9 @@ export function SupplyChainMapPageContent({
         (dt?.country as string) ?? '-',
         (dt?.providerType as string) ?? '-',
         (dt?.smelterType as string) ?? '-',
-        [cm.Li, cm.Co, cm.Ni].map(v => (v != null ? v : '-')).join(' / '),
+        // 있는 광물 키만 직렬화(흑연 등 포함) — 예: "Li 7.2 / Ni 80 / graphite_natural 88"
+        Object.entries(cm).filter(([k, v]) => k !== 'hazardous_substances' && v != null)
+          .map(([k, v]) => `${k} ${v}`).join(' / ') || '-',
         pic?.name ?? '-',
         pic?.role ?? '-',
         pic?.email ?? '-',

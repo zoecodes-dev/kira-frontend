@@ -538,6 +538,18 @@ const sectionOfField = (f: string): SectionKey | undefined =>
   FIELD_META[f]?.section ?? (f.includes('.') ? undefined : (f as SectionKey));
 const labelOfField = (f: string): string => FIELD_META[f]?.label ?? f;
 
+// 소재 구성(core_minerals) 광물 키 → 표시 라벨. 편집 모드에선 이 키들을 입력칸으로 노출.
+//   완성도는 '1종 이상'(materials.any) 게이트 — 특정 금속을 강제하면 단일 광물
+//   회사(음극재 흑연, 광산 등)가 영구 미완성이 되므로 필수 지정하지 않는다(백엔드와 동일 규칙).
+const MINERAL_LABELS: Record<string, string> = {
+  Li: 'Li (리튬)', Co: 'Co (코발트)', Ni: 'Ni (니켈)', Mn: 'Mn (망간)',
+  graphite_natural: '천연흑연', graphite_synthetic: '인조흑연',
+};
+const MINERAL_EDIT_KEYS = Object.keys(MINERAL_LABELS);
+// hazardous_substances 등 비광물 키 제외한 함량 키 목록.
+const mineralKeysOf = (cm: Record<string, unknown>): string[] =>
+  Object.keys(cm).filter(k => k !== 'hazardous_substances' && cm[k] != null && cm[k] !== '');
+
 // 백엔드 완성도(provider_type별 필수셋)로 섹션 집계 도출 — requiredFields/missingFields가 SSOT.
 //   해당 섹션 필수 필드가 0개면 '해당 없음'(예: 광산의 소재구성·규제, 유통사의 소재구성).
 function deriveSectionMetaFromBackend(
@@ -575,11 +587,15 @@ function deriveSectionMeta(
     return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
   }
   if (key === 'materials') {
-    const cm = d?.coreMinerals ?? {};
-    const fields: [string, unknown][] = [['Li 함량', cm.Li], ['Co 함량', cm.Co], ['Ni 함량', cm.Ni]];
-    const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
-    const completed = fields.length - missing.length;
-    return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
+    // 백엔드 폴백도 동일 규칙: 광물 1종 이상이면 완료(materials.any). 광산·유통은 판정 제외.
+    const pt = d?.providerType ?? '';
+    if (pt === 'miner' || pt === 'trader') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
+    const filled = mineralKeysOf((d?.coreMinerals ?? {}) as Record<string, unknown>).length > 0;
+    return {
+      completed: filled ? 1 : 0, total: 1,
+      missing: filled ? [] : ['핵심광물 함량(최소 1종)'],
+      status: filled ? '완료' : '미입력',
+    };
   }
   if (key === 'regulation') {
     const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
@@ -710,13 +726,19 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const keys = ['companyName', 'country', 'businessRegNo', 'dunsNumber', 'providerType', ...(showSmelter ? ['smelterType'] : [])];
     content = <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="company" selects={{ providerType: PROVIDER_OPTS, smelterType: SMELTER_OPTS }} />;
   } else if (section.key === 'materials') {
+    // 있는 광물 키만 동적 표시(흑연 포함). 편집 모드는 표준 키 전부 + 미지 키를 입력칸으로.
+    //   빈 칸은 '해당 없음'(중립) — 광물별 필수가 아니므로 미입력(경고)으로 표시하지 않는다.
     const cm = (d?.coreMinerals ?? {}) as Record<string, number>;
-    const rows: string[][] = [
-      ['Li (리튬) 함량(%)', cm.Li != null ? String(cm.Li) : '-', fieldFilled(cm.Li)],
-      ['Co (코발트) 함량(%)', cm.Co != null ? String(cm.Co) : '-', fieldFilled(cm.Co)],
-      ['Ni (니켈) 함량(%)', cm.Ni != null ? String(cm.Ni) : '-', fieldFilled(cm.Ni)],
-    ];
-    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={['Li', 'Co', 'Ni']} fieldPrefix="materials" />;
+    const present = mineralKeysOf(cm);
+    const keys = editable ? [...new Set([...MINERAL_EDIT_KEYS, ...present])] : present;
+    const rows: string[][] = keys.length
+      ? keys.map(k => [
+          `${MINERAL_LABELS[k] ?? k} 함량(%)`,
+          cm[k] != null ? String(cm[k]) : '-',
+          cm[k] != null ? '완료' : '해당 없음',
+        ])
+      : [['핵심광물 함량(최소 1종)', '-', '미입력']];
+    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="materials" />;
   } else if (section.key === 'factories') {
     // 입력 모드: 공장·담당자를 모두 편집(master-form REPLACE-ALL 라운드트립). 보기 모드: 읽기 전용 테이블.
     if (editable && factoriesDraft && setFactoriesDraft) {
@@ -1049,13 +1071,20 @@ export function SupplierGeneralReviewContent({
     const businessRegNo = read('company.businessRegNo'); if (businessRegNo !== undefined) company.business_reg_no = businessRegNo || null;
     const dunsNumber = read('company.dunsNumber'); if (dunsNumber !== undefined) company.duns_number = dunsNumber || null;
     const st = read('company.smelterType'); if (st !== undefined) company.smelter_type = st || null;
-    // 소재 구성 → core_minerals.
-    const li = read('materials.Li'), co = read('materials.Co'), ni = read('materials.Ni');
-    if (li !== undefined || co !== undefined || ni !== undefined) {
-      const cm: Record<string, number> = {};
-      if (li) cm.Li = Number(li);
-      if (co) cm.Co = Number(co);
-      if (ni) cm.Ni = Number(ni);
+    // 소재 구성 → core_minerals. 편집칸에 노출된 광물 키 전부(흑연 포함) 동적 수집.
+    const prevCm = (d?.coreMinerals ?? {}) as Record<string, unknown>;
+    const mineralKeys = [...new Set([...MINERAL_EDIT_KEYS, ...mineralKeysOf(prevCm)])];
+    const entries = mineralKeys.map(k => [k, read(`materials.${k}`)] as const);
+    if (entries.some(([, v]) => v !== undefined)) {
+      const cm: Record<string, unknown> = {};
+      // 입력칸에 안 뜨는 비광물 키(hazardous_substances 등)는 그대로 보존.
+      Object.entries(prevCm).forEach(([k, v]) => {
+        if (!mineralKeys.includes(k) && v != null) cm[k] = v;
+      });
+      entries.forEach(([k, v]) => {
+        const val = v !== undefined ? v : prevCm[k];   // 편집 안 한 키는 기존 값 유지
+        if (val !== undefined && val !== null && val !== '') cm[k] = Number(val);
+      });
       company.core_minerals = Object.keys(cm).length ? cm : null;
     } else if (d?.coreMinerals) {
       company.core_minerals = d.coreMinerals;   // round-trip
