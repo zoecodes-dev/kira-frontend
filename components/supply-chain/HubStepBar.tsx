@@ -119,10 +119,10 @@ export default function HubStepBar({
         <StepTile
           index={4}
           label="동의서 수신 확인"
-          hint={!poolDone ? '메일 발송 후' : step4Done ? '수신 확인 완료' : '회신·서명 수신 확인 → 하위 차수 노출'}
+          hint={!step3Done ? '메일 발송 후' : step4Done ? '수신 확인 완료' : '회신·서명 수신 확인 → 하위 차수 노출'}
           Icon={FileSignature}
           onClick={onOpenConsent}
-          disabled={!poolDone || locked}
+          disabled={(!step3Done && !step4Done) || locked}
           done={step4Done}
           current={step3Done && !step4Done}
         />
