@@ -4,23 +4,18 @@
 //  · 시스템 제공 표준 템플릿 / 제3자 정보 확인 동의서 첨부 / 본인인증 담당자(PIC) 재확인
 //  · 발송 = 제3자 동의서(데이터 계약) 생성 + (실 UUID 협력사) 자료요청 생성
 //    → 백엔드가 협력사 담당자에게 in-app 알림 + 이메일(SES) 실발송
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { CheckCircle2, FileSignature, Loader2, Paperclip, Send, ShieldCheck, Users } from 'lucide-react';
 import ModalShell from './ModalShell';
-import { createDataConsent, createDataRequest, type SupplierBrief } from '@/lib/api';
+import { createDataConsent, createDataRequest, getSupplierContacts, type SupplierBrief } from '@/lib/api';
 import { CONSENT_ATTACHMENT, INVITE_MAIL_SUBJECT, buildInviteMailBody } from '@/lib/supply-chain-mail-template';
+import { buildConsentDocument, PURPOSE_LABEL, PURPOSE_ORDER, SCOPE_LABEL, SCOPE_ORDER } from '@/lib/consent-clauses';
 
-// 메일에 첨부하는 제3자 정보제공 동의서 = 데이터 계약(Data Contract) 조건.
-const SCOPE_OPTIONS: { key: string; label: string }[] = [
-  { key: 'company', label: '기업 기본정보' },
-  { key: 'contacts', label: '담당자 연락처' },
-  { key: 'factories', label: '공장·사업장' },
-  { key: 'carbon_epd', label: '환경성적서(탄소)' },
-  { key: 'origin', label: '원산지/규제' },
-  { key: 'sub_suppliers', label: '하위 협력사' },
-];
-const PURPOSE_OPTIONS = ['EU_BATTERY', 'SUPPLY_CHAIN_DD', 'CSDDD', 'CONFLICT_MINERALS'];
+const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
+
+// 메일에 첨부하는 제3자 정보제공 동의서 = 데이터 계약(Data Contract) 조건. 라벨은 consent-clauses가 SSOT.
+const SCOPE_OPTIONS = SCOPE_ORDER.map(key => ({ key, label: SCOPE_LABEL[key] }));
 
 interface DraftState {
   email: string;
@@ -28,6 +23,7 @@ interface DraftState {
   picEmail: string;
   picPhone: string;
   picConfirmed: boolean;
+  picPrefilled: boolean;   // 상위 협력사가 가입 시 등록한 PIC(supplier_contacts)에서 자동 채움 여부
   subject: string;
   body: string;
   attachment: string;
@@ -41,6 +37,7 @@ function initialDraft(s: SupplierBrief): DraftState {
     picEmail: '',
     picPhone: '',
     picConfirmed: false,
+    picPrefilled: false,
     subject: INVITE_MAIL_SUBJECT,
     body: buildInviteMailBody(s.companyName),
     attachment: '',
@@ -77,11 +74,65 @@ export default function InviteMailModal({
   const [scope, setScope] = useState<Set<string>>(new Set(['company', 'contacts', 'factories', 'carbon_epd', 'origin']));
   const [purpose, setPurpose] = useState('EU_BATTERY');
   const [thirdParty, setThirdParty] = useState(true);
+  const [recipients, setRecipients] = useState('');
   const [sendingId, setSendingId] = useState<string | null>(null);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const recipientList = recipients.split(',').map(s => s.trim()).filter(Boolean);
+
+  // 선택 조건으로 동의서 본문을 조립 — 이 결과가 메일에 담겨 나가고, 협력사도 시스템에서 동일 문서를 본다.
+  const consentDoc = useMemo(() => {
+    if (!selected) return '';
+    return buildConsentDocument({
+      providerCompany: selected.companyName,
+      purpose,
+      dataScope: Array.from(scope),
+      thirdPartySharing: thirdParty,
+      allowedRecipients: recipientList,
+      validFrom: today,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, purpose, scope, thirdParty, recipients]);
 
   function patch(id: string, p: Partial<DraftState>) {
     setDrafts(prev => ({ ...prev, [id]: { ...prev[id], ...p } }));
   }
+
+  // 담당자(PIC) 자동 프리필 — 상위 협력사가 가입 시 등록한 하위 협력사 PIC(supplier_contacts)를 조회해
+  //   대표(is_primary) 담당자로 3칸·수신자 이메일을 채운다. 사용자가 이미 입력한 값·발송 건은 보존.
+  //   실 UUID 협력사만 조회(mock/데모 제외), 404(권한 없음 등)는 빈칸으로 폴백.
+  const [fetchedPics, setFetchedPics] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!selected) return;
+    const id = selected.supplierId;
+    if (fetchedPics.has(id) || !isUuid(id)) return;
+    let cancelled = false;
+    getSupplierContacts(id)
+      .then(res => {
+        if (cancelled) return;
+        setFetchedPics(prev => new Set(prev).add(id));
+        const list = res.contacts ?? [];
+        const primary = list.find(c => c.isPrimary) ?? list[0];
+        if (!primary) return;
+        setDrafts(prev => {
+          const d = prev[id];
+          if (!d || d.sent) return prev;
+          return {
+            ...prev,
+            [id]: {
+              ...d,
+              picName: d.picName || primary.name || '',
+              picEmail: d.picEmail || primary.email || '',
+              picPhone: d.picPhone || primary.phone || primary.mobile || '',
+              email: d.email || primary.email || '',
+              picPrefilled: Boolean(primary.name || primary.email || primary.phone || primary.mobile),
+            },
+          };
+        });
+      })
+      .catch(() => { if (!cancelled) setFetchedPics(prev => new Set(prev).add(id)); });
+    return () => { cancelled = true; };
+  }, [selected, fetchedPics]);
 
   // 발송 = 제3자 동의서(데이터 계약 'requested') 생성 + 자료요청 생성.
   //   자료요청은 백엔드에서 협력사 담당자에게 in-app 알림 + 이메일(SES)을 실발송한다.
@@ -93,7 +144,8 @@ export default function InviteMailModal({
         dataScope: Array.from(scope),
         purpose,
         thirdPartySharing: thirdParty,
-        validFrom: new Date().toISOString().slice(0, 10),
+        allowedRecipients: thirdParty ? recipientList : undefined,
+        validFrom: today,
         formVersion: 'v1.0',
       }).catch(() => {});
       // 실 UUID 협력사만 자료요청 생성(→ 실 알림·이메일). mock S-ID는 데모로 통과.
@@ -162,6 +214,9 @@ export default function InviteMailModal({
                 <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ok-text">
                   <ShieldCheck className="h-4 w-4" />
                   본인인증 담당자 재확인
+                  {draft.picPrefilled && (
+                    <span className="rounded-full border border-ok-border bg-white px-1.5 py-0.5 text-[10px] font-bold text-ok-text">가입 시 등록 담당자</span>
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <input value={draft.picName} onChange={e => patch(selected.supplierId, { picName: e.target.value })} placeholder="담당자명" className="h-9 rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-brand" />
@@ -243,7 +298,7 @@ export default function InviteMailModal({
                   <label className="flex items-center gap-2 text-xs font-semibold text-ink-400">
                     목적
                     <select value={purpose} disabled={draft.sent} onChange={e => setPurpose(e.target.value)} className="rounded-sm border border-slate-200 px-2 py-1 text-xs font-semibold text-ink-100">
-                      {PURPOSE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                      {PURPOSE_ORDER.map(p => <option key={p} value={p}>{PURPOSE_LABEL[p]}</option>)}
                     </select>
                   </label>
                   <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-ink-400">
@@ -251,6 +306,27 @@ export default function InviteMailModal({
                     제3자(고객사·규제기관) 재공유 허용
                   </label>
                 </div>
+                {thirdParty && (
+                  <input
+                    value={recipients}
+                    onChange={e => setRecipients(e.target.value)}
+                    disabled={draft.sent}
+                    placeholder="재공유 대상 (쉼표로 구분 — 예: BMW AG, 삼성SDI)"
+                    className="mt-2 h-9 w-full rounded-sm border border-slate-200 px-2.5 text-xs outline-none focus:border-brand disabled:bg-slate-50"
+                  />
+                )}
+              </div>
+
+              {/* 동의서 미리보기 — 발송 시 PDF로 첨부될 문서(메일 본문에는 인라인하지 않음) */}
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ink-300">
+                  <FileSignature className="h-4 w-4 text-brand" />
+                  동의서 미리보기 · 발송 시 PDF로 첨부 예정
+                  <span className="ml-auto font-normal text-slate-400">선택 조건이 바뀌면 즉시 갱신됩니다</span>
+                </div>
+                <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-sm border border-slate-200 bg-white p-3 text-[11px] leading-5 text-ink-200">
+                  {consentDoc}
+                </pre>
               </div>
 
               <div className="flex justify-end pt-1">

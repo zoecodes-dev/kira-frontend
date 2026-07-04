@@ -1,24 +1,26 @@
 'use client';
 
 // 원청 공급망 맵 허브 상단 — 흐름 순서 스텝 바.
-// 맵생성 → Pool → 협력사확인·동의·요청 → 자료수집(반복) → 최종검증 → 다운로드.
-// STEP 3~4는 여러 협력사·하위(n차)가 자료를 주고받는 '반복' 구간이라 완성도(%)로 진행을 표시하고,
+// 맵생성 → Pool → 제3자 동의 메일 발송 → 동의서 수신 확인 → 자료수집(반복) → 최종검증 → 다운로드.
+// STEP4(동의서 수신 확인)를 전 차수 완료하면 하위(n차)가 맵에 노출되며, STEP4~5는 완성도(%)로 진행을 표시한다.
 // 최종검증은 데이터 완성도가 준비(readyForFinal)돼야 열린다.
-import { CheckCircle2, ClipboardCheck, FileSpreadsheet, PackageSearch, RefreshCw, ShieldCheck, Users } from 'lucide-react';
+import { CheckCircle2, FileSignature, FileSpreadsheet, Mail, PackageSearch, RefreshCw, ShieldCheck, Users } from 'lucide-react';
 
 interface HubStepBarProps {
   poolCount: number;
   hasProduct: boolean;
   completed: Set<number>;
   locked?: boolean;
-  step3Done?: boolean;           // 협력사 전부 확인 → STEP4(자료 수집·보완) 개방
-  step4Done?: boolean;           // 자료 검토 전체 확인 → STEP5(최종 검증) 개방
+  step3Done?: boolean;           // 제3자 동의 메일 발송 완료 → STEP4 진행 표시
+  step4Done?: boolean;           // 제3자 동의서 수신 확인(전 차수) → STEP5(자료 수집·보완) 개방
+  step5Done?: boolean;           // 자료 검토 전체 확인 → STEP6(최종 검증) 개방
   readyForFinal?: boolean;       // 데이터 완성도 준비 완료 → 최종검증 개방
   completePct?: number | null;   // 자료수집 반복 구간 진행률(%)
   onOpenPool: () => void;
-  onOpenSuppliers: () => void;   // 협력사 확인·동의·정보요청 메일(ConnectedSuppliersModal)
-  onOpenDataReview: () => void;  // 자료 수집·보완 검토(DataReviewModal)
-  onOpenVerify: () => void;      // 최종 검증(MapManageModal)
+  onOpenSuppliers: () => void;   // STEP3 제3자 동의 메일 발송(ConnectedSuppliersModal)
+  onOpenConsent: () => void;     // STEP4 제3자 동의서 수신 확인(ConsentReviewModal)
+  onOpenDataReview: () => void;  // STEP5 자료 수집·보완 검토(DataReviewModal)
+  onOpenVerify: () => void;      // STEP6 최종 검증(MapManageModal)
 }
 
 function StepTile({
@@ -68,16 +70,17 @@ export default function HubStepBar({
   locked = false,
   step3Done = false,
   step4Done = false,
+  step5Done = false,
   readyForFinal = false,
   completePct = null,
   onOpenPool,
   onOpenSuppliers,
+  onOpenConsent,
   onOpenDataReview,
   onOpenVerify,
 }: HubStepBarProps) {
   const step1Done = completed.has(1);
   const poolDone = poolCount > 0;
-  const collecting = poolDone && !readyForFinal;   // 자료수집 반복 진행중
   return (
     <section className="border-b border-slate-200 bg-white px-6 pt-6">
       <div className="mt-4 flex flex-wrap gap-2 pb-4">
@@ -101,45 +104,57 @@ export default function HubStepBar({
           done={completed.has(2)}
           current={step1Done && !poolDone}
         />
-        {/* 3 — 협력사 확인·동의·정보요청 메일 */}
+        {/* 3 — 제3자 동의 메일 발송 */}
         <StepTile
           index={3}
-          label="확인 · 동의 · 정보요청"
-          hint={!poolDone ? 'Pool 확정 후' : '일반정보 확인·제3자 동의·메일 발송'}
-          Icon={ClipboardCheck}
+          label="제3자 동의 메일 발송"
+          hint={!poolDone ? 'Pool 확정 후' : step3Done ? '발송 완료' : '정보요청·제3자 동의서 발송'}
+          Icon={Mail}
           onClick={onOpenSuppliers}
           disabled={!poolDone || locked}
           done={completed.has(3)}
+          current={poolDone && !step3Done}
         />
-        {/* 4 — 자료 수집·보완 (입력 누락·문서 문제 검토·요청). STEP3 후 개방, '전체 확인' 시 완료 */}
+        {/* 4 — 제3자 동의서 수신 확인. 전 차수 수신 확인 시 하위(n차) 맵 노출·완료 */}
         <StepTile
           index={4}
-          label="자료 수집 · 보완"
-          hint={!step3Done ? '협력사 전부 확인 후' : step4Done ? '검토 완료' : '입력 누락·문서 문제 검토'}
-          Icon={RefreshCw}
-          onClick={onOpenDataReview}
-          disabled={!step3Done || locked}
+          label="동의서 수신 확인"
+          hint={!poolDone ? '메일 발송 후' : step4Done ? '수신 확인 완료' : '회신·서명 수신 확인 → 하위 차수 노출'}
+          Icon={FileSignature}
+          onClick={onOpenConsent}
+          disabled={!poolDone || locked}
           done={step4Done}
           current={step3Done && !step4Done}
-          badge={poolDone && completePct !== null ? `완성도 ${completePct}%` : undefined}
         />
-        {/* 5 — 최종 검증 (완성도 준비 시 개방) */}
+        {/* 5 — 자료 수집·보완 (입력 누락·문서 문제 검토·요청). STEP4 후 개방, '전체 확인' 시 완료 */}
         <StepTile
           index={5}
+          label="자료 수집 · 보완"
+          hint={!step4Done ? '동의서 전부 수신 후' : step5Done ? '검토 완료' : '입력 누락·문서 문제 검토'}
+          Icon={RefreshCw}
+          onClick={onOpenDataReview}
+          disabled={!step4Done || locked}
+          done={step5Done}
+          current={step4Done && !step5Done}
+          badge={poolDone && completePct !== null ? `완성도 ${completePct}%` : undefined}
+        />
+        {/* 6 — 최종 검증 (완성도 준비 시 개방) */}
+        <StepTile
+          index={6}
           label="최종 검증"
-          hint={!step4Done ? '자료 검토 전체 확인 후' : readyForFinal ? '요약·판정·엑셀' : '완성도 100% 후 개방'}
+          hint={!step5Done ? '자료 검토 전체 확인 후' : readyForFinal ? '요약·판정·엑셀' : '완성도 100% 후 개방'}
           Icon={ShieldCheck}
           onClick={onOpenVerify}
-          disabled={!step4Done || locked}
-          done={completed.has(4)}
+          disabled={!step5Done || locked}
+          done={completed.has(6)}
         />
-        {/* 6 — 고객사 데이터 다운로드 (아래 추적 테이블) */}
+        {/* 7 — 고객사 데이터 다운로드 (아래 추적 테이블) */}
         <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2.5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-ink-400">
             <FileSpreadsheet className="h-4 w-4" />
           </span>
           <span className="min-w-0">
-            <span className="block text-[11px] font-bold text-slate-400">STEP 6</span>
+            <span className="block text-[11px] font-bold text-slate-400">STEP 7</span>
             <span className="block truncate text-sm font-bold text-ink-100">고객사 데이터 다운로드</span>
             <span className="block truncate text-[11px] font-medium text-slate-500">추적 테이블에서 엑셀 다운로드</span>
           </span>

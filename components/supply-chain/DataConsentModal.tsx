@@ -6,16 +6,10 @@ import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { CheckCircle2, FileSignature, Loader2, X } from 'lucide-react';
 import { getDataConsents, type DataConsent, type SupplierBrief } from '@/lib/api';
+import { PURPOSE_LABEL, SCOPE_LABEL } from '@/lib/consent-clauses';
 import ConsentReplyForm from './ConsentReplyForm';
+import ConsentDetailView from './ConsentDetailView';
 
-const SCOPE_OPTIONS: { key: string; label: string }[] = [
-  { key: 'company', label: '기업 기본정보' },
-  { key: 'contacts', label: '담당자 연락처' },
-  { key: 'factories', label: '공장·사업장' },
-  { key: 'carbon_epd', label: '환경성적서(탄소)' },
-  { key: 'origin', label: '원산지/규제' },
-  { key: 'sub_suppliers', label: '하위 협력사' },
-];
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   requested: { label: '발송됨', cls: 'border-info-border bg-info-bg text-info-text' },
   returned:  { label: '회신',   cls: 'border-info-border bg-info-bg text-info-text' },
@@ -29,6 +23,7 @@ export default function DataConsentModal({ supplier, onClose }: { supplier: Supp
   const [consents, setConsents] = useState<DataConsent[]>([]);
   const [loading, setLoading] = useState(true);
   const [replyTarget, setReplyTarget] = useState<DataConsent | null>(null);
+  const [viewTarget, setViewTarget] = useState<DataConsent | null>(null);
 
   async function load() {
     setLoading(true);
@@ -68,26 +63,32 @@ export default function DataConsentModal({ supplier, onClose }: { supplier: Supp
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <span className={clsx('rounded-full border px-2 py-0.5 text-xs font-bold', sm.cls)}>{sm.label}</span>
-                        <span className="text-sm font-bold text-ink-100">{c.purpose}</span>
+                        <span className="text-sm font-bold text-ink-100">{PURPOSE_LABEL[c.purpose] ?? c.purpose}</span>
                         {c.thirdPartySharing && <span className="rounded-sm bg-warn-bg px-1.5 py-0.5 text-[11px] font-bold text-warn-text">제3자 재공유</span>}
                       </div>
-                      {c.status !== 'agreed' && c.status !== 'revoked' && (
-                        <button type="button" onClick={() => setReplyTarget(c)}
-                          className="inline-flex items-center gap-1.5 rounded-sm border border-ok-border bg-white px-2.5 py-1 text-xs font-bold text-ok-text hover:bg-ok-bg">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> 회신·동의 처리
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {c.formData && (
+                          <button type="button" onClick={() => setViewTarget(c)}
+                            className="inline-flex items-center gap-1.5 rounded-sm border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-ink-400 hover:bg-slate-50">
+                            <FileSignature className="h-3.5 w-3.5" /> 양식 보기
+                          </button>
+                        )}
+                        {c.status !== 'agreed' && c.status !== 'revoked' && (
+                          <button type="button" onClick={() => setReplyTarget(c)}
+                            className="inline-flex items-center gap-1.5 rounded-sm border border-ok-border bg-white px-2.5 py-1 text-xs font-bold text-ok-text hover:bg-ok-bg">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> 회신·동의 처리
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                      {c.dataScope.map(s => <span key={s} className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-semibold text-ink-400">{SCOPE_OPTIONS.find(o => o.key === s)?.label ?? s}</span>)}
+                      {c.dataScope.map(s => <span key={s} className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-semibold text-ink-400">{SCOPE_LABEL[s] ?? s}</span>)}
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-500">
                       <span>유효기간: {c.validFrom ?? '-'} ~ {c.validTo ?? '-'}</span>
                       <span>재공유 대상: {(c.allowedRecipients ?? []).join(', ') || '-'}</span>
                       <span>발송: {c.requestedAt?.slice(0, 10) ?? '-'} · 동의: {c.agreedAt?.slice(0, 10) ?? '-'}</span>
                       <span>서명자: {c.signerName ?? '-'} {c.signerTitle ?? ''}</span>
-                      {c.formData && <span className="col-span-2">회신 양식: {JSON.stringify(c.formData)}</span>}
-                      {c.agreementHash && <span className="col-span-2 font-mono text-slate-400">무결성 해시: {c.agreementHash}</span>}
                     </div>
                   </li>
                 );
@@ -103,6 +104,16 @@ export default function DataConsentModal({ supplier, onClose }: { supplier: Supp
           companyName={supplier.companyName}
           onClose={() => setReplyTarget(null)}
           onDone={() => { setReplyTarget(null); load(); }}
+        />
+      )}
+
+      {viewTarget && (
+        <ConsentDetailView
+          consent={viewTarget}
+          companyName={supplier.companyName}
+          statusLabel={(STATUS_META[viewTarget.status] ?? { label: viewTarget.status }).label}
+          statusClassName={(STATUS_META[viewTarget.status] ?? { cls: 'border-slate-200 bg-slate-50 text-slate-500' }).cls}
+          onClose={() => setViewTarget(null)}
         />
       )}
     </div>
