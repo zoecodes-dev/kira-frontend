@@ -17,22 +17,31 @@ import SelfReportModal from '@/components/supplier/SelfReportModal';
 import SupplierNotificationBell from '@/components/supplier/SupplierNotificationBell';
 import PartnerSidebar from '@/components/partner/PartnerSidebar';
 import { PartnerWorkspaceProvider, usePartnerWorkspace } from '@/components/partner/PartnerWorkspaceContext';
-import { PARTNER_DEEP_LINK_ROUTE } from '@/components/partner/partnerFormatters';
+import { PARTNER_DEEP_LINK_ROUTE, resolvePartnerHeader } from '@/components/partner/partnerFormatters';
 import { getSupplierName } from '@/lib/supplier-detail-data';
 
 const USE_API = process.env.NEXT_PUBLIC_USE_API === 'true';
 
 function PartnerHeader() {
   const router = useRouter();
+  const pathname = usePathname();
+  const header = resolvePartnerHeader(pathname);
   const { notifications, markNotifRead, markAllNotifsRead } = usePartnerWorkspace();
 
   return (
     <PageHeader
-      title="협력사 업무공간"
-      badge="내 회사 기준"
-      description="내 회사 정보, 원청 요청 자료, 직접 연결된 공급망만 확인합니다."
+      title={header.title}
+      badge={header.badge}
+      description={header.description}
       actions={
         <>
+          {/* 페이지별 우측 메타데이터 (예: 계정 설정의 마지막 접속) */}
+          {header.meta && (
+            <div className="flex items-center gap-1.5 text-[11px] text-ink-500">
+              <span className="h-1.5 w-1.5 rounded-full bg-signal-ok" />
+              {header.meta}
+            </div>
+          )}
           <div className="flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-medium text-ink-400">
             <Calendar className="h-3.5 w-3.5" />
             <span className="num-mono">

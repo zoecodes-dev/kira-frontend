@@ -1,15 +1,15 @@
 'use client';
 
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import {
   createDataRequest, getDataRequests,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierSuppliedItems, submitMasterForm,
-  getSupplierRiskProfile, uploadFile, type SupplierRiskProfileResponse as ApiRiskProfile,
+  getSupplierRiskProfile, uploadFile, checkOrigin, type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
-  type SuppliedItem as ApiItem, type ApiDataRequest,
+  type SuppliedItem as ApiItem, type ApiDataRequest, type OriginCheckResult,
   ApiError,
 } from '@/lib/api';
 
@@ -415,6 +415,8 @@ const contactToDraft = (c: ApiSupplierContact): ContactDraft => ({
 });
 
 const editCellCls = 'w-full min-w-24 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20';
+// 원산지 규제 위반 의심 시 국가/지역 셀 강조 (editCellCls와 border 충돌 방지 위해 별도 정의)
+const alertCellCls = 'w-full min-w-24 rounded-xs border border-alert-border bg-alert-bg px-2 py-1 text-sm font-semibold text-alert-text outline-none placeholder:text-alert-text/50 focus:ring-1 focus:ring-alert-border/30';
 
 // 공장 정보 편집 테이블 — 행 추가/삭제. 좌표는 latitude/longitude 입력(있으면 coordinates로 매핑).
 function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (rows: FactoryDraft[]) => void }) {
@@ -422,6 +424,35 @@ function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (ro
     onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   const remove = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
   const add = () => onChange([...rows, emptyFactoryDraft()]);
+
+  // ── 원산지 규제(UFLPA·신장) 실시간 자문 판정 — 행별 결과. 국가/지역 onBlur 디바운스 호출. ──
+  //   자문(advisory)이라 저장을 막지 않는다. 판정은 표시(경고)만 담당.
+  const [originRisk, setOriginRisk] = useState<Record<number, OriginCheckResult | 'loading' | undefined>>({});
+  const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+
+  const scheduleOriginCheck = (i: number) => {
+    const row = rows[i];
+    if (!row) return;
+    const country = row.country?.trim();
+    const region = row.region?.trim();
+    if (!country && !region) { setOriginRisk(s => ({ ...s, [i]: undefined })); return; }
+    clearTimeout(timers.current[i]);
+    timers.current[i] = setTimeout(async () => {
+      setOriginRisk(s => ({ ...s, [i]: 'loading' }));
+      try {
+        const res = await checkOrigin({
+          factory_name: row.factoryName || undefined,
+          country: country || undefined,
+          region: region || undefined,
+          address: row.address || undefined,
+        });
+        setOriginRisk(s => ({ ...s, [i]: res }));
+      } catch {
+        setOriginRisk(s => ({ ...s, [i]: undefined }));   // 판정 실패는 조용히 무시(자문 기능이라 흐름 방해 금지)
+      }
+    }, 500);
+  };
+
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto rounded-sm border border-ink-700">
@@ -434,26 +465,50 @@ function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (ro
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} className="border-b border-ink-700 last:border-b-0">
-                <td className="px-2 py-1.5"><input value={r.factoryName} onChange={e => update(i, { factoryName: e.target.value })} placeholder="공장명" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.country} onChange={e => update(i, { country: e.target.value })} placeholder="국가" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.region} onChange={e => update(i, { region: e.target.value })} placeholder="지역" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.address} onChange={e => update(i, { address: e.target.value })} placeholder="주소" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.factoryRole} onChange={e => update(i, { factoryRole: e.target.value })} placeholder="역할" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.latitude} onChange={e => update(i, { latitude: e.target.value })} placeholder="위도" inputMode="decimal" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.longitude} onChange={e => update(i, { longitude: e.target.value })} placeholder="경도" inputMode="decimal" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.factoryManagerName} onChange={e => update(i, { factoryManagerName: e.target.value })} placeholder="담당자" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.factoryManagerRole} onChange={e => update(i, { factoryManagerRole: e.target.value })} placeholder="직책" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.factoryManagerPhone} onChange={e => update(i, { factoryManagerPhone: e.target.value })} placeholder="연락처" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.factoryManagerEmail} onChange={e => update(i, { factoryManagerEmail: e.target.value })} placeholder="메일" className={editCellCls} /></td>
-                <td className="px-2 py-1.5 text-center">
-                  <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
-                </td>
-              </tr>
-            ))}
+            {rows.map((r, i) => {
+              const risk = originRisk[i];
+              const result = risk && risk !== 'loading' ? risk : null;   // OriginCheckResult | null
+              const originCls = result?.isViolated ? alertCellCls : editCellCls;
+              const showBanner = !!result && (result.isViolated || result.severity === 'warning');
+              return (
+                <Fragment key={i}>
+                  <tr className="border-b border-ink-700 last:border-b-0">
+                    <td className="px-2 py-1.5"><input value={r.factoryName} onChange={e => update(i, { factoryName: e.target.value })} placeholder="공장명" className={editCellCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.country} onChange={e => update(i, { country: e.target.value })} onBlur={() => scheduleOriginCheck(i)} placeholder="국가" className={originCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.region} onChange={e => update(i, { region: e.target.value })} onBlur={() => scheduleOriginCheck(i)} placeholder="지역" className={originCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.address} onChange={e => update(i, { address: e.target.value })} placeholder="주소" className={editCellCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.factoryRole} onChange={e => update(i, { factoryRole: e.target.value })} placeholder="역할" className={editCellCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.latitude} onChange={e => update(i, { latitude: e.target.value })} placeholder="위도" inputMode="decimal" className={editCellCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.longitude} onChange={e => update(i, { longitude: e.target.value })} placeholder="경도" inputMode="decimal" className={editCellCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.factoryManagerName} onChange={e => update(i, { factoryManagerName: e.target.value })} placeholder="담당자" className={editCellCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.factoryManagerRole} onChange={e => update(i, { factoryManagerRole: e.target.value })} placeholder="직책" className={editCellCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.factoryManagerPhone} onChange={e => update(i, { factoryManagerPhone: e.target.value })} placeholder="연락처" className={editCellCls} /></td>
+                    <td className="px-2 py-1.5"><input value={r.factoryManagerEmail} onChange={e => update(i, { factoryManagerEmail: e.target.value })} placeholder="메일" className={editCellCls} /></td>
+                    <td className="px-2 py-1.5 text-center">
+                      <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
+                    </td>
+                  </tr>
+                  {risk === 'loading' && (
+                    <tr><td colSpan={14} className="px-3 pb-1.5"><span className="text-xs text-ink-500">원산지 규제 확인 중…</span></td></tr>
+                  )}
+                  {showBanner && result && (
+                    <tr>
+                      <td colSpan={14} className="px-3 pb-2">
+                        <div className={`flex items-start gap-2 rounded-xs border px-3 py-2 text-xs ${result.isViolated ? 'border-alert-border bg-alert-bg text-alert-text' : 'border-warn-border bg-warn-bg text-warn-text'}`}>
+                          <span className="shrink-0 font-bold">⚠</span>
+                          <div className="min-w-0">
+                            <span className="font-bold">{result.isViolated ? '규제 위반 의심' : '주의'} · {result.regulationName}</span>
+                            <span> — {result.reason}</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
             {rows.length === 0 && (
               <tr><td colSpan={14} className="px-3 py-6 text-center text-sm text-ink-500">등록된 공장이 없습니다. 행을 추가하세요.</td></tr>
             )}

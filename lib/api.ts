@@ -778,6 +778,25 @@ export interface RegulationResult {
 }
 export const getRegulationResults = () => api.get<RegulationResult[]>(`/regulation/materials/regulation-results`);
 
+/** 원산지 규제 실시간 판정(UFLPA·신장) — POST /regulation/origin-check.
+ *  응답은 request() 래퍼에서 snake→camel 변환되므로 camelCase로 정의한다.
+ *  자문(advisory) — 저장을 막지 않는다. */
+export interface OriginCheckResult {
+  isViolated: boolean;
+  regulationCode: string | null;
+  regulationName: string | null;
+  reason: string;
+  confidence: number;
+  severity: 'violation' | 'warning' | 'passed';
+  citedClauses: { citation: string | null; content: string | null }[];
+}
+export const checkOrigin = (body: {
+  factory_name?: string;
+  country?: string;
+  region?: string;
+  address?: string;
+}) => api.post<OriginCheckResult>(`/regulation/origin-check`, body);
+
 export interface SupplyChainGapField {
   field_name: string;
   field_label: string;
