@@ -8,13 +8,15 @@ import { ChevronRight } from 'lucide-react';
 import SupplyChainMap from '@/components/supplier/SupplyChainMap';
 import SubSupplierInviteModal from '@/components/supply-chain/SubSupplierInviteModal';
 import { getSupplierName } from '@/lib/supplier-detail-data';
+import { addDemoNotification } from '@/lib/demo-notifications';
 import { usePartnerWorkspace } from './PartnerWorkspaceContext';
 import SupplierInfoPreview from './SupplierInfoPreview';
 
 export default function PartnerSupplyChain() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { supplierId, supplierUuid, upstream, downstream } = usePartnerWorkspace();
+  const { supplierId, supplierUuid, upstream, downstream, name } = usePartnerWorkspace();
+  const myLabel = name?.nameKo ?? name?.nameEn ?? '협력사';
 
   // 이 화면 안에서만 쓰이는 UI 상태 — 하위 협력사 초대 모달
   const [subInviteOpen, setSubInviteOpen] = useState(false);
@@ -97,6 +99,15 @@ export default function PartnerSupplyChain() {
           onInvited={() => {
             setSubInviteOpen(false);
             alert('하위 협력사 가입 요청 메일이 발송되었습니다.');
+            // [process.md L19-20] 협력사의 하위 가입 요청 발송 → 원청 탭에 발신 내용 알림.
+            addDemoNotification({
+              audience: 'prime',
+              notification_type: 'info',
+              subject: '협력사 하위 초대 발송',
+              body: `${myLabel}가 하위 협력사에게 가입 요청 메일을 발송했습니다. 공급망 Pool에 편입 예정입니다.`,
+              deep_link: 'supply-chain',
+              actor: myLabel,
+            });
           }}
         />
       )}

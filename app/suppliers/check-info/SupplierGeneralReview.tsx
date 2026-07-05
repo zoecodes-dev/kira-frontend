@@ -12,6 +12,7 @@ import {
   type SuppliedItem as ApiItem, type ApiDataRequest,
   ApiError,
 } from '@/lib/api';
+import { addDemoNotification } from '@/lib/demo-notifications';
 
 const providerTypeLabel: Record<string, string> = {
   manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산', smelter: '제련소',
@@ -62,6 +63,7 @@ import {
   FileText,
   Globe,
   HelpCircle,
+  Globe2,
   Mail,
   MessageSquare,
   MoreHorizontal,
@@ -1189,6 +1191,17 @@ export function SupplierGeneralReviewContent({
       await persistForm();
       setSaved(false);
       setEditing(false);
+      // [process.md L28·52] 협력사가 표준 양식 자료 제출 완료 → 원청 탭에 검토/승인 요청 알림.
+      if (isSupplier) {
+        addDemoNotification({
+          audience: 'prime',
+          notification_type: 'approval_needed',
+          subject: '협력사 자료 제출 완료',
+          body: '협력사가 표준 양식 자료 입력을 완료했습니다. My Task에서 내용을 검토하고 승인해 주세요.',
+          deep_link: 'my-task',
+          actor: '협력사',
+        });
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 403 && err.message === 'CONSENT_REQUIRED') {
         alert('제3자 정보제공 동의가 필요합니다. 초대 메일의 링크로 접속해 동의를 완료한 뒤 자료를 제출할 수 있어요.');
@@ -1286,19 +1299,30 @@ export function SupplierGeneralReviewContent({
           )}
           {/* 협력사: 보기 ↔ 입력 토글 (라우트 변경 없이 같은 양식의 칸만 전환) */}
           {isSupplier && !editing && !managedBanner && (
-            <button
-              type="button"
-              onClick={() => {
-                setSaved(false);
-                setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
-                setContactsDraft((api?.contacts ?? []).map(contactToDraft));
-                setEditing(true);
-              }}
-              className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
-            >
-              <Pencil className="h-4 w-4" />
-              자료 제출 · 정보 입력
-            </button>
+            <>
+              {/* [process.md L23·42] 원산지 geo audit · AI 파싱 검증 확인 화면으로 이동 */}
+              <button
+                type="button"
+                onClick={() => router.push('/partner/ai-parsing')}
+                className="inline-flex h-9 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-sm font-semibold text-ink-500 transition-colors hover:border-accent-500 hover:text-accent-700"
+              >
+                <Globe2 className="h-4 w-4" />
+                원산지·AI 검증 확인
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSaved(false);
+                  setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
+                  setContactsDraft((api?.contacts ?? []).map(contactToDraft));
+                  setEditing(true);
+                }}
+                className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
+              >
+                <Pencil className="h-4 w-4" />
+                자료 제출 · 정보 입력
+              </button>
+            </>
           )}
           {isSupplier && editing && (
             <>

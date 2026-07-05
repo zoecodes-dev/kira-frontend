@@ -9,6 +9,7 @@ import clsx from 'clsx';
 import { CheckCircle2, FileSignature, Loader2, Paperclip, Send, Users } from 'lucide-react';
 import ModalShell from './ModalShell';
 import { createDataConsent, createDataRequest, getSupplierContacts, type SupplierBrief } from '@/lib/api';
+import { addDemoNotification } from '@/lib/demo-notifications';
 import { CONSENT_ATTACHMENT, INVITE_MAIL_SUBJECT, buildInviteMailBody } from '@/lib/supply-chain-mail-template';
 import { buildConsentDocument, SCOPE_LABEL, SCOPE_ORDER } from '@/lib/consent-clauses';
 
@@ -132,6 +133,15 @@ export default function InviteMailModal({
         await createDataRequest({ targetSupplierId: id, requestedDataType: 'general_info' }).catch(() => {});
       }
       patch(id, { sent: true });
+      // [process.md L9] 메일·동의서 발송 → 협력사 탭에 "정보 입력 요청" 알림 전파.
+      addDemoNotification({
+        audience: 'partner',
+        notification_type: 'approval_needed',
+        subject: '원청사 정보 입력 요청',
+        body: 'KIRA 원청이 공급망 정보 입력을 요청했습니다. 제3자 정보제공 동의 후 표준 양식에 따라 자료를 제출해 주세요.',
+        deep_link: 'company-info',
+        actor: 'KIRA 원청',
+      });
     } finally {
       setSendingId(null);
     }

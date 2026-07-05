@@ -24,6 +24,7 @@ import {
   type NotificationItem,
 } from '@/lib/api';
 import { type Submission } from '@/components/supplier/EightStageStepper';
+import { useDemoNotifications } from '@/lib/demo-notifications';
 import type { MockContact, MockFactory, MockSupplier } from './partnerTypes';
 
 /** 백엔드 status → 8단계 스테이지 배열로 변환 */
@@ -127,19 +128,33 @@ export function PartnerWorkspaceProvider({ children }: { children: ReactNode }) 
   }, []);
 
   // ─── 공유 알림 상태 — GNB 벨 + 수신함 페이지 1:1 동기화 ─────────────────────
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  // 두 소스를 병합한다:
+  //  ① 백엔드 알림(getNotifications) — 서버가 내려주는 알림
+  //  ② 데모 알림 스토어(audience='partner') — 원청 탭의 행동(메일 발송·보완 요청 등)이
+  //     BroadcastChannel로 이 탭에 실시간 전달한 알림. process.md 핸드오프의 핵심.
+  const [apiNotifications, setApiNotifications] = useState<NotificationItem[]>([]);
   useEffect(() => {
     getNotifications().then(list => {
-      setNotifications(list ?? []);
-    }).catch(() => setNotifications([]));
+      setApiNotifications(list ?? []);
+    }).catch(() => setApiNotifications([]));
   }, []);
 
+  const demo = useDemoNotifications('partner');
+
+  const notifications: NotificationItem[] = useMemo(() => {
+    const merged = [...(demo.notifications as unknown as NotificationItem[]), ...apiNotifications];
+    return merged.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  }, [demo.notifications, apiNotifications]);
+
   function markNotifRead(id: string) {
-    setNotifications(prev => prev.map(n => n.notification_id === id ? { ...n, status: 'read' as const } : n));
+    // 데모 알림이면 스토어에서, 백엔드 알림이면 로컬 상태 + API로 처리(서로 무해).
+    demo.markRead(id);
+    setApiNotifications(prev => prev.map(n => n.notification_id === id ? { ...n, status: 'read' as const } : n));
     markNotificationRead(id).catch(() => {});
   }
   function markAllNotifsRead() {
-    setNotifications(prev => prev.map(n => ({ ...n, status: 'read' as const })));
+    demo.markAllRead();
+    setApiNotifications(prev => prev.map(n => ({ ...n, status: 'read' as const })));
   }
 
   const supplier = suppliers.find(item => item.id === supplierId) as unknown as MockSupplier | undefined;
