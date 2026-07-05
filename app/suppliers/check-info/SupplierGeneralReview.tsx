@@ -529,6 +529,7 @@ const FIELD_META: Record<string, { section: SectionKey; label: string }> = {
   'materials.Co': { section: 'materials', label: 'Co 함량' },
   'materials.Ni': { section: 'materials', label: 'Ni 함량' },
   'materials.any': { section: 'materials', label: '핵심광물 함량(최소 1종)' },
+  'materials.handled_any': { section: 'materials', label: '핵심광물 함량(취급 금속 최소 1종)' },
   'factories': { section: 'factories', label: '공장 정보' },
   'regulation.carbon_intensity': { section: 'regulation', label: '탄소집약도' },
   'regulation.energy_source': { section: 'regulation', label: '에너지원' },
