@@ -322,6 +322,14 @@ export const parts: Part[] = [
     purchase_unit: 'kg',
     kind: 'material',
   },
+  // ── 데모 보충: 셀 구성요소(음극재/분리막/전해질) + 음극재 하위 원료 ──
+  { part_id: 'part-anode', part_code: 'ANO-3310', part_name: 'Anode Active Material', tier_level: 1, parent_part_id: 'part-cell-module', material_type: '음극재', function_purpose: '흑연계 음극 활물질', purchase_unit: 'kg', kind: 'component' },
+  { part_id: 'part-graphite', part_code: 'GR-3311', part_name: 'Natural Graphite', tier_level: 3, parent_part_id: 'part-anode', material_type: 'Graphite', function_purpose: '음극재 원료 천연흑연', purchase_unit: 't', kind: 'mineral' },
+  { part_id: 'part-separator', part_code: 'SEP-5501', part_name: 'Separator Film', tier_level: 1, parent_part_id: 'part-cell-module', material_type: '분리막', function_purpose: '셀 분리막(다공성 필름)', purchase_unit: 'm2', kind: 'component' },
+  { part_id: 'part-electrolyte', part_code: 'ELY-6600', part_name: 'Electrolyte', tier_level: 1, parent_part_id: 'part-cell-module', material_type: '전해질', function_purpose: '리튬염 전해액', purchase_unit: 'L', kind: 'material' },
+  // ── 데모 보충: LFP 제품(prod-bat-lfp120) 체인 ──
+  { part_id: 'part-lfp-cell', part_code: 'BOM-LFP-CELL', part_name: 'LFP Cell Module', tier_level: 1, parent_part_id: null, material_type: 'Cell assembly', function_purpose: 'LFP 전지 셀 모듈', purchase_unit: 'EA', kind: 'component' },
+  { part_id: 'part-lfp-cathode', part_code: 'LFP-4400', part_name: 'LiFePO4 Cathode', tier_level: 1, parent_part_id: 'part-lfp-cell', material_type: '양극재(LFP)', function_purpose: 'LiFePO4 양극 활물질', purchase_unit: 'kg', kind: 'component' },
 ];
 
 export const bom_items: BomItem[] = [
@@ -331,6 +339,13 @@ export const bom_items: BomItem[] = [
   { bom_item_id: 'bomi-coso4', bom_version_id: 'bomv-ncm811-v32', part_id: 'part-coso4', required_quantity: 16.4, required_quantity_unit: 'kg', percentage: 12.8, origin_country: 'CN' },
   { bom_item_id: 'bomi-cobalt-ore', bom_version_id: 'bomv-ncm811-v32', part_id: 'part-cobalt-ore', required_quantity: 0.36, required_quantity_unit: 't', percentage: 4.1, origin_country: 'CD' },
   { bom_item_id: 'bomi-nickel', bom_version_id: 'bomv-ncm811-v32', part_id: 'part-nickel', required_quantity: 27.8, required_quantity_unit: 'kg', percentage: 21.6, origin_country: 'ID' },
+  // ── 데모 보충: 셀 구성요소 + LFP BOM ──
+  { bom_item_id: 'bomi-anode', bom_version_id: 'bomv-ncm811-v32', part_id: 'part-anode', required_quantity: 62.4, required_quantity_unit: 'kg', percentage: 18.2, origin_country: 'KR' },
+  { bom_item_id: 'bomi-graphite', bom_version_id: 'bomv-ncm811-v32', part_id: 'part-graphite', required_quantity: 58.0, required_quantity_unit: 't', percentage: 15.5, origin_country: 'CN' },
+  { bom_item_id: 'bomi-separator', bom_version_id: 'bomv-ncm811-v32', part_id: 'part-separator', required_quantity: 14.2, required_quantity_unit: 'm2', percentage: 6.8, origin_country: 'KR' },
+  { bom_item_id: 'bomi-electrolyte', bom_version_id: 'bomv-ncm811-v32', part_id: 'part-electrolyte', required_quantity: 9.6, required_quantity_unit: 'L', percentage: 5.4, origin_country: 'KR' },
+  { bom_item_id: 'bomi-lfp-cell', bom_version_id: 'bomv-lfp120-v20', part_id: 'part-lfp-cell', required_quantity: 1, required_quantity_unit: 'EA', percentage: 55.0, origin_country: 'KR' },
+  { bom_item_id: 'bomi-lfp-cathode', bom_version_id: 'bomv-lfp120-v20', part_id: 'part-lfp-cathode', required_quantity: 142.0, required_quantity_unit: 'kg', percentage: 34.0, origin_country: 'KR' },
 ];
 
 export const supplierDetailIdMap: Record<string, string> = {
@@ -349,6 +364,12 @@ export const suppliers: MockSupplier[] = [
   { supplier_id: 'sup-ganzhou-rare', company_name: 'Zhejiang Cobalt Co., Ltd.', company_name_en: 'Zhejiang Cobalt Co., Ltd.', provider_type: 'manufacturer', tier: 3, parent_supplier_id: 'sup-pos-cathode', status: 'supplier_requested', risk_level: 'high', latest_audit_result: '소유구조 보완 요청' },
   { supplier_id: 'sup-katanga-cobalt', company_name: 'DRC Mining Co.', company_name_en: 'DRC Mining Co.', provider_type: 'miner', tier: 4, parent_supplier_id: 'sup-ganzhou-rare', status: 'supplier_review', risk_level: 'critical', latest_audit_result: '인권 실사 보고서 갱신 필요' },
   { supplier_id: 'sup-sulawesi-nickel', company_name: 'PT Vale Indonesia', company_name_en: 'PT Vale Indonesia', provider_type: 'miner', tier: 4, parent_supplier_id: 'sup-ganzhou-rare', status: 'supplier_review', risk_level: 'medium', latest_audit_result: '환경 인증 유효기간 확인 필요' },
+  // ── 데모 보충: 음극재/분리막/전해질 공급사 + 흑연광산 + LFP 양극재 공급사 ──
+  { supplier_id: 'sup-anode', company_name: 'GraphiteWorks Inc.', company_name_en: 'GraphiteWorks Inc.', provider_type: 'manufacturer', tier: 2, parent_supplier_id: 'sup-hanyang-cell', status: 'supplier_verified', risk_level: 'low', latest_audit_result: '2026-05 문서 검토 완료' },
+  { supplier_id: 'sup-graphite-mine', company_name: 'Heilongjiang Graphite Mine', company_name_en: 'Heilongjiang Graphite Mine', provider_type: 'miner', tier: 3, parent_supplier_id: 'sup-anode', status: 'supplier_review', risk_level: 'medium', latest_audit_result: '원산지 폴리곤 좌표 검증 대기' },
+  { supplier_id: 'sup-separator', company_name: 'SepraTech Co., Ltd.', company_name_en: 'SepraTech Co., Ltd.', provider_type: 'manufacturer', tier: 2, parent_supplier_id: 'sup-hanyang-cell', status: 'supplier_verified', risk_level: 'low', latest_audit_result: '2026-04 현장 실사 적합' },
+  { supplier_id: 'sup-electrolyte', company_name: 'ElectroChem Solutions', company_name_en: 'ElectroChem Solutions', provider_type: 'manufacturer', tier: 2, parent_supplier_id: 'sup-hanyang-cell', status: 'supplier_requested', risk_level: 'high', latest_audit_result: 'SVHC 성분표 보완 요청' },
+  { supplier_id: 'sup-lfp-cathode', company_name: 'GreenPhosphate Materials', company_name_en: 'GreenPhosphate Materials', provider_type: 'manufacturer', tier: 2, parent_supplier_id: 'sup-hanyang-cell', status: 'supplier_verified', risk_level: 'low', latest_audit_result: '2026-05 RMI 증빙 확인' },
 ];
 
 export const supplier_factories: MockSupplierFactory[] = [
@@ -358,6 +379,12 @@ export const supplier_factories: MockSupplierFactory[] = [
   { factory_id: 'fac-ganzhou-processing', supplier_id: 'sup-ganzhou-rare', factory_name: 'Ganzhou Processing Plant', factory_name_en: 'Ganzhou Processing Plant', country: 'CN', region: 'Ganzhou', factory_role: 'processing', destination: 'US' },
   { factory_id: 'fac-katanga-mine', supplier_id: 'sup-katanga-cobalt', factory_name: 'Katanga Cobalt Mine', factory_name_en: 'Katanga Cobalt Mine', country: 'CD', region: 'Katanga', factory_role: 'mining', destination: 'EU' },
   { factory_id: 'fac-sulawesi-mine', supplier_id: 'sup-sulawesi-nickel', factory_name: 'Sulawesi Nickel Mine', factory_name_en: 'Sulawesi Nickel Mine', country: 'ID', region: 'Sulawesi', factory_role: 'mining', destination: 'EU' },
+  // ── 데모 보충 공장 ──
+  { factory_id: 'fac-anode', supplier_id: 'sup-anode', factory_name: 'Sejong Anode Plant', factory_name_en: 'Sejong Anode Plant', country: 'KR', region: 'Sejong', factory_role: 'production', destination: 'BOTH' },
+  { factory_id: 'fac-graphite-mine', supplier_id: 'sup-graphite-mine', factory_name: 'Heilongjiang Graphite Mine', factory_name_en: 'Heilongjiang Graphite Mine', country: 'CN', region: 'Heilongjiang', factory_role: 'mining', destination: 'EU' },
+  { factory_id: 'fac-separator', supplier_id: 'sup-separator', factory_name: 'Cheongju Separator Line', factory_name_en: 'Cheongju Separator Line', country: 'KR', region: 'Cheongju', factory_role: 'production', destination: 'BOTH' },
+  { factory_id: 'fac-electrolyte', supplier_id: 'sup-electrolyte', factory_name: 'Ulsan Electrolyte Plant', factory_name_en: 'Ulsan Electrolyte Plant', country: 'KR', region: 'Ulsan', factory_role: 'production', destination: 'US' },
+  { factory_id: 'fac-lfp-cathode', supplier_id: 'sup-lfp-cathode', factory_name: 'Iksan LFP Cathode Plant', factory_name_en: 'Iksan LFP Cathode Plant', country: 'KR', region: 'Iksan', factory_role: 'production', destination: 'BOTH' },
 ];
 
 export const supply_chain_map: SupplyChainMapRow[] = [
@@ -367,6 +394,13 @@ export const supply_chain_map: SupplyChainMapRow[] = [
   { map_id: 'map-coso4', bom_version_id: 'bomv-ncm811-v32', parent_supplier_id: 'sup-pos-cathode', child_supplier_id: 'sup-ganzhou-rare', part_id: 'part-coso4', po_number: 'PO-2026-0512', invoice_number: 'INV-2026-0512', supply_period_from: '2026-05-01', supply_period_to: '2026-05-31', link_status: 'supplychain_declared', source_system: 'SUPPLIER_DECLARED', verification_status: 'unverified' },
   { map_id: 'map-cobalt-ore', bom_version_id: 'bomv-ncm811-v32', parent_supplier_id: 'sup-ganzhou-rare', child_supplier_id: 'sup-katanga-cobalt', part_id: 'part-cobalt-ore', po_number: 'PO-2026-0503', invoice_number: 'INV-2026-0503', supply_period_from: '2026-05-01', supply_period_to: '2026-05-31', link_status: 'supplychain_declared', source_system: 'SUPPLIER_DECLARED', verification_status: 'unverified' },
   { map_id: 'map-nickel', bom_version_id: 'bomv-ncm811-v32', parent_supplier_id: 'sup-pos-cathode', child_supplier_id: 'sup-sulawesi-nickel', part_id: 'part-nickel', po_number: 'PO-2026-0508', invoice_number: 'INV-2026-0508-NI', supply_period_from: '2026-05-01', supply_period_to: '2026-05-31', link_status: 'supplychain_declared', source_system: 'SUPPLIER_DECLARED', verification_status: 'unverified' },
+  // ── 데모 보충: 셀 구성요소 링크(음극재/흑연/분리막/전해질) + LFP 체인 ──
+  { map_id: 'map-anode', bom_version_id: 'bomv-ncm811-v32', parent_supplier_id: 'sup-hanyang-cell', child_supplier_id: 'sup-anode', part_id: 'part-anode', po_number: 'PO-2026-0530', invoice_number: 'INV-2026-0530', supply_period_from: '2026-05-01', supply_period_to: '2026-05-31', link_status: 'supplychain_confirmed', source_system: 'ERP', verification_status: 'verified' },
+  { map_id: 'map-graphite', bom_version_id: 'bomv-ncm811-v32', parent_supplier_id: 'sup-anode', child_supplier_id: 'sup-graphite-mine', part_id: 'part-graphite', po_number: 'PO-2026-0531', invoice_number: 'INV-2026-0531', supply_period_from: '2026-05-01', supply_period_to: '2026-05-31', link_status: 'supplychain_declared', source_system: 'SUPPLIER_DECLARED', verification_status: 'unverified' },
+  { map_id: 'map-separator', bom_version_id: 'bomv-ncm811-v32', parent_supplier_id: 'sup-hanyang-cell', child_supplier_id: 'sup-separator', part_id: 'part-separator', po_number: 'PO-2026-0532', invoice_number: 'INV-2026-0532', supply_period_from: '2026-05-01', supply_period_to: '2026-05-31', link_status: 'supplychain_confirmed', source_system: 'ERP', verification_status: 'verified' },
+  { map_id: 'map-electrolyte', bom_version_id: 'bomv-ncm811-v32', parent_supplier_id: 'sup-hanyang-cell', child_supplier_id: 'sup-electrolyte', part_id: 'part-electrolyte', po_number: 'PO-2026-0533', invoice_number: 'INV-2026-0533', supply_period_from: '2026-05-01', supply_period_to: '2026-05-31', link_status: 'supplychain_declared', source_system: 'SUPPLIER_DECLARED', verification_status: 'unverified' },
+  { map_id: 'map-lfp-cell', bom_version_id: 'bomv-lfp120-v20', parent_supplier_id: 'sup-hanyang-cell', child_supplier_id: 'sup-hanyang-cell', part_id: 'part-lfp-cell', po_number: 'PO-2026-0611', invoice_number: 'INV-2026-0611', supply_period_from: '2026-05-01', supply_period_to: '2026-05-31', link_status: 'supplychain_confirmed', source_system: 'ERP', verification_status: 'verified' },
+  { map_id: 'map-lfp-cathode', bom_version_id: 'bomv-lfp120-v20', parent_supplier_id: 'sup-hanyang-cell', child_supplier_id: 'sup-lfp-cathode', part_id: 'part-lfp-cathode', po_number: 'PO-2026-0612', invoice_number: 'INV-2026-0612', supply_period_from: '2026-05-01', supply_period_to: '2026-05-31', link_status: 'supplychain_confirmed', source_system: 'ERP', verification_status: 'verified' },
 ];
 
 export const supply_chain_ratios: SupplyChainRatio[] = [
@@ -376,6 +410,13 @@ export const supply_chain_ratios: SupplyChainRatio[] = [
   { ratio_id: 'ratio-coso4', map_id: 'map-coso4', factory_id: 'fac-ganzhou-processing', ratio_percentage: 64, volume: 10.5 },
   { ratio_id: 'ratio-cobalt-ore', map_id: 'map-cobalt-ore', factory_id: 'fac-katanga-mine', ratio_percentage: 36, volume: 0.36 },
   { ratio_id: 'ratio-nickel', map_id: 'map-nickel', factory_id: 'fac-sulawesi-mine', ratio_percentage: 100, volume: 27.8 },
+  // ── 데모 보충 공급비율 ──
+  { ratio_id: 'ratio-anode', map_id: 'map-anode', factory_id: 'fac-anode', ratio_percentage: 100, volume: 62.4 },
+  { ratio_id: 'ratio-graphite', map_id: 'map-graphite', factory_id: 'fac-graphite-mine', ratio_percentage: 100, volume: 58.0 },
+  { ratio_id: 'ratio-separator', map_id: 'map-separator', factory_id: 'fac-separator', ratio_percentage: 100, volume: 14.2 },
+  { ratio_id: 'ratio-electrolyte', map_id: 'map-electrolyte', factory_id: 'fac-electrolyte', ratio_percentage: 100, volume: 9.6 },
+  { ratio_id: 'ratio-lfp-cell', map_id: 'map-lfp-cell', factory_id: 'fac-hanyang-f003', ratio_percentage: 100, volume: 40 },
+  { ratio_id: 'ratio-lfp-cathode', map_id: 'map-lfp-cathode', factory_id: 'fac-lfp-cathode', ratio_percentage: 100, volume: 142.0 },
 ];
 
 export const statusMeta: Record<RiskStatus, { label: string; className: string; Icon: typeof CheckCircle2 }> = {
@@ -928,13 +969,23 @@ export function buildSupplyChainList(ds: SupplyChainDataset): SupplyChainSummary
     );
 }
 
-// 데모(시연)용 전체 mock 맵 묶음
+// 데모 데이터임을 한눈에 알 수 있게 표시명 앞에 붙이는 마커.
+// (mockDataset 소비 지점에서만 붙으므로 실 API 데이터에는 영향 없음)
+export const DEMO_PREFIX = '[D] ';
+const withDemoPrefix = (s?: string) =>
+  s ? (s.startsWith(DEMO_PREFIX) ? s : `${DEMO_PREFIX}${s}`) : s;
+
+// 데모(시연)용 전체 mock 맵 묶음 — 제품명·협력사명에 [D] 마커를 붙여 데모임을 표시한다.
 export const mockDataset: SupplyChainDataset = {
-  products,
+  products: products.map(p => ({ ...p, product_name: withDemoPrefix(p.product_name)! })),
   bom_versions,
   parts,
   bom_items,
-  suppliers,
+  suppliers: suppliers.map(s => ({
+    ...s,
+    company_name: withDemoPrefix(s.company_name)!,
+    company_name_en: withDemoPrefix(s.company_name_en),
+  })),
   supplier_factories,
   supply_chain_map,
   supply_chain_ratios,
