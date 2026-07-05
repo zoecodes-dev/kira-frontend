@@ -3,7 +3,8 @@
 import { usePathname } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import NavLink from '@/components/NavLink';
-import PrimeNotificationBell from '@/components/prime/PrimeNotificationBell';
+import PrimeNotificationBell, { PRIME_DEEP_LINK_ROUTE } from '@/components/prime/PrimeNotificationBell';
+import NotificationToaster from '@/components/notifications/NotificationToaster';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -14,6 +15,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
+      {/* 원청 새 알림 토스트 팝업 (prime audience) */}
+      <NotificationToaster audience="prime" deepLinkMap={PRIME_DEEP_LINK_ROUTE} fallbackRoute="/my-task" />
       <aside className="w-64 shrink-0 border-r border-white/10 bg-brand text-white flex flex-col shadow-control">
         <div className="p-5 border-b border-white/10 shrink-0">
           <div className="flex items-center justify-between gap-2">

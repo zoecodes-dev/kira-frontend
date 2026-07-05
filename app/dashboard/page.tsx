@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
+import NotificationFeed from '@/components/notifications/NotificationFeed';
+import { PRIME_DEEP_LINK_ROUTE } from '@/components/prime/PrimeNotificationBell';
 import Link from 'next/link';
 import clsx from 'clsx';
 
@@ -387,6 +389,14 @@ export default function DashboardPage() {  const [apiKpis, setApiKpis] = useStat
               <Link href="/materials/regulation-results" className="ml-auto shrink-0 self-center text-xs font-semibold text-accent-700">전체 보기</Link>
             )}
           </div>
+
+          {/* 협력사 활동 알림 — 대시보드에서 바로 확인 (제출·동의·초대 등) */}
+          <NotificationFeed
+            audience="prime"
+            deepLinkMap={PRIME_DEEP_LINK_ROUTE}
+            fallbackRoute="/my-task"
+            limit={4}
+          />
 
           <HitlReviewCard />
 

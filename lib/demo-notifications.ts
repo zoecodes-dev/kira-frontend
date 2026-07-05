@@ -196,6 +196,15 @@ export function addDemoNotification(input: AddDemoNotificationInput): DemoNotifi
   return notif;
 }
 
+/**
+ * 현재 알림 스냅샷을 즉시 반환(초기화 포함). React 렌더 스냅샷은 SSR-하이드레이션 정합을 위해
+ * 첫 렌더에서 빈 배열이라, "마운트 시점에 이미 존재하던 알림" 기준선을 잡을 때는 이걸 쓴다.
+ */
+export function peekDemoNotifications(): DemoNotification[] {
+  ensureInit();
+  return cache;
+}
+
 export function markDemoRead(id: string) {
   ensureInit();
   if (!cache.some((n) => n.notification_id === id && n.status !== 'read')) return;
