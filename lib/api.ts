@@ -747,6 +747,8 @@ export interface AiExtraction {
   parsedFields: Record<string, string | number>;
   confidenceMap: Record<string, number>;
   unparsedFields: string[];
+  // 문서 유형 분류(data_gateway doc_category). origin_certificate면 원산지 UFLPA 판정 트리거.
+  docCategory?: string | null;
   // 원본 문서(PDF 뷰어) — 임시 다운로드 URL + 파일명. 없으면 null(로컬 S3 미구성 등).
   documentUrl?: string | null;
   documentFileName?: string | null;
@@ -796,6 +798,44 @@ export const checkOrigin = (body: {
   region?: string;
   address?: string;
 }) => api.post<OriginCheckResult>(`/regulation/origin-check`, body);
+
+/** 협력사 자가 업로드 문서 → 파싱 트리거. POST /files로 올린 s3Key + doc_kind를 넘긴다.
+ *  응답 document_id로 getExtractionResult를 폴링해 파싱 결과를 받는다.
+ *  doc_kind: 'origin_certificate'(원산지 증명서) | 'carbon'(환경성적서/탄소선언). */
+export const ingestSelfUpload = (body: {
+  supplier_id: string;
+  s3_key: string;
+  file_name?: string;
+  doc_kind: 'origin_certificate' | 'carbon';
+}) => api.post<{ documentId: string; requestId: string }>(`/data-requests/self-upload`, body);
+
+/** 탄소집약도 실시간 판정(EU 배터리법 Art.7) — POST /regulation/carbon-check.
+ *  응답 shape은 OriginCheckResult 재사용(자문, 무저장). */
+export const checkCarbon = (body: {
+  factory_name?: string;
+  carbon_intensity?: number;
+}) => api.post<OriginCheckResult>(`/regulation/carbon-check`, body);
+
+/** 문서 파싱 결과(document_extraction_results 최신 1건). parsedFields 안의 키는 원본 필드명 유지. */
+export interface ExtractionResult {
+  documentId: string;
+  docCategory?: string | null;
+  detectedDocumentType?: string | null;
+  evidenceSummary?: string | null;
+  parsedFields: Record<string, string | number>;
+  confidenceMap: Record<string, number>;
+  unparsedFields: string[];
+}
+
+/** 파싱 결과 폴링용 조회. 아직 파싱 전이면 백엔드가 404 → null 반환(에러 아님). */
+export async function getExtractionResult(documentId: string): Promise<ExtractionResult | null> {
+  try {
+    return await api.get<ExtractionResult>(`/submission-documents/${documentId}/extraction-result`);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;   // 파싱 대기 중
+    throw e;
+  }
+}
 
 export interface SupplyChainGapField {
   field_name: string;

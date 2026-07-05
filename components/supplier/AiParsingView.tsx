@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { getAiExtractions, type AiExtraction } from '@/lib/api';
+import { getAiExtractions, checkOrigin, type AiExtraction, type OriginCheckResult } from '@/lib/api';
 import { CheckCircle2, FileText, ScanLine } from 'lucide-react';
 import Badge from '@/components/Badge';
 import ExtractionTable from './ExtractionTable';
+import OriginRiskBanner from './OriginRiskBanner';
 
 // PDF 뷰어는 pdfjs(브라우저 전용)에 의존 → SSR 금지. 클라이언트에서만 로드한다.
 const PdfViewer = dynamic(() => import('./PdfViewer'), {
@@ -38,6 +39,8 @@ interface ParsedDoc {
     fields: ExtractionField[];
     unparsedFields: string[];
   };
+  // 원산지 증명서(origin_certificate)일 때만 세팅 — 파싱된 원산지로 UFLPA 실시간 판정을 건다.
+  originQuery?: { country?: string; region?: string; address?: string } | null;
 }
 
 // ─── Mock Data — HITL/Queue 규격과 1:1 동기화 ──────────────────────────────
@@ -92,6 +95,14 @@ function extractionToDoc(x: AiExtraction): ParsedDoc {
     const confidence = x.confidenceMap[k] ?? 0;
     return { fieldId: k, label: k, aiValue: String(x.parsedFields[k]), confidence, requiresAttention: confidence < 0.8, unit: '' };
   });
+  // 원산지 증명서면 파싱된 국가/지역을 UFLPA 판정 입력으로 뽑는다(값 없으면 판정 스킵).
+  //   주의: api 래퍼(snakeToCamel)가 parsedFields 내부 키까지 camelCase로 바꾼다(origin_country → originCountry).
+  const pf = x.parsedFields;
+  const str = (v: unknown) => (v != null && String(v).trim() ? String(v).trim() : undefined);
+  const originQuery =
+    x.docCategory === 'origin_certificate'
+      ? { country: str(pf.originCountry), region: str(pf.originRegion), address: str(pf.originAddress) }
+      : null;
   return {
     docId: x.requestId,
     fileName: x.documentFileName ?? `${x.requestedDataType ?? '자료'}.pdf`,
@@ -100,6 +111,7 @@ function extractionToDoc(x: AiExtraction): ParsedDoc {
     uploadedAt: '',
     submissionStatus: STATUS_TO_REVIEW[x.submissionStatus ?? ''] ?? 'review',
     extractionResult: { fields, unparsedFields: x.unparsedFields },
+    originQuery,
   };
 }
 
@@ -127,6 +139,8 @@ export default function AiParsingView({
   const [loadError, setLoadError] = useState(false);
   // 문서별 제출 완료 여부 — { [docId]: true }
   const [completedDocs, setCompletedDocs] = useState<CompletedMap>({});
+  // 원산지 증명서 UFLPA 판정 결과 — { [docId]: 결과 | 'loading' }. 자문(advisory)이라 실패는 조용히 무시.
+  const [originRisk, setOriginRisk] = useState<Record<string, OriginCheckResult | 'loading'>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -141,6 +155,26 @@ export default function AiParsingView({
       .finally(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
   }, [supplierId, realOnly]);
+
+  // 활성 문서가 원산지 증명서면 파싱된 국가/지역으로 UFLPA 실시간 판정을 건다.
+  //   (SupplierGeneralReview의 checkOrigin 흐름 재사용 — 파싱 완료 → 즉시 판정 배너)
+  useEffect(() => {
+    const doc = docs.find(d => d.docId === activeDocId);
+    const q = doc?.originQuery;
+    if (!q || (!q.country && !q.region)) return;   // 원산지 증명서 아님/값 없음 → 스킵
+    if (originRisk[activeDocId]) return;            // 이미 판정함(중복 호출 방지)
+    let cancelled = false;
+    setOriginRisk(s => ({ ...s, [activeDocId]: 'loading' }));
+    checkOrigin({ country: q.country, region: q.region, address: q.address })
+      .then(res => { if (!cancelled) setOriginRisk(s => ({ ...s, [activeDocId]: res })); })
+      .catch(() => {
+        // 판정 실패는 조용히 무시(자문 기능이라 흐름 방해 금지) — 'loading' 제거
+        if (!cancelled) setOriginRisk(s => { const n = { ...s }; delete n[activeDocId]; return n; });
+      });
+    return () => { cancelled = true; };
+    // originRisk는 가드용으로만 읽고 deps에서 제외(재호출 루프 방지).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDocId, docs]);
 
   // realOnly이고 추출 자료가 없으면 무관한 mock 대신 빈/로딩 상태 표시.
   if (docs.length === 0) {
@@ -235,6 +269,19 @@ export default function AiParsingView({
           );
         })}
       </div>
+
+      {/* ── 2-1. 원산지 증명서 UFLPA 판정 배너 (원산지 증명서 탭에서만) ── */}
+      {(() => {
+        const r = originRisk[activeDoc.docId];
+        const visible =
+          r === 'loading' || (!!r && typeof r !== 'string' && (r.isViolated || r.severity === 'warning'));
+        if (!visible) return null;
+        return (
+          <div className="shrink-0 border-b border-ink-700 bg-white px-6 py-2">
+            <OriginRiskBanner result={r} />
+          </div>
+        );
+      })()}
 
       {/* ── 3. 스플릿 뷰 컨테이너 ── */}
       <div className="flex min-h-0 flex-1 gap-1 p-1">

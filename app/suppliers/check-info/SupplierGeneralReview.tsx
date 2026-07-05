@@ -6,7 +6,8 @@ import {
   createDataRequest, getDataRequests,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierSuppliedItems, submitMasterForm,
-  getSupplierRiskProfile, uploadFile, checkOrigin, type SupplierRiskProfileResponse as ApiRiskProfile,
+  getSupplierRiskProfile, uploadFile, checkOrigin, checkCarbon,
+  type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type SuppliedItem as ApiItem, type ApiDataRequest, type OriginCheckResult,
@@ -50,6 +51,11 @@ import { suppliers } from '@/lib/data';
 import { getContacts, getSupplierName, supplierCompleteness } from '@/lib/supplier-detail-data';
 import { addStoredRequest } from '@/lib/data-request-store';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
+import OriginRiskBanner from '@/components/supplier/OriginRiskBanner';
+import { type CertRef } from '@/components/supplier/OriginCertUpload';
+import OriginCertReviewModal from '@/components/supplier/OriginCertReviewModal';
+import MultiDocUploadModal from '@/components/supplier/MultiDocUploadModal';
+import MapModal from '@/components/supplier/MapModal';
 import {
   ArrowLeft,
   BarChart3,
@@ -370,6 +376,11 @@ interface FactoryDraft {
   factoryManagerRole: string;
   factoryManagerPhone: string;
   factoryManagerEmail: string;
+  // [개편안 A] 규제(탄소)를 공장 카드로 통합 — 저장 시 factory_declarations[]로 매핑.
+  carbonIntensity: string;   // kgCO2eq/kWh (문자열 입력, 저장 시 Number)
+  energySource: string;      // 에너지원 (현재 공급사 대표값으로 저장 — 공장별 스키마는 (c) 별도)
+  // 클라이언트 전용 — 원산지 증명서로 채워진 행이면 그 서류 참조(행별 재열람용). 저장 시 무시됨.
+  _certRef?: CertRef;
 }
 interface ContactDraft {
   name: string;
@@ -384,6 +395,7 @@ const emptyFactoryDraft = (): FactoryDraft => ({
   factoryName: '', country: '', region: '', address: '', factoryRole: '',
   destination: '', supplyRatioPercent: '', latitude: '', longitude: '',
   factoryManagerName: '', factoryManagerRole: '', factoryManagerPhone: '', factoryManagerEmail: '',
+  carbonIntensity: '', energySource: '',
 });
 const emptyContactDraft = (): ContactDraft => ({
   name: '', role: '', department: '', email: '', phone: '', mobile: '', isPrimary: false,
@@ -403,6 +415,8 @@ const factoryToDraft = (f: ApiSupplierFactory): FactoryDraft => ({
   factoryManagerRole: f.factoryManagerRole ?? '',
   factoryManagerPhone: f.factoryManagerPhone ?? '',
   factoryManagerEmail: f.factoryManagerEmail ?? '',
+  // 서버 factory에는 탄소 필드가 없음(factory_carbon_declarations 별도) — 카드 입력/파싱으로 채운다.
+  carbonIntensity: '', energySource: '',
 });
 const contactToDraft = (c: ApiSupplierContact): ContactDraft => ({
   name: c.name ?? '',
@@ -417,9 +431,12 @@ const contactToDraft = (c: ApiSupplierContact): ContactDraft => ({
 const editCellCls = 'w-full min-w-24 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20';
 // 원산지 규제 위반 의심 시 국가/지역 셀 강조 (editCellCls와 border 충돌 방지 위해 별도 정의)
 const alertCellCls = 'w-full min-w-24 rounded-xs border border-alert-border bg-alert-bg px-2 py-1 text-sm font-semibold text-alert-text outline-none placeholder:text-alert-text/50 focus:ring-1 focus:ring-alert-border/30';
+// 카드형(개편안 A)용 입력 — min-w-24 없이 grid 셀에서 축소 가능(min-w-0).
+const cardInputCls = 'w-full min-w-0 rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20';
+const cardAlertCls = 'w-full min-w-0 rounded-xs border border-alert-border bg-alert-bg px-2.5 py-1.5 text-sm font-semibold text-alert-text outline-none placeholder:text-alert-text/50 focus:ring-1 focus:ring-alert-border/30';
 
 // 공장 정보 편집 테이블 — 행 추가/삭제. 좌표는 latitude/longitude 입력(있으면 coordinates로 매핑).
-function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (rows: FactoryDraft[]) => void }) {
+function FactoryEditor({ rows, onChange, onViewCert, supplierId }: { rows: FactoryDraft[]; onChange: (rows: FactoryDraft[]) => void; onViewCert?: (cert: CertRef) => void; supplierId?: string }) {
   const update = (i: number, patch: Partial<FactoryDraft>) =>
     onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   const remove = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
@@ -430,92 +447,190 @@ function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (ro
   const [originRisk, setOriginRisk] = useState<Record<number, OriginCheckResult | 'loading' | undefined>>({});
   const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
-  const scheduleOriginCheck = (i: number) => {
-    const row = rows[i];
-    if (!row) return;
+  // 행 값으로 직접 판정(디바운스 없이). onBlur 스케줄과 자동 판정이 공유한다.
+  const runOriginCheck = async (i: number, row: FactoryDraft) => {
     const country = row.country?.trim();
     const region = row.region?.trim();
     if (!country && !region) { setOriginRisk(s => ({ ...s, [i]: undefined })); return; }
+    setOriginRisk(s => ({ ...s, [i]: 'loading' }));
+    try {
+      const res = await checkOrigin({
+        factory_name: row.factoryName || undefined,
+        country: country || undefined,
+        region: region || undefined,
+        address: row.address || undefined,
+      });
+      setOriginRisk(s => ({ ...s, [i]: res }));
+    } catch {
+      setOriginRisk(s => ({ ...s, [i]: undefined }));   // 판정 실패는 조용히 무시(자문)
+    }
+  };
+
+  const scheduleOriginCheck = (i: number) => {
+    const row = rows[i];
+    if (!row) return;
     clearTimeout(timers.current[i]);
-    timers.current[i] = setTimeout(async () => {
-      setOriginRisk(s => ({ ...s, [i]: 'loading' }));
-      try {
-        const res = await checkOrigin({
-          factory_name: row.factoryName || undefined,
-          country: country || undefined,
-          region: region || undefined,
-          address: row.address || undefined,
-        });
-        setOriginRisk(s => ({ ...s, [i]: res }));
-      } catch {
-        setOriginRisk(s => ({ ...s, [i]: undefined }));   // 판정 실패는 조용히 무시(자문 기능이라 흐름 방해 금지)
-      }
-    }, 500);
+    timers.current[i] = setTimeout(() => runOriginCheck(i, row), 500);
+  };
+
+  // 원산지 증명서 prefill/서버 로드 등으로 채워진 행은 입력 이벤트가 없으므로,
+  // 원산지가 있는 행을 인덱스별로 1회 자동 판정해 배너를 띄운다. (편집은 onBlur가 처리)
+  const autoChecked = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    rows.forEach((row, i) => {
+      if (autoChecked.current.has(i)) return;
+      if (!row.country?.trim() && !row.region?.trim()) return;   // 원산지 없으면 채워질 때까지 대기
+      autoChecked.current.add(i);
+      runOriginCheck(i, row);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
+  // ── 카드별 탄소(EU 배터리법 Art.7) 실시간 자문 판정 — carbonIntensity onBlur/자동 ──
+  const [carbonRisk, setCarbonRisk] = useState<Record<number, OriginCheckResult | 'loading' | undefined>>({});
+  const carbonTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const runCarbonCheck = async (i: number, row: FactoryDraft) => {
+    const raw = String(row.carbonIntensity ?? '').trim();
+    const ci = Number(raw.replace(/[^0-9.\-]/g, ''));
+    if (!raw || Number.isNaN(ci)) { setCarbonRisk(s => ({ ...s, [i]: undefined })); return; }
+    setCarbonRisk(s => ({ ...s, [i]: 'loading' }));
+    try {
+      const res = await checkCarbon({ factory_name: row.factoryName || undefined, carbon_intensity: ci });
+      setCarbonRisk(s => ({ ...s, [i]: res }));
+    } catch { setCarbonRisk(s => ({ ...s, [i]: undefined })); }
+  };
+  const scheduleCarbonCheck = (i: number) => {
+    const row = rows[i]; if (!row) return;
+    clearTimeout(carbonTimers.current[i]);
+    carbonTimers.current[i] = setTimeout(() => runCarbonCheck(i, row), 500);
+  };
+  const carbonAutoChecked = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    rows.forEach((row, i) => {
+      if (carbonAutoChecked.current.has(i)) return;
+      if (!String(row.carbonIntensity ?? '').trim()) return;
+      carbonAutoChecked.current.add(i);
+      runCarbonCheck(i, row);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
+  // 직접입력(공급망/담당자) 접기 — 기본 접힘.
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+
+  // 카드별 '통합 증빙 업로드' 모달 — 열린 카드 index.
+  const [uploadFor, setUploadFor] = useState<number | null>(null);
+  // 위성 지도 모달 — 저장 후 좌표가 채워진 카드에서 '지도 보기' 클릭 시.
+  const [mapCoord, setMapCoord] = useState<{ lat: string; lng: string; name: string } | null>(null);
+  const applyMerged = (idx: number, v: { factoryName: string; country: string; region: string; address: string; carbonIntensity: string; energySource: string }, cert: CertRef | null) => {
+    const base = rows[idx] ?? emptyFactoryDraft();
+    const originChanged = !!(v.country || v.region || v.address);   // 원산지가 채워지면 좌표는 새 주소로 재산출되게 비움
+    const newRow: FactoryDraft = {
+      ...base,
+      factoryName: v.factoryName || base.factoryName,
+      country: v.country || base.country,
+      region: v.region || base.region,
+      address: v.address || base.address,
+      carbonIntensity: v.carbonIntensity || base.carbonIntensity,
+      energySource: v.energySource || base.energySource,
+      ...(originChanged ? { latitude: '', longitude: '' } : {}),
+      _certRef: cert ?? base._certRef,
+    };
+    onChange(rows.map((r, k) => (k === idx ? newRow : r)));
+    runOriginCheck(idx, newRow);
+    runCarbonCheck(idx, newRow);
   };
 
   return (
-    <div className="space-y-2">
-      <div className="overflow-x-auto rounded-sm border border-ink-700">
-        <table className="min-w-full border-collapse text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              {['공장명', '국가', '지역', '주소', '역할', '납품처', '공급비율(%)', '위도', '경도', '담당자 이름', '직책', '연락처', '메일', ''].map((h, i) => (
-                <th key={`${h}-${i}`} className="whitespace-nowrap border-b border-ink-700 px-3 py-2.5 text-left text-xs font-semibold text-ink-500">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const risk = originRisk[i];
-              const result = risk && risk !== 'loading' ? risk : null;   // OriginCheckResult | null
-              const originCls = result?.isViolated ? alertCellCls : editCellCls;
-              const showBanner = !!result && (result.isViolated || result.severity === 'warning');
-              return (
-                <Fragment key={i}>
-                  <tr className="border-b border-ink-700 last:border-b-0">
-                    <td className="px-2 py-1.5"><input value={r.factoryName} onChange={e => update(i, { factoryName: e.target.value })} placeholder="공장명" className={editCellCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.country} onChange={e => update(i, { country: e.target.value })} onBlur={() => scheduleOriginCheck(i)} placeholder="국가" className={originCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.region} onChange={e => update(i, { region: e.target.value })} onBlur={() => scheduleOriginCheck(i)} placeholder="지역" className={originCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.address} onChange={e => update(i, { address: e.target.value })} placeholder="주소" className={editCellCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.factoryRole} onChange={e => update(i, { factoryRole: e.target.value })} placeholder="역할" className={editCellCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.latitude} onChange={e => update(i, { latitude: e.target.value })} placeholder="위도" inputMode="decimal" className={editCellCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.longitude} onChange={e => update(i, { longitude: e.target.value })} placeholder="경도" inputMode="decimal" className={editCellCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.factoryManagerName} onChange={e => update(i, { factoryManagerName: e.target.value })} placeholder="담당자" className={editCellCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.factoryManagerRole} onChange={e => update(i, { factoryManagerRole: e.target.value })} placeholder="직책" className={editCellCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.factoryManagerPhone} onChange={e => update(i, { factoryManagerPhone: e.target.value })} placeholder="연락처" className={editCellCls} /></td>
-                    <td className="px-2 py-1.5"><input value={r.factoryManagerEmail} onChange={e => update(i, { factoryManagerEmail: e.target.value })} placeholder="메일" className={editCellCls} /></td>
-                    <td className="px-2 py-1.5 text-center">
-                      <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
-                    </td>
-                  </tr>
-                  {risk === 'loading' && (
-                    <tr><td colSpan={14} className="px-3 pb-1.5"><span className="text-xs text-ink-500">원산지 규제 확인 중…</span></td></tr>
+    <div className="space-y-3">
+      {rows.length === 0 && (
+        <div className="rounded-sm border border-ink-700 bg-white px-4 py-6 text-center text-sm text-ink-500">등록된 공장이 없습니다. 아래에서 공장을 추가하세요.</div>
+      )}
+      {rows.map((r, i) => {
+        const oRisk = originRisk[i]; const oRes = oRisk && oRisk !== 'loading' ? oRisk : null;
+        const showO = !!oRes && (oRes.isViolated || oRes.severity === 'warning');
+        const cRisk = carbonRisk[i]; const cRes = cRisk && cRisk !== 'loading' ? cRisk : null;
+        const showC = !!cRes && (cRes.isViolated || cRes.severity === 'warning');
+        const open = expanded[i] ?? false;
+        const manualVals = [r.factoryRole, r.destination, r.supplyRatioPercent, r.factoryManagerName, r.factoryManagerRole, r.factoryManagerPhone, r.factoryManagerEmail];
+        const manualFilled = manualVals.filter(v => v?.trim()).length;
+        return (
+          <div key={i} className="overflow-hidden rounded-sm border border-ink-700 bg-white">
+            {/* 헤더: 공장명 + 서류보기/삭제 */}
+            <div className="flex items-center gap-3 border-b border-ink-700 px-4 py-3">
+              <span className="shrink-0 text-[11px] font-bold text-ink-500">공장 #{i + 1}</span>
+              <input value={r.factoryName} onChange={e => update(i, { factoryName: e.target.value })} placeholder="공장명" className="min-w-0 flex-1 rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-sm font-semibold text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20" />
+              <div className="flex shrink-0 items-center gap-1.5">
+                {supplierId && (
+                  <button type="button" onClick={() => setUploadFor(i)} className="rounded-xs border border-accent-700 bg-white px-2.5 py-1.5 text-xs font-bold text-accent-700 hover:bg-accent-100" title="원산지 증명서·환경성적서 등을 한 번에 올려 이 카드를 채웁니다">＋ 통합 증빙 업로드</button>
+                )}
+                {r._certRef && onViewCert && (
+                  <button type="button" onClick={() => onViewCert(r._certRef!)} className="rounded-xs border border-accent-100 bg-accent-50 px-2.5 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100" title="이 공장에 입력된 증빙 서류 보기">📎 서류 보기</button>
+                )}
+                <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
+              </div>
+            </div>
+
+            {/* AI 자동입력 구역 — 원산지 · 탄소 */}
+            <div className="border-b border-ink-700 bg-accent-50/40 px-4 py-3">
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-accent-700">AI 자동입력 · 원산지 · 탄소</div>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <label className="flex flex-col gap-1"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">원산지 국가</span><input value={r.country} onChange={e => update(i, { country: e.target.value, latitude: '', longitude: '' })} onBlur={() => scheduleOriginCheck(i)} placeholder="국가" className={oRes?.isViolated ? cardAlertCls : cardInputCls} /></label>
+                <label className="flex flex-col gap-1"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">원산지 지역</span><input value={r.region} onChange={e => update(i, { region: e.target.value, latitude: '', longitude: '' })} onBlur={() => scheduleOriginCheck(i)} placeholder="지역" className={oRes?.isViolated ? cardAlertCls : cardInputCls} /></label>
+                <label className="flex flex-col gap-1 sm:col-span-2"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">주소</span><input value={r.address} onChange={e => update(i, { address: e.target.value, latitude: '', longitude: '' })} placeholder="주소" className={cardInputCls} /></label>
+                <label className="flex flex-col gap-1"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">탄소집약도 (kgCO2eq/kWh)</span><input value={r.carbonIntensity} onChange={e => update(i, { carbonIntensity: e.target.value })} onBlur={() => scheduleCarbonCheck(i)} placeholder="예: 120" inputMode="decimal" className={cRes?.isViolated ? cardAlertCls : cardInputCls} /></label>
+                <label className="flex flex-col gap-1"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">에너지원</span><input value={r.energySource} onChange={e => update(i, { energySource: e.target.value })} placeholder="예: 석탄" className={cardInputCls} /></label>
+                <div className="flex flex-col gap-1 sm:col-span-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">좌표</span>
+                  {(r.latitude?.trim() && r.longitude?.trim()) ? (
+                    <span className="inline-flex items-center gap-2 self-start rounded-xs border border-ink-700 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-ink-500">
+                      <span className="num-mono">📍 {r.latitude}, {r.longitude}</span>
+                      <button type="button" onClick={() => setMapCoord({ lat: r.latitude, lng: r.longitude, name: r.factoryName })} className="rounded-xs border border-accent-700 px-2 py-0.5 text-[11px] font-bold text-accent-700 hover:bg-accent-100">지도 보기</button>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 self-start rounded-xs border border-ink-700 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-ink-500">📍 저장 시 주소로 자동 산출됨</span>
                   )}
-                  {showBanner && result && (
-                    <tr>
-                      <td colSpan={14} className="px-3 pb-2">
-                        <div className={`flex items-start gap-2 rounded-xs border px-3 py-2 text-xs ${result.isViolated ? 'border-alert-border bg-alert-bg text-alert-text' : 'border-warn-border bg-warn-bg text-warn-text'}`}>
-                          <span className="shrink-0 font-bold">⚠</span>
-                          <div className="min-w-0">
-                            <span className="font-bold">{result.isViolated ? '규제 위반 의심' : '주의'} · {result.regulationName}</span>
-                            <span> — {result.reason}</span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-            {rows.length === 0 && (
-              <tr><td colSpan={14} className="px-3 py-6 text-center text-sm text-ink-500">등록된 공장이 없습니다. 행을 추가하세요.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">행 추가</button>
+                </div>
+              </div>
+              {(oRisk === 'loading' || showO) && <div className="mt-2.5"><OriginRiskBanner result={oRisk} /></div>}
+              {(cRisk === 'loading' || showC) && <div className="mt-2"><OriginRiskBanner result={cRisk} /></div>}
+            </div>
+
+            {/* 직접입력 구역 — 접기(기본 접힘) */}
+            <div className="px-4 py-2.5">
+              <button type="button" onClick={() => setExpanded(s => ({ ...s, [i]: !open }))} aria-expanded={open} className="flex w-full items-center gap-2 text-left text-xs font-semibold text-ink-500 outline-none focus-visible:ring-1 focus-visible:ring-accent-500">
+                <span className="text-ink-400">{open ? '▾' : '▸'}</span>
+                공급망 / 담당자 입력 (선택)
+                <span className="text-[11px] font-normal text-ink-400">· {manualFilled ? `${manualFilled}개 입력` : '미입력'}</span>
+              </button>
+              {open && (
+                <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">공급망 역할</span><input value={r.factoryRole} onChange={e => update(i, { factoryRole: e.target.value })} placeholder="예: 생산 / 가공 / 제련" className={cardInputCls} /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">납품처</span><input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="예: EU / US" className={cardInputCls} /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">공급비율 (%) · 선택</span><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="모르면 비워두세요" inputMode="decimal" className={cardInputCls} /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">담당자 이름</span><input value={r.factoryManagerName} onChange={e => update(i, { factoryManagerName: e.target.value })} placeholder="이름" className={cardInputCls} /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">직책</span><input value={r.factoryManagerRole} onChange={e => update(i, { factoryManagerRole: e.target.value })} placeholder="직책" className={cardInputCls} /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">연락처</span><input value={r.factoryManagerPhone} onChange={e => update(i, { factoryManagerPhone: e.target.value })} placeholder="연락처" className={cardInputCls} /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">이메일</span><input value={r.factoryManagerEmail} onChange={e => update(i, { factoryManagerEmail: e.target.value })} placeholder="메일" className={cardInputCls} /></label>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      <button type="button" onClick={add} className="w-full rounded-sm border border-dashed border-accent-100 bg-accent-50/50 px-3 py-2.5 text-sm font-semibold text-accent-700 hover:bg-accent-100">＋ 공장 추가</button>
+
+      {uploadFor !== null && supplierId && (
+        <MultiDocUploadModal
+          supplierId={supplierId}
+          factoryName={rows[uploadFor]?.factoryName}
+          onApply={(v, cert) => applyMerged(uploadFor, v, cert)}
+          onClose={() => setUploadFor(null)}
+        />
+      )}
+      {mapCoord && (
+        <MapModal lat={mapCoord.lat} lng={mapCoord.lng} name={mapCoord.name} onClose={() => setMapCoord(null)} />
+      )}
     </div>
   );
 }
@@ -737,7 +852,7 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId }: { la
 
 // 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
 // editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isOem)만 노출.
-function SectionContent({ section, real, editable = false, isOem = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft }: {
+function SectionContent({ section, real, editable = false, isOem = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft, onNeedEdit }: {
   section: CollectionSection;
   real?: RealData | null;
   editable?: boolean;
@@ -747,9 +862,12 @@ function SectionContent({ section, real, editable = false, isOem = false, suppli
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
   contactsDraft?: ContactDraft[];
   setContactsDraft?: (rows: ContactDraft[]) => void;
+  onNeedEdit?: () => void;   // 뷰 모드에서 원산지 증명서 업로드 시 편집모드로 전환
 }) {
   let content: ReactNode;
   const d = real?.detail ?? null;
+  // 원산지 증명서 행별 재열람 모달 (읽기 전용 — onSave 없음). factories 섹션에서만 사용.
+  const [viewCert, setViewCert] = useState<CertRef | null>(null);
 
   if (section.key === 'company') {
     // 입력 모드에선 smelter 구분 행을 항상 노출(업종 변경 가능하도록).
@@ -773,19 +891,23 @@ function SectionContent({ section, real, editable = false, isOem = false, suppli
     ];
     content = <CompanyGrid rows={rows} editable={editable} fieldKeys={['Li', 'Co', 'Ni']} fieldPrefix="materials" />;
   } else if (section.key === 'factories') {
-    // 입력 모드: 공장·담당자를 모두 편집(master-form REPLACE-ALL 라운드트립). 보기 모드: 읽기 전용 테이블.
+    // [개편안 A] 원산지·환경성적서 증빙은 카드별 '통합 증빙 업로드' 모달에서 처리(섹션 레벨 업로드 제거).
+    // 입력 모드: 공장 카드 편집. 보기 모드: 읽기 전용 테이블.
     if (editable && factoriesDraft && setFactoriesDraft) {
       content = (
         <div className="space-y-5">
           <div>
-            <div className="mb-2 text-xs font-bold text-ink-500">공장 정보 (공급비율·위치(원산지)·역할)</div>
-            <FactoryEditor rows={factoriesDraft} onChange={setFactoriesDraft} />
+            <div className="mb-2 text-xs font-bold text-ink-500">공장 정보 · 원산지 · 탄소 (증빙 업로드로 자동 채움)</div>
+            <FactoryEditor rows={factoriesDraft} onChange={setFactoriesDraft} onViewCert={setViewCert} supplierId={supplierId} />
           </div>
           {contactsDraft && setContactsDraft && (
             <div>
               <div className="mb-2 text-xs font-bold text-ink-500">협력사 담당자 (PIC · 연락처)</div>
               <ContactEditor rows={contactsDraft} onChange={setContactsDraft} />
             </div>
+          )}
+          {viewCert && (
+            <OriginCertReviewModal fileUrl={viewCert.fileUrl} fileName={viewCert.fileName} result={viewCert.result} onClose={() => setViewCert(null)} />
           )}
         </div>
       );
@@ -826,16 +948,28 @@ function SectionContent({ section, real, editable = false, isOem = false, suppli
     const es = m.energySource;
     const sr = real?.riskProfile?.selfReportedRiskLevel;
     const srRaw = sr && sr !== 'unknown' ? sr : '';
-    const rows: string[][] = [
-      ['탄소집약도 (kgCO2eq/kg)', ci != null ? String(ci) : '-', fieldFilled(ci)],
-      ['에너지원', (es as string) ?? '-', fieldFilled(es)],
-      ['실사 자가진단', srRaw, srRaw ? '완료' : '미입력'],
-      // DD 보고서는 원청 전용 — 협력사 폼에는 표시하지 않는다.
-      ...(isOem ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
-    ];
+    // [개편안 A] 탄소집약도·에너지원은 공장 카드로 이관 → 협력사 편집 폼에는 자가진단(회사 단위)만.
+    //   OEM 읽기전용은 기존처럼 탄소 대표값도 표시(공장별 상세는 공장 카드/판정에서).
+    const selfRow: string[] = ['실사 자가진단', srRaw, srRaw ? '완료' : '미입력'];
+    const rows: string[][] = editable
+      ? [selfRow]
+      : [
+          ['탄소집약도 (kgCO2eq/kg)', ci != null ? String(ci) : '-', fieldFilled(ci)],
+          ['에너지원', (es as string) ?? '-', fieldFilled(es)],
+          selfRow,
+          ...(isOem ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
+        ];
+    const keys = editable
+      ? ['selfReportedRiskLevel']
+      : ['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isOem ? ['ddReport'] : [])];
     content = (
       <div className="space-y-3">
-        <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isOem ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} />
+        {editable && (
+          <p className="rounded-xs border border-ink-700 bg-slate-50 px-3 py-2 text-[11px] text-ink-500">
+            탄소집약도·에너지원은 위 <b>공장 카드</b>에서 공장별로 입력·판정합니다. 여기서는 회사 단위 <b>실사 자가진단</b>만 입력하세요.
+          </p>
+        )}
+        <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} />
         {/* 실사 자가진단 보고서 — 실사관리 페이지 대체. 내 기업 정보에서 업로드·확인. */}
         <DocUploadField label="실사 자가진단 보고서" field="regulation.selfAssessmentDocUrl" initialUrl={d?.selfAssessmentDocUrl} editable={editable} supplierId={supplierId} />
       </div>
@@ -869,6 +1003,7 @@ function AccordionSection({
   setFactoriesDraft,
   contactsDraft,
   setContactsDraft,
+  onNeedEdit,
 }: {
   section: CollectionSection;
   onRequestSection: (section: CollectionSection) => void;
@@ -881,6 +1016,7 @@ function AccordionSection({
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
   contactsDraft?: ContactDraft[];
   setContactsDraft?: (rows: ContactDraft[]) => void;
+  onNeedEdit?: () => void;   // 뷰 모드 원산지 증명서 업로드 → 편집모드 전환
 }) {
   // 섹션은 항상 펼쳐서 고정 표시(드롭다운 제거). 미입력/확인 필요면 그 자리에서 보완 요청.
   const needsRequest = showRequest && (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
@@ -919,6 +1055,7 @@ function AccordionSection({
         setFactoriesDraft={setFactoriesDraft}
         contactsDraft={contactsDraft}
         setContactsDraft={setContactsDraft}
+        onNeedEdit={onNeedEdit}
       />
     </section>
   );
@@ -1158,7 +1295,19 @@ export function SupplierGeneralReviewContent({
       return out;
     });
 
-    // ── manufacturing: 규제 입력값 + detail round-trip. factory_declarations 는 항상 []. ──
+    // ── manufacturing: 규제 입력값 + detail round-trip. ──
+    // [개편안 A · 1단계] 공장 카드의 carbonIntensity → factory_declarations[] 로 매핑.
+    //   factory_index 는 factories[](= factoriesDraft.map, 동일 순서)의 위치와 일치해야 백엔드가
+    //   올바른 공장에 FK를 건다. 값 없는 카드는 선언 생략(= 백엔드 ART7 미충족 처리).
+    const factory_declarations = factoriesDraft
+      .map((f, i) => ({ f, i }))
+      .filter(({ f }) => String(f.carbonIntensity ?? '').trim() !== '' && !Number.isNaN(Number(f.carbonIntensity)))
+      .map(({ f, i }) => ({
+        factory_index: i,
+        carbon_intensity: Number(f.carbonIntensity),
+        methodology: 'PEF',
+        source: 'supplier_declared',
+      }));
     const ciRaw = read('regulation.carbonIntensity');
     const esRaw = read('regulation.energySource');
     const md = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
@@ -1167,7 +1316,7 @@ export function SupplierGeneralReviewContent({
       energy_source: esRaw === undefined || esRaw === '' ? null : esRaw,
       manufacturing_process: (md.manufacturingProcess as string | undefined) ?? null,
       capacity: (md.capacity as string | undefined) ?? null,
-      factory_declarations: [],
+      factory_declarations,
     };
 
     const body: Record<string, unknown> = { company, factories, contacts, manufacturing };
@@ -1188,6 +1337,8 @@ export function SupplierGeneralReviewContent({
       ...(factoriesRes ? { factories: factoriesRes.factories ?? [] } : {}),
       ...(rp ? { riskProfile: rp } : {}),
     } : prev));
+    // 저장 후 공장 카드에도 서버 값(지오코딩된 좌표 등)을 반영 — 편집 유지 시 '지도 보기'가 뜨도록 재시드.
+    if (factoriesRes) setFactoriesDraft((factoriesRes.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
   }
 
   // 저장하기 — DB 영속화 후 계속 입력(편집 유지).
@@ -1435,6 +1586,15 @@ export function SupplierGeneralReviewContent({
             setFactoriesDraft={setFactoriesDraft}
             contactsDraft={contactsDraft}
             setContactsDraft={setContactsDraft}
+            onNeedEdit={() => {
+              // 뷰 모드에서 원산지 증명서 업로드 시 — '자료 제출' 버튼과 동일하게 편집모드로 전환·시드.
+              if (isSupplier && !editing && !managedBanner) {
+                setSaved(false);
+                setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
+                setContactsDraft((api?.contacts ?? []).map(contactToDraft));
+                setEditing(true);
+              }
+            }}
           />
         ))}
       </section>
