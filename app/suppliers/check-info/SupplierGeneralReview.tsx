@@ -6,7 +6,8 @@ import {
   createDataRequest, getDataRequests,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierSuppliedItems, submitMasterForm,
-  getSupplierRiskProfile, uploadFile, type SupplierRiskProfileResponse as ApiRiskProfile,
+  getSupplierRiskProfile, uploadFile, updateSupplierDetail, getAiExtractions,
+  type AiExtraction, type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type SuppliedItem as ApiItem, type ApiDataRequest,
@@ -50,6 +51,8 @@ import { suppliers } from '@/lib/data';
 import { getContacts, getSupplierName, supplierCompleteness } from '@/lib/supplier-detail-data';
 import { addStoredRequest } from '@/lib/data-request-store';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
+// 소재구성 문서 파싱 결과 팝업 — /partner/ai-parsing 페이지와 동일 화면(공통 모듈)을 모달로 띄운다.
+import AiParsingView from '@/components/supplier/AiParsingView';
 import {
   ArrowLeft,
   BarChart3,
@@ -62,6 +65,7 @@ import {
   FileText,
   Globe,
   HelpCircle,
+  Info,
   Mail,
   MessageSquare,
   MoreHorizontal,
@@ -69,6 +73,7 @@ import {
   Phone,
   Save,
   Send,
+  Sparkles,
   UserRound,
   X,
   XCircle,
@@ -274,13 +279,15 @@ function FieldStatus({ status }: { status: ReviewStatus }) {
   return <span className="text-xs font-semibold text-slate-500">해당 없음</span>;
 }
 
-function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPrefix = 'company', selects }: { rows?: string[][]; editable?: boolean; fieldKeys?: string[]; fieldPrefix?: string; selects?: Record<string, { value: string; label: string }[]> }) {
+function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPrefix = 'company', selects, flagged }: { rows?: string[][]; editable?: boolean; fieldKeys?: string[]; fieldPrefix?: string; selects?: Record<string, { value: string; label: string }[]>; flagged?: Record<string, string> }) {
   return (
     <div className="grid overflow-hidden rounded-sm border border-ink-700 md:grid-cols-2">
       {rows.map(([label, value, status], i) => {
         const key = fieldKeys?.[i];
         const opts = key ? selects?.[key] : undefined;
         const dataField = key ? `${fieldPrefix}.${key}` : undefined;
+        // AI 파싱 신뢰도 낮음 등 — 값은 채우되 warn 톤 + 배지로 검토를 유도(ExtractionTable 패턴).
+        const flag = key ? flagged?.[key] : undefined;
         return (
         <div key={label} className="grid grid-cols-[150px_minmax(0,1fr)_96px] items-center border-b border-r border-ink-700 px-4 py-3 last:border-b-0 even:border-r-0">
           <div className="text-sm font-medium text-ink-500">{label}</div>
@@ -295,12 +302,25 @@ function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPre
                 {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             ) : (
-              <input
-                defaultValue={value === '-' || value === '미입력' ? '' : value}
-                placeholder={`${label} 입력`}
-                data-field={dataField}
-                className="w-full rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20"
-              />
+              <div className="min-w-0">
+                <input
+                  defaultValue={value === '-' || value === '미입력' ? '' : value}
+                  placeholder={`${label} 입력`}
+                  data-field={dataField}
+                  className={clsx(
+                    'w-full rounded-xs border px-2.5 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:ring-1',
+                    flag
+                      ? 'border-warn-border bg-warn-bg focus:border-warn-text focus:ring-warn-border'
+                      : 'border-ink-700 bg-white focus:border-accent-500 focus:ring-accent-500/20',
+                  )}
+                />
+                {flag && (
+                  <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-warn-text">
+                    <Info className="h-3 w-3" />
+                    {flag}
+                  </div>
+                )}
+              </div>
             )
           ) : (
             <div className="truncate text-sm font-semibold text-ink-100">{opts ? (opts.find(o => o.value === value)?.label ?? value) : value}</div>
@@ -546,6 +566,50 @@ const MINERAL_LABELS: Record<string, string> = {
   graphite_natural: '천연흑연', graphite_synthetic: '인조흑연',
 };
 const MINERAL_EDIT_KEYS = Object.keys(MINERAL_LABELS);
+
+// 소재구성 입력칸 키 → AI 파싱 결과(parsed_fields) 키 후보. 배열인 이유: 인조흑연은
+// 백엔드 버전에 따라 artificial_/synthetic_ 두 표기가 있어 둘 다 수용한다(앞쪽 우선).
+const MINERAL_PARSE_KEYS: Record<string, string[]> = {
+  Li: ['li_content'],
+  Co: ['co_content'],
+  Ni: ['ni_content'],
+  Mn: ['mn_content'],
+  graphite_natural: ['natural_graphite_content'],
+  graphite_synthetic: ['artificial_graphite_content', 'synthetic_graphite_content'],
+};
+
+// 광물 1종의 파싱 결과 상태.
+//   parsed     = 값 추출됨 → 입력칸 채움
+//   blank      = 문서에 항목 자체 없음 → 입력칸 비움 + '해당 없음' 유지
+//   unreadable = 항목은 있는데 못 읽음 → '확인 필요' (해당 없음과 의미가 다름)
+interface MineralParseState {
+  value: number | null;
+  confidence: number;
+  status: 'parsed' | 'blank' | 'unreadable';
+}
+
+// 신뢰도 임계치 — 미만이면 값은 채우되 '검토 권장' 표시(ExtractionTable 신뢰도 톤 패턴).
+const MINERAL_CONFIDENCE_THRESHOLD = 0.8;
+
+// AiExtraction 1건에서 광물 입력칸 키(k)의 파싱 상태를 도출.
+function mineralParseStateOf(extraction: AiExtraction | null, k: string): MineralParseState | null {
+  if (!extraction) return null;
+  const parseKeys = MINERAL_PARSE_KEYS[k] ?? [];
+  const pf = extraction.parsedFields ?? {};
+  const conf = extraction.confidenceMap ?? {};
+  const blank = new Set(extraction.blankFields ?? []);
+  const unreadable = new Set(extraction.unreadableFields ?? []);
+  for (const key of parseKeys) {
+    if (pf[key] != null && pf[key] !== '') {
+      const num = Number(pf[key]);
+      if (Number.isFinite(num)) return { value: num, confidence: Number(conf[key] ?? 0), status: 'parsed' };
+    }
+  }
+  for (const key of parseKeys) if (unreadable.has(key)) return { value: null, confidence: 0, status: 'unreadable' };
+  for (const key of parseKeys) if (blank.has(key)) return { value: null, confidence: 0, status: 'blank' };
+  return null; // 파싱 결과에 언급 없음 → 기존 표시 유지
+}
+
 // hazardous_substances 등 비광물 키 제외한 함량 키 목록.
 const mineralKeysOf = (cm: Record<string, unknown>): string[] =>
   Object.keys(cm).filter(k => k !== 'hazardous_substances' && cm[k] != null && cm[k] !== '');
@@ -696,6 +760,156 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId }: { la
   );
 }
 
+// ── 소재구성 문서 업로드 + AI 파싱 패널 ─────────────────────────────────────
+// 업로드 흐름(기존 3종 문서와 동일 파이프라인 재사용, 새 엔드포인트 없음):
+//   ① uploadFile(POST /files) → s3Key
+//   ② PATCH /suppliers/{id}/detail { material_composition_doc_url: s3Key }
+//      → 커밋 후 SupplierDocumentUploaded(doc_kind='material_composition') 발행 → 파싱 큐
+//   ③ '파싱하기' 클릭 → GET /data-requests/ai-extractions 폴링, docS3Key === s3Key 매칭
+//      (목록이 created_at DESC라 첫 매칭 = 최신 → 같은 파일 재업로드 시 최신 결과 선택)
+//   ④ 매칭된 추출결과(AiExtraction)를 부모로 올려 광물 입력칸에 반영
+const MATERIAL_DOC_ACCEPT = '.pdf,.png,.jpg,.jpeg';
+const PARSE_POLL_TRIES = 10;      // 최대 재시도(총 ~25초)
+const PARSE_POLL_INTERVAL = 2500; // ms — 이벤트 기반 비동기 파싱이라 2-3초 대기 후 조회
+
+function MaterialDocParsePanel({ supplierId, initialUrl, editable, onParsed, onOpenViewer }: {
+  supplierId: string;
+  initialUrl?: string | null;
+  editable?: boolean;
+  onParsed: (extraction: AiExtraction) => void;
+  // AI 파싱 확인 팝업(AiParsingView 모달) 열기 — 업로드 완료 직후 + '결과 보기' 클릭 시.
+  onOpenViewer: () => void;
+}) {
+  const [docValue, setDocValue] = useState(initialUrl ?? '');
+  const [displayName, setDisplayName] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  // 언마운트 후 setState 방지 — 폴링(수십 초)이 편집 취소보다 오래 살 수 있다.
+  const cancelledRef = useRef(false);
+  useEffect(() => () => { cancelledRef.current = true; }, []);
+  useEffect(() => { setDocValue(initialUrl ?? ''); }, [initialUrl]);
+
+  const uploaded = Boolean(docValue);
+  const shownName = displayName || (docValue ? docValue.split('/').pop() : '');
+
+  async function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    const ext = f.name.toLowerCase().split('.').pop() ?? '';
+    if (!['pdf', 'png', 'jpg', 'jpeg'].includes(ext)) {
+      setError('PDF 또는 이미지(png/jpg/jpeg) 파일만 업로드할 수 있어요.');
+      return;
+    }
+    setUploading(true);
+    setError('');
+    setNotice('');
+    try {
+      const meta = await uploadFile(f, `material-doc:${supplierId}`);
+      // PATCH → 컬럼 갱신 + 커밋 후 문서 이벤트 발행(파싱 파이프라인 트리거).
+      await updateSupplierDetail(supplierId, { material_composition_doc_url: meta.s3Key });
+      if (cancelledRef.current) return;
+      setDocValue(meta.s3Key);
+      setDisplayName(f.name);
+      setNotice('업로드 완료 — 파싱하기를 누르면 광물 함량을 자동으로 채워요.');
+      // 업로드 직후 AI 파싱 확인 화면을 팝업으로 노출(/partner/ai-parsing 과 동일 화면).
+      onOpenViewer();
+    } catch (err) {
+      if (!cancelledRef.current) setError(err instanceof ApiError ? err.message : '업로드에 실패했습니다.');
+    } finally {
+      if (!cancelledRef.current) setUploading(false);
+    }
+  }
+
+  async function handleParse() {
+    if (!docValue || parsing) return;
+    setParsing(true);
+    setError('');
+    setNotice('');
+    try {
+      for (let attempt = 0; attempt < PARSE_POLL_TRIES; attempt++) {
+        // 이벤트 기반 비동기 처리 — submission_documents 행 생성·파싱 완료까지 대기 후 조회.
+        await new Promise(r => setTimeout(r, PARSE_POLL_INTERVAL));
+        if (cancelledRef.current) return;
+        const list = await getAiExtractions().catch(() => null);
+        if (cancelledRef.current) return;
+        // created_at DESC 정렬 — 첫 매칭이 곧 최신(같은 파일 두 번 업로드해도 최신 선택).
+        const hit = (list ?? []).find(e => e.docS3Key === docValue);
+        if (hit) {
+          onParsed(hit);
+          setNotice('파싱 완료 — 추출된 함량이 입력칸에 채워졌어요. 값을 확인한 뒤 저장해주세요.');
+          return;
+        }
+      }
+      setError('파싱이 지연되고 있습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      if (!cancelledRef.current) setParsing(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-ink-100">소재구성 문서 (핵심광물 함량 자동 추출)</div>
+        <div className={`mt-0.5 truncate text-xs ${error ? 'text-alert-text' : notice ? 'text-ok-text' : uploaded ? 'text-ink-400' : 'text-ink-500'}`}>
+          {error
+            ? error
+            : uploading
+              ? '업로드 중…'
+              : parsing
+                ? 'AI 파싱 중… (최대 30초 정도 걸릴 수 있어요)'
+                : notice
+                  ? notice
+                  : uploaded
+                    ? `업로드됨 · ${shownName}`
+                    : '미업로드 · PDF/이미지(png/jpg/jpeg)를 올리면 Li/Co/Ni/Mn/흑연 함량을 자동으로 채워요.'}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {uploaded && !uploading && !parsing && (
+          <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-[11px] font-bold text-ok-text">업로드됨</span>
+        )}
+        {editable && (
+          <>
+            <label className={`rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 ${uploading || parsing ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent-100'}`}>
+              {uploaded ? '파일 변경' : '자료 업로드'}
+              <input
+                type="file"
+                accept={MATERIAL_DOC_ACCEPT}
+                className="hidden"
+                disabled={uploading || parsing}
+                onChange={handleSelect}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={handleParse}
+              disabled={!uploaded || uploading || parsing}
+              className="inline-flex items-center gap-1 rounded-xs bg-accent-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-900 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {parsing ? '파싱 중…' : '파싱하기'}
+            </button>
+            {/* 결과 보기는 항상 활성 — 업로드/파싱이 실패·지연돼도 파싱 확인 팝업은 열 수 있어야 한다. */}
+            <button
+              type="button"
+              onClick={onOpenViewer}
+              className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-accent-500 hover:text-accent-700"
+            >
+              결과 보기
+            </button>
+          </>
+        )}
+      </div>
+      {/* persistForm(master-form authoritative-overwrite) round-trip 캐리어 —
+          없으면 자료 제출 시 material_composition_doc_url 이 NULL 로 덮인다. */}
+      <input type="hidden" data-field="materials.materialCompositionDocUrl" value={docValue} readOnly />
+    </div>
+  );
+}
+
 // 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
 // editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isPrime)만 노출.
 function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft }: {
@@ -709,6 +923,12 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   contactsDraft?: ContactDraft[];
   setContactsDraft?: (rows: ContactDraft[]) => void;
 }) {
+  // 소재구성 AI 파싱 결과 — '파싱하기' 성공 시 채워진다. 입력칸이 비제어(defaultValue)라
+  // 재렌더만으론 값이 안 바뀌므로 parseVersion 으로 CompanyGrid 를 리마운트해 반영한다.
+  const [mineralExtraction, setMineralExtraction] = useState<AiExtraction | null>(null);
+  const [parseVersion, setParseVersion] = useState(0);
+  // AI 파싱 확인 팝업(/partner/ai-parsing 과 동일 화면) — 업로드/파싱 완료·'결과 보기' 시 오픈.
+  const [mineralParsingOpen, setMineralParsingOpen] = useState(false);
   let content: ReactNode;
   const d = real?.detail ?? null;
 
@@ -731,14 +951,65 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const cm = (d?.coreMinerals ?? {}) as Record<string, number>;
     const present = mineralKeysOf(cm);
     const keys = editable ? [...new Set([...MINERAL_EDIT_KEYS, ...present])] : present;
+    // AI 파싱 결과 병합(편집 모드 전용) —
+    //   parsed     → 값 채움('완료'), 신뢰도 < 0.8 이면 '검토 권장' 플래그
+    //   blank      → 기존 '해당 없음' 유지(문서에 항목 자체 없음)
+    //   unreadable → '확인 필요'(항목은 있는데 못 읽음 — '해당 없음'과 의미가 다름)
+    const flagged: Record<string, string> = {};
     const rows: string[][] = keys.length
-      ? keys.map(k => [
-          `${MINERAL_LABELS[k] ?? k} 함량(%)`,
-          cm[k] != null ? String(cm[k]) : '-',
-          cm[k] != null ? '완료' : '해당 없음',
-        ])
+      ? keys.map(k => {
+          const label = `${MINERAL_LABELS[k] ?? k} 함량(%)`;
+          const ps = editable ? mineralParseStateOf(mineralExtraction, k) : null;
+          if (ps?.status === 'parsed' && ps.value != null) {
+            if (ps.confidence < MINERAL_CONFIDENCE_THRESHOLD) {
+              flagged[k] = `검토 권장 · 신뢰도 ${Math.round(ps.confidence * 100)}%`;
+            }
+            return [label, String(ps.value), '완료'];
+          }
+          if (ps?.status === 'unreadable') {
+            return [label, cm[k] != null ? String(cm[k]) : '-', '확인 필요'];
+          }
+          return [label, cm[k] != null ? String(cm[k]) : '-', cm[k] != null ? '완료' : '해당 없음'];
+        })
       : [['핵심광물 함량(최소 1종)', '-', '미입력']];
-    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="materials" />;
+    content = (
+      <div className="space-y-3">
+        {/* 소재구성 문서 업로드 + 파싱 — 업로드는 기존 문서 파이프라인 재사용, 결과만 입력칸에 주입 */}
+        <MaterialDocParsePanel
+          supplierId={supplierId}
+          initialUrl={d?.materialCompositionDocUrl}
+          editable={editable}
+          onParsed={ex => { setMineralExtraction(ex); setParseVersion(v => v + 1); setMineralParsingOpen(true); }}
+          onOpenViewer={() => setMineralParsingOpen(true)}
+        />
+        <CompanyGrid key={`materials-${parseVersion}`} rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="materials" flagged={flagged} />
+        {/* AI 파싱 확인 팝업 — /partner/ai-parsing 페이지와 동일 화면(AiParsingView 공통 모듈)을
+            모달 셸(AiParsingReviewModal 패턴)로 띄운다. 닫거나 전체 제출 완료 시 close. */}
+        {mineralParsingOpen && (
+          <div className="fixed inset-0 z-[60] flex bg-black/50 p-4" onClick={() => setMineralParsingOpen(false)}>
+            <div
+              className="m-auto flex h-[92vh] w-[96vw] max-w-[1440px] flex-col overflow-hidden rounded-md bg-white shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-white px-4 py-2.5">
+                <div className="text-sm font-bold text-ink-100">AI 파싱 확인 및 수정 · 소재구성 문서</div>
+                <button
+                  type="button"
+                  onClick={() => setMineralParsingOpen(false)}
+                  className="rounded-sm p-1 text-ink-400 hover:bg-slate-100 hover:text-ink-100"
+                  aria-label="닫기"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1">
+                <AiParsingView supplierId={supplierId} onConfirmComplete={() => setMineralParsingOpen(false)} />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   } else if (section.key === 'factories') {
     // 입력 모드: 공장·담당자를 모두 편집(master-form REPLACE-ALL 라운드트립). 보기 모드: 읽기 전용 테이블.
     if (editable && factoriesDraft && setFactoriesDraft) {
@@ -1093,6 +1364,11 @@ export function SupplierGeneralReviewContent({
     const braUrl = read('documents.businessRegDocUrl'); if (braUrl !== undefined) company.business_reg_doc_url = braUrl || null;
     const envUrl = read('documents.environmentalReportUrl'); if (envUrl !== undefined) company.environmental_report_url = envUrl || null;
     const saUrl = read('regulation.selfAssessmentDocUrl'); if (saUrl !== undefined) company.self_assessment_doc_url = saUrl || null;
+    // 소재구성 문서(핵심광물 함량) — 패널 hidden input 우선, 없으면 detail round-trip.
+    //   master-form company 는 authoritative-overwrite(생략=NULL)라 반드시 실어 보낸다.
+    const mcUrl = read('materials.materialCompositionDocUrl');
+    if (mcUrl !== undefined) company.material_composition_doc_url = mcUrl || null;
+    else if (dRec.materialCompositionDocUrl) company.material_composition_doc_url = dRec.materialCompositionDocUrl;
 
     // ── factories: draft(전체 현재 집합) → snake_case (UPSERT) ──
     // 기존 공장은 factory_id 를 round-trip 해 백엔드가 UPDATE(id 보존)하도록 한다.

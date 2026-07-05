@@ -460,6 +460,7 @@ export interface SupplierDetail extends SupplierBrief {
   businessRegDocUrl?: string | null;        // 사업자등록증 업로드 URL
   environmentalReportUrl?: string | null;   // 환경성적서 업로드 URL
   selfAssessmentDocUrl?: string | null;     // 실사 자가진단 보고서 업로드 URL
+  materialCompositionDocUrl?: string | null; // 소재구성 문서(핵심광물 함량) 업로드 URL
   manufacturerDetail: SupplierManufacturerDetail | null;
   recyclerDetail: SupplierRecyclerDetail | null;
   traderDetail: SupplierTraderDetail | null;
@@ -747,6 +748,12 @@ export interface AiExtraction {
   parsedFields: Record<string, string | number>;
   confidenceMap: Record<string, number>;
   unparsedFields: string[];
+  // 파싱 3분류 — blank(문서에 항목 자체 없음=해당 없음) / unreadable(있는데 못 읽음=확인 필요).
+  blankFields?: string[];
+  unreadableFields?: string[];
+  docCategory?: string | null;
+  // 원본 문서 S3 키 — '방금 업로드한 문서'를 s3Key 일치로 찾을 때 사용(소재구성 파싱 폴링).
+  docS3Key?: string | null;
   // 원본 문서(PDF 뷰어) — 임시 다운로드 URL + 파일명. 없으면 null(로컬 S3 미구성 등).
   documentUrl?: string | null;
   documentFileName?: string | null;
