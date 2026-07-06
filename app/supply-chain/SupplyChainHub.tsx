@@ -68,6 +68,8 @@ export default function SupplyChainHub() {
   const searchParams = useSearchParams();
   const initialProductId = searchParams.get('productId') ?? undefined;
   const initialBomVersionId = searchParams.get('bomVersionId') ?? undefined;
+  // 알림 딥링크로 진입 시 맵 안에서 포커스할 협력사 id — 해당 행으로 스크롤·하이라이트하고 상세를 연다.
+  const initialFocusSupplierId = searchParams.get('focusSupplier') ?? undefined;
   const [pool, setPool] = useState<SupplierBrief[]>([]);
   // STEP 2 Pool 후보 — 선택된 제품의 §10.2a 맵 tier-1 협력사만. 제품 미선택이면 빈 배열.
   const [tier1Pool, setTier1Pool] = useState<SupplierBrief[]>([]);
@@ -1023,6 +1025,7 @@ export default function SupplyChainHub() {
           onProductChange={handleProductChange}
           progressBySupplier={progressBySupplier}
           onRowClick={row => openSupplierReview(row.supplier_id, row.supplier_name)}
+          focusSupplierId={initialFocusSupplierId}
           maxVisibleTier={maxVisibleTier}
         />
       )}

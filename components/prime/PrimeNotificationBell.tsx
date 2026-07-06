@@ -7,6 +7,7 @@
 import { useRouter } from 'next/navigation';
 import SupplierNotificationBell from '@/components/supplier/SupplierNotificationBell';
 import { useDemoNotifications } from '@/lib/demo-notifications';
+import { buildMapDeepLink } from '@/lib/notificationDeepLink';
 
 // 원청 알림 딥링크 키 → 실제 라우트. 협력사 PARTNER_DEEP_LINK_ROUTE의 원청판.
 export const PRIME_DEEP_LINK_ROUTE: Record<string, string> = {
@@ -31,6 +32,7 @@ export default function PrimeNotificationBell() {
       onMarkRead={markRead}
       onMarkAllRead={markAllRead}
       onNavigate={(view) => router.push(PRIME_DEEP_LINK_ROUTE[view] ?? '/my-task')}
+      onNavigateTarget={(target) => router.push(buildMapDeepLink(target))}
     />
   );
 }
