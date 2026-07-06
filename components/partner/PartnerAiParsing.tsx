@@ -27,6 +27,10 @@ interface PartnerAiParsingProps {
   } | null;
   initialExtraction?: AiExtraction | null;
   onParsed?: (extraction: AiExtraction) => void;
+  /** true이면 하단에 저장 버튼만 노출 (원청사 제출 버튼 숨김). aiOnly 모드(소재구성 팝업)에서 사용. */
+  saveOnlyMode?: boolean;
+  /** saveOnlyMode일 때 저장 완료 후 호출할 콜백 (팝업 닫기 등). 미전달 시 기본 동작(홈 이동). */
+  onConfirmComplete?: () => void;
 }
 
 export default function PartnerAiParsing({
@@ -36,6 +40,8 @@ export default function PartnerAiParsing({
   initialDoc,
   initialExtraction,
   onParsed,
+  saveOnlyMode = false,
+  onConfirmComplete,
 }: PartnerAiParsingProps = {}) {
   const router = useRouter();
   const { supplierId, name } = usePartnerWorkspace();
@@ -87,7 +93,8 @@ export default function PartnerAiParsing({
             initialDoc={initialDoc}
             initialExtraction={initialExtraction}
             onParsed={onParsed}
-            onConfirmComplete={() => {
+            saveOnlyMode={saveOnlyMode}
+            onConfirmComplete={onConfirmComplete ?? (() => {
               // [process.md L23·53] AI 파싱 + geo audit 확인 후 최종 제출 →
               // 원청 탭에 "공급망 최종 검증 가능" 알림 전파.
               addDemoNotification({
@@ -99,7 +106,7 @@ export default function PartnerAiParsing({
                 actor: myLabel,
               });
               router.push('/partner');
-            }}
+            })}
           />
         </div>
         <div className={tab === 'geo' ? 'h-full' : 'hidden'}>

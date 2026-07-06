@@ -1084,6 +1084,8 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
               <div className="min-h-0 flex-1">
                 <PartnerAiParsing
                   aiOnly
+                  saveOnlyMode
+                  onConfirmComplete={() => setMaterialParsingOpen(false)}
                   docCategoryFilter="material_composition"
                   docS3KeyFilter={materialViewerDoc?.s3Key ?? null}
                   initialDoc={materialViewerDoc ? {

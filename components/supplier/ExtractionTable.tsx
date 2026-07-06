@@ -71,11 +71,17 @@ interface ExtractionTableProps {
   onConfirmComplete: () => void;
   /**
    * 현재 탭이 마지막 미완료 문서인지 여부
-   * true → 버튼 텍스트를 "원청사로 제출"로 변경 (review 상태로 전송)
+   * true → 버튼 텍스트를 \"원청사로 제출\"로 변경 (review 상태로 전송)
    */
   isLastDoc?: boolean;
   /** 'supplier'(협력사 제출) | 'prime'(원청 검토). 버튼·문구를 보는 주체에 맞게 분리. */
   mode?: 'supplier' | 'prime';
+  /** 외부(좌측 문서 패널)에서 호버 중인 fieldId. 해당 행을 강조 표시. */
+  hoveredFieldId?: string | null;
+  /** 이 패널에서 필드 호버 시 외부에 전파하는 콜백. */
+  onFieldHover?: (fieldId: string | null) => void;
+  /** 소재구성 팝업 모드(true) — 하단에 저장 버튼만 노출(원청사 제출 버튼 숨김). */
+  saveOnlyMode?: boolean;
 }
 
 // ─── 토스트 컴포넌트 ────────────────────────────────────────────────────────
@@ -153,11 +159,22 @@ function DraftBanner({
   );
 }
 
-export default function ExtractionTable({ doc, supplierId, onConfirmComplete, isLastDoc = false, mode = 'supplier' }: ExtractionTableProps) {
+export default function ExtractionTable({
+  doc,
+  supplierId,
+  onConfirmComplete,
+  isLastDoc = false,
+  mode = 'supplier',
+  hoveredFieldId,
+  onFieldHover,
+  saveOnlyMode = false,
+}: ExtractionTableProps) {
   const prime = mode === 'prime';
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
   const [unparsedInputs, setUnparsedInputs] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
+  // 자체 hover 상태 (우측 → 좌측 하이라이트용)
+  const [localHoveredField, setLocalHoveredField] = useState<string | null>(null);
 
   // 토스트 상태 — { message, tone } | null
   const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'info' } | null>(null);
@@ -249,6 +266,16 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
     setUnparsedInputs(prev => ({ ...prev, [key]: value }));
   };
 
+  // 우측 패널 필드 hover → 좌측에 전파
+  const handleFieldMouseEnter = (fieldId: string) => {
+    setLocalHoveredField(fieldId);
+    onFieldHover?.(fieldId);
+  };
+  const handleFieldMouseLeave = () => {
+    setLocalHoveredField(null);
+    onFieldHover?.(null);
+  };
+
   return (
     <>
       <div className="flex h-full w-[420px] shrink-0 flex-col overflow-hidden rounded-sm border border-ink-700 bg-white">
@@ -275,11 +302,23 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
             {doc.extractionResult.fields.map((field: any) => {
               const style = getConfidenceStyle(field.confidence);
               const currentValue = editedValues[field.fieldId] !== undefined ? editedValues[field.fieldId] : field.aiValue;
+              // 좌측 문서 패널에서 호버된 필드와 동일 → 강조
+              const isHighlightedFromDoc = hoveredFieldId === field.fieldId;
+              // 이 패널 자체에서 hover 중인 필드
+              const isSelfHovered = localHoveredField === field.fieldId;
+              const isHighlighted = isHighlightedFromDoc || isSelfHovered;
 
               return (
                 <div
                   key={field.fieldId}
-                  className={`rounded-xs border px-3 py-3 transition-colors ${
+                  data-field-id={field.fieldId}
+                  onMouseEnter={() => handleFieldMouseEnter(field.fieldId)}
+                  onMouseLeave={handleFieldMouseLeave}
+                  className={`rounded-xs border px-3 py-3 transition-all duration-200 cursor-default ${
+                    isHighlighted
+                      ? 'ring-2 ring-accent-500 ring-offset-1 shadow-md scale-[1.01]'
+                      : ''
+                  } ${
                     style.warningLevel === 'required'
                       ? 'border-alert-border'
                       : style.warningLevel === 'review'
@@ -288,7 +327,7 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
                   } ${style.rowBg}`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-bold text-ink-400">{field.label}</label>
+                    <label className="text-[12px] font-bold text-ink-400">{field.label}</label>
                     <div className="flex items-center gap-1.5">
                       {style.warningLevel === 'review' && (
                         <span className="flex items-center gap-1 text-[10px] font-bold text-warn-text">
@@ -351,29 +390,43 @@ export default function ExtractionTable({ doc, supplierId, onConfirmComplete, is
 
         {/* 하단 액션 버튼 */}
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-ink-700 bg-white px-5 py-4 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
-          <button
-            type="button"
-            onClick={handleDraftSave}
-            className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-4 py-2 text-xs font-bold text-ink-400 hover:border-ink-600 hover:text-ink-200 transition-colors"
-          >
-            <Save className="h-3.5 w-3.5" />
-            임시 저장
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={confirming}
-            className={`inline-flex items-center gap-1.5 rounded-xs px-5 py-2 text-xs font-bold text-white shadow-control transition-colors disabled:opacity-70 ${
-              isLastDoc ? 'bg-signal-ok hover:bg-ok-solid' : 'bg-accent-700 hover:bg-accent-900'
-            }`}
-          >
-            {confirming ? '처리 중...' : isLastDoc ? (
-              /* 마지막 문서 — 협력사: 원청사로 제출 / 원청: 검토 완료 */
-              <><Send className="h-3.5 w-3.5" /> {prime ? '검토 완료' : '원청사로 제출'}</>
-            ) : (
-              <>{prime ? '확인 및 다음으로' : '저장 및 다음으로'} <ChevronRight className="h-3.5 w-3.5" /></>
-            )}
-          </button>
+          {/* saveOnlyMode: 저장 버튼만 노출 (원청사 제출 버튼 숨김) */}
+          {saveOnlyMode ? (
+            <button
+              type="button"
+              onClick={() => { handleDraftSave(); onConfirmComplete(); }}
+              className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-4 py-2 text-xs font-bold text-ink-400 hover:border-ink-600 hover:text-ink-200 transition-colors"
+            >
+              <Save className="h-3.5 w-3.5" />
+              저장
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleDraftSave}
+                className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-4 py-2 text-xs font-bold text-ink-400 hover:border-ink-600 hover:text-ink-200 transition-colors"
+              >
+                <Save className="h-3.5 w-3.5" />
+                임시 저장
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={confirming}
+                className={`inline-flex items-center gap-1.5 rounded-xs px-5 py-2 text-xs font-bold text-white shadow-control transition-colors disabled:opacity-70 ${
+                  isLastDoc ? 'bg-signal-ok hover:bg-ok-solid' : 'bg-accent-700 hover:bg-accent-900'
+                }`}
+              >
+                {confirming ? '처리 중...' : isLastDoc ? (
+                  /* 마지막 문서 — 협력사: 원청사로 제출 / 원청: 검토 완료 */
+                  <><Send className="h-3.5 w-3.5" /> {prime ? '검토 완료' : '원청사로 제출'}</>
+                ) : (
+                  <>{prime ? '확인 및 다음으로' : '저장 및 다음으로'} <ChevronRight className="h-3.5 w-3.5" /></>
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
