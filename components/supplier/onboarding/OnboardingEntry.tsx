@@ -165,10 +165,9 @@ export default function OnboardingEntry({
         )}
       </div>
 
-      {/* ⚠️ 임시(원복 대상) — 확인용으로 동의서/체크 없이도 다음 단계로 넘어갈 수 있게 게이트를 열어둠.
-          작업 확인 끝나면 아래 줄을 원본으로 되돌릴 것:
-          <StepFooter onNext={onNext} nextDisabled={!consentDoc || !consentChecked} nextLabel="정보 입력 시작" /> */}
-      <StepFooter onNext={onNext} nextDisabled={false} nextLabel="정보 입력 시작" />
+      {/* 제3자 정보제공 동의 게이트 — 동의서를 확인·동의하지 않으면 다음 단계로 진입 불가.
+          (process.md L14·34 "동의하지 않으면 시스템 진입 금지") */}
+      <StepFooter onNext={onNext} nextDisabled={!consentDoc || !consentChecked} nextLabel="정보 입력 시작" />
     </div>
   );
 }

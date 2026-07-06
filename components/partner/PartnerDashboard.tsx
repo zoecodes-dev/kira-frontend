@@ -15,8 +15,9 @@ import {
 import Badge from '@/components/Badge';
 import EightStageStepper from '@/components/supplier/EightStageStepper';
 import ViolationReportModal from '@/components/supplier/ViolationReportModal';
+import NotificationFeed from '@/components/notifications/NotificationFeed';
 import { usePartnerWorkspace } from './PartnerWorkspaceContext';
-import { calculateDDay, certDDayStyle, riskLabel } from './partnerFormatters';
+import { calculateDDay, certDDayStyle, riskLabel, PARTNER_DEEP_LINK_ROUTE } from './partnerFormatters';
 
 // 대시보드 카드용 목 데이터 — 화면 전용(다른 화면과 공유하지 않음).
 const requestItems = [
@@ -222,6 +223,15 @@ export default function PartnerDashboard() {
 
         {/* 우측 영역 */}
         <div className="flex flex-col gap-4">
+
+          {/* 원청사 알림 — 대시보드에서 바로 확인 */}
+          <NotificationFeed
+            audience="partner"
+            deepLinkMap={PARTNER_DEEP_LINK_ROUTE}
+            fallbackRoute="/partner"
+            allRoute="/partner/notifications"
+            limit={4}
+          />
 
           {/* 검토 결과 요약 */}
           <div className="rounded-sm border border-ink-700 bg-white shadow-control">
