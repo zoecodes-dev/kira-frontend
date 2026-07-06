@@ -68,6 +68,8 @@ export default function SupplyChainHub() {
   const searchParams = useSearchParams();
   const initialProductId = searchParams.get('productId') ?? undefined;
   const initialBomVersionId = searchParams.get('bomVersionId') ?? undefined;
+  // 알림 딥링크로 진입 시 맵 안에서 포커스할 협력사 id — 해당 행으로 스크롤·하이라이트하고 상세를 연다.
+  const initialFocusSupplierId = searchParams.get('focusSupplier') ?? undefined;
   const [pool, setPool] = useState<SupplierBrief[]>([]);
   // STEP 2 Pool 후보 — 선택된 제품의 §10.2a 맵 tier-1 협력사만. 제품 미선택이면 빈 배열.
   const [tier1Pool, setTier1Pool] = useState<SupplierBrief[]>([]);
@@ -200,8 +202,32 @@ export default function SupplyChainHub() {
     return visible;
   }, [activeMapStatus, edgesByTier, confirmedSuppliers, pool.length]);
 
-  // STEP3 모달(ConnectedSuppliersModal)에 넘길 협력사 — maxVisibleTier까지만.
-  //   아직 안 열린 하위 차수를 순서 무시하고 먼저 '확인'해버리는 것을 막는다.
+  // [FIX] STEP2 Pool 모달에서 체크 안 한 1차 후보(예: 04)가 그대로 트리·STEP3 대상에
+  //   섞여 나오던 문제 — "확정 여부(pool.length>0)"만 보고 티어 전체를 열었지, 실제로
+  //   "누가 pool에 있는지"는 안 걸렀다. pool(확정된 협력사)에서 시작해 하위로 내려가며
+  //   도달 가능한 협력사만 모은다(그 밖의 형제 후보는 이번 라운드에서 아예 숨김).
+  const poolReachableIds = useMemo(() => {
+    if (activeMapStatus !== 'building') return null; // completed는 필터 없이 전부 노출
+    if (pool.length === 0) return new Set<string>(); // Pool 확정 전 — Tier0만(트리 쪽에서 별도 처리)
+    const bySupplierEdges = dataset.supply_chain_map.filter(
+      r => (!activeBomVersionId || r.bom_version_id === activeBomVersionId) && r.child_supplier_id,
+    );
+    const reachable = new Set(pool.map(s => s.supplierId));
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const r of bySupplierEdges) {
+        if (r.parent_supplier_id && reachable.has(r.parent_supplier_id) && r.child_supplier_id && !reachable.has(r.child_supplier_id)) {
+          reachable.add(r.child_supplier_id);
+          grew = true;
+        }
+      }
+    }
+    return reachable;
+  }, [activeMapStatus, pool, dataset.supply_chain_map, activeBomVersionId]);
+
+  // STEP3 모달(ConnectedSuppliersModal)에 넘길 협력사 — maxVisibleTier까지 + Pool에서
+  //   도달 가능한 협력사만(형제 후보 제외).
   const visibleMapSuppliers = useMemo(() => {
     if (activeMapStatus !== 'building') return mapSuppliers; // completed는 기존처럼 전부
     const hopOf = new Map<string, number>();
@@ -211,9 +237,11 @@ export default function SupplyChainHub() {
     }));
     return mapSuppliers.filter(s => {
       const hop = hopOf.get(s.supplierId);
-      return hop == null || hop <= maxVisibleTier;
+      const tierOk = hop == null || hop <= maxVisibleTier;
+      const poolOk = !poolReachableIds || hop == null || poolReachableIds.has(s.supplierId);
+      return tierOk && poolOk;
     });
-  }, [activeMapStatus, mapSuppliers, edgesByTier, maxVisibleTier]);
+  }, [activeMapStatus, mapSuppliers, edgesByTier, maxVisibleTier, poolReachableIds]);
 
   // STEP3 완료(제3자 동의 메일 발송) = 현재 노출된 협력사(광산 제외) 전부에 동의/요청 메일 발송.
   //   demo/mock(실 UUID 없음)은 발송 이력을 추적할 수 없으므로 STEP3 방문으로 대체.
@@ -1023,7 +1051,9 @@ export default function SupplyChainHub() {
           onProductChange={handleProductChange}
           progressBySupplier={progressBySupplier}
           onRowClick={row => openSupplierReview(row.supplier_id, row.supplier_name)}
+          focusSupplierId={initialFocusSupplierId}
           maxVisibleTier={maxVisibleTier}
+          visibleSupplierIds={poolReachableIds ?? undefined}
         />
       )}
 

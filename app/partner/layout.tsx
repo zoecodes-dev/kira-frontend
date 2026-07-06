@@ -10,7 +10,6 @@
 //  · 토큰이 localStorage 라 Next.js middleware(엣지)로는 못 읽음 → 클라 가드로 처리.
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Calendar } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import { getToken } from '@/lib/api';
 import SelfReportModal from '@/components/supplier/SelfReportModal';
@@ -32,21 +31,13 @@ function PartnerHeader() {
       title="협력사 업무공간"
       badge="내 회사 기준"
       description="내 회사 정보, 원청 요청 자료, 직접 연결된 공급망만 확인합니다."
-      actions={
-        <>
-          <div className="flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-medium text-ink-400">
-            <Calendar className="h-3.5 w-3.5" />
-            <span className="num-mono">
-              {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace(/\.$/, '')}
-            </span>
-          </div>
-          <SupplierNotificationBell
-            notifications={notifications}
-            onMarkRead={markNotifRead}
-            onMarkAllRead={markAllNotifsRead}
-            onNavigate={(view) => router.push(PARTNER_DEEP_LINK_ROUTE[view] ?? '/partner')}
-          />
-        </>
+      notification={
+        <SupplierNotificationBell
+          notifications={notifications}
+          onMarkRead={markNotifRead}
+          onMarkAllRead={markAllNotifsRead}
+          onNavigate={(view) => router.push(PARTNER_DEEP_LINK_ROUTE[view] ?? '/partner')}
+        />
       }
     />
   );

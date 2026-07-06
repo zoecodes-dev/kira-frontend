@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Bell, X, AlertTriangle, CheckCircle2, Clock, ChevronRight } from 'lucide-react';
+import type { NotificationTarget } from '@/lib/api';
 
 // ─── 타입 정의 ────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,8 @@ interface Notification {
    * page.tsx의 setActiveView와 연결되는 내부 탭 키로 변경
    */
   deep_link?: string;
+  /** 맵/협력사 노드 딥링크 좌표(선택). 있으면 deep_link보다 우선. */
+  target?: NotificationTarget;
 }
 
 // ─── Mock 알림 데이터 ────────────────────────────────────────────────────────
@@ -114,6 +117,7 @@ interface NotificationItem {
   status: 'pending' | 'read';
   created_at: string;
   deep_link?: string;
+  target?: NotificationTarget;
 }
 
 interface SupplierNotificationBellProps {
@@ -128,6 +132,11 @@ interface SupplierNotificationBellProps {
    * 알림 클릭 시 page.tsx의 setActiveView로 탭 전환
    */
   onNavigate?: (view: string) => void;
+  /**
+   * 알림에 target(맵+협력사 노드 좌표)이 있을 때의 정밀 이동. 있으면 onNavigate보다 우선.
+   * 미전달 시 target 알림도 deep_link 기반 onNavigate로 폴백한다.
+   */
+  onNavigateTarget?: (target: NotificationTarget) => void;
 }
 
 // ─── 메인 컴포넌트 ───────────────────────────────────────────────────────────
@@ -137,6 +146,7 @@ export default function SupplierNotificationBell({
   onMarkRead: externalMarkRead,
   onMarkAllRead: externalMarkAllRead,
   onNavigate,
+  onNavigateTarget,
 }: SupplierNotificationBellProps) {
   const [open, setOpen] = useState(false);
   // 외부 상태(page.tsx 공유) 미전달 시 내부 Mock 사용 — 하위 호환
@@ -192,11 +202,13 @@ export default function SupplierNotificationBell({
     }
   }
 
-  // 알림 클릭 — 읽음 처리 + 탭 딥링크 이동
+  // 알림 클릭 — 읽음 처리 + 딥링크 이동. target(맵+협력사 노드)이 있으면 우선 사용.
   function handleNotifClick(notif: Notification) {
     markOneRead(notif.notification_id);
     setOpen(false);
-    if (notif.deep_link && onNavigate) {
+    if (notif.target && onNavigateTarget) {
+      onNavigateTarget(notif.target);
+    } else if (notif.deep_link && onNavigate) {
       onNavigate(notif.deep_link);
     }
   }

@@ -24,6 +24,7 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
 const TOKEN_KEY = "kira_token";
+const REFRESH_KEY = "kira_refresh_token";
 
 // ───────────────────────────────────────────────────────────
 // 토큰 헬퍼 (localStorage — CSR 환경. SSR에서는 window 가드)
@@ -38,9 +39,21 @@ export function setToken(token: string): void {
   window.localStorage.setItem(TOKEN_KEY, token);
 }
 
+// 리프레시 토큰 — 액세스 만료 시 재로그인 없이 새 액세스를 받는 데 쓴다.
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(REFRESH_KEY);
+}
+
+export function setRefreshToken(token: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(REFRESH_KEY, token);
+}
+
 export function clearToken(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(REFRESH_KEY);
   clearSessionUser();
 }
 
@@ -154,13 +167,46 @@ interface RequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
   /** true면 snake→camel 변환 생략(원본 그대로 반환) */
   raw?: boolean;
+  /** 내부용 — 401 재발급 후 1회만 재시도하기 위한 가드(무한루프 방지) */
+  _retry?: boolean;
+}
+
+// 리프레시 진행 중이면 그 Promise를 공유해, 동시에 401난 여러 요청이 refresh를 중복 호출하지 않게 한다.
+let refreshPromise: Promise<boolean> | null = null;
+
+// 저장된 리프레시 토큰으로 새 액세스(+리프레시)를 발급받아 저장. 성공 true.
+// request()를 거치지 않고 직접 fetch — 응답은 raw snake_case(token/refresh_token).
+async function tryRefreshToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  const rt = getRefreshToken();
+  if (!rt) return false;
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: rt }),
+      });
+      if (!res.ok) return false;
+      const data = (await res.json()) as { token?: string; refresh_token?: string };
+      if (!data?.token) return false;
+      setToken(data.token);
+      if (data.refresh_token) setRefreshToken(data.refresh_token);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
 }
 
 async function request<T = unknown>(
   path: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { body, raw, headers, ...rest } = options;
+  const { body, raw, headers, _retry, ...rest } = options;
 
   const finalHeaders: Record<string, string> = {
     "Content-Type": "application/json",
@@ -196,7 +242,20 @@ async function request<T = unknown>(
   }
 
   if (!res.ok) {
-    // 401 → 토큰 만료/무효. 토큰 정리 + 전역 알림(어느 페이지에서든 로그인 오버레이가 뜨게) 후 throw.
+    // 401 → 액세스 만료 추정. 먼저 리프레시로 새 액세스를 받아 원요청을 1회 재시도한다.
+    //   (로그인/리프레시 자체 요청은 제외 — 무한루프·오판 방지)
+    if (
+      res.status === 401 &&
+      !_retry &&
+      !path.includes("/auth/login") &&
+      !path.includes("/auth/refresh")
+    ) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) {
+        return request<T>(path, { ...options, _retry: true });
+      }
+    }
+    // 리프레시 불가/실패한 401 → 토큰 정리 + 전역 알림(로그인 오버레이) 후 throw.
     if (res.status === 401) {
       clearToken();
       notifyAuthExpired();
@@ -244,6 +303,8 @@ export type UserRole =
 
 export interface LoginResponse {
   token: string;
+  /** 리프레시 토큰 — 액세스 만료 시 재로그인 없이 재발급하는 데 저장해 둔다. */
+  refreshToken?: string;
   role: UserRole;
   userId: string;
   tenantId: string;
@@ -712,6 +773,13 @@ export interface SuppliedItem {
   // 공급원 변경 자진신고(declareSourceChange) 실호출용 BOM 컨텍스트.
   bomVersionId: string | null;
   bomVersionNumber: string | null;
+  // [맵별 탭] 협력사 페이지 맵(=bom_version)별 탭 구성용 product 컨텍스트 + 맵별 상이 데이터.
+  productId?: string | null;
+  modelName?: string | null;     // 차종 (예: iX3 50) — 탭 라벨
+  productName?: string | null;
+  customerName?: string | null;  // 고객사 (예: BMW) — 탭 라벨
+  hopLevel?: number | null;      // 이 맵에서 협력사 차수
+  coreMinerals?: Record<string, number> | null; // 이 맵(엣지)의 핵심광물 함량 %(회사값 폴백)
 }
 export const getSupplierSuppliedItems = (id: string) =>
   api.get<{ supplierId: string; items: SuppliedItem[] }>(`/suppliers/${id}/supplied-items`);
@@ -963,6 +1031,9 @@ export interface OnboardingSubmitInput {
     role?: string;
     department?: string;
   }>;
+  /** STEP3 하위협력사 담당자 등록 — 백엔드가 같은 트랜잭션에서 캐스케이드 초대(협력사 생성
+   * + 동의요청)까지 처리한다(§7-c). 말단 선언(없음)이면 빈 배열로 보낸다. */
+  subSuppliers?: Array<{ companyName: string; name: string; email: string; phone?: string }>;
 }
 export interface OnboardingSubmitResult {
   supplierId: string;
@@ -1029,6 +1100,9 @@ export const submitSupplierOnboarding = (supplierId: string, input: OnboardingSu
       is_primary: c.isPrimary,
       role: c.role,
       department: c.department,
+    })),
+    sub_suppliers: (input.subSuppliers ?? []).map((s) => ({
+      company_name: s.companyName, name: s.name, email: s.email, phone: s.phone,
     })),
   });
 
@@ -1440,6 +1514,30 @@ export const exportAuditPackage = (packageId: string) =>
 // ───────────────────────────────────────────────────────────
 // 알림 (Notifications) — §notifications
 // ───────────────────────────────────────────────────────────
+/**
+ * 알림이 가리키는 "맵 + 진행 지점" 좌표. deep_link(라우트 키)와 달리 특정 공급망 맵과
+ * 그 안의 협력사 노드까지 직접 지정한다. 존재하면 클릭 시 deep_link보다 우선한다.
+ * (프론트 헬퍼 buildMapDeepLink가 이 값을 /supply-chain/map URL로 변환한다.)
+ *
+ * 바인딩 규칙(중요): 정보요청/초대 메일은 언제나 "그 회차에 새로 만든 맵(map_id)"에 협력사를 묶어 보낸다.
+ *   협력사 정보를 이미 보유하고 있어도 맵은 매 회차 새로 생성되므로, productId만으로는 대상 맵을 특정할 수 없다.
+ *   따라서 target은 그 회차의 맵을 가리키는 mapId(정본) + bomVersionId(허브가 URL로 여는 실제 키)를 함께 담는다.
+ *   → 이 값은 협력사가 자료를 제출할 때가 아니라, 요청/초대를 보낸 시점의 맵 컨텍스트에서 채워져야 한다.
+ */
+export interface NotificationTarget {
+  /** 맵을 여는 제품 id — 허브 진입의 1차 식별자(필수) */
+  productId: string;
+  /**
+   * 그 회차의 맵 인스턴스를 여는 BOM 버전. 맵은 매 회차 새로 만들어지므로 대상 맵을 특정하려면 사실상 필수.
+   * 허브는 이 값을 URL(bomVersionId)로 읽어 해당 맵을 바로 선택한다. 생략 시 현재 버전으로 폴백(오조준 위험).
+   */
+  bomVersionId?: string;
+  /** 그 회차 맵의 정본 식별자(map_id) — 요청/초대가 협력사를 묶은 바로 그 맵. 추적·검증용(내비게이션은 위 두 값으로). */
+  mapId?: string;
+  /** 맵 안에서 포커스할 협력사 id — 해당 행으로 스크롤·하이라이트하고 상세 모달을 연다 */
+  focusSupplierId?: string;
+}
+
 export interface NotificationItem {
   notification_id: string;
   notification_type: 'sla_warning' | 'violation' | 'approval_needed' | 'info';
@@ -1448,6 +1546,8 @@ export interface NotificationItem {
   status: 'pending' | 'read';
   created_at: string;
   deep_link?: string;
+  /** 맵/협력사 노드 딥링크 좌표(선택). 있으면 deep_link보다 우선해 정밀 이동. */
+  target?: NotificationTarget;
 }
 
 /** GET /notifications — 로그인 사용자의 in-app 알림 목록 */

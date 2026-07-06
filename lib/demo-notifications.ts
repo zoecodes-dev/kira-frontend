@@ -13,6 +13,7 @@
 // 알림만 렌더링한다. deep_link 는 클릭 시 이동할 라우트 키(각 side의 딥링크 맵에서 해석).
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import type { NotificationTarget } from './api';
 
 export type DemoAudience = 'prime' | 'partner';
 export type DemoNotifType = 'sla_warning' | 'violation' | 'approval_needed' | 'info';
@@ -28,6 +29,8 @@ export interface DemoNotification {
   created_at: string;
   /** 클릭 시 이동할 딥링크 키 — audience별 딥링크 맵에서 라우트로 해석 */
   deep_link?: string;
+  /** 맵/협력사 노드 딥링크 좌표(선택). 있으면 deep_link보다 우선해 정밀 이동. */
+  target?: NotificationTarget;
   /** 발신 주체 라벨(예: "한양셀 제조(주)", "KIRA 원청") — 표시에 참고 */
   actor?: string;
 }
@@ -67,17 +70,7 @@ function seedNotifications(): DemoNotification[] {
       deep_link: 'ai-parsing',
       actor: 'KIRA 시스템',
     },
-    {
-      notification_id: 'seed-prime-1',
-      audience: 'prime',
-      notification_type: 'info',
-      subject: '공급망 맵 준비 완료',
-      body: '고객사·제품·BOM 기준 공급망 맵을 생성할 수 있습니다. 공급망 워크스페이스에서 시작하세요.',
-      status: 'read',
-      created_at: ago(720),
-      deep_link: 'supply-chain',
-      actor: 'KIRA 시스템',
-    },
+    // 원청(prime) 시드는 두지 않는다 — 원청 알림은 백엔드 실 알림(GET /notifications)만 표시한다.
   ];
 }
 
@@ -171,6 +164,7 @@ export interface AddDemoNotificationInput {
   subject: string;
   body: string;
   deep_link?: string;
+  target?: NotificationTarget;
   actor?: string;
 }
 
@@ -189,6 +183,7 @@ export function addDemoNotification(input: AddDemoNotificationInput): DemoNotifi
     status: 'pending',
     created_at: new Date().toISOString(),
     deep_link: input.deep_link,
+    target: input.target,
     actor: input.actor,
   };
   // 최신이 위로 오도록 앞에 붙인다.

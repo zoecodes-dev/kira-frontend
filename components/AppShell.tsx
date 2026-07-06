@@ -3,8 +3,6 @@
 import { usePathname } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import NavLink from '@/components/NavLink';
-import PrimeNotificationBell, { PRIME_DEEP_LINK_ROUTE } from '@/components/prime/PrimeNotificationBell';
-import NotificationToaster from '@/components/notifications/NotificationToaster';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -15,22 +13,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      {/* 원청 새 알림 토스트 팝업 (prime audience) */}
-      <NotificationToaster audience="prime" deepLinkMap={PRIME_DEEP_LINK_ROUTE} fallbackRoute="/my-task" />
+      {/* 원청 알림은 실 API 기반(벨·대시보드 피드)만 사용 — 데모 푸시 토스트는 원청에서 제거. */}
       <aside className="w-64 shrink-0 border-r border-white/10 bg-brand text-white flex flex-col shadow-control">
         <div className="p-5 border-b border-white/10 shrink-0">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-sm bg-white flex items-center justify-center shadow-control shrink-0">
-                <ShieldCheck className="w-4 h-4 text-brand" strokeWidth={2.5} />
-              </div>
-              <div className="min-w-0">
-                <div className="text-sm font-bold text-white tracking-tight truncate">KIRA Battery</div>
-                <div className="text-[11px] text-white/55 truncate">공급망 관리</div>
-              </div>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-sm bg-white flex items-center justify-center shadow-control shrink-0">
+              <ShieldCheck className="w-4 h-4 text-brand" strokeWidth={2.5} />
             </div>
-            {/* 원청 GNB 알림 벨 — 데모 알림 스토어(prime) 구독 */}
-            <PrimeNotificationBell />
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-white tracking-tight truncate">KIRA Battery</div>
+              <div className="text-[11px] text-white/55 truncate">공급망 관리</div>
+            </div>
           </div>
         </div>
 

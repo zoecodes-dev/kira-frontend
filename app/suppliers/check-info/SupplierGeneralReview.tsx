@@ -987,6 +987,79 @@ function MaterialDocParsePanel({ supplierId, initialUrl, editable, onOpenViewer,
   );
 }
 
+// [맵별 탭] 이 협력사가 속한 공급망 맵(=bom_version)별로 탭을 나눠, 맵마다 달라지는
+//   '대는 부품 · 차수(hop) · 소재구성(핵심광물)'만 갈아끼워 보여준다(읽기 전용).
+//   회사정보·연락처·공장·서류 같은 회사 공통 데이터는 이 탭 밖(각 섹션)에서 1벌로 유지.
+//   광물값은 백엔드에서 엣지 override(제품별) 우선 · 없으면 회사값 폴백으로 내려온다.
+function SupplyMapTabs({ items }: { items: ApiItem[] }) {
+  const maps: { key: string; label: string; version: string | null; rows: ApiItem[] }[] = [];
+  const idxOf = new Map<string, number>();
+  for (const it of items) {
+    const key = it.bomVersionId ?? `${it.productId ?? ''}:${it.bomVersionNumber ?? ''}`;
+    if (!key) continue;
+    if (!idxOf.has(key)) {
+      const label = [it.customerName, it.modelName ?? it.productName].filter(Boolean).join(' ') || '제품';
+      idxOf.set(key, maps.length);
+      maps.push({ key, label, version: it.bomVersionNumber ?? null, rows: [] });
+    }
+    maps[idxOf.get(key)!].rows.push(it);
+  }
+
+  const [active, setActive] = useState(0);
+  if (!maps.length) return null;
+  const idx = active < maps.length ? active : 0;
+  const cur = maps[idx];
+  const fmt = (cm?: Record<string, number> | null) => {
+    const e = Object.entries(cm ?? {}).filter(([, v]) => v != null);
+    return e.length ? e.map(([k, v]) => `${k} ${v}%`).join(' · ') : '—';
+  };
+
+  return (
+    <div className="rounded-md border border-ink-700/40">
+      <div className="border-b border-ink-700/30 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-ink-300">
+        제품(공급망 맵)별 공급 정보 — 같은 협력사라도 제품마다 대는 부품·소재가 다릅니다
+      </div>
+      <div className="flex flex-wrap gap-1 px-2 pt-2">
+        {maps.map((m, i) => {
+          const dup = maps.filter(x => x.label === m.label).length > 1;
+          return (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => setActive(i)}
+              className={`rounded-t-sm border px-3 py-1.5 text-xs font-medium ${
+                i === idx
+                  ? 'border-ink-700/40 border-b-white bg-white text-ink-100'
+                  : 'border-transparent text-ink-400 hover:text-ink-100'
+              }`}
+            >
+              {m.label}{dup && m.version ? ` v${m.version}` : ''}
+            </button>
+          );
+        })}
+      </div>
+      <table className="w-full border-t border-ink-700/30 text-xs">
+        <thead>
+          <tr className="text-left text-ink-400">
+            <th className="px-3 py-1.5 font-medium">부품</th>
+            <th className="px-3 py-1.5 font-medium">차수(hop)</th>
+            <th className="px-3 py-1.5 font-medium">핵심광물 함량(%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cur.rows.map((r, i) => (
+            <tr key={`${r.partId}-${i}`} className="border-t border-ink-700/15">
+              <td className="px-3 py-1.5 text-ink-100">{r.partName ?? r.partCode ?? '-'}</td>
+              <td className="px-3 py-1.5 text-ink-300">{r.hopLevel ?? '-'}</td>
+              <td className="px-3 py-1.5 text-ink-200">{fmt(r.coreMinerals)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
 // editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isPrime)만 노출.
 function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft }: {
@@ -1021,11 +1094,12 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const keys = ['companyName', 'country', 'businessRegNo', 'dunsNumber', 'providerType', ...(showSmelter ? ['smelterType'] : [])];
     content = <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="company" selects={{ providerType: PROVIDER_OPTS, smelterType: SMELTER_OPTS }} />;
   } else if (section.key === 'materials') {
-    // 있는 광물 키만 동적 표시(흑연 포함). 편집 모드는 표준 키 전부 + 미지 키를 입력칸으로.
+    // 표준 광물 키(Li·Co·Ni·Mn·천연/인조 흑연)는 보기·편집 모두 항상 칸으로 노출하고,
+    //   추가로 문서에 있는 미지 키(present)도 합친다. 편집 모드는 입력칸, 보기 모드는 값/‘해당 없음’.
     //   빈 칸은 '해당 없음'(중립) — 광물별 필수가 아니므로 미입력(경고)으로 표시하지 않는다.
     const cm = (d?.coreMinerals ?? {}) as Record<string, number>;
     const present = mineralKeysOf(cm);
-    const keys = editable ? [...new Set([...MINERAL_EDIT_KEYS, ...present])] : present;
+    const keys = [...new Set([...MINERAL_EDIT_KEYS, ...present])];
     // AI 파싱 결과 병합(편집 모드 전용) —
     //   parsed     → 값 채움('완료'), 신뢰도 < 0.8 이면 '검토 권장' 플래그
     //   blank      → 기존 '해당 없음' 유지(문서에 항목 자체 없음)
@@ -1283,8 +1357,8 @@ export function SupplierGeneralReviewContent({
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);   // 저장하기 직후 '저장됨' 피드백
-  // 광산 안내 배너 — 광산은 입력 주체가 아니고, '공장 정보'만 상위 제련소(정보관리 주체)가
-  //   입력한 데이터로 채운다. 광산 리뷰는 읽기 전용(편집/자료 제출 비활성).
+  // 광산 안내 배너 — 광산은 입력 주체가 아니라 읽기 전용(편집/자료 제출 비활성).
+  //   공장 정보는 광산 자체(광산=공장)의 supplier_factories 를 그대로 보여준다.
   const [managedBanner, setManagedBanner] = useState<{ mineName: string } | null>(null);
   const editable = isSupplier && editing && !managedBanner;
   const formRef = useRef<HTMLElement>(null);
@@ -1304,8 +1378,8 @@ export function SupplierGeneralReviewContent({
     if (!isRealSupplier) { setApi(null); setLatestRequest(null); setManagedBanner(null); return; }
     let cancelled = false;
     (async () => {
-      // 광산이어도 자기 id로 조회한다 — 백엔드가 광산의 공장 정보를 '정보관리 주체'인 상위
-      //   제련소의 supplier_factories 로 알아서 리다이렉트해 돌려준다(공장=곧 광산, 광산은 보기만).
+      // 광산도 자기 id로 조회한다 — 광산은 광산 자체가 곧 공장이라 자기 supplier_factories 를
+      //   그대로 받는다(리다이렉트 없음). 단 광산은 입력 주체가 아니라 보기 전용.
       const [detail, contactsRes, factoriesRes, comp, itemsRes, riskRes, requestsRes] = await Promise.all([
         getSupplierDetail(supplierId).catch(() => null),
         getSupplierContacts(supplierId).catch(() => null),
@@ -1324,7 +1398,7 @@ export function SupplierGeneralReviewContent({
         items: itemsRes?.items ?? [],
         riskProfile: riskRes,
       });
-      // 광산은 입력 주체가 아니라 읽기 전용 + 공장 정보는 상위 제련소 입력값을 안내.
+      // 광산은 입력 주체가 아니라 읽기 전용(공장 정보는 광산 자체 = 공장).
       setManagedBanner(detail?.providerType === 'miner' ? { mineName: detail.companyName } : null);
       // 가장 최신 요청(requestedAt 기준 내림차순 첫 번째)
       const sorted = (requestsRes ?? []).sort((a: ApiDataRequest, b: ApiDataRequest) =>
@@ -1632,7 +1706,7 @@ export function SupplierGeneralReviewContent({
         <div className="mb-4 flex items-start gap-2 rounded-sm border border-info-border bg-info-bg px-4 py-3 text-sm text-info-text">
           <Building2 className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            <b>{managedBanner.mineName}</b>은 데이터 입력 주체가 아닙니다. 공장 정보는 정보관리 주체인 상위 제련소가 입력한 데이터입니다(읽기 전용).
+            <b>{managedBanner.mineName}</b>은 데이터 입력 주체가 아닙니다(읽기 전용). 공장 정보는 광산 자체(광산=공장)입니다.
           </span>
         </div>
       )}
