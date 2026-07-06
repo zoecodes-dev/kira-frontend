@@ -4,8 +4,22 @@
 // audience로 원청/협력사 알림을 구분하며, 항목 클릭 시 읽음 처리 + 딥링크 이동.
 import { useRouter } from 'next/navigation';
 import { Bell, ChevronRight, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
-import { useDemoNotifications, type DemoAudience, type DemoNotifType, type DemoNotification } from '@/lib/demo-notifications';
+import { useDemoNotifications, type DemoAudience, type DemoNotifType } from '@/lib/demo-notifications';
 import { buildMapDeepLink } from '@/lib/notificationDeepLink';
+import type { NotificationTarget } from '@/lib/api';
+
+// 피드가 렌더에 필요로 하는 최소 필드 — 데모(DemoNotification)·실 API(NotificationItem) 모두 호환.
+type FeedItem = {
+  notification_id: string;
+  notification_type: DemoNotifType;
+  subject: string;
+  body: string;
+  status: 'pending' | 'read';
+  created_at: string;
+  deep_link?: string;
+  target?: NotificationTarget;
+  actor?: string;
+};
 
 const TYPE_ICON: Record<DemoNotifType, { icon: React.ElementType; cls: string; bar: string }> = {
   sla_warning:     { icon: Clock,         cls: 'text-warn-text',   bar: 'bg-warn-solid' },
@@ -30,6 +44,8 @@ export default function NotificationFeed({
   allRoute,
   limit = 5,
   className,
+  notifications: injectedNotifications,
+  onMarkRead,
 }: {
   audience: DemoAudience;
   /** 딥링크 키 → 라우트 */
@@ -40,13 +56,20 @@ export default function NotificationFeed({
   allRoute?: string;
   limit?: number;
   className?: string;
+  /** 실 API 등 외부 알림 주입(선택). 주면 데모 스토어 대신 이걸 표시. 원청은 실 API를 주입한다. */
+  notifications?: FeedItem[];
+  /** 주입 모드일 때의 읽음 처리. */
+  onMarkRead?: (id: string) => void;
 }) {
   const router = useRouter();
-  const { notifications, markRead } = useDemoNotifications(audience);
+  const demo = useDemoNotifications(audience);
+  // 외부 주입(실 API)이 있으면 그것을, 없으면 데모 스토어를 쓴다(하위 호환 — 협력사 등).
+  const notifications: FeedItem[] = injectedNotifications ?? demo.notifications;
+  const markRead = onMarkRead ?? demo.markRead;
   const unread = notifications.filter(n => n.status === 'pending').length;
   const shown = notifications.slice(0, limit);
 
-  function open(n: DemoNotification) {
+  function open(n: FeedItem) {
     markRead(n.notification_id);
     // target(맵+협력사 노드)이 있으면 정밀 이동, 없으면 deep_link 라우트로 폴백.
     router.push(n.target ? buildMapDeepLink(n.target) : (n.deep_link && deepLinkMap[n.deep_link]) || fallbackRoute);

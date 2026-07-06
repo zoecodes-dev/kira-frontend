@@ -123,8 +123,9 @@ export default function SupplierOnboarding() {
     if (prev) setStep(prev);
   }
 
-  // 최종 '제출하기' — 회사정보 + 본인 담당자 + 문서 + 동의(+ n차 계정)를 공개 submit으로 영속화.
-  //   하위협력사 담당자(pics)는 캐스케이드 초대용(Phase 2)이라 여기 제출에 포함하지 않고 로컬로만 유지한다.
+  // 최종 '제출하기' — 회사정보 + 본인 담당자 + 문서 + 동의(+ n차 계정) + 하위협력사(STEP3)를
+  //   공개 submit 하나로 영속화. 하위협력사 캐스케이드 초대(협력사 생성+동의요청)는 무토큰
+  //   상태에서도 처리돼야 해서 프론트에서 따로 호출하지 않고 백엔드가 같은 트랜잭션에서 처리한다.
   async function handleSubmit() {
     if (!supplierId) {
       setSubmitError('초대 링크가 올바르지 않습니다. (supplierId 없음)');
@@ -133,6 +134,11 @@ export default function SupplierOnboarding() {
     setSubmitError(null);
     setSubmitting(true);
     try {
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const subSuppliers = pics
+        .filter(p => p.company.trim() && p.name.trim() && emailRe.test(p.email.trim()) && p.phone.trim())
+        .map(p => ({ companyName: p.company.trim(), name: p.name.trim(), email: p.email.trim(), phone: p.phone.trim() }));
+
       const input: OnboardingSubmitInput = {
         // 1차는 MES 계정을 이미 보유 → account=null(신규 생성 안 함). n차는 입력한 로그인 계정 생성.
         account: type === 'firstTier' ? null : { email: signup.accountEmail, password: signup.password },
@@ -159,8 +165,11 @@ export default function SupplierOnboarding() {
           department: signup.department,
           isPrimary: true,
         }],
+        // STEP3 하위협력사 담당자 등록 — '없음' 선언이면 빈 배열로 그대로 전달.
+        subSuppliers,
       };
       await submitSupplierOnboarding(supplierId, input);
+
       // [process.md L51] 회원가입·제3자 정보제공 동의 완료 → 원청 탭에 동의 수신 알림.
       addDemoNotification({
         audience: 'prime',

@@ -21,6 +21,7 @@ import PageHeader from '@/components/PageHeader';
 import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
 import NotificationFeed from '@/components/notifications/NotificationFeed';
 import { PRIME_DEEP_LINK_ROUTE } from '@/components/prime/PrimeNotificationBell';
+import { useApiNotifications } from '@/lib/useApiNotifications';
 import Link from 'next/link';
 import clsx from 'clsx';
 
@@ -281,6 +282,8 @@ export default function DashboardPage() {  const [apiKpis, setApiKpis] = useStat
   // 규제검증 결과 — regulation 도메인. null=미로드, []=결과 없음.
   const [regResults, setRegResults] = useState<RegulationResult[] | null>(null);
   const [supplierStats, setSupplierStats] = useState<DashboardSupplierStats | null>(null);
+  // 원청 알림 피드는 데모가 아니라 백엔드 실 알림을 표시한다.
+  const apiNotif = useApiNotifications();
 
   useEffect(() => {
     getDashboardKpis().then(setApiKpis).catch(e => console.error('[dashboard] getDashboardKpis 실패', e));
@@ -379,6 +382,8 @@ export default function DashboardPage() {  const [apiKpis, setApiKpis] = useStat
             deepLinkMap={PRIME_DEEP_LINK_ROUTE}
             fallbackRoute="/my-task"
             limit={4}
+            notifications={apiNotif.notifications}
+            onMarkRead={apiNotif.markRead}
           />
 
           <HitlReviewCard />

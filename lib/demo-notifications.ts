@@ -70,30 +70,7 @@ function seedNotifications(): DemoNotification[] {
       deep_link: 'ai-parsing',
       actor: 'KIRA 시스템',
     },
-    {
-      notification_id: 'seed-prime-1',
-      audience: 'prime',
-      notification_type: 'info',
-      subject: '공급망 맵 준비 완료',
-      body: '고객사·제품·BOM 기준 공급망 맵을 생성할 수 있습니다. 공급망 워크스페이스에서 시작하세요.',
-      status: 'read',
-      created_at: ago(720),
-      deep_link: 'supply-chain',
-      actor: 'KIRA 시스템',
-    },
-    {
-      // target 딥링크 시연용 — 클릭하면 해당 제품 맵을 열고 그 협력사 행으로 스크롤·하이라이트 후 상세를 연다.
-      // (mock 데이터셋의 실제 id. 실서비스에선 요청/초대가 묶은 그 회차 맵의 mapId·bomVersionId로 백엔드가 채운다.)
-      notification_id: 'seed-prime-2',
-      audience: 'prime',
-      notification_type: 'approval_needed',
-      subject: '협력사 자료 제출 완료 — EcoBattery Co., Ltd.',
-      body: '요청하신 표준 양식 자료 입력이 완료되었습니다. 맵의 해당 협력사에서 내용을 검토하고 승인해 주세요.',
-      status: 'pending',
-      created_at: ago(20),
-      target: { productId: 'prod-bat-ncm811', focusSupplierId: 'sup-hanyang-cell' },
-      actor: 'EcoBattery Co., Ltd.',
-    },
+    // 원청(prime) 시드는 두지 않는다 — 원청 알림은 백엔드 실 알림(GET /notifications)만 표시한다.
   ];
 }
 
