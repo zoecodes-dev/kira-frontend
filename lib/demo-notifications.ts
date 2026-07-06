@@ -13,6 +13,7 @@
 // 알림만 렌더링한다. deep_link 는 클릭 시 이동할 라우트 키(각 side의 딥링크 맵에서 해석).
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import type { NotificationTarget } from './api';
 
 export type DemoAudience = 'prime' | 'partner';
 export type DemoNotifType = 'sla_warning' | 'violation' | 'approval_needed' | 'info';
@@ -28,6 +29,8 @@ export interface DemoNotification {
   created_at: string;
   /** 클릭 시 이동할 딥링크 키 — audience별 딥링크 맵에서 라우트로 해석 */
   deep_link?: string;
+  /** 맵/협력사 노드 딥링크 좌표(선택). 있으면 deep_link보다 우선해 정밀 이동. */
+  target?: NotificationTarget;
   /** 발신 주체 라벨(예: "한양셀 제조(주)", "KIRA 원청") — 표시에 참고 */
   actor?: string;
 }
@@ -77,6 +80,19 @@ function seedNotifications(): DemoNotification[] {
       created_at: ago(720),
       deep_link: 'supply-chain',
       actor: 'KIRA 시스템',
+    },
+    {
+      // target 딥링크 시연용 — 클릭하면 해당 제품 맵을 열고 그 협력사 행으로 스크롤·하이라이트 후 상세를 연다.
+      // (mock 데이터셋의 실제 id. 실서비스에선 요청/초대가 묶은 그 회차 맵의 mapId·bomVersionId로 백엔드가 채운다.)
+      notification_id: 'seed-prime-2',
+      audience: 'prime',
+      notification_type: 'approval_needed',
+      subject: '협력사 자료 제출 완료 — EcoBattery Co., Ltd.',
+      body: '요청하신 표준 양식 자료 입력이 완료되었습니다. 맵의 해당 협력사에서 내용을 검토하고 승인해 주세요.',
+      status: 'pending',
+      created_at: ago(20),
+      target: { productId: 'prod-bat-ncm811', focusSupplierId: 'sup-hanyang-cell' },
+      actor: 'EcoBattery Co., Ltd.',
     },
   ];
 }
@@ -171,6 +187,7 @@ export interface AddDemoNotificationInput {
   subject: string;
   body: string;
   deep_link?: string;
+  target?: NotificationTarget;
   actor?: string;
 }
 
@@ -189,6 +206,7 @@ export function addDemoNotification(input: AddDemoNotificationInput): DemoNotifi
     status: 'pending',
     created_at: new Date().toISOString(),
     deep_link: input.deep_link,
+    target: input.target,
     actor: input.actor,
   };
   // 최신이 위로 오도록 앞에 붙인다.

@@ -62,6 +62,7 @@ export function SupplyChainMapPageContent({
   onNodeSelect,
   onConnectClick,
   onProductChange,
+  focusSupplierId,
   maxVisibleTier = 1,
 }: {
   formationMode?: boolean;
@@ -87,6 +88,9 @@ export function SupplyChainMapPageContent({
   onConnectClick?: (context: ReturnType<typeof getInvitationContext> & { supplierId: string }) => void;
   // 제품 선택 변화 통지 (허브가 해당 제품 BOM을 API로 불러오도록)
   onProductChange?: (productId: string) => void;
+  // 알림 딥링크 진입 시 포커스할 협력사 id(선택). 맵/표 로드 후 해당 행으로 스크롤·하이라이트하고
+  // (실 협력사면) onRowClick으로 상세 모달까지 연다. 한 번만 적용된다.
+  focusSupplierId?: string;
   // 노출할 최대 차수. 안전 기본값 = 1(Tier0·Tier1만 노출) — Pool 확정 전엔 하위 차수를
   // 아직 모르는 상태라 숨긴다. 허브가 Pool 확정 후 undefined(무제한)로 넘긴다.
   maxVisibleTier?: number;
@@ -231,6 +235,27 @@ export function SupplyChainMapPageContent({
       setSelectedBomVersionId(availableBomVersions[0].bom_version_id);
     }
   }, [availableBomVersions, selectedBomVersionId, initialBomVersionId]);
+
+  // 알림 딥링크(focusSupplierId)로 진입 시: 표가 그 협력사 행을 렌더한 순간
+  //   ① 행 하이라이트 ② 그 행으로 스크롤 ③ (실 협력사면) 상세 모달 오픈.
+  // 제품·BOM 자동 선택 → traceRows 생성이 비동기라, traceRows 변화에 반응하고 focusSupplierId당 1회만 적용.
+  const supplierRowsRef = useRef<HTMLTableSectionElement>(null);
+  const appliedFocusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!focusSupplierId || appliedFocusRef.current === focusSupplierId) return;
+    const row = traceRows.find(r => r.supplier_id === focusSupplierId);
+    if (!row) return; // 아직 미로드거나 현재 노출 차수(maxVisibleTier) 밖 — 다음 렌더에서 재시도
+    appliedFocusRef.current = focusSupplierId;
+    setSelectedNodeKey(row.node_key); // 행 하이라이트(bg-accent-50/60)
+    // 커밋·페인트 후 스크롤 (행은 이 시점 이미 DOM에 존재).
+    requestAnimationFrame(() => {
+      const rows = supplierRowsRef.current?.querySelectorAll<HTMLTableRowElement>('tr[data-supplier-id]');
+      const el = rows && Array.from(rows).find(r => r.dataset.supplierId === focusSupplierId);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    // 허브에 상세 모달을 위임(openSupplierReview) — 실/데모 id 모두 처리된다.
+    onRowClick?.(row);
+  }, [focusSupplierId, traceRows, onRowClick]);
 
   function handleGenerate() {
     setGeneratedAt(new Date().toLocaleString('ko-KR'));
@@ -737,12 +762,13 @@ export function SupplyChainMapPageContent({
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-ink-700/40">
+              <tbody ref={supplierRowsRef} className="divide-y divide-ink-700/40">
                 {traceRows.map(row => {
                   const progress = formationMode ? null : progressBySupplier?.[row.supplier_id];
                   return (
                   <tr
                     key={row.node_key}
+                    data-supplier-id={row.supplier_id}
                     className={`cursor-pointer hover:bg-ink-800/30 ${selectedNodeKey === row.node_key ? 'bg-accent-50/60' : ''}`}
                     onClick={() => (onRowClick ? onRowClick(row) : setSelectedNodeKey(row.node_key))}
                     title={onRowClick && !formationMode ? `${row.supplier_name} 상세 보기` : undefined}

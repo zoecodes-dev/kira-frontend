@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, X, AlertTriangle, CheckCircle2, Clock, ChevronRight } from 'lucide-react';
 import { useDemoNotifications, peekDemoNotifications, type DemoAudience, type DemoNotifType, type DemoNotification } from '@/lib/demo-notifications';
+import { buildMapDeepLink } from '@/lib/notificationDeepLink';
 
 const TYPE_META: Record<DemoNotifType, { icon: React.ElementType; ring: string; icon_cls: string; label: string }> = {
   sla_warning:     { icon: Clock,         ring: 'border-l-warn-solid',  icon_cls: 'text-warn-text',   label: '기한 임박' },
@@ -70,7 +71,8 @@ export default function NotificationToaster({
   function open(n: DemoNotification) {
     markRead(n.notification_id);
     dismiss(n.notification_id);
-    router.push((n.deep_link && deepLinkMap[n.deep_link]) || fallbackRoute);
+    // target(맵+협력사 노드)이 있으면 정밀 이동, 없으면 deep_link 라우트로 폴백.
+    router.push(n.target ? buildMapDeepLink(n.target) : (n.deep_link && deepLinkMap[n.deep_link]) || fallbackRoute);
   }
 
   if (toasts.length === 0) return null;

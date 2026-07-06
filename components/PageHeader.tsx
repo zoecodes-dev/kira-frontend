@@ -1,12 +1,16 @@
 'use client';
 
 // 모든 페이지 상단을 통일하는 공통 헤더.
-// 고정 구조: ① 제목줄(제목·배지·설명 + 우측 actions + 로그아웃 고정)
+// 고정 구조: ① 제목줄(제목·배지·설명 + 우측 actions + [달력·알림·로그아웃] 고정)
 //            ② tabs 슬롯  ③ children 서브 슬롯(STEP·필터바 등)
-// 로그아웃은 이 컴포넌트 안에 항상 고정 — 페이지에서 따로 렌더하지 않는다.
+// 달력·알림벨·로그아웃은 이 컴포넌트 안에 항상 고정 — 전 화면 동일 위치에 뜬다(페이지에서 따로 렌더 금지).
+//   · 알림벨: notification prop 이 있으면 그걸(협력사 SupplierNotificationBell) 렌더하고,
+//     없으면 원청 기본 벨(PrimeNotificationBell)을 렌더한다.
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { LogOut } from 'lucide-react';
+import { LogOut, CalendarDays } from 'lucide-react';
 import clsx from 'clsx';
+import PrimeNotificationBell from '@/components/prime/PrimeNotificationBell';
 
 export interface PageTab {
   label: string;
@@ -19,12 +23,20 @@ interface PageHeaderProps {
   title: string;
   badge?: string;
   description?: string;
-  actions?: React.ReactNode;        // 우측 커스텀 액션 (날짜·필터·알림 등)
+  actions?: React.ReactNode;        // 우측 커스텀 액션 (필터 등) — 달력/알림/로그아웃 앞에 놓인다.
+  notification?: React.ReactNode;   // 알림벨 오버라이드(협력사). 없으면 원청 기본 벨.
   tabs?: PageTab[];                 // 탭 슬롯
   children?: React.ReactNode;       // 탭 아래 서브 슬롯 (STEP 스텝퍼·필터바 등)
 }
 
-export default function PageHeader({ title, badge, description, actions, tabs, children }: PageHeaderProps) {
+export default function PageHeader({ title, badge, description, actions, notification, tabs, children }: PageHeaderProps) {
+  // 오늘 날짜 — SSR/CSR 불일치(hydration) 방지를 위해 마운트 후 클라에서 채운다.
+  const [today, setToday] = useState('');
+  useEffect(() => {
+    const d = new Date();
+    setToday(`${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`);
+  }, []);
+
   return (
     <header className="sticky top-0 z-10 bg-white">
       {/* ① 제목줄 */}
@@ -42,6 +54,14 @@ export default function PageHeader({ title, badge, description, actions, tabs, c
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {actions}
+          {/* 달력(오늘 날짜) — 전 화면 고정 */}
+          <div className="flex items-center gap-2 rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs font-medium text-ink-400">
+            <CalendarDays className="h-3.5 w-3.5" />
+            <span className="num-mono">{today}</span>
+          </div>
+          {/* 알림벨 — 협력사면 notification 오버라이드, 아니면 원청 기본 벨. 전 화면 고정 */}
+          {notification ?? <PrimeNotificationBell />}
+          {/* 로그아웃 — 전 화면 고정 */}
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 rounded border-[0.5px] border-[#CBD5E1] px-2.5 py-1.5 text-[11px] text-[#475569] hover:bg-[#F8FAFC]"
