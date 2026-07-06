@@ -82,7 +82,11 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-import FactoryLocationPicker, { type FactoryLocationResult } from '@/components/supplier/FactoryLocationPicker';
+import dynamic from 'next/dynamic';
+import type { FactoryLocationResult } from '@/components/supplier/FactoryLocationPicker';
+
+// leaflet은 모듈 로드 시점에 window를 참조하므로 정적 import 시 SSR 프리렌더가 깨진다(ReferenceError: window is not defined).
+const FactoryLocationPicker = dynamic(() => import('@/components/supplier/FactoryLocationPicker'), { ssr: false });
 
 type ReviewStatus = '완료' | '입력 중' | '확인 필요' | '미입력' | '해당 없음';
 type SectionKey = 'company' | 'materials' | 'factories' | 'regulation' | 'documents';
