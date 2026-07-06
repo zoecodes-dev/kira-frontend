@@ -386,7 +386,7 @@ export default function DashboardPage() {  const [apiKpis, setApiKpis] = useStat
               )}
             </p>
             {regRiskSorted.length > 0 && (
-              <Link href="/materials/regulation-results" className="ml-auto shrink-0 self-center text-xs font-semibold text-accent-700">전체 보기</Link>
+              <Link href="/my-task?tab=hitl" className="ml-auto shrink-0 self-center text-xs font-semibold text-accent-700">전체 보기</Link>
             )}
           </div>
 
