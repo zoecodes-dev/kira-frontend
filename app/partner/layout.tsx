@@ -16,6 +16,7 @@ import { getToken } from '@/lib/api';
 import SelfReportModal from '@/components/supplier/SelfReportModal';
 import SupplierNotificationBell from '@/components/supplier/SupplierNotificationBell';
 import PartnerSidebar from '@/components/partner/PartnerSidebar';
+import NotificationToaster from '@/components/notifications/NotificationToaster';
 import { PartnerWorkspaceProvider, usePartnerWorkspace } from '@/components/partner/PartnerWorkspaceContext';
 import { PARTNER_DEEP_LINK_ROUTE } from '@/components/partner/partnerFormatters';
 import { getSupplierName } from '@/lib/supplier-detail-data';
@@ -61,6 +62,8 @@ function PartnerWorkspaceChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <main className="min-h-screen bg-[#F4F7F9] text-ink-100">
+      {/* 협력사 새 알림 토스트 팝업 (partner audience) */}
+      <NotificationToaster audience="partner" deepLinkMap={PARTNER_DEEP_LINK_ROUTE} fallbackRoute="/partner" />
       <div className="flex min-h-screen">
         <PartnerSidebar supplierName={name?.shortNameKo ?? name?.shortNameEn ?? supplier?.name ?? supplierId} />
         <div className="min-w-0 flex-1">

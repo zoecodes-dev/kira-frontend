@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Check, ShieldCheck } from 'lucide-react';
 import { ApiError, submitSupplierOnboarding, type OnboardingPrefill, type OnboardingSubmitInput } from '@/lib/api';
+import { addDemoNotification } from '@/lib/demo-notifications';
 import OnboardingEntry from './OnboardingEntry';
 import SignupForm from './SignupForm';
 import PicRegister from './PicRegister';
@@ -160,6 +161,15 @@ export default function SupplierOnboarding() {
         }],
       };
       await submitSupplierOnboarding(supplierId, input);
+      // [process.md L51] 회원가입·제3자 정보제공 동의 완료 → 원청 탭에 동의 수신 알림.
+      addDemoNotification({
+        audience: 'prime',
+        notification_type: 'info',
+        subject: '협력사 제3자 정보제공 동의 완료',
+        body: `${signup.companyName || '신규 협력사'}가 회원가입과 제3자 정보제공 동의를 완료했습니다. 공급망 Pool에 편입되어 정보 입력 현황을 확인할 수 있습니다.`,
+        deep_link: 'supply-chain',
+        actor: signup.companyName || '신규 협력사',
+      });
       setStep('complete');
     } catch (err) {
       setSubmitError(

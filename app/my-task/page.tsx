@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createDataRequest, getMyActions, getDataRequests, getSuppliers, type ActionItem, type ApiDataRequest, type SupplierBrief } from '@/lib/api';
+import { addDemoNotification } from '@/lib/demo-notifications';
 import PageHeader from '@/components/PageHeader';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
 import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
@@ -169,6 +170,16 @@ function RequestArea({ onReview }: { onReview?: (supplierId: string, supplierNam
     setBusy(true);
     try {
       await createDataRequest({ targetSupplierId: addSup, requestedDataType: addType.trim(), dueDate: addDue || undefined });
+      // [process.md L29-31] 원청의 자료(보완) 요청 → 협력사 탭에 요청 알림 전파.
+      const supName = suppliers.find(s => s.supplierId === addSup)?.companyName;
+      addDemoNotification({
+        audience: 'partner',
+        notification_type: addDue ? 'sla_warning' : 'approval_needed',
+        subject: `자료 요청 · ${addType.trim()}`,
+        body: `KIRA 원청이 "${addType.trim()}" 자료를 요청했습니다.${addDue ? ` 제출 기한: ${addDue}.` : ''} 표준 양식에서 입력해 제출해 주세요.`,
+        deep_link: 'company-info',
+        actor: supName ? `KIRA 원청 → ${supName}` : 'KIRA 원청',
+      });
       setShowAdd(false); setAddSup(''); setAddType(''); setAddDue('');
       await load();
     } catch { /* noop */ } finally { setBusy(false); }
