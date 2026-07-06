@@ -24,6 +24,7 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
 const TOKEN_KEY = "kira_token";
+const REFRESH_KEY = "kira_refresh_token";
 
 // ───────────────────────────────────────────────────────────
 // 토큰 헬퍼 (localStorage — CSR 환경. SSR에서는 window 가드)
@@ -38,9 +39,21 @@ export function setToken(token: string): void {
   window.localStorage.setItem(TOKEN_KEY, token);
 }
 
+// 리프레시 토큰 — 액세스 만료 시 재로그인 없이 새 액세스를 받는 데 쓴다.
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(REFRESH_KEY);
+}
+
+export function setRefreshToken(token: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(REFRESH_KEY, token);
+}
+
 export function clearToken(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(REFRESH_KEY);
   clearSessionUser();
 }
 
@@ -154,13 +167,46 @@ interface RequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
   /** true면 snake→camel 변환 생략(원본 그대로 반환) */
   raw?: boolean;
+  /** 내부용 — 401 재발급 후 1회만 재시도하기 위한 가드(무한루프 방지) */
+  _retry?: boolean;
+}
+
+// 리프레시 진행 중이면 그 Promise를 공유해, 동시에 401난 여러 요청이 refresh를 중복 호출하지 않게 한다.
+let refreshPromise: Promise<boolean> | null = null;
+
+// 저장된 리프레시 토큰으로 새 액세스(+리프레시)를 발급받아 저장. 성공 true.
+// request()를 거치지 않고 직접 fetch — 응답은 raw snake_case(token/refresh_token).
+async function tryRefreshToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  const rt = getRefreshToken();
+  if (!rt) return false;
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: rt }),
+      });
+      if (!res.ok) return false;
+      const data = (await res.json()) as { token?: string; refresh_token?: string };
+      if (!data?.token) return false;
+      setToken(data.token);
+      if (data.refresh_token) setRefreshToken(data.refresh_token);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
 }
 
 async function request<T = unknown>(
   path: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { body, raw, headers, ...rest } = options;
+  const { body, raw, headers, _retry, ...rest } = options;
 
   const finalHeaders: Record<string, string> = {
     "Content-Type": "application/json",
@@ -196,7 +242,20 @@ async function request<T = unknown>(
   }
 
   if (!res.ok) {
-    // 401 → 토큰 만료/무효. 토큰 정리 + 전역 알림(어느 페이지에서든 로그인 오버레이가 뜨게) 후 throw.
+    // 401 → 액세스 만료 추정. 먼저 리프레시로 새 액세스를 받아 원요청을 1회 재시도한다.
+    //   (로그인/리프레시 자체 요청은 제외 — 무한루프·오판 방지)
+    if (
+      res.status === 401 &&
+      !_retry &&
+      !path.includes("/auth/login") &&
+      !path.includes("/auth/refresh")
+    ) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) {
+        return request<T>(path, { ...options, _retry: true });
+      }
+    }
+    // 리프레시 불가/실패한 401 → 토큰 정리 + 전역 알림(로그인 오버레이) 후 throw.
     if (res.status === 401) {
       clearToken();
       notifyAuthExpired();
@@ -244,6 +303,8 @@ export type UserRole =
 
 export interface LoginResponse {
   token: string;
+  /** 리프레시 토큰 — 액세스 만료 시 재로그인 없이 재발급하는 데 저장해 둔다. */
+  refreshToken?: string;
   role: UserRole;
   userId: string;
   tenantId: string;
@@ -677,11 +738,24 @@ export async function uploadFile(file: File, context: string): Promise<{ fileId:
   form.append('file', file);
   form.append('context', context);
   const token = getToken();
-  const res = await fetch(`${API_BASE_URL}/files`, {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    body: form,
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/files`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: form,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiError(0, '업로드 응답이 지연되고 있습니다. 백엔드 파일 업로드 API를 확인하세요.');
+    }
+    throw new ApiError(0, '파일 업로드 API에 연결할 수 없습니다.');
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
   if (!res.ok) {
     if (res.status === 401) { clearToken(); notifyAuthExpired(); }
     throw new ApiError(res.status, `HTTP ${res.status}`);
@@ -699,6 +773,13 @@ export interface SuppliedItem {
   // 공급원 변경 자진신고(declareSourceChange) 실호출용 BOM 컨텍스트.
   bomVersionId: string | null;
   bomVersionNumber: string | null;
+  // [맵별 탭] 협력사 페이지 맵(=bom_version)별 탭 구성용 product 컨텍스트 + 맵별 상이 데이터.
+  productId?: string | null;
+  modelName?: string | null;     // 차종 (예: iX3 50) — 탭 라벨
+  productName?: string | null;
+  customerName?: string | null;  // 고객사 (예: BMW) — 탭 라벨
+  hopLevel?: number | null;      // 이 맵에서 협력사 차수
+  coreMinerals?: Record<string, number> | null; // 이 맵(엣지)의 핵심광물 함량 %(회사값 폴백)
 }
 export const getSupplierSuppliedItems = (id: string) =>
   api.get<{ supplierId: string; items: SuppliedItem[] }>(`/suppliers/${id}/supplied-items`);
@@ -821,6 +902,31 @@ export const getSupplyChainGaps = (productId: string) =>
 
 export const getSupplyChainAlternatives = (productId: string, partId: string) =>
   api.get<SupplyChainAlternative[]>(`/supply-chain/alternatives?product_id=${productId}&part_id=${partId}`);
+
+// ── 지오코딩(공장·광산 위치 픽커) — GET /supply-chain/geocode/{search,reverse} ──────
+//   응답은 래퍼가 snake→camel 변환하되 lat/lon(단어 단위)은 그대로 유지된다.
+//   isXinjiang은 서버 UFLPA 판정 신호 — 프론트는 표시만.
+export interface GeocodeCandidate {
+  lat: number;
+  lon: number;
+  displayName: string;
+  admin: string | null;
+  countryCode: string | null;
+  isXinjiang: boolean;
+}
+export interface GeocodeSearchResult {
+  query: string;
+  candidates: GeocodeCandidate[];
+}
+/** 지명→후보. country(alpha2) 있으면 그 나라 한정, 없으면 전세계(동명 해소). */
+export const geocodeSearch = (query: string, country?: string, limit = 5) => {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  if (country) params.set("country", country);
+  return api.get<GeocodeSearchResult>(`/supply-chain/geocode/search?${params.toString()}`);
+};
+/** 좌표→국가/행정구역 역추출. 없으면 null. */
+export const geocodeReverse = (lat: number, lon: number) =>
+  api.get<GeocodeCandidate | null>(`/supply-chain/geocode/reverse?lat=${lat}&lon=${lon}`);
 
 /** HITL 리뷰 승인/반려(batch 단위) — hitl_reviews 갱신 + 파이프라인 재개/차단. */
 export const approveHitl = (batchId: string, decisionText: string) =>
@@ -950,6 +1056,9 @@ export interface OnboardingSubmitInput {
     role?: string;
     department?: string;
   }>;
+  /** STEP3 하위협력사 담당자 등록 — 백엔드가 같은 트랜잭션에서 캐스케이드 초대(협력사 생성
+   * + 동의요청)까지 처리한다(§7-c). 말단 선언(없음)이면 빈 배열로 보낸다. */
+  subSuppliers?: Array<{ companyName: string; name: string; email: string; phone?: string }>;
 }
 export interface OnboardingSubmitResult {
   supplierId: string;
@@ -1016,6 +1125,9 @@ export const submitSupplierOnboarding = (supplierId: string, input: OnboardingSu
       is_primary: c.isPrimary,
       role: c.role,
       department: c.department,
+    })),
+    sub_suppliers: (input.subSuppliers ?? []).map((s) => ({
+      company_name: s.companyName, name: s.name, email: s.email, phone: s.phone,
     })),
   });
 

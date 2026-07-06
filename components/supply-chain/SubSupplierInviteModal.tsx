@@ -4,9 +4,10 @@
 // 백엔드가 stub 생성 + 초대 메일(SES) 발송 + discovered_via 기록 + PIC(supplier_contacts) 저장.
 // inviterSupplierId: 상위 협력사가 하위를 초대하면 본인 supplier_id, 원청 직접 등록이면 null.
 import { useState } from 'react';
-import { Loader2, UserPlus } from 'lucide-react';
+import { CheckCircle2, Loader2, Send, UserPlus } from 'lucide-react';
 import ModalShell from './ModalShell';
-import { ApiError, createSupplier, type ProviderType } from '@/lib/api';
+import { ApiError, createDataConsent, createDataRequest, createSupplier, type ProviderType } from '@/lib/api';
+import { buildInviteMailBody } from '@/lib/supply-chain-mail-template';
 
 const PROVIDER_OPTS: { value: ProviderType; label: string }[] = [
   { value: 'manufacturer', label: '제조사' },
@@ -44,6 +45,11 @@ export default function SubSupplierInviteModal({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 생성 완료 후 화면 — 초대 링크를 바로 확인할 수 있게(발송 전엔 메일함 밖에서 확인 불가).
+  const [invited, setInvited] = useState<{ supplierId: string; companyName: string } | null>(null);
+  const [consentSent, setConsentSent] = useState(false);
+  const [sendingConsent, setSendingConsent] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const primaryEmail = pics[0]?.email.trim() ?? '';
   const canSubmit = companyName.trim() !== '' && primaryEmail !== '' && !submitting;
@@ -70,7 +76,9 @@ export default function SubSupplierInviteModal({
         })),
       });
       onInvited?.(res.supplierId);
-      onClose();
+      // [FIX] 초대 성공 후 바로 닫으면 초대 링크를 다시 확인할 방법이 없었다(실메일 미발송
+      // 로컬 환경 등). 링크를 보여주는 화면으로 전환 — onClose는 사용자가 '닫기'를 눌러야 호출.
+      setInvited({ supplierId: res.supplierId, companyName: companyName.trim() });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '초대에 실패했습니다.');
     } finally {
@@ -78,7 +86,116 @@ export default function SubSupplierInviteModal({
     }
   }
 
+  // 동의서 요청 발송 — STEP3 InviteMailModal.send()와 동일 계약(표준 범위 전체 요청).
+  //   이게 있어야 온보딩 링크의 '정보 입력 시작' 버튼이 열린다(대기중 동의서 필요).
+  async function sendConsent() {
+    if (!invited) return;
+    setSendingConsent(true);
+    try {
+      await createDataConsent({
+        supplierId: invited.supplierId,
+        dataScope: ['company', 'contacts', 'factories', 'carbon_epd', 'origin'],
+        purpose: 'EU_BATTERY',
+        thirdPartySharing: true,
+        validFrom: new Date().toISOString().slice(0, 10),
+        formVersion: 'v1.0',
+      }).catch(() => {});
+      await createDataRequest({ targetSupplierId: invited.supplierId, requestedDataType: 'general_info' }).catch(() => {});
+      setConsentSent(true);
+    } finally {
+      setSendingConsent(false);
+    }
+  }
+
+  async function copyLink() {
+    const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/partner/onboarding?supplierId=${invited?.supplierId}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* 클립보드 미지원 브라우저 — 텍스트 박스에서 직접 선택 복사 가능 */
+    }
+  }
+
   const reconfirm = Boolean(initial);
+
+  // 초대 성공 후 화면 — 링크 확인 + 동의서 요청 발송.
+  if (invited) {
+    const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/partner/onboarding?supplierId=${invited.supplierId}`;
+    return (
+      <ModalShell
+        title="하위 협력사 초대 완료"
+        subtitle={`${invited.companyName}이(가) 공급망에 편입되었습니다. 아래 링크로 정보 입력을 안내하세요.`}
+        onClose={onClose}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              닫기
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-slate-600">공급망 정보 입력 링크</span>
+            <div className="flex gap-2">
+              <input
+                readOnly
+                value={link}
+                onFocus={e => e.currentTarget.select()}
+                className="h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-ink-300 outline-none"
+              />
+              <button
+                type="button"
+                onClick={copyLink}
+                className="h-10 shrink-0 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                {copied ? '복사됨' : '복사'}
+              </button>
+            </div>
+            <span className="mt-1 block text-[11px] text-slate-500">
+              실제 메일 발송이 안 되는 환경(로컬 등)에서는 이 링크를 직접 복사해 협력사에게 전달하세요.
+            </span>
+          </label>
+
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-2 text-xs font-bold text-ink-300">메일 미리보기(표준 템플릿)</div>
+            <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap text-[11px] leading-5 text-ink-200">
+              {buildInviteMailBody(invited.companyName, invited.supplierId)}
+            </pre>
+          </div>
+
+          <div className="flex justify-end">
+            {consentSent ? (
+              <span className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-100 px-4 text-sm font-semibold text-slate-500">
+                <CheckCircle2 className="h-4 w-4" />
+                동의서 요청 발송됨 — 링크 접속 시 바로 입력 가능
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={sendConsent}
+                disabled={sendingConsent}
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {sendingConsent ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                제3자 동의서 요청 발송
+              </button>
+            )}
+          </div>
+          <div className="text-[11px] text-slate-500">
+            동의서 요청을 발송해야 위 링크에서 '정보 입력 시작' 버튼이 활성화됩니다(대기중 동의서 필요).
+          </div>
+        </div>
+      </ModalShell>
+    );
+  }
+
   return (
     <ModalShell
       title={reconfirm ? '하위 협력사 초대 재확인' : '하위 협력사 초대'}
