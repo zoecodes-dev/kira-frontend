@@ -68,7 +68,9 @@ import {
   HelpCircle,
   Info,
   Globe2,
+  Lock,
   Mail,
+  MapPin,
   MessageSquare,
   MoreHorizontal,
   Pencil,
@@ -80,6 +82,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import FactoryLocationPicker, { type FactoryLocationResult } from '@/components/supplier/FactoryLocationPicker';
 
 type ReviewStatus = '완료' | '입력 중' | '확인 필요' | '미입력' | '해당 없음';
 type SectionKey = 'company' | 'materials' | 'factories' | 'regulation' | 'documents';
@@ -122,20 +125,20 @@ const sections: CollectionSection[] = [
     comment: '', missing: [],
   },
   {
-    key: 'materials',
-    order: 2,
-    title: '소재 구성',
-    completed: 0, total: 1, status: '미입력',
-    icon: <Box className="h-5 w-5" />,
-    comment: '핵심광물(Li/Co/Ni) 함량(%)을 입력하세요.', missing: [],
-  },
-  {
     key: 'factories',
-    order: 3,
+    order: 2,
     title: '공장 정보',
     completed: 0, total: 1, status: '미입력',
     icon: <Building2 className="h-5 w-5" />,
     comment: '공급비율·위치(원산지)·공장 담당자.', missing: [],
+  },
+  {
+    key: 'materials',
+    order: 3,
+    title: '소재 구성',
+    completed: 0, total: 1, status: '미입력',
+    icon: <Box className="h-5 w-5" />,
+    comment: '핵심광물(Li/Co/Ni) 함량(%)을 입력하세요.', missing: [],
   },
   {
     key: 'regulation',
@@ -438,12 +441,35 @@ const contactToDraft = (c: ApiSupplierContact): ContactDraft => ({
 
 const editCellCls = 'w-full min-w-24 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20';
 
+// 역할(factoryRole) enum — 백엔드 계약과 동일한 값(lib/api.ts:504). 라벨만 한글.
+const FACTORY_ROLE_OPTS: { value: string; label: string }[] = [
+  { value: '', label: '선택' },
+  { value: 'headquarters', label: '본사' },
+  { value: 'production', label: '생산' },
+  { value: 'outsourcing', label: '위탁' },
+  { value: 'processing', label: '가공' },
+  { value: 'mining', label: '광산' },
+];
+const factoryRoleSelectCls = 'w-full min-w-20 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20';
+
 // 공장 정보 편집 테이블 — 행 추가/삭제. 좌표는 latitude/longitude 입력(있으면 coordinates로 매핑).
-function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (rows: FactoryDraft[]) => void }) {
+//   isSmelter면 "+ 광산 추가" 전용 버튼 노출 — 역할을 고르게 하지 않고 factoryRole='mining'으로 바로 고정해
+//   행을 만든다(직상위가 원산지 광산 위치를 놓치지 않고 넣게 하는 지점, 역할 선택 실수 방지).
+function FactoryEditor({ rows, onChange, isSmelter = false }: { rows: FactoryDraft[]; onChange: (rows: FactoryDraft[]) => void; isSmelter?: boolean }) {
   const update = (i: number, patch: Partial<FactoryDraft>) =>
     onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   const remove = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
   const add = () => onChange([...rows, emptyFactoryDraft()]);
+  const addMining = () => onChange([...rows, { ...emptyFactoryDraft(), factoryRole: 'mining' }]);
+  // 위치 픽커 — 어느 행에 대해 열렸는지(null이면 닫힘).
+  const [pickerRow, setPickerRow] = useState<number | null>(null);
+  const applyPicked = (i: number, r: FactoryLocationResult) =>
+    update(i, {
+      latitude: String(r.latitude), longitude: String(r.longitude),
+      ...(r.country ? { country: r.country } : {}),
+      ...(r.region ? { region: r.region } : {}),
+      ...(r.address ? { address: r.address } : {}),
+    });
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto rounded-sm border border-ink-700">
@@ -457,15 +483,27 @@ function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (ro
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i} className="border-b border-ink-700 last:border-b-0">
+              <tr key={i} className={clsx('border-b border-ink-700 last:border-b-0', r.factoryRole === 'mining' && 'bg-accent-50/40')}>
                 <td className="px-2 py-1.5"><input value={r.factoryName} onChange={e => update(i, { factoryName: e.target.value })} placeholder="공장명" className={editCellCls} /></td>
                 <td className="px-2 py-1.5"><input value={r.country} onChange={e => update(i, { country: e.target.value })} placeholder="국가" className={editCellCls} /></td>
                 <td className="px-2 py-1.5"><input value={r.region} onChange={e => update(i, { region: e.target.value })} placeholder="지역" className={editCellCls} /></td>
                 <td className="px-2 py-1.5"><input value={r.address} onChange={e => update(i, { address: e.target.value })} placeholder="주소" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.factoryRole} onChange={e => update(i, { factoryRole: e.target.value })} placeholder="역할" className={editCellCls} /></td>
+                <td className="px-2 py-1.5">
+                  <select value={r.factoryRole} onChange={e => update(i, { factoryRole: e.target.value })} className={factoryRoleSelectCls}>
+                    {FACTORY_ROLE_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </td>
                 <td className="px-2 py-1.5"><input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} /></td>
                 <td className="px-2 py-1.5"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.latitude} onChange={e => update(i, { latitude: e.target.value })} placeholder="위도" inputMode="decimal" className={editCellCls} /></td>
+                <td className="px-2 py-1.5">
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => setPickerRow(i)} title="지도에서 위치 선택"
+                      className="shrink-0 rounded-xs border border-accent-100 bg-accent-50 p-1 text-accent-700 hover:bg-accent-100">
+                      <MapPin className="h-3.5 w-3.5" />
+                    </button>
+                    <input value={r.latitude} onChange={e => update(i, { latitude: e.target.value })} placeholder="위도" inputMode="decimal" className={editCellCls} />
+                  </div>
+                </td>
                 <td className="px-2 py-1.5"><input value={r.longitude} onChange={e => update(i, { longitude: e.target.value })} placeholder="경도" inputMode="decimal" className={editCellCls} /></td>
                 <td className="px-2 py-1.5"><input value={r.factoryManagerName} onChange={e => update(i, { factoryManagerName: e.target.value })} placeholder="담당자" className={editCellCls} /></td>
                 <td className="px-2 py-1.5"><input value={r.factoryManagerRole} onChange={e => update(i, { factoryManagerRole: e.target.value })} placeholder="직책" className={editCellCls} /></td>
@@ -482,7 +520,27 @@ function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (ro
           </tbody>
         </table>
       </div>
-      <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">행 추가</button>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">행 추가</button>
+        {/* 제련소 전용 — 역할을 고르게 하지 않고 바로 factoryRole='mining'으로 행을 만든다(놓치기 쉬운 단계라 원클릭). */}
+        {isSmelter && (
+          <button type="button" onClick={addMining} className="inline-flex items-center gap-1 rounded-xs border border-alert-border bg-alert-bg px-3 py-1.5 text-xs font-semibold text-alert-text hover:bg-alert-solid hover:text-white">
+            <MapPin className="h-3.5 w-3.5" />+ 광산 추가
+          </button>
+        )}
+      </div>
+      {pickerRow !== null && rows[pickerRow] && (
+        <FactoryLocationPicker
+          open
+          title={rows[pickerRow].factoryRole === 'mining' ? '광산 위치 선택' : '공장 위치 선택'}
+          onClose={() => setPickerRow(null)}
+          onConfirm={r => { applyPicked(pickerRow, r); setPickerRow(null); }}
+          initialQuery={rows[pickerRow].factoryName || rows[pickerRow].address || rows[pickerRow].region}
+          initialCountry={rows[pickerRow].country}
+          initialLat={rows[pickerRow].latitude ? Number(rows[pickerRow].latitude) : null}
+          initialLon={rows[pickerRow].longitude ? Number(rows[pickerRow].longitude) : null}
+        />
+      )}
     </div>
   );
 }
@@ -913,9 +971,51 @@ function MaterialDocParsePanel({ supplierId, initialUrl, editable, onParsed, onO
   );
 }
 
+// ── 원산지 증명서 업로드(공장정보 섹션 최상단) ──────────────────────────────
+//   있으면 먼저 첨부하도록 유도하는 참고용 스텝. 파일은 업로드해 보관하지만, 아직 은지(C)의
+//   원산지증명서 전용 AI 파싱 파이프라인이 백엔드에 없어 자동으로 위치를 채우진 못한다(그 파이프라인이
+//   생기면 여기서 파싱 결과를 받아 FactoryLocationPicker의 initialQuery로 넘기면 됨 — 그 전까지는
+//   증명서 유무와 무관하게 아래 공장정보 통합검색+지도확정이 항상 필수 경로).
+function OriginCertUploadPanel({ supplierId }: { supplierId: string }) {
+  const [fileName, setFileName] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    setUploading(true);
+    setError('');
+    try {
+      const meta = await uploadFile(f, `origin-cert:${supplierId}`);
+      setFileName(meta.fileName || f.name);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '업로드에 실패했습니다.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-ink-100">원산지 증명서 (있으면 먼저 첨부)</div>
+        <div className={`mt-0.5 truncate text-xs ${error ? 'text-alert-text' : 'text-ink-500'}`}>
+          {error || (uploading ? '업로드 중…' : fileName ? `첨부됨 · ${fileName} (검토 참고용)` : '없어도 진행 가능 — 아래 공장정보 입력은 증명서 유무와 무관하게 항상 필요합니다.')}
+        </div>
+      </div>
+      <label className={`shrink-0 rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 ${uploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent-100'}`}>
+        {fileName ? '파일 변경' : '자료 업로드'}
+        <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" disabled={uploading} onChange={handleSelect} />
+      </label>
+    </div>
+  );
+}
+
 // 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
 // editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isPrime)만 노출.
-function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft }: {
+function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft, noMoreMines = false, setNoMoreMines, isSmelter = false }: {
   section: CollectionSection;
   real?: RealData | null;
   editable?: boolean;
@@ -925,6 +1025,10 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
   contactsDraft?: ContactDraft[];
   setContactsDraft?: (rows: ContactDraft[]) => void;
+  // "추가 광산 없음" 명시 선언(제련소 전용) — PicRegister의 말단 선언 게이트와 같은 취지.
+  noMoreMines?: boolean;
+  setNoMoreMines?: (v: boolean) => void;
+  isSmelter?: boolean;
 }) {
   // 소재구성 AI 파싱 결과 — '파싱하기' 성공 시 채워진다. 입력칸이 비제어(defaultValue)라
   // 재렌더만으론 값이 안 바뀌므로 parseVersion 으로 CompanyGrid 를 리마운트해 반영한다.
@@ -1017,12 +1121,37 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   } else if (section.key === 'factories') {
     // 입력 모드: 공장·담당자를 모두 편집(master-form REPLACE-ALL 라운드트립). 보기 모드: 읽기 전용 테이블.
     if (editable && factoriesDraft && setFactoriesDraft) {
+      const miningRows = factoriesDraft.filter(f => f.factoryRole === 'mining');
+      const miningRowsComplete = miningRows.length > 0 && miningRows.every(f => f.latitude.trim() !== '' && f.longitude.trim() !== '');
       content = (
         <div className="space-y-5">
+          {/* 원산지 증명서 — 있으면 먼저 첨부(참고용). 위치 확정의 필수 경로는 아니다(§ 아래 공장정보 입력이 항상 필수). */}
+          <OriginCertUploadPanel supplierId={supplierId} />
           <div>
             <div className="mb-2 text-xs font-bold text-ink-500">공장 정보 (공급비율·위치(원산지)·역할)</div>
-            <FactoryEditor rows={factoriesDraft} onChange={setFactoriesDraft} />
+            <FactoryEditor rows={factoriesDraft} onChange={setFactoriesDraft} isSmelter={isSmelter} />
           </div>
+          {/* 제련소 전용 — 광산(직접 입력 불가)의 위치를 직상위가 대신 채우는 지점. 최소 1곳 + 추가 광산 없음 선언까지 있어야 완료로 인정. */}
+          {isSmelter && (
+            <div className="rounded-sm border border-slate-200 bg-slate-50 p-3">
+              {!miningRowsComplete && (
+                <div className="mb-2 text-xs font-semibold text-alert-text">제련소는 원료를 공급받는 광산을 최소 1곳 등록하고 위치를 확정해야 합니다 ("+ 광산 추가" 버튼).</div>
+              )}
+              <label className={clsx('flex cursor-pointer items-start gap-2 text-sm text-ink-300', !miningRowsComplete && 'pointer-events-none opacity-40')}>
+                <input
+                  type="checkbox"
+                  checked={noMoreMines}
+                  onChange={e => setNoMoreMines?.(e.target.checked)}
+                  disabled={!miningRowsComplete}
+                  className="mt-0.5 h-4 w-4 accent-brand"
+                />
+                <span>
+                  <b>이 외에 원료를 공급받는 광산이 더 없습니다.</b>
+                  <span className="mt-0.5 block text-[11px] text-slate-500">이 선언은 기록으로 남습니다. 실제로 광산이 더 있는데 누락하면 원산지 추적이 끊깁니다.</span>
+                </span>
+              </label>
+            </div>
+          )}
           {contactsDraft && setContactsDraft && (
             <div>
               <div className="mb-2 text-xs font-bold text-ink-500">협력사 담당자 (PIC · 연락처)</div>
@@ -1111,6 +1240,10 @@ function AccordionSection({
   setFactoriesDraft,
   contactsDraft,
   setContactsDraft,
+  noMoreMines,
+  setNoMoreMines,
+  isSmelter = false,
+  locked = false,
 }: {
   section: CollectionSection;
   onRequestSection: (section: CollectionSection) => void;
@@ -1123,6 +1256,11 @@ function AccordionSection({
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
   contactsDraft?: ContactDraft[];
   setContactsDraft?: (rows: ContactDraft[]) => void;
+  noMoreMines?: boolean;
+  setNoMoreMines?: (v: boolean) => void;
+  isSmelter?: boolean;
+  // 이전 섹션이 미완료 — 내용은 비쳐 보이되 편집 불가(단계별 강제 순서).
+  locked?: boolean;
 }) {
   // 섹션은 항상 펼쳐서 고정 표시(드롭다운 제거). 미입력/확인 필요면 그 자리에서 보완 요청.
   const needsRequest = showRequest && (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
@@ -1134,6 +1272,11 @@ function AccordionSection({
           <span className="truncate text-sm font-semibold text-ink-100">
             {section.order}. {section.title}
           </span>
+          {locked && (
+            <span className="inline-flex items-center gap-1 rounded-xs border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
+              <Lock className="h-3 w-3" />이전 섹션 완료 필요
+            </span>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <span className="text-xs font-medium text-ink-500">{section.completed} / {section.total} 완료</span>
@@ -1151,17 +1294,30 @@ function AccordionSection({
           )}
         </div>
       </div>
-      <SectionContent
-        section={section}
-        real={real}
-        editable={editable}
-        isPrime={isPrime}
-        supplierId={supplierId}
-        factoriesDraft={factoriesDraft}
-        setFactoriesDraft={setFactoriesDraft}
-        contactsDraft={contactsDraft}
-        setContactsDraft={setContactsDraft}
-      />
+      <div className="relative">
+        <SectionContent
+          section={section}
+          real={real}
+          editable={editable}
+          isPrime={isPrime}
+          supplierId={supplierId}
+          factoriesDraft={factoriesDraft}
+          setFactoriesDraft={setFactoriesDraft}
+          contactsDraft={contactsDraft}
+          setContactsDraft={setContactsDraft}
+          noMoreMines={noMoreMines}
+          setNoMoreMines={setNoMoreMines}
+          isSmelter={isSmelter}
+        />
+        {/* 잠금 오버레이 — 내용은 비쳐 보이되(반투명) 클릭·입력은 막는다. */}
+        {locked && (
+          <div className="absolute inset-0 z-10 flex items-start justify-center bg-white/70 pt-10 backdrop-blur-[1px]">
+            <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 shadow-sm">
+              <Lock className="h-3.5 w-3.5" />이전 섹션을 완료하면 열립니다
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -1207,6 +1363,8 @@ export function SupplierGeneralReviewContent({
   // 입력 모드 편집용 draft — 로드된 GET 데이터에서 시드(전체 현재 집합). master-form REPLACE-ALL 라운드트립.
   const [factoriesDraft, setFactoriesDraft] = useState<FactoryDraft[]>([]);
   const [contactsDraft, setContactsDraft] = useState<ContactDraft[]>([]);
+  // "추가 광산 없음" 명시 선언(제련소 전용) — PicRegister 말단선언 패턴과 동일 취지.
+  const [noMoreMines, setNoMoreMines] = useState(false);
   useEffect(() => {
     if (!isRealSupplier) { setApi(null); setLatestRequest(null); setManagedBanner(null); return; }
     let cancelled = false;
@@ -1285,7 +1443,15 @@ export function SupplierGeneralReviewContent({
   const [requestSent, setRequestSent] = useState(false);
   const [requestNote, setRequestNote] = useState('');
   // 실 협력사면 섹션 집계를 실데이터로 도출, 아니면(데모/mock) static 구성 사용.
-  const liveSections = api ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, api) })) : sections;
+  // 제련소 광산 요건 — 백엔드 완성도 SSOT가 아직 이 조건을 모르므로(요청 예정) 클라이언트에서 덧씌운다:
+  //   역할=광산 행이 최소 1개 있고, 전부 좌표가 있고, "추가 광산 없음"을 명시 선언해야 factories 완료.
+  const isSmelter = api?.detail?.providerType === 'smelter';
+  const miningRows = factoriesDraft.filter(f => f.factoryRole === 'mining');
+  const mineRequirementMet = !isSmelter || (miningRows.length > 0 && miningRows.every(f => f.latitude.trim() !== '' && f.longitude.trim() !== '') && noMoreMines);
+  const liveSections = (api ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, api) })) : sections)
+    .map(s => (s.key === 'factories' && isSmelter && !mineRequirementMet)
+      ? { ...s, status: '미입력' as ReviewStatus, missing: Array.from(new Set([...s.missing, '광산 위치(최소 1곳) + 추가 광산 없음 확인'])) }
+      : s);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
   function toggleItem(key: string) {
@@ -1697,22 +1863,31 @@ export function SupplierGeneralReviewContent({
       </section>
 
       <section className="mt-4 rounded-sm border border-ink-700 bg-white shadow-control">
-        {liveSections.map(section => (
-          <AccordionSection
-            key={section.key}
-            section={section}
-            onRequestSection={openRequestForSection}
-            real={api}
-            editable={editable}
-            showRequest={isPrime}
-            isPrime={isPrime}
-            supplierId={supplierId}
-            factoriesDraft={factoriesDraft}
-            setFactoriesDraft={setFactoriesDraft}
-            contactsDraft={contactsDraft}
-            setContactsDraft={setContactsDraft}
-          />
-        ))}
+        {/* 단계별 잠금 — 자료 제출 입력 모드에서만: 이전 섹션이 완료(또는 해당없음)돼야 다음 섹션 해제.
+            원청 검토·협력사 보기 모드는 항상 전체 노출(검토는 순서 강제할 이유가 없음). */}
+        {liveSections.map((section, idx) => {
+          const locked = editable && idx > 0 && !['완료', '해당 없음'].includes(liveSections[idx - 1].status);
+          return (
+            <AccordionSection
+              key={section.key}
+              section={section}
+              onRequestSection={openRequestForSection}
+              real={api}
+              editable={editable}
+              showRequest={isPrime}
+              isPrime={isPrime}
+              supplierId={supplierId}
+              factoriesDraft={factoriesDraft}
+              setFactoriesDraft={setFactoriesDraft}
+              contactsDraft={contactsDraft}
+              setContactsDraft={setContactsDraft}
+              noMoreMines={noMoreMines}
+              setNoMoreMines={setNoMoreMines}
+              isSmelter={isSmelter}
+              locked={locked}
+            />
+          );
+        })}
       </section>
 
       <section className="mt-4 grid rounded-sm border border-ink-700 bg-white shadow-control md:grid-cols-2">

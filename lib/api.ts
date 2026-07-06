@@ -822,6 +822,31 @@ export const getSupplyChainGaps = (productId: string) =>
 export const getSupplyChainAlternatives = (productId: string, partId: string) =>
   api.get<SupplyChainAlternative[]>(`/supply-chain/alternatives?product_id=${productId}&part_id=${partId}`);
 
+// ── 지오코딩(공장·광산 위치 픽커) — GET /supply-chain/geocode/{search,reverse} ──────
+//   응답은 래퍼가 snake→camel 변환하되 lat/lon(단어 단위)은 그대로 유지된다.
+//   isXinjiang은 서버 UFLPA 판정 신호 — 프론트는 표시만.
+export interface GeocodeCandidate {
+  lat: number;
+  lon: number;
+  displayName: string;
+  admin: string | null;
+  countryCode: string | null;
+  isXinjiang: boolean;
+}
+export interface GeocodeSearchResult {
+  query: string;
+  candidates: GeocodeCandidate[];
+}
+/** 지명→후보. country(alpha2) 있으면 그 나라 한정, 없으면 전세계(동명 해소). */
+export const geocodeSearch = (query: string, country?: string, limit = 5) => {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  if (country) params.set("country", country);
+  return api.get<GeocodeSearchResult>(`/supply-chain/geocode/search?${params.toString()}`);
+};
+/** 좌표→국가/행정구역 역추출. 없으면 null. */
+export const geocodeReverse = (lat: number, lon: number) =>
+  api.get<GeocodeCandidate | null>(`/supply-chain/geocode/reverse?lat=${lat}&lon=${lon}`);
+
 /** HITL 리뷰 승인/반려(batch 단위) — hitl_reviews 갱신 + 파이프라인 재개/차단. */
 export const approveHitl = (batchId: string, decisionText: string) =>
   api.post(`/hitl/${batchId}/approve`, { decision_text: decisionText });
