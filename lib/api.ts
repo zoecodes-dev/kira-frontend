@@ -699,6 +699,13 @@ export interface SuppliedItem {
   // 공급원 변경 자진신고(declareSourceChange) 실호출용 BOM 컨텍스트.
   bomVersionId: string | null;
   bomVersionNumber: string | null;
+  // [맵별 탭] 협력사 페이지 맵(=bom_version)별 탭 구성용 product 컨텍스트 + 맵별 상이 데이터.
+  productId?: string | null;
+  modelName?: string | null;     // 차종 (예: iX3 50) — 탭 라벨
+  productName?: string | null;
+  customerName?: string | null;  // 고객사 (예: BMW) — 탭 라벨
+  hopLevel?: number | null;      // 이 맵에서 협력사 차수
+  coreMinerals?: Record<string, number> | null; // 이 맵(엣지)의 핵심광물 함량 %(회사값 폴백)
 }
 export const getSupplierSuppliedItems = (id: string) =>
   api.get<{ supplierId: string; items: SuppliedItem[] }>(`/suppliers/${id}/supplied-items`);
