@@ -67,12 +67,10 @@ export default function DataConsentModal({ supplier, onClose }: { supplier: Supp
                         {c.thirdPartySharing && <span className="rounded-sm bg-warn-bg px-1.5 py-0.5 text-[11px] font-bold text-warn-text">제3자 재공유</span>}
                       </div>
                       <div className="flex items-center gap-1.5">
-                        {c.formData && (
-                          <button type="button" onClick={() => setViewTarget(c)}
-                            className="inline-flex items-center gap-1.5 rounded-sm border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-ink-400 hover:bg-slate-50">
-                            <FileSignature className="h-3.5 w-3.5" /> 양식 보기
-                          </button>
-                        )}
+                        <button type="button" onClick={() => setViewTarget(c)}
+                          className="inline-flex items-center gap-1.5 rounded-sm border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-ink-400 hover:bg-slate-50">
+                          <FileSignature className="h-3.5 w-3.5" /> {c.formData ? '양식 보기' : '발송 내용 보기'}
+                        </button>
                         {c.status !== 'agreed' && c.status !== 'revoked' && (
                           <button type="button" onClick={() => setReplyTarget(c)}
                             className="inline-flex items-center gap-1.5 rounded-sm border border-ok-border bg-white px-2.5 py-1 text-xs font-bold text-ok-text hover:bg-ok-bg">
