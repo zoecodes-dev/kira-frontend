@@ -677,11 +677,24 @@ export async function uploadFile(file: File, context: string): Promise<{ fileId:
   form.append('file', file);
   form.append('context', context);
   const token = getToken();
-  const res = await fetch(`${API_BASE_URL}/files`, {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    body: form,
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/files`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: form,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiError(0, '업로드 응답이 지연되고 있습니다. 백엔드 파일 업로드 API를 확인하세요.');
+    }
+    throw new ApiError(0, '파일 업로드 API에 연결할 수 없습니다.');
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
   if (!res.ok) {
     if (res.status === 401) { clearToken(); notifyAuthExpired(); }
     throw new ApiError(res.status, `HTTP ${res.status}`);

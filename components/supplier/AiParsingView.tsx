@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { getAiExtractions, type AiExtraction } from '@/lib/api';
 import { CheckCircle2, FileText, ScanLine } from 'lucide-react';
@@ -38,6 +38,14 @@ interface ParsedDoc {
     fields: ExtractionField[];
     unparsedFields: string[];
   };
+}
+
+interface InitialDoc {
+  docId: string;
+  fileName: string;
+  fileUrl: string | null;
+  requestType: string;
+  docS3Key?: string | null;
 }
 
 // ─── Mock Data — HITL/Queue 규격과 1:1 동기화 ──────────────────────────────
@@ -87,19 +95,42 @@ type CompletedMap = Record<string, boolean>;
 const STATUS_TO_REVIEW: Record<string, ParsedDoc['submissionStatus']> = {
   submission_approved: 'approved', submission_rework: 'rework', submission_rejected: 'rejected',
 };
-function extractionToDoc(x: AiExtraction): ParsedDoc {
+function extractionToDoc(x: AiExtraction, initialDoc?: InitialDoc | null): ParsedDoc {
   const fields: ExtractionField[] = Object.keys(x.parsedFields).map(k => {
     const confidence = x.confidenceMap[k] ?? 0;
     return { fieldId: k, label: k, aiValue: String(x.parsedFields[k]), confidence, requiresAttention: confidence < 0.8, unit: '' };
   });
+  const sameInitialDoc = initialDoc && x.docS3Key && x.docS3Key === initialDoc.docS3Key;
   return {
     docId: x.requestId,
-    fileName: x.documentFileName ?? `${x.requestedDataType ?? '자료'}.pdf`,
-    fileUrl: x.documentUrl ?? null,
+    fileName: x.documentFileName ?? (sameInitialDoc ? initialDoc.fileName : `${x.requestedDataType ?? '자료'}.pdf`),
+    fileUrl: x.documentUrl ?? (sameInitialDoc ? initialDoc.fileUrl : null),
     requestType: x.requestedDataType ?? '자료',
     uploadedAt: '',
     submissionStatus: STATUS_TO_REVIEW[x.submissionStatus ?? ''] ?? 'review',
     extractionResult: { fields, unparsedFields: x.unparsedFields },
+  };
+}
+
+function initialDocToParsedDoc(doc: InitialDoc): ParsedDoc {
+  return {
+    docId: doc.docId,
+    fileName: doc.fileName,
+    fileUrl: doc.fileUrl,
+    requestType: doc.requestType,
+    uploadedAt: '',
+    submissionStatus: 'review',
+    extractionResult: {
+      fields: [
+        { fieldId: 'Li', label: 'Li (리튬) 함량(%)', aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+        { fieldId: 'Co', label: 'Co (코발트) 함량(%)', aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+        { fieldId: 'Ni', label: 'Ni (니켈) 함량(%)', aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+        { fieldId: 'Mn', label: 'Mn (망간) 함량(%)', aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+        { fieldId: 'natural_graphite', label: '천연흑연 함량(%)', aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+        { fieldId: 'synthetic_graphite', label: '인조흑연 함량(%)', aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+      ],
+      unparsedFields: [],
+    },
   };
 }
 
@@ -108,6 +139,11 @@ export default function AiParsingView({
   onConfirmComplete,
   realOnly = false,
   mode = 'supplier',
+  docCategoryFilter,
+  docS3KeyFilter,
+  initialDoc,
+  initialExtraction,
+  onParsed,
 }: {
   supplierId: string;
   onConfirmComplete: () => void;
@@ -116,31 +152,91 @@ export default function AiParsingView({
   realOnly?: boolean;
   // mode: 'supplier'(협력사 제출 화면) | 'prime'(원청 검토 화면). 같은 페이지 공용 — 문구만 분리.
   mode?: 'supplier' | 'prime';
+  docCategoryFilter?: string;
+  docS3KeyFilter?: string | null;
+  initialDoc?: InitialDoc | null;
+  initialExtraction?: AiExtraction | null;
+  onParsed?: (extraction: AiExtraction) => void;
 }) {
   const prime = mode === 'prime';
   // 공통 모듈 — 실 AI 추출(getAiExtractions)을 이 협력사 기준으로 가져와 표시.
   // (원청 대시보드 HitlReviewCard와 동일 데이터 소스 = 협력사/원청 동일 데이터.)
-  const [docs, setDocs] = useState<ParsedDoc[]>(realOnly ? [] : MOCK_PARSED_DOCS);
-  const [activeDocId, setActiveDocId] = useState(realOnly ? '' : MOCK_PARSED_DOCS[0].docId);
+  const initialDocs = initialExtraction
+    ? [extractionToDoc(initialExtraction, initialDoc)]
+    : initialDoc ? [initialDocToParsedDoc(initialDoc)] : (realOnly ? [] : MOCK_PARSED_DOCS);
+  const [docs, setDocs] = useState<ParsedDoc[]>(initialDocs);
+  const [activeDocId, setActiveDocId] = useState(initialDocs[0]?.docId ?? '');
   const [loaded, setLoaded] = useState(false);
   // 실 AI 추출 로드 실패 여부 — 실패를 조용히 mock으로 가리지 않기 위함(#5).
   const [loadError, setLoadError] = useState(false);
   // 문서별 제출 완료 여부 — { [docId]: true }
   const [completedDocs, setCompletedDocs] = useState<CompletedMap>({});
+  const notifiedExtractionRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     getAiExtractions()
       .then(list => {
-        const mine = list.filter(x => !supplierId || x.supplierId === supplierId).map(extractionToDoc);
+        const mine = list
+          .filter(x => !supplierId || x.supplierId === supplierId)
+          .filter(x => !docCategoryFilter || x.docCategory === docCategoryFilter || x.requestedDataType === '소재구성 문서')
+          .filter(x => !docS3KeyFilter || x.docS3Key === docS3KeyFilter)
+          .map(x => extractionToDoc(x, initialDoc));
         if (cancelled) return;
         if (mine.length) { setDocs(mine); setActiveDocId(mine[0].docId); }
+        else if (initialExtraction) {
+          const localDoc = extractionToDoc(initialExtraction, initialDoc);
+          setDocs([localDoc]);
+          setActiveDocId(localDoc.docId);
+        }
+        else if (initialDoc) { setDocs([initialDocToParsedDoc(initialDoc)]); setActiveDocId(initialDoc.docId); }
         else if (realOnly) { setDocs([]); setActiveDocId(''); } // 실데이터 없음 → 빈 상태(mock 금지)
       })
       .catch(() => { if (!cancelled) setLoadError(true); /* 실데이터 로드 실패 — 빈/배너로 표시 */ })
       .finally(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
-  }, [supplierId, realOnly]);
+  }, [supplierId, realOnly, docCategoryFilter, docS3KeyFilter, initialDoc, initialExtraction]);
+
+  useEffect(() => {
+    if (!initialDoc) return;
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
+    const maxAttempts = 16;
+    const matchesFilter = (x: AiExtraction) =>
+      (!supplierId || x.supplierId === supplierId) &&
+      (!docCategoryFilter || x.docCategory === docCategoryFilter || x.requestedDataType === '소재구성 문서') &&
+      (!docS3KeyFilter || x.docS3Key === docS3KeyFilter);
+
+    const poll = () => {
+      attempt += 1;
+      getAiExtractions()
+        .then(list => {
+          if (cancelled) return;
+          const matchedExtraction = list.find(matchesFilter);
+          if (!matchedExtraction) {
+            if (attempt < maxAttempts) timeoutId = setTimeout(poll, 2500);
+            return;
+          }
+          const parsedDoc = extractionToDoc(matchedExtraction, initialDoc);
+          setDocs([parsedDoc]);
+          setActiveDocId(parsedDoc.docId);
+          if (notifiedExtractionRef.current !== matchedExtraction.requestId) {
+            notifiedExtractionRef.current = matchedExtraction.requestId;
+            onParsed?.(matchedExtraction);
+          }
+        })
+        .catch(() => {
+          if (!cancelled && attempt < maxAttempts) timeoutId = setTimeout(poll, 2500);
+        });
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [supplierId, docCategoryFilter, docS3KeyFilter, initialDoc, onParsed]);
 
   // realOnly이고 추출 자료가 없으면 무관한 mock 대신 빈/로딩 상태 표시.
   if (docs.length === 0) {
