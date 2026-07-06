@@ -1427,6 +1427,30 @@ export const exportAuditPackage = (packageId: string) =>
 // ───────────────────────────────────────────────────────────
 // 알림 (Notifications) — §notifications
 // ───────────────────────────────────────────────────────────
+/**
+ * 알림이 가리키는 "맵 + 진행 지점" 좌표. deep_link(라우트 키)와 달리 특정 공급망 맵과
+ * 그 안의 협력사 노드까지 직접 지정한다. 존재하면 클릭 시 deep_link보다 우선한다.
+ * (프론트 헬퍼 buildMapDeepLink가 이 값을 /supply-chain/map URL로 변환한다.)
+ *
+ * 바인딩 규칙(중요): 정보요청/초대 메일은 언제나 "그 회차에 새로 만든 맵(map_id)"에 협력사를 묶어 보낸다.
+ *   협력사 정보를 이미 보유하고 있어도 맵은 매 회차 새로 생성되므로, productId만으로는 대상 맵을 특정할 수 없다.
+ *   따라서 target은 그 회차의 맵을 가리키는 mapId(정본) + bomVersionId(허브가 URL로 여는 실제 키)를 함께 담는다.
+ *   → 이 값은 협력사가 자료를 제출할 때가 아니라, 요청/초대를 보낸 시점의 맵 컨텍스트에서 채워져야 한다.
+ */
+export interface NotificationTarget {
+  /** 맵을 여는 제품 id — 허브 진입의 1차 식별자(필수) */
+  productId: string;
+  /**
+   * 그 회차의 맵 인스턴스를 여는 BOM 버전. 맵은 매 회차 새로 만들어지므로 대상 맵을 특정하려면 사실상 필수.
+   * 허브는 이 값을 URL(bomVersionId)로 읽어 해당 맵을 바로 선택한다. 생략 시 현재 버전으로 폴백(오조준 위험).
+   */
+  bomVersionId?: string;
+  /** 그 회차 맵의 정본 식별자(map_id) — 요청/초대가 협력사를 묶은 바로 그 맵. 추적·검증용(내비게이션은 위 두 값으로). */
+  mapId?: string;
+  /** 맵 안에서 포커스할 협력사 id — 해당 행으로 스크롤·하이라이트하고 상세 모달을 연다 */
+  focusSupplierId?: string;
+}
+
 export interface NotificationItem {
   notification_id: string;
   notification_type: 'sla_warning' | 'violation' | 'approval_needed' | 'info';
@@ -1435,6 +1459,8 @@ export interface NotificationItem {
   status: 'pending' | 'read';
   created_at: string;
   deep_link?: string;
+  /** 맵/협력사 노드 딥링크 좌표(선택). 있으면 deep_link보다 우선해 정밀 이동. */
+  target?: NotificationTarget;
 }
 
 /** GET /notifications — 로그인 사용자의 in-app 알림 목록 */
