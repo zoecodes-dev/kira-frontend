@@ -950,6 +950,9 @@ export interface OnboardingSubmitInput {
     role?: string;
     department?: string;
   }>;
+  /** STEP3 하위협력사 담당자 등록 — 백엔드가 같은 트랜잭션에서 캐스케이드 초대(협력사 생성
+   * + 동의요청)까지 처리한다(§7-c). 말단 선언(없음)이면 빈 배열로 보낸다. */
+  subSuppliers?: Array<{ companyName: string; name: string; email: string; phone?: string }>;
 }
 export interface OnboardingSubmitResult {
   supplierId: string;
@@ -1016,6 +1019,9 @@ export const submitSupplierOnboarding = (supplierId: string, input: OnboardingSu
       is_primary: c.isPrimary,
       role: c.role,
       department: c.department,
+    })),
+    sub_suppliers: (input.subSuppliers ?? []).map((s) => ({
+      company_name: s.companyName, name: s.name, email: s.email, phone: s.phone,
     })),
   });
 

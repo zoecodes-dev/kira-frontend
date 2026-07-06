@@ -158,10 +158,9 @@ export default function PoolModal({
       <SubSupplierInviteModal
         inviterSupplierId={null}
         onClose={() => setShowInvite(false)}
-        onInvited={() => {
-          setShowInvite(false);
-          alert('초대 메일이 발송되었습니다. 목록은 새로고침 후 반영됩니다.');
-        }}
+        // [FIX] 예전엔 여기서 바로 모달을 닫고 alert만 띄워서, SubSupplierInviteModal이
+        // 새로 보여주는 '초대 완료(링크 확인)' 화면이 뜰 새도 없이 사라졌다.
+        // 모달은 그 화면 안의 '닫기' 버튼(onClose)으로만 닫히게 하고, 여기선 아무것도 안 한다.
       />
     )}
    </>
