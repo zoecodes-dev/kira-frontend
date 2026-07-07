@@ -40,10 +40,10 @@
 |---|---|---|
 | 1 | **인증 방식** | 매직링크·선계정발급 **둘 다 아님**. 온보딩 폼에 **이메일+비밀번호 입력칸** → 제출 즉시 **활성 계정 생성**. **이메일 인프라 의존 없이 회원가입 완결.** 진입은 초대 링크 `?supplierId=`. |
 | 2 | **계정 발급 시점/비번** | n차 제출 시 **자동 생성, 비밀번호 즉시 설정**(설정링크 X), `is_active=true` → 바로 로그인. bcrypt `get_password_hash` 재사용. |
-| 3 | **테넌트** | **새 테넌트 안 만듦.** 계정 `tenant_id = suppliers.tenant_id`(초대한 OEM), `supplier_id = 본인`, `role = supplier_ceo`. |
+| 3 | **테넌트** | **새 테넌트 안 만듦.** 계정 `tenant_id = suppliers.tenant_id`(초대한 원청), `supplier_id = 본인`, `role = supplier_ceo`. |
 | 4 | **계정생성 주체** | **users 도메인에 `create_user` 추가**(현재 없음 — §3 확인), 온보딩 submit이 **동기 호출**. 회원가입은 "제출→즉시 로그인 / 중복 즉시 409"라 이벤트 X, 동기. 도메인 격리는 users **repository 재사용 + 커밋 1회**. |
 | 5 | **이메일 인프라** | Phase 1 **불필요**(자가 비번 설정). 자동 캐스케이드 초대 메일은 **Phase 2**(SES). |
-| 6 | **1차 prefill 소스** | 별도 ingest 엔드포인트 신설 X. **`suppliers` 테이블 기존 데이터**(OEM 등록/ingest로 채워짐)를 읽는다. 단 공개 온보딩은 토큰이 없으므로 **공개 prefill 엔드포인트 신설**(비민감 필드만). |
+| 6 | **1차 prefill 소스** | 별도 ingest 엔드포인트 신설 X. **`suppliers` 테이블 기존 데이터**(원청 등록/ingest로 채워짐)를 읽는다. 단 공개 온보딩은 토큰이 없으므로 **공개 prefill 엔드포인트 신설**(비민감 필드만). |
 | 7 | **하위 provider_type** | `SupplierCreateRequest.provider_type` **필수**(§3 확인). Phase 2의 firstTier `PicRegister`에 **유형 드롭다운 추가**(manufacturer/recycler/trader/miner/smelter), 기본값 없음(필수). |
 | 8 | **공개 엔드포인트 보안** | **낮게 — `?supplierId=` 키잉, invite token 없음.** 가드 = **이미 활성 계정이 있는 supplier 재제출 → 409**. (운영 강화는 Phase 2 이메일 후 매직링크로 승격) |
 | 9 | **로그인 게이팅 방식** | **클라이언트 가드(`app/supplier/layout.tsx`)로 확정.** ⚠ 토큰이 `localStorage`라 **Next.js middleware(엣지)는 토큰을 못 읽음** → middleware 방식 폐기. 가드가 `getToken()` 없으면 `/login` 리다이렉트. |
@@ -97,7 +97,7 @@
 - **로그인 게이팅(클라 가드)**: `app/supplier/layout.tsx` 신설(client) — `getToken()` 없으면 `/login` 리다이렉트. `/login`·`/supplier/onboarding`은 가드 밖(공개). 로그인 응답 `onboardingComplete=false`면 `/supplier/onboarding`로.
 
 ### Phase 1 검증(E2E)
-1. OEM `POST /suppliers`로 supplier 생성 → `supplier_id` 확보.
+1. 원청 `POST /suppliers`로 supplier 생성 → `supplier_id` 확보.
 2. `GET /suppliers/{id}/onboarding/prefill`(무토큰) 200.
 3. 그 링크로 온보딩 제출(회사정보+문서+PIC+이메일+비번) → 200.
 4. DB 확인: `suppliers`(회사정보/`is_unverified`/`status=supplier_review`) · `supplier_contacts`(PIC) · `supplier_onboarding`(consent_agreed) · `users`(활성 계정).
