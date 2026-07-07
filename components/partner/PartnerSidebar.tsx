@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Bell,
   Building2,
   Factory,
   KeyRound,
@@ -17,7 +16,6 @@ const menu = [
   { href: '/partner/company-info', label: '내 기업 정보',  subtitle: '정보 확인 · 자료 제출(입력)',    icon: Building2 },
   { href: '/partner/ai-parsing',   label: 'AI 파싱 확인',  subtitle: '추출 결과 검토 · 수정',          icon: ScanLine },
   { href: '/partner/supply-chain', label: '공급망 연결',   subtitle: '직접 연결 업체',                icon: Network },
-  { href: '/partner/notifications',label: '원청사 알림',   subtitle: '요청 · 기한',                   icon: Bell },
   { href: '/partner/settings',     label: '계정 설정',     subtitle: '비밀번호 · 담당자 정보',          icon: KeyRound },
 ] as const;
 
