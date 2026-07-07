@@ -1,13 +1,12 @@
 'use client';
 
-// ── 소재구성 문서 업로드 + AI 파싱 패널 ─────────────────────────────────────
-// 업로드 흐름(기존 3종 문서와 동일 파이프라인 재사용, 새 엔드포인트 없음):
+// ── 탄소발자국 문서 업로드 + AI 파싱 패널 ─────────────────────────────────────
+// MaterialDocParsePanel과 동일 파이프라인(신규 엔드포인트 없음), 대상 컬럼만 다르다:
 //   ① uploadFile(POST /files) → s3Key
-//   ② PATCH /suppliers/{id}/detail { material_composition_doc_url: s3Key }
-//      → 커밋 후 SupplierDocumentUploaded(doc_kind='material_composition') 발행 → 파싱 큐
+//   ② PATCH /suppliers/{id}/detail { carbon_footprint_doc_url: s3Key }
+//      → 커밋 후 SupplierDocumentUploaded(doc_kind='carbon_footprint') 발행 → 파싱 큐
 //   ③ '파싱하기' 클릭 → GET /data-requests/ai-extractions 폴링, docS3Key === s3Key 매칭
-//      (목록이 created_at DESC라 첫 매칭 = 최신 → 같은 파일 재업로드 시 최신 결과 선택)
-//   ④ 매칭된 추출결과(AiExtraction)를 부모로 올려 광물 입력칸에 반영
+//   ④ 매칭된 추출결과(AiExtraction)를 부모로 올려 탄소집약도/에너지원 입력칸에 반영
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import {
@@ -15,11 +14,11 @@ import {
   type AiExtraction,
 } from '@/lib/api';
 
-const MATERIAL_DOC_ACCEPT = '.pdf,.png,.jpg,.jpeg';
+const CARBON_DOC_ACCEPT = '.pdf,.png,.jpg,.jpeg';
 const PARSE_POLL_TRIES = 10;      // 최대 재시도(총 ~25초)
 const PARSE_POLL_INTERVAL = 2500; // ms — 이벤트 기반 비동기 파싱이라 2-3초 대기 후 조회
 
-export default function MaterialDocParsePanel({ supplierId, initialUrl, editable, onParsed, onOpenViewer }: {
+export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editable, onParsed, onOpenViewer }: {
   supplierId: string;
   initialUrl?: string | null;
   editable?: boolean;
@@ -36,8 +35,7 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
   // 언마운트 후 setState 방지 — 폴링(수십 초)이 편집 취소보다 오래 살 수 있다.
   // 주의: 마운트 시 반드시 false로 리셋해야 한다 — StrictMode(dev)가 effect를
   // mount→cleanup→mount로 두 번 실행하는데, 리셋이 없으면 cleanup에서 true로
-  // 바뀐 뒤 재마운트돼도 계속 true로 남아 이후 모든 setState가 영구히 무시된다
-  // (업로드가 성공해도 "업로드 중"에서 멈추는 버그의 원인이었음).
+  // 바뀐 뒤 재마운트돼도 계속 true로 남아 이후 모든 setState가 영구히 무시된다.
   const cancelledRef = useRef(false);
   useEffect(() => {
     cancelledRef.current = false;
@@ -61,9 +59,9 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
     setError('');
     setNotice('');
     try {
-      const meta = await uploadFile(f, `material-doc:${supplierId}`);
+      const meta = await uploadFile(f, `carbon-footprint-doc:${supplierId}`);
       // PATCH → 컬럼 갱신 + 커밋 후 문서 이벤트 발행(파싱 파이프라인 트리거).
-      await updateSupplierDetail(supplierId, { material_composition_doc_url: meta.s3Key });
+      await updateSupplierDetail(supplierId, { carbon_footprint_doc_url: meta.s3Key });
       if (cancelledRef.current) return;
       setDocValue(meta.s3Key);
       setDisplayName(f.name);
@@ -93,7 +91,7 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
         const hit = (list ?? []).find(e => e.docS3Key === docValue);
         if (hit) {
           onParsed(hit);
-          setNotice('파싱 완료 — 추출된 함량이 입력칸에 채워졌어요. 값을 확인한 뒤 저장해주세요.');
+          setNotice('파싱 완료 — 추출된 값이 입력칸에 채워졌어요. 값을 확인한 뒤 저장해주세요.');
           return;
         }
       }
@@ -106,7 +104,7 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
   return (
     <div className="flex items-center justify-between gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
       <div className="min-w-0">
-        <div className="text-sm font-semibold text-ink-100">소재구성 문서 (핵심광물 함량 자동 추출)</div>
+        <div className="text-sm font-semibold text-ink-100">탄소발자국 문서 (탄소집약도/에너지원 자동 추출)</div>
         <div className={`mt-0.5 truncate text-xs ${error ? 'text-alert-text' : notice ? 'text-ok-text' : uploaded ? 'text-ink-400' : 'text-ink-500'}`}>
           {error
             ? error
@@ -118,7 +116,7 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
                   ? notice
                   : uploaded
                     ? `업로드됨 · ${shownName}`
-                    : '미업로드 · PDF/이미지(png/jpg/jpeg)를 올리면 Li/Co/Ni/Mn/흑연 함량을 자동으로 채워요.'}
+                    : '미업로드 · PDF/이미지(png/jpg/jpeg)를 올리면 탄소집약도/에너지원을 자동으로 채워요.'}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -131,7 +129,7 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
               {uploaded ? '파일 변경' : '자료 업로드'}
               <input
                 type="file"
-                accept={MATERIAL_DOC_ACCEPT}
+                accept={CARBON_DOC_ACCEPT}
                 className="hidden"
                 disabled={uploading || parsing}
                 onChange={handleSelect}
@@ -158,8 +156,8 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
         )}
       </div>
       {/* persistForm(master-form authoritative-overwrite) round-trip 캐리어 —
-          없으면 자료 제출 시 material_composition_doc_url 이 NULL 로 덮인다. */}
-      <input type="hidden" data-field="materials.materialCompositionDocUrl" value={docValue} readOnly />
+          없으면 자료 제출 시 carbon_footprint_doc_url 이 NULL 로 덮인다. */}
+      <input type="hidden" data-field="regulation.carbonFootprintDocUrl" value={docValue} readOnly />
     </div>
   );
 }
