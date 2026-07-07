@@ -8,13 +8,6 @@ import { buildConsentDocument } from '@/lib/consent-clauses';
 import type { OnboardingType } from './SupplierOnboarding';
 import StepFooter from './StepFooter';
 
-const typeLabel: Record<string, string> = {
-  manufacturer: '제조사',
-  recycler: '재활용',
-  trader: '트레이더',
-  miner: '광산',
-};
-
 export default function OnboardingEntry({
   type,
   supplierId,
@@ -111,10 +104,7 @@ export default function OnboardingEntry({
                 <span className="text-slate-500">회사명</span>
                 <span className="font-semibold text-ink-100">{detail.companyName}</span>
               </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">유형</span>
-                <span className="font-semibold text-ink-100">{typeLabel[detail.providerType] ?? detail.providerType}</span>
-              </div>
+              {/* 유형(provider type)은 회원가입 단계에서 노출하지 않는다 — general review에서만 입력·확인. */}
             </div>
           ) : (
             <div className="text-sm text-slate-500">

@@ -78,6 +78,7 @@ import {
   type FactoryDraft,
   FACTORY_ROLE_OPTS,
   factoryToDraft,
+  MINERAL_EDIT_KEYS,
   MINERAL_LABELS,
   seedContactsDraft,
 } from '@/components/supplier/factory-draft';
@@ -698,52 +699,75 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
         </div>
       );
     } else {
-      // 공장 정보(원산지·이름·주소·소재구성) + 그 공장 담당자 — 공장마다 카드 하나(입력 모드와
-      // 동일 구조). 담당자는 factoryId로 그 공장 카드에, factoryId 없으면 회사 공통 카드에.
-      const mineralSummary = (cm: Record<string, number> | null | undefined) =>
-        cm && mineralKeysOf(cm).length
-          ? mineralKeysOf(cm).map(k => `${MINERAL_LABELS[k] ?? k} ${cm[k]}%`).join(', ')
-          : '-';
+      // 공장 정보(원산지·이름·주소) + 그 공장 소재구성(광물별 행, CompanyGrid와 동일 톤) + 담당자
+      // — 공장마다 카드 하나(입력 모드와 동일 구조). 담당자는 factoryId로 그 공장 카드에,
+      // factoryId 없으면 회사 공통 카드에.
       const contactsOf = (factoryId: string | null) => (real?.contacts ?? []).filter(c => (c.factoryId ?? null) === factoryId);
+      // 담당자 — 다른 섹션과 같은 테두리 표 톤으로 통일: 이름/직책/이메일/연락처/대표를
+      // 열로 나눠 세로 정렬한다(한 줄에 다 몰아넣던 이전 방식 대신).
       const ContactList = ({ items }: { items: ApiSupplierContact[] }) => (
         items.length ? (
-          <ul className="space-y-1">
-            {items.map(c => (
-              <li key={c.contactId} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-300">
-                <span className="font-semibold text-ink-100">{c.name ?? '-'}</span>
-                {c.role && <span className="text-ink-500">{c.role}</span>}
-                {c.email && <span>{c.email}</span>}
-                {(c.mobile ?? c.phone) && <span>{c.mobile ?? c.phone}</span>}
-                {c.isPrimary && <span className="rounded-full border border-ok-border bg-ok-bg px-1.5 py-0.5 text-[10px] font-bold text-ok-text">대표</span>}
-              </li>
-            ))}
-          </ul>
-        ) : <div className="text-xs text-ink-500">등록된 담당자가 없습니다.</div>
+          <div className="overflow-hidden rounded-sm border border-ink-700">
+            <table className="w-full border-collapse">
+              <thead className="bg-slate-50">
+                <tr>
+                  {['이름', '직책', '이메일', '연락처', '대표'].map(h => (
+                    <th key={h} className="border-b border-ink-700 px-4 py-2 text-left text-xs font-semibold text-ink-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(c => (
+                  <tr key={c.contactId} className="border-b border-ink-700 last:border-b-0">
+                    <td className="px-4 py-2.5 text-sm font-semibold text-ink-100">{c.name ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-sm text-ink-500">{c.role ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-sm text-ink-500">{c.email ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-sm text-ink-500">{c.mobile ?? c.phone ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-sm text-ink-500">{c.isPrimary ? '대표' : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <div className="text-sm text-ink-500">등록된 담당자가 없습니다.</div>
       );
       const factories = (real?.factories ?? []).filter(f => f.isActive !== false);
       content = (
         <div className="space-y-3">
           {factories.length === 0 && <EmptyData />}
-          {factories.map(f => (
-            <div key={f.factoryId} className={clsx('space-y-3 rounded-sm border border-ink-700 bg-white p-4', f.factoryRole === 'mining' && 'bg-accent-50/40')}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-bold text-ink-100">{f.factoryName ?? '-'}</span>
-                <span className="rounded-full border border-ink-700 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-ink-500">
-                  {FACTORY_ROLE_OPTS.find(o => o.value === f.factoryRole)?.label ?? f.factoryRole ?? '-'}
-                </span>
+          {factories.map(f => {
+            // 다른 섹션(CompanyGrid: 회사정보·규제)과 같은 테두리 표 톤으로 통일 — 원산지·주소·
+            //   공급비율·소재구성 전부 이 컴포넌트를 그대로 재사용한다(칸이 균일하게 나뉘는 표).
+            const infoRows: string[][] = [
+              ['원산지', f.country ?? '-', fieldFilled(f.country)],
+              ['주소', f.address ?? '-', fieldFilled(f.address)],
+              ['공급비율', f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-', fieldFilled(f.supplyRatioPercent)],
+            ];
+            const cm = f.coreMinerals ?? {};
+            const mineralRows: string[][] = MINERAL_EDIT_KEYS.map(k => {
+              const v = cm[k];
+              return [`${MINERAL_LABELS[k] ?? k} 함량(%)`, v != null ? `${v}%` : '-', v != null ? '완료' : '해당 없음'];
+            });
+            return (
+              <div key={f.factoryId} className={clsx('space-y-3 rounded-sm border border-ink-700 bg-white p-4', f.factoryRole === 'mining' && 'bg-accent-50/40')}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold text-ink-100">{f.factoryName ?? '-'}</span>
+                  <span className="rounded-full border border-ink-700 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-ink-500">
+                    {FACTORY_ROLE_OPTS.find(o => o.value === f.factoryRole)?.label ?? f.factoryRole ?? '-'}
+                  </span>
+                </div>
+                <CompanyGrid rows={infoRows} />
+                <div>
+                  <div className="mb-1 text-sm font-medium text-ink-500">소재 구성</div>
+                  <CompanyGrid rows={mineralRows} />
+                </div>
+                <div>
+                  <div className="mb-1 text-sm font-medium text-ink-500">담당자</div>
+                  <ContactList items={contactsOf(f.factoryId)} />
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4">
-                <div><span className="block text-sm font-medium text-ink-500">원산지</span><span className="text-sm font-semibold text-ink-100">{f.country ?? '-'}</span></div>
-                <div><span className="block text-sm font-medium text-ink-500">주소</span><span className="text-sm font-semibold text-ink-100">{f.address ?? '-'}</span></div>
-                <div><span className="block text-sm font-medium text-ink-500">공급비율</span><span className="text-sm font-semibold text-ink-100">{f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-'}</span></div>
-                <div><span className="block text-sm font-medium text-ink-500">소재 구성</span><span className="text-sm font-semibold text-ink-100">{mineralSummary(f.coreMinerals)}</span></div>
-              </div>
-              <div className="border-t border-ink-700 pt-3">
-                <div className="mb-1 text-sm font-medium text-ink-500">담당자</div>
-                <ContactList items={contactsOf(f.factoryId)} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
           <div className="space-y-3 rounded-sm border border-ink-700 bg-slate-50 p-4">
             <div className="text-sm font-bold text-ink-100">회사 공통 담당자</div>
             <ContactList items={contactsOf(null)} />
@@ -1649,7 +1673,7 @@ export function SupplierGeneralReviewContent({
         <div className="mb-2.5 flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-ink-100">수집 항목 요약</h2>
         </div>
-        <div className="grid grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {liveSections.map(section => <SummaryCard key={section.key} section={section} />)}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-4">
