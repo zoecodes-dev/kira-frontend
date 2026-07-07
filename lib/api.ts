@@ -571,6 +571,7 @@ export interface SupplierFactory {
   destinationDetail: string | null;
   supplyRatioPercent: number | null;
   supplyQuantity: string | null;
+  coreMinerals: Record<string, number> | null;  // 공장(사이트)별 소재 구성 — 광산 사이트마다 다를 수 있음
   // 공장 담당자(공장 단위) — 협력사 PIC(SupplierContact)와 별개
   factoryManagerName: string | null;
   factoryManagerRole: string | null;
@@ -779,6 +780,7 @@ export interface SuppliedItem {
   productName?: string | null;
   customerName?: string | null;  // 고객사 (예: BMW) — 탭 라벨
   hopLevel?: number | null;      // 이 맵에서 협력사 차수
+  factoryId?: string | null;     // 이 맵(엣지)에서 대는 공장 — map 탭 공장 필터용
   coreMinerals?: Record<string, number> | null; // 이 맵(엣지)의 핵심광물 함량 %(회사값 폴백)
 }
 export const getSupplierSuppliedItems = (id: string) =>
@@ -794,6 +796,7 @@ export interface ApiDataRequest {
   requestId: string;
   requesterUserId: string | null;
   targetSupplierId: string | null;
+  bomVersionId: string | null;   // [map별 독립 제출] 이 요청이 속한 공급망 맵(제품 BOM)
   requestedDataType: string | null;
   requestedAt: string | null;
   dueDate: string | null;
@@ -801,9 +804,12 @@ export interface ApiDataRequest {
   submissionStatus: SubmissionStatusCode | null;
   missingCount: number | null;
 }
-export const getDataRequests = (params?: { supplierId?: string }) => {
-  const q = params?.supplierId ? `?supplier_id=${params.supplierId}` : "";
-  return api.get<ApiDataRequest[]>(`/data-requests${q}`);
+export const getDataRequests = (params?: { supplierId?: string; bomVersionId?: string }) => {
+  const qs = [
+    params?.supplierId ? `supplier_id=${params.supplierId}` : "",
+    params?.bomVersionId ? `bom_version_id=${params.bomVersionId}` : "",
+  ].filter(Boolean).join("&");
+  return api.get<ApiDataRequest[]>(`/data-requests${qs ? `?${qs}` : ""}`);
 };
 
 /** GET /submissions — 원청 제출 검토 목록 (§4.1a) */
@@ -895,10 +901,14 @@ export interface SupplyChainAlternative {
   ratio_percentage: number | null;
 }
 
-export const getSupplyChainGaps = (productId: string) =>
+export const getSupplyChainGaps = (productId: string, bomVersionId?: string) =>
   // raw: 응답을 snake_case 그대로 받는다(SupplyChainGapsResult 타입·소비부가 snake_case 기준).
   //   raw 없으면 snakeToCamel로 변환돼 node.supplier_id 등이 undefined가 된다.
-  api.get<SupplyChainGapsResult>(`/supply-chain/gaps?product_id=${productId}`, { raw: true });
+  // bomVersionId 지정 시 그 맵(엣지)으로만 한정 — 차수 게이트(hop_level 기준)와 완성도 집계 범위를 일치시킨다.
+  api.get<SupplyChainGapsResult>(
+    `/supply-chain/gaps?product_id=${productId}${bomVersionId ? `&bom_version_id=${bomVersionId}` : ''}`,
+    { raw: true },
+  );
 
 export const getSupplyChainAlternatives = (productId: string, partId: string) =>
   api.get<SupplyChainAlternative[]>(`/supply-chain/alternatives?product_id=${productId}&part_id=${partId}`);
