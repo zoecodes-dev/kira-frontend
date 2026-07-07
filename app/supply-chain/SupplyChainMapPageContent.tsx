@@ -125,6 +125,9 @@ export function SupplyChainMapPageContent({
   const [showConnectConfirm, setShowConnectConfirm] = useState(false);
   const [formationGenerated, setFormationGenerated] = useState(!formationMode);
   const [customerDownloading, setCustomerDownloading] = useState(false);  // 고객사 데이터(하이브리드 xlsx) 생성중
+  // onRowClick 미전달(허브 없이 이 화면 단독 사용, 예: 기본 export 페이지) 시 표 행 클릭에 대한 폴백 —
+  //   실 협력사(UUID)면 이 화면 안에서 바로 general review 팝업을 띄운다(SupplyChainHub의 openSupplierReview와 동일 패턴).
+  const [reviewSupplier, setReviewSupplier] = useState<{ id: string; name: string } | null>(null);
 
   const selectedProduct = dataset.products.find(product => product.product_id === selectedProductId) ?? dataset.products[0];
   const selectedBomVersion = dataset.bom_versions.find(version => version.bom_version_id === selectedBomVersionId) ?? availableBomVersions[0];
@@ -778,8 +781,12 @@ export function SupplyChainMapPageContent({
                     key={row.node_key}
                     data-supplier-id={row.supplier_id}
                     className={`cursor-pointer hover:bg-ink-800/30 ${selectedNodeKey === row.node_key ? 'bg-accent-50/60' : ''}`}
-                    onClick={() => (onRowClick ? onRowClick(row) : setSelectedNodeKey(row.node_key))}
-                    title={onRowClick && !formationMode ? `${row.supplier_name} 상세 보기` : undefined}
+                    onClick={() => {
+                      if (onRowClick) { onRowClick(row); return; }
+                      if (isUuid(row.supplier_id)) { setReviewSupplier({ id: row.supplier_id, name: row.supplier_name }); return; }
+                      setSelectedNodeKey(row.node_key);
+                    }}
+                    title={!formationMode && (onRowClick || isUuid(row.supplier_id)) ? `${row.supplier_name} 상세 보기` : undefined}
                   >
                     <td className="whitespace-nowrap px-4 py-3 text-xs font-bold text-ink-400">{row.tier}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-bold text-ink-100">
@@ -809,6 +816,35 @@ export function SupplyChainMapPageContent({
             </table>
           </div>
         </section>
+      )}
+
+      {/* onRowClick 미전달(허브 없이 단독 사용) 폴백 — 실 협력사 행 클릭 시 general review 팝업.
+          닫으면 이 공급망 맵으로 바로 복귀. */}
+      {reviewSupplier && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 md:p-8"
+          onClick={() => setReviewSupplier(null)}
+        >
+          <div
+            className="relative w-full max-w-5xl rounded-sm border border-ink-700 bg-white shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-ink-700 bg-white px-5 py-3">
+              <div className="text-sm font-bold text-ink-100">협력사 상세 — {reviewSupplier.name}</div>
+              <button
+                type="button"
+                onClick={() => setReviewSupplier(null)}
+                aria-label="닫기"
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-4">
+              <SupplierGeneralReviewContent supplierId={reviewSupplier.id} supplierName={reviewSupplier.name} embedded mode="prime" />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
