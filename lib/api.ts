@@ -571,6 +571,7 @@ export interface SupplierFactory {
   destinationDetail: string | null;
   supplyRatioPercent: number | null;
   supplyQuantity: string | null;
+  coreMinerals: Record<string, number> | null;  // 공장(사이트)별 소재 구성 — 광산 사이트마다 다를 수 있음
   // 공장 담당자(공장 단위) — 협력사 PIC(SupplierContact)와 별개
   factoryManagerName: string | null;
   factoryManagerRole: string | null;

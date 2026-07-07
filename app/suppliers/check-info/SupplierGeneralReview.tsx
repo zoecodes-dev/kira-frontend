@@ -399,6 +399,9 @@ interface FactoryDraft {
   factoryManagerRole: string;
   factoryManagerPhone: string;
   factoryManagerEmail: string;
+  // 소재 구성(공장/사이트별) — 광산(factoryRole='mining')은 사이트마다 채굴 광물이 달라
+  // 회사 단위가 아니라 이 값으로 판정한다(§factories.mine_composition).
+  coreMinerals: Record<string, number>;
 }
 interface ContactDraft {
   name: string;
@@ -408,14 +411,18 @@ interface ContactDraft {
   phone: string;
   mobile: string;
   isPrimary: boolean;
+  // 이 담당자가 속한 공장 — factoriesDraft 배열 인덱스(§factory_index). null이면 특정 공장에
+  // 속하지 않는 회사 공통 담당자 — 공장마다 카드로 나뉜 화면에서 담당자를 배치하는 기준.
+  factoryIndex: number | null;
 }
 const emptyFactoryDraft = (): FactoryDraft => ({
   factoryName: '', country: '', region: '', address: '', factoryRole: '',
   destination: '', supplyRatioPercent: '', latitude: '', longitude: '',
   factoryManagerName: '', factoryManagerRole: '', factoryManagerPhone: '', factoryManagerEmail: '',
+  coreMinerals: {},
 });
-const emptyContactDraft = (): ContactDraft => ({
-  name: '', role: '', department: '', email: '', phone: '', mobile: '', isPrimary: false,
+const emptyContactDraft = (factoryIndex: number | null = null): ContactDraft => ({
+  name: '', role: '', department: '', email: '', phone: '', mobile: '', isPrimary: false, factoryIndex,
 });
 const factoryToDraft = (f: ApiSupplierFactory): FactoryDraft => ({
   factoryId: f.factoryId,
@@ -432,8 +439,9 @@ const factoryToDraft = (f: ApiSupplierFactory): FactoryDraft => ({
   factoryManagerRole: f.factoryManagerRole ?? '',
   factoryManagerPhone: f.factoryManagerPhone ?? '',
   factoryManagerEmail: f.factoryManagerEmail ?? '',
+  coreMinerals: f.coreMinerals ?? {},
 });
-const contactToDraft = (c: ApiSupplierContact): ContactDraft => ({
+const contactToDraft = (c: ApiSupplierContact, factoryIndex: number | null = null): ContactDraft => ({
   name: c.name ?? '',
   role: c.role ?? '',
   department: c.department ?? '',
@@ -441,7 +449,15 @@ const contactToDraft = (c: ApiSupplierContact): ContactDraft => ({
   phone: c.phone ?? '',
   mobile: c.mobile ?? '',
   isPrimary: Boolean(c.isPrimary),
+  factoryIndex,
 });
+// 담당자 시드 — c.factoryId(실 UUID)를 draft 배열(factoriesDraft, 이미 비활성 공장 제외 필터링됨)
+//   안에서 같은 factoryId를 가진 항목의 인덱스로 변환한다. 매칭 안 되면(공장 삭제됨 등) 회사 공통(null).
+const seedContactsDraft = (contacts: ApiSupplierContact[], factories: FactoryDraft[]): ContactDraft[] => {
+  const idxByFactoryId = new Map<string, number>();
+  factories.forEach((f, i) => { if (f.factoryId) idxByFactoryId.set(f.factoryId, i); });
+  return contacts.map(c => contactToDraft(c, c.factoryId ? idxByFactoryId.get(c.factoryId) ?? null : null));
+};
 
 const editCellCls = 'w-full min-w-24 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20';
 
@@ -456,16 +472,89 @@ const FACTORY_ROLE_OPTS: { value: string; label: string }[] = [
 ];
 const factoryRoleSelectCls = 'w-full min-w-20 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20';
 
-// 공장 정보 편집 테이블 — 행 추가/삭제. 좌표는 latitude/longitude 입력(있으면 coordinates로 매핑).
-//   isSmelter면 "+ 광산 추가" 전용 버튼 노출 — 역할을 고르게 하지 않고 factoryRole='mining'으로 바로 고정해
-//   행을 만든다(직상위가 원산지 광산 위치를 놓치지 않고 넣게 하는 지점, 역할 선택 실수 방지).
-function FactoryEditor({ rows, onChange, isSmelter = false }: { rows: FactoryDraft[]; onChange: (rows: FactoryDraft[]) => void; isSmelter?: boolean }) {
+// 라벨+입력칸 한 칸 — 카드 안 필드 그리드 공용 셀.
+function FieldCell({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+// 담당자 한 명 — 편집 행(카드 안 "담당자" 서브섹션 공용, 공장별/공통 카드가 함께 쓴다).
+function ContactRow({ c, onUpdate, onSetPrimary, onRemove }: {
+  c: ContactDraft;
+  onUpdate: (patch: Partial<ContactDraft>) => void;
+  onSetPrimary: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 rounded-xs border border-ink-700 bg-white p-1.5">
+      <input value={c.name} onChange={e => onUpdate({ name: e.target.value })} placeholder="이름" className={clsx(editCellCls, 'w-28')} />
+      <input value={c.role} onChange={e => onUpdate({ role: e.target.value })} placeholder="직책" className={clsx(editCellCls, 'w-24')} />
+      <input value={c.email} onChange={e => onUpdate({ email: e.target.value })} placeholder="이메일" className={clsx(editCellCls, 'w-36')} />
+      <input value={c.mobile} onChange={e => onUpdate({ mobile: e.target.value })} placeholder="연락처" className={clsx(editCellCls, 'w-28')} />
+      <label className="flex items-center gap-1 text-xs text-ink-400">
+        <input type="radio" name="contact-primary" checked={c.isPrimary} onChange={onSetPrimary} className="h-3.5 w-3.5 accent-brand" />대표
+      </label>
+      <button type="button" onClick={onRemove} className="ml-auto rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
+    </div>
+  );
+}
+
+// 담당자 서브섹션 — factoryIndex(null=회사 공통)에 속한 담당자만 골라 렌더링. 카드마다 재사용.
+function ContactsSubsection({ factoryIndex, contacts, onContactsChange }: {
+  factoryIndex: number | null;
+  contacts: ContactDraft[];
+  onContactsChange: (rows: ContactDraft[]) => void;
+}) {
+  const items = contacts.map((c, i) => ({ c, i })).filter(({ c }) => c.factoryIndex === factoryIndex);
+  const update = (i: number, patch: Partial<ContactDraft>) =>
+    onContactsChange(contacts.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  const setPrimary = (i: number) => onContactsChange(contacts.map((c, idx) => ({ ...c, isPrimary: idx === i })));
+  const remove = (i: number) => onContactsChange(contacts.filter((_, idx) => idx !== i));
+  const add = () => onContactsChange([...contacts, emptyContactDraft(factoryIndex)]);
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[11px] font-bold text-ink-500">담당자</div>
+      {items.length === 0 && <div className="text-xs text-ink-500">등록된 담당자가 없습니다.</div>}
+      {items.map(({ c, i }) => (
+        <ContactRow key={i} c={c} onUpdate={patch => update(i, patch)} onSetPrimary={() => setPrimary(i)} onRemove={() => remove(i)} />
+      ))}
+      <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-2.5 py-1 text-xs font-semibold text-accent-700 hover:bg-accent-100">담당자 추가</button>
+    </div>
+  );
+}
+
+// 공장 정보 — 공장(사이트)마다 카드 하나. 각 카드에 그 공장 필드 + 그 공장 담당자
+//   (+ 광산이면 소재구성)를 모두 담는다(탭 전환이 아니라 세로로 쌓는 카드 폼).
+//   isSmelter면 "+ 광산 추가" 전용 버튼 노출 — 역할을 고르게 하지 않고 factoryRole='mining'으로
+//   바로 고정해 카드를 만든다(직상위가 원산지 광산 위치를 놓치지 않고 넣게 하는 지점).
+function FactoryCards({ rows, onChange, isSmelter = false, contacts, onContactsChange }: {
+  rows: FactoryDraft[]; onChange: (rows: FactoryDraft[]) => void; isSmelter?: boolean;
+  contacts: ContactDraft[]; onContactsChange: (rows: ContactDraft[]) => void;
+}) {
   const update = (i: number, patch: Partial<FactoryDraft>) =>
     onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  const remove = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
+  const updateMineral = (i: number, key: string, value: string) =>
+    update(i, {
+      coreMinerals: value === ''
+        ? Object.fromEntries(Object.entries(rows[i].coreMinerals).filter(([k]) => k !== key))
+        : { ...rows[i].coreMinerals, [key]: Number(value) },
+    });
+  const remove = (i: number) => {
+    onChange(rows.filter((_, idx) => idx !== i));
+    // 이 공장의 담당자는 회사 공통으로 내리고, 뒤쪽 공장들의 인덱스를 한 칸씩 당긴다(삭제로 밀림 방지).
+    onContactsChange(contacts.map(c => {
+      if (c.factoryIndex == null) return c;
+      if (c.factoryIndex === i) return { ...c, factoryIndex: null };
+      return c.factoryIndex > i ? { ...c, factoryIndex: c.factoryIndex - 1 } : c;
+    }));
+  };
   const add = () => onChange([...rows, emptyFactoryDraft()]);
   const addMining = () => onChange([...rows, { ...emptyFactoryDraft(), factoryRole: 'mining' }]);
-  // 위치 픽커 — 어느 행에 대해 열렸는지(null이면 닫힘).
+  // 위치 픽커 — 어느 카드에 대해 열렸는지(null이면 닫힘).
   const [pickerRow, setPickerRow] = useState<number | null>(null);
   const applyPicked = (i: number, r: FactoryLocationResult) =>
     update(i, {
@@ -475,63 +564,77 @@ function FactoryEditor({ rows, onChange, isSmelter = false }: { rows: FactoryDra
       ...(r.address ? { address: r.address } : {}),
     });
   return (
-    <div className="space-y-2">
-      <div className="overflow-x-auto rounded-sm border border-ink-700">
-        <table className="min-w-full border-collapse text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              {['공장명', '국가', '지역', '주소', '역할', '납품처', '공급비율(%)', '위도', '경도', '담당자 이름', '직책', '연락처', '메일', ''].map((h, i) => (
-                <th key={`${h}-${i}`} className="whitespace-nowrap border-b border-ink-700 px-3 py-2.5 text-left text-xs font-semibold text-ink-500">{h}</th>
+    <div className="space-y-3">
+      {rows.length === 0 && (
+        <div className="rounded-sm border border-dashed border-ink-700 bg-slate-50 px-4 py-6 text-center text-sm text-ink-500">등록된 공장이 없습니다. 카드를 추가하세요.</div>
+      )}
+      {rows.map((r, i) => (
+        <div key={i} className={clsx('space-y-3 rounded-sm border border-ink-700 bg-white p-4', r.factoryRole === 'mining' && 'bg-accent-50/40')}>
+          <div className="flex items-center gap-2">
+            <input value={r.factoryName} onChange={e => update(i, { factoryName: e.target.value })} placeholder="공장명" className={clsx(editCellCls, 'flex-1 text-sm font-bold')} />
+            <select value={r.factoryRole} onChange={e => update(i, { factoryRole: e.target.value })} className={factoryRoleSelectCls}>
+              {FACTORY_ROLE_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <button type="button" onClick={() => remove(i)} className="shrink-0 rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <FieldCell label="국가"><input value={r.country} onChange={e => update(i, { country: e.target.value })} placeholder="국가" className={editCellCls} /></FieldCell>
+            <FieldCell label="지역"><input value={r.region} onChange={e => update(i, { region: e.target.value })} placeholder="지역" className={editCellCls} /></FieldCell>
+            <FieldCell label="주소"><input value={r.address} onChange={e => update(i, { address: e.target.value })} placeholder="주소" className={editCellCls} /></FieldCell>
+            <FieldCell label="납품처"><input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} /></FieldCell>
+            <FieldCell label="공급비율(%)"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></FieldCell>
+            <FieldCell label="위도">
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => setPickerRow(i)} title="지도에서 위치 선택"
+                  className="shrink-0 rounded-xs border border-accent-100 bg-accent-50 p-1 text-accent-700 hover:bg-accent-100">
+                  <MapPin className="h-3.5 w-3.5" />
+                </button>
+                <input value={r.latitude} onChange={e => update(i, { latitude: e.target.value })} placeholder="위도" inputMode="decimal" className={editCellCls} />
+              </div>
+            </FieldCell>
+            <FieldCell label="경도"><input value={r.longitude} onChange={e => update(i, { longitude: e.target.value })} placeholder="경도" inputMode="decimal" className={editCellCls} /></FieldCell>
+            <FieldCell label="공장 담당자(대표 1명)"><input value={r.factoryManagerName} onChange={e => update(i, { factoryManagerName: e.target.value })} placeholder="담당자" className={editCellCls} /></FieldCell>
+            <FieldCell label="직책"><input value={r.factoryManagerRole} onChange={e => update(i, { factoryManagerRole: e.target.value })} placeholder="직책" className={editCellCls} /></FieldCell>
+            <FieldCell label="연락처"><input value={r.factoryManagerPhone} onChange={e => update(i, { factoryManagerPhone: e.target.value })} placeholder="연락처" className={editCellCls} /></FieldCell>
+            <FieldCell label="메일"><input value={r.factoryManagerEmail} onChange={e => update(i, { factoryManagerEmail: e.target.value })} placeholder="메일" className={editCellCls} /></FieldCell>
+          </div>
+          {/* 광산(mining) 사이트 전용 — 이 공장(사이트)의 소재 구성. 사이트마다 채굴 광물이
+              달라 회사 단위가 아니라 여기서 관리한다(§factories.mine_composition). */}
+          {r.factoryRole === 'mining' && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xs border border-ink-700 bg-white p-2.5">
+              <span className="shrink-0 text-xs font-semibold text-ink-500">이 공장의 소재 구성(%)</span>
+              {MINERAL_EDIT_KEYS.map(k => (
+                <label key={k} className="flex items-center gap-1 text-xs text-ink-400">
+                  {MINERAL_LABELS[k]}
+                  <input
+                    value={r.coreMinerals[k] ?? ''}
+                    onChange={e => updateMineral(i, k, e.target.value)}
+                    placeholder="-"
+                    inputMode="decimal"
+                    className="w-16 rounded-xs border border-ink-700 bg-white px-1.5 py-1 text-xs text-ink-100 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20"
+                  />
+                </label>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} className={clsx('border-b border-ink-700 last:border-b-0', r.factoryRole === 'mining' && 'bg-accent-50/40')}>
-                <td className="px-2 py-1.5"><input value={r.factoryName} onChange={e => update(i, { factoryName: e.target.value })} placeholder="공장명" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.country} onChange={e => update(i, { country: e.target.value })} placeholder="국가" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.region} onChange={e => update(i, { region: e.target.value })} placeholder="지역" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.address} onChange={e => update(i, { address: e.target.value })} placeholder="주소" className={editCellCls} /></td>
-                <td className="px-2 py-1.5">
-                  <select value={r.factoryRole} onChange={e => update(i, { factoryRole: e.target.value })} className={factoryRoleSelectCls}>
-                    {FACTORY_ROLE_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </td>
-                <td className="px-2 py-1.5"><input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></td>
-                <td className="px-2 py-1.5">
-                  <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => setPickerRow(i)} title="지도에서 위치 선택"
-                      className="shrink-0 rounded-xs border border-accent-100 bg-accent-50 p-1 text-accent-700 hover:bg-accent-100">
-                      <MapPin className="h-3.5 w-3.5" />
-                    </button>
-                    <input value={r.latitude} onChange={e => update(i, { latitude: e.target.value })} placeholder="위도" inputMode="decimal" className={editCellCls} />
-                  </div>
-                </td>
-                <td className="px-2 py-1.5"><input value={r.longitude} onChange={e => update(i, { longitude: e.target.value })} placeholder="경도" inputMode="decimal" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.factoryManagerName} onChange={e => update(i, { factoryManagerName: e.target.value })} placeholder="담당자" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.factoryManagerRole} onChange={e => update(i, { factoryManagerRole: e.target.value })} placeholder="직책" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.factoryManagerPhone} onChange={e => update(i, { factoryManagerPhone: e.target.value })} placeholder="연락처" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.factoryManagerEmail} onChange={e => update(i, { factoryManagerEmail: e.target.value })} placeholder="메일" className={editCellCls} /></td>
-                <td className="px-2 py-1.5 text-center">
-                  <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={14} className="px-3 py-6 text-center text-sm text-ink-500">등록된 공장이 없습니다. 행을 추가하세요.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </div>
+          )}
+          <div className="border-t border-ink-700 pt-3">
+            <ContactsSubsection factoryIndex={i} contacts={contacts} onContactsChange={onContactsChange} />
+          </div>
+        </div>
+      ))}
       <div className="flex items-center gap-2">
-        <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">행 추가</button>
-        {/* 제련소 전용 — 역할을 고르게 하지 않고 바로 factoryRole='mining'으로 행을 만든다(놓치기 쉬운 단계라 원클릭). */}
+        <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">+ 공장 추가</button>
+        {/* 제련소 전용 — 역할을 고르게 하지 않고 바로 factoryRole='mining'으로 카드를 만든다(놓치기 쉬운 단계라 원클릭). */}
         {isSmelter && (
           <button type="button" onClick={addMining} className="inline-flex items-center gap-1 rounded-xs border border-alert-border bg-alert-bg px-3 py-1.5 text-xs font-semibold text-alert-text hover:bg-alert-solid hover:text-white">
             <MapPin className="h-3.5 w-3.5" />+ 광산 추가
           </button>
         )}
+      </div>
+      {/* 회사 공통 담당자 — 특정 공장에 속하지 않는 PIC(예: 대표·컴플라이언스 담당). 항상 표시. */}
+      <div className="space-y-3 rounded-sm border border-ink-700 bg-slate-50 p-4">
+        <div className="text-sm font-bold text-ink-100">회사 공통 담당자</div>
+        <ContactsSubsection factoryIndex={null} contacts={contacts} onContactsChange={onContactsChange} />
       </div>
       {pickerRow !== null && rows[pickerRow] && (
         <FactoryLocationPicker
@@ -545,50 +648,6 @@ function FactoryEditor({ rows, onChange, isSmelter = false }: { rows: FactoryDra
           initialLon={rows[pickerRow].longitude ? Number(rows[pickerRow].longitude) : null}
         />
       )}
-    </div>
-  );
-}
-
-// 담당자(연락처) 편집 테이블 — 행 추가/삭제. is_primary 는 단일 선택(라디오 형태).
-function ContactEditor({ rows, onChange }: { rows: ContactDraft[]; onChange: (rows: ContactDraft[]) => void }) {
-  const update = (i: number, patch: Partial<ContactDraft>) =>
-    onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  const setPrimary = (i: number) => onChange(rows.map((r, idx) => ({ ...r, isPrimary: idx === i })));
-  const remove = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
-  const add = () => onChange([...rows, emptyContactDraft()]);
-  return (
-    <div className="space-y-2">
-      <div className="overflow-x-auto rounded-sm border border-ink-700">
-        <table className="min-w-full border-collapse text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              {['이름', '직책', '부서', '이메일', '전화', '휴대폰', '대표', ''].map((h, i) => (
-                <th key={`${h}-${i}`} className="whitespace-nowrap border-b border-ink-700 px-3 py-2.5 text-left text-xs font-semibold text-ink-500">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} className="border-b border-ink-700 last:border-b-0">
-                <td className="px-2 py-1.5"><input value={r.name} onChange={e => update(i, { name: e.target.value })} placeholder="이름" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.role} onChange={e => update(i, { role: e.target.value })} placeholder="직책" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.department} onChange={e => update(i, { department: e.target.value })} placeholder="부서" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.email} onChange={e => update(i, { email: e.target.value })} placeholder="이메일" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.phone} onChange={e => update(i, { phone: e.target.value })} placeholder="전화" className={editCellCls} /></td>
-                <td className="px-2 py-1.5"><input value={r.mobile} onChange={e => update(i, { mobile: e.target.value })} placeholder="휴대폰" className={editCellCls} /></td>
-                <td className="px-2 py-1.5 text-center"><input type="radio" name="contact-primary" checked={r.isPrimary} onChange={() => setPrimary(i)} className="h-3.5 w-3.5 accent-brand" aria-label="대표 담당자" /></td>
-                <td className="px-2 py-1.5 text-center">
-                  <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-6 text-center text-sm text-ink-500">등록된 담당자가 없습니다. 행을 추가하세요.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">행 추가</button>
     </div>
   );
 }
@@ -613,6 +672,8 @@ const FIELD_META: Record<string, { section: SectionKey; label: string }> = {
   'materials.any': { section: 'materials', label: '핵심광물 함량(최소 1종)' },
   'materials.handled_any': { section: 'materials', label: '핵심광물 함량(취급 금속 최소 1종)' },
   'factories': { section: 'factories', label: '공장 정보' },
+  'factories.mine_country': { section: 'factories', label: '광산 원산지 국가(공장별)' },
+  'factories.mine_composition': { section: 'factories', label: '광산 소재 구성(공장별)' },
   'regulation.carbon_intensity': { section: 'regulation', label: '탄소집약도' },
   'regulation.energy_source': { section: 'regulation', label: '에너지원' },
   'regulation.self_reported_risk_level': { section: 'regulation', label: '실사 자가진단' },
@@ -705,6 +766,17 @@ function deriveSectionMeta(
   const has = (v: unknown) => v !== null && v !== undefined && v !== '';
   const d = real.detail;
   if (key === 'company') {
+    if ((d?.providerType ?? '') === 'miner') {
+      // 광산은 회사명·업종만 판정 — 사업자 등록번호는 요구하지 않고, 소재국가는 공장(사이트)
+      // 단위로 판정한다(§factories 섹션, 제련소 대행 입력 반영).
+      const fields: [string, unknown][] = [
+        ['회사명', d?.companyName],
+        ['업종(provider type)', d?.providerType],
+      ];
+      const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
+      const completed = fields.length - missing.length;
+      return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
+    }
     const fields: [string, unknown][] = [
       ['회사명', d?.companyName],
       ['소재 국가', d?.country],
@@ -716,7 +788,8 @@ function deriveSectionMeta(
     return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
   }
   if (key === 'materials') {
-    // 백엔드 폴백도 동일 규칙: 광물 1종 이상이면 완료(materials.any). 광산·유통은 판정 제외.
+    // 백엔드 폴백도 동일 규칙: 광물 1종 이상이면 완료(materials.any). 유통은 판정 제외.
+    // 광산은 이 회사 단위 탭이 아니라 공장(사이트) 단위로 판정한다 — §factories 섹션 참고.
     const pt = d?.providerType ?? '';
     if (pt === 'miner' || pt === 'trader') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
     const filled = mineralKeysOf((d?.coreMinerals ?? {}) as Record<string, unknown>).length > 0;
@@ -727,6 +800,8 @@ function deriveSectionMeta(
     };
   }
   if (key === 'regulation') {
+    // 광산(miner)은 입력 주체가 아니라 규제(자가진단·탄소) 판정 대상 아님 → 해당 없음(백엔드 완성도와 동일 규칙).
+    if ((d?.providerType ?? '') === 'miner') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
     const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
     const fields: [string, unknown][] = [
       ['탄소집약도', m.carbonIntensity],
@@ -738,6 +813,8 @@ function deriveSectionMeta(
     return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
   }
   if (key === 'documents') {
+    // 광산은 필요문서(사업자등록증·환경성적서) 제출 주체 아님 → 해당 없음.
+    if ((d?.providerType ?? '') === 'miner') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
     const fields: [string, unknown][] = [['사업자등록증', d?.businessRegDocUrl], ['환경성적서', d?.environmentalReportUrl]];
     const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
     const completed = fields.length - missing.length;
@@ -1044,18 +1121,37 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   const d = real?.detail ?? null;
 
   if (section.key === 'company') {
-    // 입력 모드에선 smelter 구분 행을 항상 노출(업종 변경 가능하도록).
-    const showSmelter = editable || (d?.providerType as string) === 'smelter';
-    const rows: string[][] = [
-      ['회사명', d?.companyName ?? '-', fieldFilled(d?.companyName)],
-      ['소재 국가', d?.country ?? '-', fieldFilled(d?.country)],
-      ['사업자 등록번호', d?.businessRegNo ?? '-', fieldFilled(d?.businessRegNo)],
-      ['DUNS 번호 (선택)', d?.dunsNumber ?? '-', '완료'],
-      ['업종(provider type)', d?.providerType ?? '', fieldFilled(d?.providerType)],
-      ...(showSmelter ? [['smelter 구분', d?.smelterType ?? '', '완료'] as string[]] : []),
-    ];
-    const keys = ['companyName', 'country', 'businessRegNo', 'dunsNumber', 'providerType', ...(showSmelter ? ['smelterType'] : [])];
-    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="company" selects={{ providerType: PROVIDER_OPTS, smelterType: SMELTER_OPTS }} />;
+    if ((d?.providerType as string) === 'miner') {
+      // 광산은 회사명·업종만 요구한다 — 사업자 등록번호 등은 입력 대상이 아니라 행 자체를
+      // 숨긴다(예전엔 항상 렌더링돼 불필요한 '미입력'이 떴다). 소재국가·소재구성은 공장
+      // (사이트) 단위로 옮겨갔다(§factories 섹션, 제련소 대행 입력).
+      const rows: string[][] = [
+        ['회사명', d?.companyName ?? '-', fieldFilled(d?.companyName)],
+        ['업종(provider type)', d?.providerType ?? '', fieldFilled(d?.providerType)],
+      ];
+      content = <CompanyGrid rows={rows} editable={false} fieldKeys={['companyName', 'providerType']} fieldPrefix="company" />;
+    } else {
+      // 입력 모드에선 smelter 구분 행을 항상 노출(업종 변경 가능하도록).
+      const showSmelter = editable || (d?.providerType as string) === 'smelter';
+      const rows: string[][] = [
+        ['회사명', d?.companyName ?? '-', fieldFilled(d?.companyName)],
+        ['소재 국가', d?.country ?? '-', fieldFilled(d?.country)],
+        ['사업자 등록번호', d?.businessRegNo ?? '-', fieldFilled(d?.businessRegNo)],
+        ['DUNS 번호 (선택)', d?.dunsNumber ?? '-', '완료'],
+        ['업종(provider type)', d?.providerType ?? '', fieldFilled(d?.providerType)],
+        ...(showSmelter ? [['smelter 구분', d?.smelterType ?? '', '완료'] as string[]] : []),
+      ];
+      const keys = ['companyName', 'country', 'businessRegNo', 'dunsNumber', 'providerType', ...(showSmelter ? ['smelterType'] : [])];
+      content = <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="company" selects={{ providerType: PROVIDER_OPTS, smelterType: SMELTER_OPTS }} />;
+    }
+  } else if (section.key === 'materials' && (d?.providerType as string) === 'miner') {
+    // 광산은 사이트(공장)마다 채굴 광물이 달라 회사 단위 소재구성을 쓰지 않는다 —
+    // 실제 입력·판정은 '공장 정보' 탭의 공장별 소재구성으로 옮겨갔다(§factories.mine_composition).
+    content = (
+      <div className="rounded-sm border border-dashed border-ink-700 bg-slate-50 px-4 py-6 text-center text-sm text-ink-500">
+        광산은 소재 구성이 공장(사이트)마다 다를 수 있어 <b>공장 정보</b> 탭에서 공장별로 관리합니다.
+      </div>
+    );
   } else if (section.key === 'materials') {
     // 표준 광물 키(Li·Co·Ni·Mn·천연/인조 흑연)는 보기·편집 모두 항상 칸으로 노출하고,
     //   추가로 문서에 있는 미지 키(present)도 합친다. 편집 모드는 입력칸, 보기 모드는 값/‘해당 없음’.
@@ -1132,8 +1228,14 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
           {/* 원산지 증명서 — 있으면 먼저 첨부(참고용). 위치 확정의 필수 경로는 아니다(§ 아래 공장정보 입력이 항상 필수). */}
           <OriginCertUploadPanel supplierId={supplierId} />
           <div>
-            <div className="mb-2 text-xs font-bold text-ink-500">공장 정보 (공급비율·위치(원산지)·역할)</div>
-            <FactoryEditor rows={factoriesDraft} onChange={setFactoriesDraft} isSmelter={isSmelter} />
+            <div className="mb-2 text-xs font-bold text-ink-500">공장 정보 (공급비율·위치(원산지)·역할·담당자)</div>
+            <FactoryCards
+              rows={factoriesDraft}
+              onChange={setFactoriesDraft}
+              isSmelter={isSmelter}
+              contacts={contactsDraft}
+              onContactsChange={setContactsDraft}
+            />
           </div>
           {/* 제련소 전용 — 광산(직접 입력 불가)의 위치를 직상위가 대신 채우는 지점. 최소 1곳 + 추가 광산 없음 선언까지 있어야 완료로 인정. */}
           {isSmelter && (
@@ -1156,41 +1258,60 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
               </label>
             </div>
           )}
-          {contactsDraft && setContactsDraft && (
-            <div>
-              <div className="mb-2 text-xs font-bold text-ink-500">협력사 담당자 (PIC · 연락처)</div>
-              <ContactEditor rows={contactsDraft} onChange={setContactsDraft} />
-            </div>
-          )}
         </div>
       );
     } else {
-      // 공장 정보(원산지·이름·주소) + 공장 담당자(이름·직책·연락처·메일). 공장 단위 필드 직접 사용.
-      const factoryRows = (real?.factories ?? []).filter(f => f.isActive !== false).map(f => [
-        f.factoryName ?? '-',
-        f.country ?? '-',                 // 원산지
-        f.address ?? '-',
-        f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-',
-        f.factoryManagerName ?? '-',
-        f.factoryManagerRole ?? '-',
-        f.factoryManagerPhone ?? '-',
-        f.factoryManagerEmail ?? '-',
-        fieldFilled(f.factoryName),
-      ]);
-      const contactRowsView = (real?.contacts ?? []).map(c => [
-        c.name ?? '-',
-        c.role ?? '-',
-        c.email ?? '-',
-        c.mobile ?? c.phone ?? '-',
-        c.isPrimary ? '대표' : '-',
-        fieldFilled(c.name),
-      ]);
+      // 공장 정보(원산지·이름·주소·소재구성) + 그 공장 담당자 — 공장마다 카드 하나(입력 모드와
+      // 동일 구조). 담당자는 factoryId로 그 공장 카드에, factoryId 없으면 회사 공통 카드에.
+      const mineralSummary = (cm: Record<string, number> | null | undefined) =>
+        cm && mineralKeysOf(cm).length
+          ? mineralKeysOf(cm).map(k => `${MINERAL_LABELS[k] ?? k} ${cm[k]}%`).join(', ')
+          : '-';
+      const contactsOf = (factoryId: string | null) => (real?.contacts ?? []).filter(c => (c.factoryId ?? null) === factoryId);
+      const ContactList = ({ items }: { items: ApiSupplierContact[] }) => (
+        items.length ? (
+          <ul className="space-y-1">
+            {items.map(c => (
+              <li key={c.contactId} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-300">
+                <span className="font-semibold text-ink-100">{c.name ?? '-'}</span>
+                {c.role && <span className="text-ink-500">{c.role}</span>}
+                {c.email && <span>{c.email}</span>}
+                {(c.mobile ?? c.phone) && <span>{c.mobile ?? c.phone}</span>}
+                {c.isPrimary && <span className="rounded-full border border-ok-border bg-ok-bg px-1.5 py-0.5 text-[10px] font-bold text-ok-text">대표</span>}
+              </li>
+            ))}
+          </ul>
+        ) : <div className="text-xs text-ink-500">등록된 담당자가 없습니다.</div>
+      );
+      const factories = (real?.factories ?? []).filter(f => f.isActive !== false);
       content = (
-        <div className="space-y-4">
-          {factoryRows.length ? <DataTable headers={['공장명', '원산지', '주소', '공급비율', '공장 담당자', '직책', '연락처', '메일', '상태']} rows={factoryRows} /> : <EmptyData />}
-          <div>
-            <div className="mb-2 text-xs font-bold text-ink-500">협력사 담당자 (PIC · 연락처)</div>
-            {contactRowsView.length ? <DataTable headers={['이름', '직책', '이메일', '연락처', '대표', '상태']} rows={contactRowsView} /> : <EmptyData />}
+        <div className="space-y-3">
+          {factories.length === 0 && <EmptyData />}
+          {factories.map(f => (
+            <div key={f.factoryId} className={clsx('space-y-3 rounded-sm border border-ink-700 bg-white p-4', f.factoryRole === 'mining' && 'bg-accent-50/40')}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-bold text-ink-100">{f.factoryName ?? '-'}</span>
+                <span className="rounded-full border border-ink-700 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-ink-500">
+                  {FACTORY_ROLE_OPTS.find(o => o.value === f.factoryRole)?.label ?? f.factoryRole ?? '-'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
+                <div><span className="block text-[11px] font-semibold text-ink-500">원산지</span>{f.country ?? '-'}</div>
+                <div><span className="block text-[11px] font-semibold text-ink-500">주소</span>{f.address ?? '-'}</div>
+                <div><span className="block text-[11px] font-semibold text-ink-500">공급비율</span>{f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-'}</div>
+                {f.factoryRole === 'mining' && (
+                  <div className="md:col-span-1"><span className="block text-[11px] font-semibold text-ink-500">소재 구성</span>{mineralSummary(f.coreMinerals)}</div>
+                )}
+              </div>
+              <div className="border-t border-ink-700 pt-3">
+                <div className="mb-1 text-[11px] font-bold text-ink-500">담당자</div>
+                <ContactList items={contactsOf(f.factoryId)} />
+              </div>
+            </div>
+          ))}
+          <div className="space-y-3 rounded-sm border border-ink-700 bg-slate-50 p-4">
+            <div className="text-sm font-bold text-ink-100">회사 공통 담당자</div>
+            <ContactList items={contactsOf(null)} />
           </div>
         </div>
       );
@@ -1201,10 +1322,11 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const es = m.energySource;
     const sr = real?.riskProfile?.selfReportedRiskLevel;
     const srRaw = sr && sr !== 'unknown' ? sr : '';
+    const naMiner = (d?.providerType ?? '') === 'miner';  // 광산: 규제(탄소·자가진단) 판정 대상 아님 → 해당 없음
     const rows: string[][] = [
-      ['탄소집약도 (kgCO2eq/kg)', ci != null ? String(ci) : '-', fieldFilled(ci)],
-      ['에너지원', (es as string) ?? '-', fieldFilled(es)],
-      ['실사 자가진단', srRaw, srRaw ? '완료' : '미입력'],
+      ['탄소집약도 (kgCO2eq/kg)', ci != null ? String(ci) : '-', naMiner ? '해당 없음' : fieldFilled(ci)],
+      ['에너지원', (es as string) ?? '-', naMiner ? '해당 없음' : fieldFilled(es)],
+      ['실사 자가진단', srRaw, naMiner ? '해당 없음' : (srRaw ? '완료' : '미입력')],
       // DD 보고서는 원청 전용 — 협력사 폼에는 표시하지 않는다.
       ...(isPrime ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
     ];
@@ -1350,10 +1472,16 @@ export function SupplierGeneralReviewContent({
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);   // 저장하기 직후 '저장됨' 피드백
+  // 제련소 등 연결된 상위 협력사가 이 광산의 '공장 정보'만 대신 입력하는 모드(§factories.mine_*).
+  //   광산 자신은 항상 읽기전용이라(managedBanner) 이 화면(mode='prime')에서 대신 입력한다.
+  //   실제 저장 범위 제한은 백엔드(submit_master_form의 on_behalf 분기)가 구조적으로 보장한다.
+  const [minerFactoryEditing, setMinerFactoryEditing] = useState(false);
   // 광산 안내 배너 — 광산은 입력 주체가 아니라 읽기 전용(편집/자료 제출 비활성).
   //   공장 정보는 광산 자체(광산=공장)의 supplier_factories 를 그대로 보여준다.
   const [managedBanner, setManagedBanner] = useState<{ mineName: string } | null>(null);
   const editable = isSupplier && editing && !managedBanner;
+  // '공장 정보' 섹션만: 대행 입력 모드에서도 편집 가능(다른 섹션은 계속 읽기전용/해당없음).
+  const factoriesEditable = editable || minerFactoryEditing;
   const formRef = useRef<HTMLElement>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1407,8 +1535,9 @@ export function SupplierGeneralReviewContent({
   // api 로드 시 draft 시드(전체 현재 집합). 편집 진입 시에도 최신 서버 값으로 재시드(아래 setEditing 핸들러).
   // 비활성(is_active=false, 소프트 삭제) 공장은 편집 대상에서 제외 — 원산지 이력 보존용이라 UI엔 안 뜬다.
   useEffect(() => {
-    setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
-    setContactsDraft((api?.contacts ?? []).map(contactToDraft));
+    const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
+    setFactoriesDraft(factories);
+    setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
   }, [api]);
 
   const apiPrimary = api?.contacts.find(c => c.isPrimary) ?? api?.contacts[0];
@@ -1507,15 +1636,18 @@ export function SupplierGeneralReviewContent({
       established_year: d?.establishedYear ?? undefined,
       employee_count: d?.employeeCount ?? undefined,
     };
-    // 편집 입력값 override.
+    // 편집 입력값 override. 입력칸이 화면에 없는 필드(v===undefined)는 round-trip으로
+    //   기존 값을 유지한다 — 그래야 회사 섹션 전체가 편집 가능하지 않은 화면(예: 광산 대행
+    //   입력에서 '공장 정보'만 편집)에서 저장해도 나머지 회사 필드가 NULL로 덮이지 않는다.
+    const roundTrip = (v: string | undefined, current: unknown) => (v !== undefined ? (v || null) : (current ?? null));
     const companyName = orNull(read('company.companyName'));
     company.company_name = companyName ?? d?.companyName ?? '';                          // REQUIRED
     const pt = read('company.providerType');
     company.provider_type = (pt && pt !== '') ? pt : (d?.providerType ?? '');            // REQUIRED — 빈값이면 detail 폴백
-    const country = read('company.country'); if (country !== undefined) company.country = country || null;
-    const businessRegNo = read('company.businessRegNo'); if (businessRegNo !== undefined) company.business_reg_no = businessRegNo || null;
-    const dunsNumber = read('company.dunsNumber'); if (dunsNumber !== undefined) company.duns_number = dunsNumber || null;
-    const st = read('company.smelterType'); if (st !== undefined) company.smelter_type = st || null;
+    company.country = roundTrip(read('company.country'), d?.country);
+    company.business_reg_no = roundTrip(read('company.businessRegNo'), d?.businessRegNo);
+    company.duns_number = roundTrip(read('company.dunsNumber'), d?.dunsNumber);
+    company.smelter_type = roundTrip(read('company.smelterType'), d?.smelterType);
     // 소재 구성 → core_minerals. 편집칸에 노출된 광물 키 전부(흑연 포함) 동적 수집.
     const prevCm = (d?.coreMinerals ?? {}) as Record<string, unknown>;
     const mineralKeys = [...new Set([...MINERAL_EDIT_KEYS, ...mineralKeysOf(prevCm)])];
@@ -1534,10 +1666,10 @@ export function SupplierGeneralReviewContent({
     } else if (d?.coreMinerals) {
       company.core_minerals = d.coreMinerals;   // round-trip
     }
-    // 필요문서 업로드(S3 키) — company 컬럼으로 영속화.
-    const braUrl = read('documents.businessRegDocUrl'); if (braUrl !== undefined) company.business_reg_doc_url = braUrl || null;
-    const envUrl = read('documents.environmentalReportUrl'); if (envUrl !== undefined) company.environmental_report_url = envUrl || null;
-    const saUrl = read('regulation.selfAssessmentDocUrl'); if (saUrl !== undefined) company.self_assessment_doc_url = saUrl || null;
+    // 필요문서 업로드(S3 키) — company 컬럼으로 영속화. 입력칸이 없는 화면이면 round-trip.
+    company.business_reg_doc_url = roundTrip(read('documents.businessRegDocUrl'), d?.businessRegDocUrl);
+    company.environmental_report_url = roundTrip(read('documents.environmentalReportUrl'), d?.environmentalReportUrl);
+    company.self_assessment_doc_url = roundTrip(read('regulation.selfAssessmentDocUrl'), dRec.selfAssessmentDocUrl);
     // 소재구성 문서(핵심광물 함량) — 패널 hidden input 우선, 없으면 detail round-trip.
     //   master-form company 는 authoritative-overwrite(생략=NULL)라 반드시 실어 보낸다.
     const mcUrl = read('materials.materialCompositionDocUrl');
@@ -1557,6 +1689,7 @@ export function SupplierGeneralReviewContent({
       if (f.factoryRole) out.factory_role = f.factoryRole;
       if (f.destination) out.destination = f.destination;
       if (f.supplyRatioPercent !== '') out.supply_ratio_percent = Number(f.supplyRatioPercent);
+      if (Object.keys(f.coreMinerals).length) out.core_minerals = f.coreMinerals;
       // 공장 담당자(공장 단위)
       if (f.factoryManagerName) out.factory_manager_name = f.factoryManagerName;
       if (f.factoryManagerRole) out.factory_manager_role = f.factoryManagerRole;
@@ -1579,6 +1712,7 @@ export function SupplierGeneralReviewContent({
       if (c.phone) out.phone = c.phone;
       if (c.mobile) out.mobile = c.mobile;
       out.is_primary = c.isPrimary;
+      if (c.factoryIndex != null) out.factory_index = c.factoryIndex;
       return out;
     });
 
@@ -1598,12 +1732,14 @@ export function SupplierGeneralReviewContent({
     const srl = read('regulation.selfReportedRiskLevel'); if (srl) body.self_reported_risk_level = srl;
 
     await submitMasterForm(supplierId, body);
-    // 입력값 반영 — detail·contacts·factories·risk-profile 재조회(정확한 서버 값으로).
-    const [fresh, contactsRes, factoriesRes, rp] = await Promise.all([
+    // 입력값 반영 — detail·contacts·factories·risk-profile·완성도 재조회(정확한 서버 값으로).
+    //   completeness도 함께 갱신해야 저장 직후 배지·퍼센트가 바로 최신 상태로 뜬다.
+    const [fresh, contactsRes, factoriesRes, rp, comp] = await Promise.all([
       getSupplierDetail(supplierId).catch(() => null),
       getSupplierContacts(supplierId).catch(() => null),
       getSupplierFactories(supplierId).catch(() => null),
       getSupplierRiskProfile(supplierId).catch(() => null),
+      getSupplierCompleteness(supplierId).catch(() => null),
     ]);
     setApi(prev => (prev ? {
       ...prev,
@@ -1611,6 +1747,7 @@ export function SupplierGeneralReviewContent({
       ...(contactsRes ? { contacts: contactsRes.contacts ?? [] } : {}),
       ...(factoriesRes ? { factories: factoriesRes.factories ?? [] } : {}),
       ...(rp ? { riskProfile: rp } : {}),
+      ...(comp ? { comp } : {}),
     } : prev));
   }
 
@@ -1745,6 +1882,48 @@ export function SupplierGeneralReviewContent({
               )}
             </div>
           )}
+          {/* 연결된 상위 협력사(제련소 등)의 대행 입력 — 광산은 항상 읽기전용이라 '공장 정보'
+              섹션만 예외로 편집을 연다(§factories.mine_country/mine_composition). */}
+          {isPrime && managedBanner && !minerFactoryEditing && (
+            <button
+              type="button"
+              onClick={() => {
+                setSaved(false);
+                setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
+                setMinerFactoryEditing(true);
+              }}
+              className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
+            >
+              <Pencil className="h-4 w-4" />
+              공장 정보 대행 입력
+            </button>
+          )}
+          {isPrime && managedBanner && minerFactoryEditing && (
+            <>
+              {saved && (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-ok-text">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  저장됨
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => { setSaved(false); setMinerFactoryEditing(false); }}
+                className="inline-flex h-9 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-sm font-semibold text-ink-500 transition-colors hover:border-accent-500 hover:text-accent-700"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={saveSupplierForm}
+                disabled={submitting}
+                className="inline-flex h-9 items-center gap-2 rounded-sm border border-accent-600 bg-accent-50 px-3 text-sm font-semibold text-accent-700 transition-colors hover:bg-accent-100 active:opacity-75 disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" />
+                {submitting ? '저장 중…' : '저장하기'}
+              </button>
+            </>
+          )}
           {/* 협력사: 보기 ↔ 입력 토글 (라우트 변경 없이 같은 양식의 칸만 전환) */}
           {isSupplier && !editing && !managedBanner && (
             <>
@@ -1761,8 +1940,9 @@ export function SupplierGeneralReviewContent({
                 type="button"
                 onClick={() => {
                   setSaved(false);
-                  setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
-                  setContactsDraft((api?.contacts ?? []).map(contactToDraft));
+                  const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
+                  setFactoriesDraft(factories);
+                  setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
                   setEditing(true);
                 }}
                 className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
@@ -1877,7 +2057,7 @@ export function SupplierGeneralReviewContent({
               section={section}
               onRequestSection={openRequestForSection}
               real={api}
-              editable={editable}
+              editable={section.key === 'factories' ? factoriesEditable : editable}
               showRequest={isPrime}
               isPrime={isPrime}
               supplierId={supplierId}
