@@ -44,7 +44,7 @@ export default function PartnerAiParsing({
   onConfirmComplete,
 }: PartnerAiParsingProps = {}) {
   const router = useRouter();
-  const { supplierId, name } = usePartnerWorkspace();
+  const { supplierId, supplierUuid, name } = usePartnerWorkspace();
   const myLabel = name?.nameKo ?? name?.nameEn ?? '협력사';
   const [tab, setTab] = useState<ParsingTab>('ai');
 
@@ -87,7 +87,7 @@ export default function PartnerAiParsing({
       <div className="min-h-0 flex-1">
         <div className={tab === 'ai' ? 'h-full' : 'hidden'}>
           <AiParsingView
-            supplierId={supplierId}
+            supplierId={supplierUuid}
             docCategoryFilter={docCategoryFilter}
             docS3KeyFilter={docS3KeyFilter}
             initialDoc={initialDoc}

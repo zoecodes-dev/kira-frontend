@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
 import { useEffect, useRef, useState } from 'react';
@@ -6,8 +6,8 @@ import {
   createDataRequest, getDataRequests,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierSuppliedItems, submitMasterForm,
-  getSupplierRiskProfile, uploadFile,
-  type SupplierRiskProfileResponse as ApiRiskProfile,
+  getSupplierRiskProfile, uploadFile, updateSupplierDetail,
+  type AiExtraction, type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type SuppliedItem as ApiItem, type ApiDataRequest,
@@ -30,57 +30,51 @@ const SMELTER_OPTS = [
   { value: 'rmi', label: 'RMI' },
   { value: 'private', label: 'Private' },
 ];
-const RISK_OPTS = [
-  { value: 'low', label: '저위험' },
-  { value: 'medium', label: '중위험' },
-  { value: 'high', label: '고위험' },
-];
-
 interface RealData {
   detail: ApiSupplierDetail | null;
   contacts: ApiSupplierContact[];
   factories: ApiSupplierFactory[];
   comp: ApiCompleteness | null;
   items: ApiItem[];
-  riskProfile: ApiRiskProfile | null;   // 규제 — 실사 자가진단(self_reported_risk_level)
+  riskProfile: ApiRiskProfile | null;
 }
 import type { ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import clsx from 'clsx';
 import { suppliers } from '@/lib/data';
 import { getContacts, getSupplierName, supplierCompleteness } from '@/lib/supplier-detail-data';
 import { addStoredRequest } from '@/lib/data-request-store';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
-import OriginCertUploadPanel from '@/components/supplier/OriginCertUploadPanel';
+import PartnerAiParsing from '@/components/partner/PartnerAiParsing';
 import {
   ArrowLeft,
+  BarChart3,
+  Box,
   Building2,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Download,
   FileText,
   Globe,
   HelpCircle,
   Info,
   Globe2,
-  Lock,
+  Mail,
   MessageSquare,
+  MoreHorizontal,
   Pencil,
+  Phone,
   Save,
   Send,
+  UserRound,
   X,
   XCircle,
 } from 'lucide-react';
-import FactoryCards from '@/components/supplier/FactoryCards';
-import {
-  type ContactDraft,
-  type FactoryDraft,
-  FACTORY_ROLE_OPTS,
-  factoryToDraft,
-  MINERAL_LABELS,
-  seedContactsDraft,
-} from '@/components/supplier/factory-draft';
 
 type ReviewStatus = '완료' | '입력 중' | '확인 필요' | '미입력' | '해당 없음';
-type SectionKey = 'company' | 'factories' | 'regulation' | 'documents';
+type SectionKey = 'company' | 'materials' | 'factories' | 'regulation' | 'documents';
 
 interface CollectionSection {
   key: SectionKey;
@@ -120,26 +114,32 @@ const sections: CollectionSection[] = [
     comment: '', missing: [],
   },
   {
-    key: 'factories',
+    key: 'materials',
     order: 2,
+    title: '소재 구성',
+    completed: 0, total: 1, status: '미입력',
+    icon: <Box className="h-5 w-5" />,
+    comment: '핵심광물(Li/Co/Ni) 함량(%)을 입력하세요.', missing: [],
+  },
+  {
+    key: 'factories',
+    order: 3,
     title: '공장 정보',
     completed: 0, total: 1, status: '미입력',
-    // 소재구성(핵심광물 함량)은 공장(사이트)마다 다를 수 있어 회사 단위 별도 섹션이 아니라
-    // 이 섹션 안 공장 카드마다 관리한다(§FactoryCards.tsx, 모든 협력사 유형 공통).
     icon: <Building2 className="h-5 w-5" />,
-    comment: '공급비율·위치(원산지)·공장 담당자·소재구성.', missing: [],
+    comment: '공급비율·위치(원산지)·공장 담당자.', missing: [],
   },
   {
     key: 'regulation',
-    order: 3,
-    title: '규제',
+    order: 4,
+    title: '탄소발자국',
     completed: 0, total: 1, status: '미입력',
     icon: <Globe className="h-5 w-5" />,
-    comment: '탄소발자국·실사 자가진단.', missing: [],
+    comment: '탄소집약도·에너지원.', missing: [],
   },
   {
     key: 'documents',
-    order: 4,
+    order: 5,
     title: '필요 문서',
     completed: 0, total: 1, status: '미입력',
     icon: <FileText className="h-5 w-5" />,
@@ -152,6 +152,25 @@ const companyRows = [
   ['한글 명칭', '한양 제조(주)', '완료'],
   ['사업자 등록번호', '123-45-67890', '완료'],
   ['DUNS 번호', '98-765-4321', '완료'],
+];
+
+const contactRows = [
+  ['ESG 담당자', '김철수 ESG팀장', 'cs.kim@hanyangmfg.com', '+82-10-1234-5678', '완료'],
+  ['품질 담당자', '-', '-', '-', '미입력'],
+  ['물류 담당자', '-', '-', '-', '미입력'],
+  ['비상 연락처', '-', '-', '-', '미입력'],
+];
+
+const factoryRows = [
+  ['청주 1공장', 'KR', '충북 청주시 오송생명로 200', '2.4 GWh/월', 'EU · US', '확인 필요'],
+  ['청주 2공장', 'KR', '충북 청주시 오송생명로 220', '미입력', 'EU', '미입력'],
+  ['본사', 'KR', '서울 강남구 테헤란로 152', '-', '-', '해당 없음'],
+];
+
+const supplyItemRows = [
+  ['BAT-NCM811-100Ah', 'Premium NCM811 100Ah', 'Pack', 'EU', '완료'],
+  ['BAT-LFP-120Ah', 'LFP Power 120Ah', 'Pack', 'EU', '입력 중'],
+  ['BAT-NCM622-90Ah', 'NCM622 90Ah', 'Pack', 'US', '미입력'],
 ];
 
 function statusClasses(status: ReviewStatus) {
@@ -197,6 +216,19 @@ function ProgressBar({ value, status }: { value: number; status: ReviewStatus })
     <div className="h-1.5 w-full rounded-full bg-slate-200">
       <div className={clsx('h-1.5 rounded-full', progressTone(status))} style={{ width: `${value}%` }} />
     </div>
+  );
+}
+
+function ToolbarButton({ icon, label }: { icon: ReactNode; label?: string }) {
+  return (
+    <button
+      type="button"
+      className="inline-flex h-9 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-sm font-medium text-ink-500 shadow-control hover:border-accent-200 hover:text-accent-700"
+      aria-label={label ?? '더보기'}
+    >
+      {icon}
+      {label && <span>{label}</span>}
+    </button>
   );
 }
 
@@ -297,6 +329,200 @@ function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPre
   );
 }
 
+function DataTable({ headers, rows, editable = false }: { headers: string[]; rows: string[][]; editable?: boolean }) {
+  return (
+    <div className="overflow-x-auto rounded-sm border border-ink-700">
+      <table className="min-w-full border-collapse text-sm">
+        <thead className="bg-slate-50">
+          <tr>
+            {headers.map(header => (
+              <th key={header} className="whitespace-nowrap border-b border-ink-700 px-4 py-3 text-left text-xs font-semibold text-ink-500">
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={`${row[0]}-${rowIndex}`} className="border-b border-ink-700 last:border-b-0 hover:bg-accent-50/30">
+              {row.map((cell, cellIndex) => (
+                <td key={`${cell}-${cellIndex}`} className={clsx('whitespace-nowrap px-4 py-3 text-ink-500', cellIndex === 0 && 'font-semibold text-ink-100')}>
+                  {cellIndex === row.length - 1
+                    ? <StatusBadge status={cell as ReviewStatus} />
+                    : editable
+                      ? <input
+                          defaultValue={cell === '-' || cell === '미입력' || cell === '미첨부' ? '' : cell}
+                          placeholder={headers[cellIndex] ?? ''}
+                          className="w-full min-w-24 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20"
+                        />
+                      : cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── 협력사 입력 모드 전용 편집 가능한 행 draft (master-form REPLACE-ALL 라운드트립용) ──
+// GET(SupplierFactory/SupplierContact)에서 시드해 전체 현재 집합을 들고 있다가 그대로 다시 보낸다.
+interface FactoryDraft {
+  factoryId?: string;   // 기존 공장 식별자(신규 행은 undefined). upsert용 round-trip — supply_ratio FK 보존.
+  factoryName: string;
+  country: string;
+  region: string;
+  address: string;
+  factoryRole: string;
+  destination: string;
+  supplyRatioPercent: string;
+  latitude: string;
+  longitude: string;
+  // 공장 담당자(공장 단위) — 협력사 PIC(ContactDraft)와 별개
+  factoryManagerName: string;
+  factoryManagerRole: string;
+  factoryManagerPhone: string;
+  factoryManagerEmail: string;
+}
+interface ContactDraft {
+  name: string;
+  role: string;
+  department: string;
+  email: string;
+  phone: string;
+  mobile: string;
+  isPrimary: boolean;
+}
+const emptyFactoryDraft = (): FactoryDraft => ({
+  factoryName: '', country: '', region: '', address: '', factoryRole: '',
+  destination: '', supplyRatioPercent: '', latitude: '', longitude: '',
+  factoryManagerName: '', factoryManagerRole: '', factoryManagerPhone: '', factoryManagerEmail: '',
+});
+const emptyContactDraft = (): ContactDraft => ({
+  name: '', role: '', department: '', email: '', phone: '', mobile: '', isPrimary: false,
+});
+const factoryToDraft = (f: ApiSupplierFactory): FactoryDraft => ({
+  factoryId: f.factoryId,
+  factoryName: f.factoryName ?? '',
+  country: f.country ?? '',
+  region: f.region ?? '',
+  address: f.address ?? '',
+  factoryRole: f.factoryRole ?? '',
+  destination: f.destination ?? '',
+  supplyRatioPercent: f.supplyRatioPercent != null ? String(f.supplyRatioPercent) : '',
+  latitude: f.latitude != null ? String(f.latitude) : '',
+  longitude: f.longitude != null ? String(f.longitude) : '',
+  factoryManagerName: f.factoryManagerName ?? '',
+  factoryManagerRole: f.factoryManagerRole ?? '',
+  factoryManagerPhone: f.factoryManagerPhone ?? '',
+  factoryManagerEmail: f.factoryManagerEmail ?? '',
+});
+const contactToDraft = (c: ApiSupplierContact): ContactDraft => ({
+  name: c.name ?? '',
+  role: c.role ?? '',
+  department: c.department ?? '',
+  email: c.email ?? '',
+  phone: c.phone ?? '',
+  mobile: c.mobile ?? '',
+  isPrimary: Boolean(c.isPrimary),
+});
+
+const editCellCls = 'w-full min-w-24 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20';
+
+// 공장 정보 편집 테이블 — 행 추가/삭제. 좌표는 latitude/longitude 입력(있으면 coordinates로 매핑).
+function FactoryEditor({ rows, onChange }: { rows: FactoryDraft[]; onChange: (rows: FactoryDraft[]) => void }) {
+  const update = (i: number, patch: Partial<FactoryDraft>) =>
+    onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const remove = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
+  const add = () => onChange([...rows, emptyFactoryDraft()]);
+  return (
+    <div className="space-y-2">
+      <div className="overflow-x-auto rounded-sm border border-ink-700">
+        <table className="min-w-full border-collapse text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              {['공장명', '국가', '지역', '주소', '역할', '납품처', '공급비율(%)', '위도', '경도', '담당자 이름', '직책', '연락처', '메일', ''].map((h, i) => (
+                <th key={`${h}-${i}`} className="whitespace-nowrap border-b border-ink-700 px-3 py-2.5 text-left text-xs font-semibold text-ink-500">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-b border-ink-700 last:border-b-0">
+                <td className="px-2 py-1.5"><input value={r.factoryName} onChange={e => update(i, { factoryName: e.target.value })} placeholder="공장명" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.country} onChange={e => update(i, { country: e.target.value })} placeholder="국가" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.region} onChange={e => update(i, { region: e.target.value })} placeholder="지역" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.address} onChange={e => update(i, { address: e.target.value })} placeholder="주소" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.factoryRole} onChange={e => update(i, { factoryRole: e.target.value })} placeholder="역할" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.latitude} onChange={e => update(i, { latitude: e.target.value })} placeholder="위도" inputMode="decimal" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.longitude} onChange={e => update(i, { longitude: e.target.value })} placeholder="경도" inputMode="decimal" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.factoryManagerName} onChange={e => update(i, { factoryManagerName: e.target.value })} placeholder="담당자" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.factoryManagerRole} onChange={e => update(i, { factoryManagerRole: e.target.value })} placeholder="직책" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.factoryManagerPhone} onChange={e => update(i, { factoryManagerPhone: e.target.value })} placeholder="연락처" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.factoryManagerEmail} onChange={e => update(i, { factoryManagerEmail: e.target.value })} placeholder="메일" className={editCellCls} /></td>
+                <td className="px-2 py-1.5 text-center">
+                  <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={14} className="px-3 py-6 text-center text-sm text-ink-500">등록된 공장이 없습니다. 행을 추가하세요.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">행 추가</button>
+    </div>
+  );
+}
+
+// 담당자(연락처) 편집 테이블 — 행 추가/삭제. is_primary 는 단일 선택(라디오 형태).
+function ContactEditor({ rows, onChange }: { rows: ContactDraft[]; onChange: (rows: ContactDraft[]) => void }) {
+  const update = (i: number, patch: Partial<ContactDraft>) =>
+    onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const setPrimary = (i: number) => onChange(rows.map((r, idx) => ({ ...r, isPrimary: idx === i })));
+  const remove = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
+  const add = () => onChange([...rows, emptyContactDraft()]);
+  return (
+    <div className="space-y-2">
+      <div className="overflow-x-auto rounded-sm border border-ink-700">
+        <table className="min-w-full border-collapse text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              {['이름', '직책', '부서', '이메일', '전화', '휴대폰', '대표', ''].map((h, i) => (
+                <th key={`${h}-${i}`} className="whitespace-nowrap border-b border-ink-700 px-3 py-2.5 text-left text-xs font-semibold text-ink-500">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-b border-ink-700 last:border-b-0">
+                <td className="px-2 py-1.5"><input value={r.name} onChange={e => update(i, { name: e.target.value })} placeholder="이름" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.role} onChange={e => update(i, { role: e.target.value })} placeholder="직책" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.department} onChange={e => update(i, { department: e.target.value })} placeholder="부서" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.email} onChange={e => update(i, { email: e.target.value })} placeholder="이메일" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.phone} onChange={e => update(i, { phone: e.target.value })} placeholder="전화" className={editCellCls} /></td>
+                <td className="px-2 py-1.5"><input value={r.mobile} onChange={e => update(i, { mobile: e.target.value })} placeholder="휴대폰" className={editCellCls} /></td>
+                <td className="px-2 py-1.5 text-center"><input type="radio" name="contact-primary" checked={r.isPrimary} onChange={() => setPrimary(i)} className="h-3.5 w-3.5 accent-brand" aria-label="대표 담당자" /></td>
+                <td className="px-2 py-1.5 text-center">
+                  <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={8} className="px-3 py-6 text-center text-sm text-ink-500">등록된 담당자가 없습니다. 행을 추가하세요.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-100">행 추가</button>
+    </div>
+  );
+}
+
 const fieldFilled = (v: unknown): ReviewStatus => (v !== null && v !== undefined && v !== '' ? '완료' : '미입력');
 
 function sectionStatusFrom(completed: number, total: number): ReviewStatus {
@@ -311,19 +537,14 @@ const FIELD_META: Record<string, { section: SectionKey; label: string }> = {
   'company.country': { section: 'company', label: '소재 국가' },
   'company.business_reg_no': { section: 'company', label: '사업자 등록번호' },
   'company.provider_type': { section: 'company', label: '업종(provider type)' },
-  // 소재구성은 회사 단위 섹션이 없다 — 공장(사이트)마다 다를 수 있어 "공장 정보" 섹션의
-  // 공장 카드로 통합됐다(광산 전용이던 factories.mine_composition을 전 유형으로 확장).
-  'materials.Li': { section: 'factories', label: 'Li 함량' },
-  'materials.Co': { section: 'factories', label: 'Co 함량' },
-  'materials.Ni': { section: 'factories', label: 'Ni 함량' },
-  'materials.any': { section: 'factories', label: '핵심광물 함량(최소 1종)' },
-  'materials.handled_any': { section: 'factories', label: '핵심광물 함량(취급 금속 최소 1종)' },
+  'materials.Li': { section: 'materials', label: 'Li 함량' },
+  'materials.Co': { section: 'materials', label: 'Co 함량' },
+  'materials.Ni': { section: 'materials', label: 'Ni 함량' },
+  'materials.any': { section: 'materials', label: '핵심광물 함량(최소 1종)' },
+  'materials.handled_any': { section: 'materials', label: '핵심광물 함량(취급 금속 최소 1종)' },
   'factories': { section: 'factories', label: '공장 정보' },
-  'factories.mine_country': { section: 'factories', label: '광산 원산지 국가(공장별)' },
-  'factories.mine_composition': { section: 'factories', label: '광산 소재 구성(공장별)' },
   'regulation.carbon_intensity': { section: 'regulation', label: '탄소집약도' },
   'regulation.energy_source': { section: 'regulation', label: '에너지원' },
-  'regulation.self_reported_risk_level': { section: 'regulation', label: '실사 자가진단' },
   'documents.business_reg_doc_url': { section: 'documents', label: '사업자등록증' },
   'documents.environmental_report_url': { section: 'documents', label: '환경성적서' },
 };
@@ -331,65 +552,159 @@ const sectionOfField = (f: string): SectionKey | undefined =>
   FIELD_META[f]?.section ?? (f.includes('.') ? undefined : (f as SectionKey));
 const labelOfField = (f: string): string => FIELD_META[f]?.label ?? f;
 
-// 필수 필드 여부 — 백엔드 완성도(comp.requiredFields)가 있으면 그걸 SSOT로, 없으면(집계 전) 폴백값 사용.
-//   화면에서 라벨 앞에 '*'를 붙여 육안으로 필수/선택을 구분할 수 있게 한다.
-function isFieldRequired(backendKey: string, comp: ApiCompleteness | null | undefined, fallback: boolean): boolean {
-  if (comp && comp.requiredFieldCount != null && Array.isArray(comp.requiredFields)) {
-    return comp.requiredFields.includes(backendKey);
-  }
-  return fallback;
+// 소재 구성(core_minerals) 광물 키 → 표시 라벨. 편집 모드에선 이 키들을 입력칸으로 노출.
+//   완성도는 '1종 이상'(materials.any) 게이트 — 특정 금속을 강제하면 단일 광물
+//   회사(음극재 흑연, 광산 등)가 영구 미완성이 되므로 필수 지정하지 않는다(백엔드와 동일 규칙).
+const MINERAL_LABELS: Record<string, string> = {
+  Li: 'Li (리튬)', Co: 'Co (코발트)', Ni: 'Ni (니켈)', Mn: 'Mn (망간)',
+  graphite_natural: '천연흑연', graphite_synthetic: '인조흑연',
+};
+const MINERAL_EDIT_KEYS = Object.keys(MINERAL_LABELS);
+
+// 소재구성 입력칸 키 → AI 파싱 결과(parsed_fields) 키 후보. 배열인 이유: 인조흑연은
+// 백엔드 버전에 따라 artificial_/synthetic_ 두 표기가 있어 둘 다 수용한다(앞쪽 우선).
+const MINERAL_PARSE_KEYS: Record<string, string[]> = {
+  Li: ['li_content'],
+  Co: ['co_content'],
+  Ni: ['ni_content'],
+  Mn: ['mn_content'],
+  graphite_natural: ['natural_graphite_content'],
+  graphite_synthetic: ['artificial_graphite_content', 'synthetic_graphite_content'],
+};
+
+// 광물 1종의 파싱 결과 상태.
+//   parsed     = 값 추출됨 → 입력칸 채움
+//   blank      = 문서에 항목 자체 없음 → 입력칸 비움 + '해당 없음' 유지
+//   unreadable = 항목은 있는데 못 읽음 → '확인 필요' (해당 없음과 의미가 다름)
+interface MineralParseState {
+  value: number | null;
+  confidence: number;
+  status: 'parsed' | 'blank' | 'unreadable';
 }
-const reqLabel = (label: string, required: boolean): string => (required ? `${label} *` : label);
 
-// 백엔드 필수 필드 키(snake_case, 예 company.business_reg_no)를 편집칸의 data-field(camelCase,
-//   예 company.businessRegNo)로 변환 — 편집 모드에선 "지금 입력칸에 실제로 뭐가 들어있는지"를
-//   direct하게 읽어야 한다(저장 전엔 real.detail이 그대로라 필드 반영이 안 되는 문제 수정).
-const snakeToCamel = (s: string): string => s.replace(/_([a-z0-9])/g, (_m, c: string) => c.toUpperCase());
+// 신뢰도 임계치 — 미만이면 값은 채우되 '검토 권장' 표시(ExtractionTable 신뢰도 톤 패턴).
+const MINERAL_CONFIDENCE_THRESHOLD = 0.8;
 
-// 편집 모드에서 필수 필드 1개가 "지금 입력칸 기준으로" 채워졌는지 판정.
-//   factories는 draft 배열 전체가 필요하다(§factories.mine_* — 공장 단위 필드라 DOM
-//   data-field 하나로 못 읽고, 광산 사이트 카드들을 직접 훑어야 한다).
-function isRequiredFieldLiveFilled(field: string, readField: (f: string) => string, factories: FactoryDraft[]): boolean {
-  if (field === 'materials.any' || field === 'materials.handled_any') {
-    // 소재구성은 회사 단위가 아니라 공장 단위(FactoryCards) — 활성 공장 중 하나라도
-    // 핵심광물 함량이 1종 이상 있으면 충족(§factories.mine_composition과 동일 패턴, 역할 무관).
-    return factories.some(f => Object.keys(f.coreMinerals).length > 0);
+// AiExtraction 1건에서 광물 입력칸 키(k)의 파싱 상태를 도출.
+function mineralParseStateOf(extraction: AiExtraction | null, k: string): MineralParseState | null {
+  if (!extraction) return null;
+  const parseKeys = MINERAL_PARSE_KEYS[k] ?? [];
+  const pf = extraction.parsedFields ?? {};
+  const conf = extraction.confidenceMap ?? {};
+  const blank = new Set(extraction.blankFields ?? []);
+  const unreadable = new Set(extraction.unreadableFields ?? []);
+  for (const key of parseKeys) {
+    if (pf[key] != null && pf[key] !== '') {
+      const num = Number(pf[key]);
+      if (Number.isFinite(num)) return { value: num, confidence: Number(conf[key] ?? 0), status: 'parsed' };
+    }
   }
-  if (field === 'factories') return factories.length > 0;
-  if (field === 'factories.mine_country') {
-    return factories.some(f => f.factoryRole === 'mining' && f.country !== '');
-  }
-  if (field === 'factories.mine_composition') {
-    return factories.some(f => f.factoryRole === 'mining' && Object.keys(f.coreMinerals).length > 0);
-  }
-  const dot = field.indexOf('.');
-  if (dot === -1) return readField(field) !== '';
-  const dataField = `${field.slice(0, dot)}.${snakeToCamel(field.slice(dot + 1))}`;
-  return readField(dataField) !== '';
+  for (const key of parseKeys) if (unreadable.has(key)) return { value: null, confidence: 0, status: 'unreadable' };
+  for (const key of parseKeys) if (blank.has(key)) return { value: null, confidence: 0, status: 'blank' };
+  return null; // 파싱 결과에 언급 없음 → 기존 표시 유지
 }
 
 // hazardous_substances 등 비광물 키 제외한 함량 키 목록.
+async function extractTextFromPdfFile(file: File): Promise<string> {
+  const data = new Uint8Array(await file.arrayBuffer());
+  try {
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const task = pdfjs.getDocument({ data, disableWorker: true, isEvalSupported: false } as Parameters<typeof pdfjs.getDocument>[0]);
+    const pdf = await task.promise;
+    const pages: string[] = [];
+    for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
+      const page = await pdf.getPage(pageNo);
+      const textContent = await page.getTextContent();
+      pages.push(textContent.items.map(item => ('str' in item ? item.str : '')).join(' '));
+    }
+    return pages.join('\n');
+  } catch {
+    return new TextDecoder('latin1').decode(data);
+  }
+}
+
+function pickMaterialNumber(text: string, patterns: RegExp[]): number | null {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match?.[1]) continue;
+    const value = Number(match[1].replace(',', '.'));
+    if (Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+async function parseMaterialCompositionFile(
+  file: File,
+  supplierId: string,
+  s3Key: string,
+  documentUrl: string | null,
+): Promise<AiExtraction | null> {
+  const isPdf = file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf');
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('supplierId', supplierId);
+    form.append('s3Key', s3Key);
+    if (documentUrl) form.append('documentUrl', documentUrl);
+    const res = await fetch('/api/material-composition/parse-local', { method: 'POST', body: form });
+    if (res.ok) {
+      const extraction = await res.json() as AiExtraction;
+      if (Object.keys(extraction.parsedFields ?? {}).length) return extraction;
+    }
+  } catch {
+    // 브라우저 직접 추출 fallback으로 이어진다.
+  }
+
+  if (!isPdf) return null;
+
+  const rawText = await extractTextFromPdfFile(file);
+  const text = rawText.replace(/\s+/g, ' ');
+  const mineralText = text.match(/2\.\s*핵심광물 함량(?<body>.*?)(?:3\.\s*비고|$)/)?.groups?.body ?? text;
+  const specs: Array<[string, RegExp[]]> = [
+    ['li_content', [/(?:^|[^A-Za-z])Li\s*\([^)]*\)[^0-9]{0,120}(\d+(?:[.,]\d+)?)/i, /리튬\)?[^0-9]{0,120}(\d+(?:[.,]\d+)?)/]],
+    ['co_content', [/(?:^|[^A-Za-z])Co\s*\([^)]*\)[^0-9]{0,120}(\d+(?:[.,]\d+)?)/i, /코발트\)?[^0-9]{0,120}(\d+(?:[.,]\d+)?)/]],
+    ['ni_content', [/(?:^|[^A-Za-z])Ni\s*\([^)]*\)[^0-9]{0,120}(\d+(?:[.,]\d+)?)/i, /니켈\)?[^0-9]{0,120}(\d+(?:[.,]\d+)?)/]],
+    ['mn_content', [/(?:^|[^A-Za-z])Mn\s*\([^)]*\)[^0-9]{0,120}(\d+(?:[.,]\d+)?)/i, /망간\)?[^0-9]{0,120}(\d+(?:[.,]\d+)?)/]],
+    ['natural_graphite_content', [/(?:천연흑연|Natural Graphite)\)?[^0-9]{0,120}(\d+(?:[.,]\d+)?)/i]],
+    ['artificial_graphite_content', [/(?:인조흑연|Artificial Graphite|Synthetic Graphite)\)?[^0-9]{0,120}(\d+(?:[.,]\d+)?)/i]],
+  ];
+  const parsedFields: Record<string, number> = {};
+  const confidenceMap: Record<string, number> = {};
+  for (const [key, patterns] of specs) {
+    const value = pickMaterialNumber(mineralText, patterns);
+    if (value == null) continue;
+    parsedFields[key] = value;
+    confidenceMap[key] = 0.9;
+  }
+  if (!Object.keys(parsedFields).length) return null;
+  return {
+    requestId: `local-material-${s3Key}`,
+    supplierId,
+    supplierName: null,
+    requestedDataType: '소재구성 문서',
+    submissionStatus: 'review',
+    parsedFields,
+    confidenceMap,
+    unparsedFields: [],
+    blankFields: specs.map(([key]) => key).filter(key => parsedFields[key] == null),
+    unreadableFields: [],
+    docCategory: 'material_composition',
+    docS3Key: s3Key,
+    documentUrl,
+    documentFileName: file.name,
+  };
+}
+
 const mineralKeysOf = (cm: Record<string, unknown>): string[] =>
   Object.keys(cm).filter(k => k !== 'hazardous_substances' && cm[k] != null && cm[k] !== '');
 
-// 편집 모드에서 저장 전 입력칸 값을 직접 읽기 위한 컨텍스트 — 없으면(보기 모드) real.detail 스냅샷 사용.
-type LiveFieldCtx = { readField: (f: string) => string; factories: FactoryDraft[] };
-
 // 백엔드 완성도(provider_type별 필수셋)로 섹션 집계 도출 — requiredFields/missingFields가 SSOT.
 //   해당 섹션 필수 필드가 0개면 '해당 없음'(예: 광산의 소재구성·규제, 유통사의 소재구성).
-//   live가 있으면(편집 중) missingFields(마지막 저장 스냅샷) 대신 지금 입력칸 값으로 판정한다 —
-//   그래야 저장하기 전에 필수값을 채운 즉시 완료로 반영되고, 다음 섹션 진행 여부를 물을 수 있다.
 function deriveSectionMetaFromBackend(
   key: SectionKey,
   comp: ApiCompleteness,
-  live?: LiveFieldCtx,
 ): Pick<CollectionSection, 'completed' | 'total' | 'status' | 'missing'> {
   const req = (comp.requiredFields ?? []).filter(f => sectionOfField(f) === key);
-  if (live) {
-    const missing = req.filter(f => !isRequiredFieldLiveFilled(f, live.readField, live.factories)).map(labelOfField);
-    const completed = req.length - missing.length;
-    return { completed, total: req.length, missing, status: sectionStatusFrom(completed, req.length) };
-  }
   const missSet = new Set(comp.missingFields ?? []);
   const missing = req.filter(f => missSet.has(f)).map(labelOfField);
   const completed = req.length - missing.length;
@@ -401,75 +716,56 @@ function deriveSectionMetaFromBackend(
 function deriveSectionMeta(
   key: SectionKey,
   real: RealData,
-  live?: LiveFieldCtx,
 ): Pick<CollectionSection, 'completed' | 'total' | 'status' | 'missing'> {
   const comp = real.comp;
   if (comp && comp.requiredFieldCount != null && Array.isArray(comp.requiredFields)) {
-    return deriveSectionMetaFromBackend(key, comp, live);
+    return deriveSectionMetaFromBackend(key, comp);
   }
   const has = (v: unknown) => v !== null && v !== undefined && v !== '';
   const d = real.detail;
-  // live면 지금 입력칸 값, 아니면 마지막 저장된 스냅샷(d) — fallback 경로도 동일하게 live-aware.
-  const pick = (domField: string, snapshot: unknown): unknown => (live ? live.readField(domField) : snapshot);
   if (key === 'company') {
-    if ((d?.providerType ?? '') === 'miner') {
-      // 광산은 회사명·업종만 판정 — 사업자 등록번호는 요구하지 않고, 소재국가는 공장(사이트)
-      // 단위로 판정한다(§factories 섹션, 제련소 대행 입력 반영).
-      const fields: [string, unknown][] = [
-        ['회사명', d?.companyName],
-        ['업종(provider type)', d?.providerType],
-      ];
-      const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
-      const completed = fields.length - missing.length;
-      return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
-    }
     const fields: [string, unknown][] = [
-      ['회사명', pick('company.companyName', d?.companyName)],
-      ['소재 국가', pick('company.country', d?.country)],
-      ['사업자 등록번호', pick('company.businessRegNo', d?.businessRegNo)],
-      ['업종(provider type)', pick('company.providerType', d?.providerType)],
+      ['회사명', d?.companyName],
+      ['소재 국가', d?.country],
+      ['사업자 등록번호', d?.businessRegNo],
+      ['업종(provider type)', d?.providerType],
     ];
     const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
     const completed = fields.length - missing.length;
     return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
   }
+  if (key === 'materials') {
+    // 백엔드 폴백도 동일 규칙: 광물 1종 이상이면 완료(materials.any). 광산·유통은 판정 제외.
+    const pt = d?.providerType ?? '';
+    if (pt === 'miner' || pt === 'trader') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
+    const filled = mineralKeysOf((d?.coreMinerals ?? {}) as Record<string, unknown>).length > 0;
+    return {
+      completed: filled ? 1 : 0, total: 1,
+      missing: filled ? [] : ['핵심광물 함량(최소 1종)'],
+      status: filled ? '완료' : '미입력',
+    };
+  }
   if (key === 'regulation') {
-    // 광산(miner)은 입력 주체가 아니라 규제(자가진단·탄소) 판정 대상 아님 → 해당 없음(백엔드 완성도와 동일 규칙).
-    if ((d?.providerType ?? '') === 'miner') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
     const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
     const fields: [string, unknown][] = [
-      ['탄소집약도', pick('regulation.carbonIntensity', m.carbonIntensity)],
-      ['에너지원', pick('regulation.energySource', m.energySource)],
-      ['실사 자가진단', live
-        ? live.readField('regulation.selfReportedRiskLevel')
-        : (real.riskProfile?.selfReportedRiskLevel && real.riskProfile.selfReportedRiskLevel !== 'unknown' ? real.riskProfile.selfReportedRiskLevel : null)],
+      ['탄소집약도', m.carbonIntensity],
+      ['에너지원', m.energySource],
     ];
     const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
     const completed = fields.length - missing.length;
     return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
   }
   if (key === 'documents') {
-    // 광산은 필요문서(사업자등록증·환경성적서) 제출 주체 아님 → 해당 없음.
-    if ((d?.providerType ?? '') === 'miner') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
-    const fields: [string, unknown][] = [
-      ['사업자등록증', pick('documents.businessRegDocUrl', d?.businessRegDocUrl)],
-      ['환경성적서', pick('documents.environmentalReportUrl', d?.environmentalReportUrl)],
-    ];
+    const fields: [string, unknown][] = [['사업자등록증', d?.businessRegDocUrl], ['환경성적서', d?.environmentalReportUrl]];
     const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
     const completed = fields.length - missing.length;
     return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
   }
-  // factories — 편집 중이면 draft(방금 추가/삭제한 행까지 반영), 아니면 마지막 저장된 목록.
-  //   소재구성(핵심광물)도 이 섹션에서 판정한다 — 공장(사이트)마다 다를 수 있어 회사 단위가
-  //   아니라 공장 목록을 훑어 하나라도 있으면 충족(§materials.any, 전 유형 공통).
-  const factories = live ? live.factories : real.factories;
-  const hasComposition = factories.some(f => mineralKeysOf((f.coreMinerals ?? {}) as Record<string, unknown>).length > 0);
-  const missing = [
-    ...(factories.length > 0 ? [] : ['공장 정보']),
-    ...(hasComposition ? [] : ['핵심광물 함량(최소 1종)']),
-  ];
-  const completed = 2 - missing.length;
-  return { completed, total: 2, missing, status: sectionStatusFrom(completed, 2) };
+  // factories
+  const count = real.factories.length;
+  return count > 0
+    ? { completed: count, total: count, status: '완료', missing: [] }
+    : { completed: 0, total: 1, status: '미입력', missing: ['공장 정보'] };
 }
 function EmptyData() {
   return <div className="rounded-sm border border-dashed border-ink-700 bg-slate-50 px-4 py-8 text-center text-sm text-ink-500">등록된 데이터가 없습니다.</div>;
@@ -547,29 +843,264 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId }: { la
   );
 }
 
-// [제품별 독립 제출] 공급 품목(supplied-items)을 공급망 맵(=bom_version) 단위로 묶는다.
-//   같은 협력사라도 map 마다 대는 부품·공장·핵심광물이 다르므로, 페이지 전체를 이 단위로 분리한다.
-//   factoryIds: 이 맵의 엣지가 물리는 공장 id 집합 — 공장/원산지 섹션을 맵별로 필터하는 키.
-type SupplyMap = { key: string; label: string; version: string | null; rows: ApiItem[]; factoryIds: string[] };
-function buildSupplyMaps(items: ApiItem[]): SupplyMap[] {
-  const maps: SupplyMap[] = [];
-  const idxOf = new Map<string, number>();
-  for (const it of items) {
-    const key = it.bomVersionId ?? `${it.productId ?? ''}:${it.bomVersionNumber ?? ''}`;
-    if (!key) continue;
-    if (!idxOf.has(key)) {
-      const label = [it.customerName, it.modelName ?? it.productName].filter(Boolean).join(' ') || '제품';
-      idxOf.set(key, maps.length);
-      maps.push({ key, label, version: it.bomVersionNumber ?? null, rows: [], factoryIds: [] });
-    }
-    const m = maps[idxOf.get(key)!];
-    m.rows.push(it);
-    if (it.factoryId && !m.factoryIds.includes(it.factoryId)) m.factoryIds.push(it.factoryId);
-  }
-  return maps;
+// ── 소재구성 문서 업로드 + 결과 보기 패널 ─────────────────────────────────────
+// 업로드 흐름(기존 3종 문서와 동일 파이프라인 재사용, 새 엔드포인트 없음):
+//   ① uploadFile(POST /files) → s3Key
+//   ② PATCH /suppliers/{id}/detail { material_composition_doc_url: s3Key }
+//      → 커밋 후 SupplierDocumentUploaded(doc_kind='material_composition') 발행 → 파싱 큐
+//   ③ 업로드 완료 후 /partner/ai-parsing 화면과 같은 결과 보기 팝업을 연다.
+const MATERIAL_DOC_ACCEPT = '.pdf,.png,.jpg,.jpeg';
+
+interface MaterialViewerDoc {
+  s3Key: string;
+  url: string | null;
+  fileName: string;
 }
 
-function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft, noMoreMines = false, setNoMoreMines, isSmelter = false, readField, detectedBizRegDoc, setDetectedBizRegDoc, detectedEnvReport, setDetectedEnvReport }: {
+function MaterialDocParsePanel({ supplierId, initialUrl, editable, onOpenViewer, onParsed }: {
+  supplierId: string;
+  initialUrl?: string | null;
+  editable?: boolean;
+  onOpenViewer: (doc?: MaterialViewerDoc) => void;
+  onParsed: (extraction: AiExtraction | null) => void;
+}) {
+  const [docValue, setDocValue] = useState(initialUrl ?? '');
+  const [displayName, setDisplayName] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  // 언마운트 후 setState 방지.
+  // 주의: 마운트 시 반드시 false로 리셋해야 한다 — StrictMode(dev)가 effect를
+  // mount→cleanup→mount로 두 번 실행하는데, 리셋이 없으면 cleanup에서 true로
+  // 바뀐 뒤 재마운트돼도 계속 true로 남아 이후 모든 setState가 영구히 무시된다
+  // (업로드가 성공해도 "업로드 중"에서 멈추는 버그의 원인이었음).
+  const cancelledRef = useRef(false);
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => { cancelledRef.current = true; };
+  }, []);
+  useEffect(() => {
+    setDocValue(initialUrl ?? '');
+    setPreviewUrl(initialUrl?.startsWith('http') ? initialUrl : null);
+  }, [initialUrl]);
+
+  const uploaded = Boolean(docValue);
+  const shownName = displayName || (docValue ? docValue.split('/').pop() : '');
+
+  async function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    const ext = f.name.toLowerCase().split('.').pop() ?? '';
+    if (!['pdf', 'png', 'jpg', 'jpeg'].includes(ext)) {
+      setError('PDF 또는 이미지(png/jpg/jpeg) 파일만 업로드할 수 있어요.');
+      return;
+    }
+    setUploading(true);
+    setError('');
+    setNotice('');
+    onParsed(null);
+    try {
+      const meta = await uploadFile(f, `material-doc:${supplierId}`);
+      if (cancelledRef.current) return;
+      setDocValue(meta.s3Key);
+      setDisplayName(f.name);
+      setPreviewUrl(meta.url);
+      const localExtraction = await parseMaterialCompositionFile(f, supplierId, meta.s3Key, meta.url);
+      if (localExtraction && !cancelledRef.current) onParsed(localExtraction);
+      setNotice(`업로드 완료 · ${f.name}`);
+      onOpenViewer({ s3Key: meta.s3Key, url: meta.url, fileName: f.name });
+      // PATCH → 컬럼 갱신 + 커밋 후 문서 이벤트 발행(파싱 파이프라인 트리거).
+      try {
+        await updateSupplierDetail(supplierId, { material_composition_doc_url: meta.s3Key });
+      } catch (err) {
+        if (!cancelledRef.current) setError(err instanceof ApiError ? `업로드 완료 · 저장 실패: ${err.message}` : '업로드 완료 · 저장에 실패했습니다.');
+      }
+    } catch (err) {
+      if (!cancelledRef.current) setError(err instanceof ApiError ? err.message : '업로드에 실패했습니다.');
+    } finally {
+      if (!cancelledRef.current) setUploading(false);
+    }
+  }
+
+  function openViewer() {
+    onOpenViewer({
+      s3Key: docValue,
+      url: previewUrl,
+      fileName: shownName || '소재구성 문서',
+    });
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-ink-100">소재구성 문서</div>
+        <div className={`mt-0.5 truncate text-xs ${error ? 'text-alert-text' : notice ? 'text-ok-text' : uploaded ? 'text-ink-400' : 'text-ink-500'}`}>
+          {error
+            ? error
+            : uploading
+              ? '업로드 중…'
+              : notice
+                ? notice
+                : uploaded
+                  ? `업로드됨 · ${shownName}`
+                  : '미업로드 · PDF/이미지(png/jpg/jpeg)를 올려주세요.'}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {uploaded && !uploading && (
+          <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-[11px] font-bold text-ok-text">업로드됨</span>
+        )}
+        {editable && (
+          <>
+            <label className={`rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 ${uploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent-100'}`}>
+              {uploaded ? '파일 변경' : '자료 업로드'}
+              <input
+                type="file"
+                accept={MATERIAL_DOC_ACCEPT}
+                className="hidden"
+                disabled={uploading}
+                onChange={handleSelect}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={openViewer}
+              disabled={!uploaded || uploading}
+              className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-accent-500 hover:text-accent-700"
+            >
+              결과 보기
+            </button>
+          </>
+        )}
+      </div>
+      {/* persistForm(master-form authoritative-overwrite) round-trip 캐리어 —
+          없으면 자료 제출 시 material_composition_doc_url 이 NULL 로 덮인다. */}
+      <input type="hidden" data-field="materials.materialCompositionDocUrl" value={docValue} readOnly />
+    </div>
+  );
+}
+
+function CarbonFootprintDocPanel({ supplierId, initialUrl, editable, onOpenViewer }: {
+  supplierId: string;
+  initialUrl?: string | null;
+  editable?: boolean;
+  onOpenViewer: (doc?: MaterialViewerDoc) => void;
+}) {
+  const [docValue, setDocValue] = useState(initialUrl ?? '');
+  const [displayName, setDisplayName] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const cancelledRef = useRef(false);
+
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => { cancelledRef.current = true; };
+  }, []);
+
+  useEffect(() => {
+    setDocValue(initialUrl ?? '');
+    setPreviewUrl(initialUrl?.startsWith('http') ? initialUrl : null);
+  }, [initialUrl]);
+
+  const uploaded = Boolean(docValue);
+  const shownName = displayName || (docValue ? docValue.split('/').pop() : '');
+
+  async function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    const ext = f.name.toLowerCase().split('.').pop() ?? '';
+    if (!['pdf', 'png', 'jpg', 'jpeg'].includes(ext)) {
+      setError('PDF 또는 이미지(png/jpg/jpeg) 파일만 업로드할 수 있어요.');
+      return;
+    }
+
+    setUploading(true);
+    setError('');
+    setNotice('');
+    try {
+      const meta = await uploadFile(f, `carbon-footprint-doc:${supplierId}`);
+      if (cancelledRef.current) return;
+      setDocValue(meta.s3Key);
+      setDisplayName(f.name);
+      setPreviewUrl(meta.url);
+      setNotice(`업로드 완료 · ${f.name}`);
+      onOpenViewer({ s3Key: meta.s3Key, url: meta.url, fileName: f.name });
+      try {
+        await updateSupplierDetail(supplierId, { self_assessment_doc_url: meta.s3Key });
+      } catch (err) {
+        if (!cancelledRef.current) setError(err instanceof ApiError ? `업로드 완료 · 저장 실패: ${err.message}` : '업로드 완료 · 저장에 실패했습니다.');
+      }
+    } catch (err) {
+      if (!cancelledRef.current) setError(err instanceof ApiError ? err.message : '업로드에 실패했습니다.');
+    } finally {
+      if (!cancelledRef.current) setUploading(false);
+    }
+  }
+
+  function openViewer() {
+    onOpenViewer({
+      s3Key: docValue,
+      url: previewUrl,
+      fileName: shownName || '탄소발자국 문서',
+    });
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-sm border border-ink-700 bg-white px-4 py-3">
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-ink-100">탄소발자국 문서</div>
+        <div className={`mt-0.5 truncate text-xs ${error ? 'text-alert-text' : notice ? 'text-ok-text' : uploaded ? 'text-ink-400' : 'text-ink-500'}`}>
+          {error
+            ? error
+            : uploading
+              ? '업로드 중…'
+              : notice
+                ? notice
+                : uploaded
+                  ? `업로드됨 · ${shownName}`
+                  : '미업로드 · PDF/이미지(png/jpg/jpeg)를 올려주세요.'}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {uploaded && !uploading && (
+          <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-[11px] font-bold text-ok-text">업로드됨</span>
+        )}
+        {editable && (
+          <>
+            <label className={`rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 ${uploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent-100'}`}>
+              {uploaded ? '파일 변경' : '자료 업로드'}
+              <input
+                type="file"
+                accept={MATERIAL_DOC_ACCEPT}
+                className="hidden"
+                disabled={uploading}
+                onChange={handleSelect}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={openViewer}
+              disabled={!uploaded || uploading}
+              className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-accent-500 hover:text-accent-700"
+            >
+              결과 보기
+            </button>
+          </>
+        )}
+      </div>
+      <input type="hidden" data-field="regulation.selfAssessmentDocUrl" value={docValue} readOnly />
+    </div>
+  );
+}
+
+// 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
+// editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isPrime)만 노출.
+function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft }: {
   section: CollectionSection;
   real?: RealData | null;
   editable?: boolean;
@@ -579,167 +1110,160 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
   contactsDraft?: ContactDraft[];
   setContactsDraft?: (rows: ContactDraft[]) => void;
-  // "추가 광산 없음" 명시 선언(제련소 전용) — PicRegister의 말단 선언 게이트와 같은 취지.
-  noMoreMines?: boolean;
-  setNoMoreMines?: (v: boolean) => void;
-  isSmelter?: boolean;
-  // 저장 전 입력칸의 지금 값을 직접 읽기(완료 배지가 저장하기 전에도 즉시 반영되도록).
-  readField?: (field: string) => string;
-  // 공장정보 섹션에서 원산지 증명서로 올린 파일이 사업자등록증/환경성적서로 보이면 문서 섹션에 자동 연결.
-  detectedBizRegDoc?: { s3Key: string; fileName: string } | null;
-  setDetectedBizRegDoc?: (v: { s3Key: string; fileName: string } | null) => void;
-  detectedEnvReport?: { s3Key: string; fileName: string } | null;
-  setDetectedEnvReport?: (v: { s3Key: string; fileName: string } | null) => void;
 }) {
-  // 공장정보 섹션 — 원산지 증명서 업로드/없음 확인 전엔 나머지 입력을 가린다.
-  const [originCertResolved, setOriginCertResolved] = useState(false);
+  const [materialParsingOpen, setMaterialParsingOpen] = useState(false);
+  const [materialViewerDoc, setMaterialViewerDoc] = useState<MaterialViewerDoc | null>(null);
+  const [mineralExtraction, setMineralExtraction] = useState<AiExtraction | null>(null);
+  const [materialParseVersion, setMaterialParseVersion] = useState(0);
+  const [carbonParsingOpen, setCarbonParsingOpen] = useState(false);
+  const [carbonViewerDoc, setCarbonViewerDoc] = useState<MaterialViewerDoc | null>(null);
   let content: ReactNode;
   const d = real?.detail ?? null;
-  // live면 지금 입력칸 값, 아니면 마지막 저장된 스냅샷 — 완료 배지 판정용(defaultValue 표시엔 영향 없음).
-  const filled = (domField: string, snapshot: unknown): ReviewStatus => fieldFilled(readField ? readField(domField) : snapshot);
 
   if (section.key === 'company') {
-    if ((d?.providerType as string) === 'miner') {
-      // 광산은 회사명·업종만 요구한다 — 사업자 등록번호 등은 입력 대상이 아니라 행 자체를
-      // 숨긴다(예전엔 항상 렌더링돼 불필요한 '미입력'이 떴다). 소재국가·소재구성은 공장
-      // (사이트) 단위로 옮겨갔다(§factories 섹션, 제련소 대행 입력).
-      const comp = real?.comp;
-      const req = (key: string) => isFieldRequired(key, comp, true);
-      const rows: string[][] = [
-        [reqLabel('회사명', req('company.company_name')), d?.companyName ?? '-', filled('company.companyName', d?.companyName)],
-        [reqLabel('업종(provider type)', req('company.provider_type')), d?.providerType ?? '', filled('company.providerType', d?.providerType)],
-      ];
-      content = <CompanyGrid rows={rows} editable={false} fieldKeys={['companyName', 'providerType']} fieldPrefix="company" />;
-    } else {
-      // 입력 모드에선 smelter 구분 행을 항상 노출(업종 변경 가능하도록).
-      const showSmelter = editable || (d?.providerType as string) === 'smelter';
-      const comp = real?.comp;
-      const req = (key: string) => isFieldRequired(key, comp, true); // 폴백: 아래 4개는 항상 필수 취급.
-      const rows: string[][] = [
-        [reqLabel('회사명', req('company.company_name')), d?.companyName ?? '-', filled('company.companyName', d?.companyName)],
-        [reqLabel('소재 국가', req('company.country')), d?.country ?? '-', filled('company.country', d?.country)],
-        [reqLabel('사업자 등록번호', req('company.business_reg_no')), d?.businessRegNo ?? '-', filled('company.businessRegNo', d?.businessRegNo)],
-        // DUNS·smelter 구분은 선택 항목(별표 없음)이라 안 채워도 다음 단계로 넘어갈 수 있지만,
-        //   완료/미입력 표시 자체는 다른 항목과 동일하게(거짓 '완료' 없이) 실제 값 기준으로 보여준다.
-        ['DUNS 번호 (선택)', d?.dunsNumber ?? '-', filled('company.dunsNumber', d?.dunsNumber)],
-        [reqLabel('업종(provider type)', req('company.provider_type')), d?.providerType ?? '', filled('company.providerType', d?.providerType)],
-        ...(showSmelter ? [['smelter 구분 (선택)', d?.smelterType ?? '', filled('company.smelterType', d?.smelterType)] as string[]] : []),
-      ];
-      const keys = ['companyName', 'country', 'businessRegNo', 'dunsNumber', 'providerType', ...(showSmelter ? ['smelterType'] : [])];
-      content = <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="company" selects={{ providerType: PROVIDER_OPTS, smelterType: SMELTER_OPTS }} />;
-    }
+    // 입력 모드에선 smelter 구분 행을 항상 노출(업종 변경 가능하도록).
+    const showSmelter = editable || (d?.providerType as string) === 'smelter';
+    const rows: string[][] = [
+      ['회사명', d?.companyName ?? '-', fieldFilled(d?.companyName)],
+      ['소재 국가', d?.country ?? '-', fieldFilled(d?.country)],
+      ['사업자 등록번호', d?.businessRegNo ?? '-', fieldFilled(d?.businessRegNo)],
+      ['DUNS 번호 (선택)', d?.dunsNumber ?? '-', '완료'],
+      ['업종(provider type)', d?.providerType ?? '', fieldFilled(d?.providerType)],
+      ...(showSmelter ? [['smelter 구분', d?.smelterType ?? '', '완료'] as string[]] : []),
+    ];
+    const keys = ['companyName', 'country', 'businessRegNo', 'dunsNumber', 'providerType', ...(showSmelter ? ['smelterType'] : [])];
+    content = <CompanyGrid rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="company" selects={{ providerType: PROVIDER_OPTS, smelterType: SMELTER_OPTS }} />;
+  } else if (section.key === 'materials') {
+    // 있는 광물 키만 동적 표시(흑연 포함). 편집 모드는 표준 키 전부 + 미지 키를 입력칸으로.
+    //   빈 칸은 '해당 없음'(중립) — 광물별 필수가 아니므로 미입력(경고)으로 표시하지 않는다.
+    const cm = (d?.coreMinerals ?? {}) as Record<string, number>;
+    const present = mineralKeysOf(cm);
+    const keys = editable ? [...new Set([...MINERAL_EDIT_KEYS, ...present])] : present;
+    // AI 파싱 결과 병합(편집 모드 전용) —
+    //   parsed     → 값 채움('완료'), 신뢰도 < 0.8 이면 '검토 권장' 플래그
+    //   blank      → 기존 '해당 없음' 유지(문서에 항목 자체 없음)
+    //   unreadable → '확인 필요'(항목은 있는데 못 읽음 — '해당 없음'과 의미가 다름)
+    const flagged: Record<string, string> = {};
+    const rows: string[][] = keys.length
+      ? keys.map(k => {
+          const label = `${MINERAL_LABELS[k] ?? k} 함량(%)`;
+          const ps = editable ? mineralParseStateOf(mineralExtraction, k) : null;
+          if (ps?.status === 'parsed' && ps.value != null) {
+            if (ps.confidence < MINERAL_CONFIDENCE_THRESHOLD) {
+              flagged[k] = `검토 권장 · 신뢰도 ${Math.round(ps.confidence * 100)}%`;
+            }
+            return [label, String(ps.value), '완료'];
+          }
+          if (ps?.status === 'unreadable') {
+            return [label, cm[k] != null ? String(cm[k]) : '-', '확인 필요'];
+          }
+          return [label, cm[k] != null ? String(cm[k]) : '-', cm[k] != null ? '완료' : '해당 없음'];
+        })
+      : [['핵심광물 함량(최소 1종)', '-', '미입력']];
+    content = (
+      <div className="space-y-3">
+        {/* 소재구성 문서 업로드 + 결과 보기 */}
+        <MaterialDocParsePanel
+          supplierId={supplierId}
+          initialUrl={d?.materialCompositionDocUrl}
+          editable={editable}
+          onParsed={extraction => {
+            setMineralExtraction(extraction);
+            setMaterialParseVersion(v => v + 1);
+          }}
+          onOpenViewer={doc => {
+            if (doc) setMaterialViewerDoc(doc);
+            setMaterialParsingOpen(true);
+          }}
+        />
+        <CompanyGrid key={`materials-${materialParseVersion}`} rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="materials" flagged={flagged} />
+        {materialParsingOpen && (
+          <div className="fixed inset-0 z-[60] flex bg-black/50 p-4" onClick={() => setMaterialParsingOpen(false)}>
+            <div
+              className="m-auto flex h-[92vh] w-[96vw] max-w-[1440px] flex-col overflow-hidden rounded-md bg-white shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-white px-4 py-2.5">
+                <div className="text-sm font-bold text-ink-100">소재구성 문서 결과 보기</div>
+                <button
+                  type="button"
+                  onClick={() => setMaterialParsingOpen(false)}
+                  className="rounded-sm p-1 text-ink-400 hover:bg-slate-100 hover:text-ink-100"
+                  aria-label="닫기"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1">
+                <PartnerAiParsing
+                  aiOnly
+                  saveOnlyMode
+                  onConfirmComplete={() => setMaterialParsingOpen(false)}
+                  docCategoryFilter="material_composition"
+                  docS3KeyFilter={materialViewerDoc?.s3Key ?? null}
+                  initialDoc={materialViewerDoc ? {
+                    docId: `material-${materialViewerDoc.s3Key}`,
+                    fileName: materialViewerDoc.fileName,
+                    fileUrl: materialViewerDoc.url,
+                    requestType: '소재구성 문서',
+                    docS3Key: materialViewerDoc.s3Key,
+                  } : null}
+                  initialExtraction={mineralExtraction}
+                  onParsed={extraction => {
+                    setMineralExtraction(extraction);
+                    setMaterialParseVersion(v => v + 1);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   } else if (section.key === 'factories') {
     // 입력 모드: 공장·담당자를 모두 편집(master-form REPLACE-ALL 라운드트립). 보기 모드: 읽기 전용 테이블.
     if (editable && factoriesDraft && setFactoriesDraft) {
-      const miningRows = factoriesDraft.filter(f => f.factoryRole === 'mining');
-      const miningRowsComplete = miningRows.length > 0 && miningRows.every(f => f.latitude.trim() !== '' && f.longitude.trim() !== '');
       content = (
         <div className="space-y-5">
-          {/* 이 세션이 열리면 먼저 업로드/없음 확인부터 — 그 전엔 아래 공장정보 입력을 가린다. */}
-          <OriginCertUploadPanel
-            supplierId={supplierId}
-            onResolved={() => setOriginCertResolved(true)}
-            onDetected={(kind, s3Key, fileName) => {
-              if (kind === 'businessReg') setDetectedBizRegDoc?.({ s3Key, fileName });
-              else setDetectedEnvReport?.({ s3Key, fileName });
-            }}
-          />
-          <div className="relative">
-            <div className={clsx('space-y-5', !originCertResolved && 'pointer-events-none select-none opacity-40 blur-[1px]')}>
-              <div>
-                <div className="mb-2 text-xs font-bold text-ink-500">공장 정보 (공급비율·위치(원산지)·역할·담당자·소재구성)</div>
-                <FactoryCards
-                  rows={factoriesDraft}
-                  onChange={setFactoriesDraft}
-                  isSmelter={isSmelter}
-                  active={originCertResolved}
-                  contacts={contactsDraft}
-                  onContactsChange={setContactsDraft}
-                  supplierId={supplierId}
-                />
-              </div>
-              {/* 제련소 전용 — 광산(직접 입력 불가)의 위치를 직상위가 대신 채우는 지점. 최소 1곳 + 추가 광산 없음 선언까지 있어야 완료로 인정. */}
-              {isSmelter && (
-                <div className="rounded-sm border border-slate-200 bg-slate-50 p-3">
-                  {!miningRowsComplete && (
-                    <div className="mb-2 text-xs font-semibold text-alert-text">제련소는 원료를 공급받는 광산을 최소 1곳 등록하고 위치를 확정해야 합니다 ("+ 광산 추가" 버튼).</div>
-                  )}
-                  <label className={clsx('flex cursor-pointer items-start gap-2 text-sm text-ink-300', !miningRowsComplete && 'pointer-events-none opacity-40')}>
-                    <input
-                      type="checkbox"
-                      checked={noMoreMines}
-                      onChange={e => setNoMoreMines?.(e.target.checked)}
-                      disabled={!miningRowsComplete}
-                      className="mt-0.5 h-4 w-4 accent-brand"
-                    />
-                    <span>
-                      <b>이 외에 원료를 공급받는 광산이 더 없습니다.</b>
-                      <span className="mt-0.5 block text-[11px] text-slate-500">이 선언은 기록으로 남습니다. 실제로 광산이 더 있는데 누락하면 원산지 추적이 끊깁니다.</span>
-                    </span>
-                  </label>
-                </div>
-              )}
-            </div>
-            {!originCertResolved && (
-              <div className="absolute inset-0 z-10 flex items-start justify-center pt-8">
-                <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 shadow-sm">
-                  <Lock className="h-3.5 w-3.5" />위 자료 업로드(또는 &quot;업로드할 자료가 없습니다&quot;) 확인 후 입력할 수 있습니다
-                </div>
-              </div>
-            )}
+          <div>
+            <div className="mb-2 text-xs font-bold text-ink-500">공장 정보 (공급비율·위치(원산지)·역할)</div>
+            <FactoryEditor rows={factoriesDraft} onChange={setFactoriesDraft} />
           </div>
+          {contactsDraft && setContactsDraft && (
+            <div>
+              <div className="mb-2 text-xs font-bold text-ink-500">협력사 담당자 (PIC · 연락처)</div>
+              <ContactEditor rows={contactsDraft} onChange={setContactsDraft} />
+            </div>
+          )}
         </div>
       );
     } else {
-      // 공장 정보(원산지·이름·주소·소재구성) + 그 공장 담당자 — 공장마다 카드 하나(입력 모드와
-      // 동일 구조). 담당자는 factoryId로 그 공장 카드에, factoryId 없으면 회사 공통 카드에.
-      const mineralSummary = (cm: Record<string, number> | null | undefined) =>
-        cm && mineralKeysOf(cm).length
-          ? mineralKeysOf(cm).map(k => `${MINERAL_LABELS[k] ?? k} ${cm[k]}%`).join(', ')
-          : '-';
-      const contactsOf = (factoryId: string | null) => (real?.contacts ?? []).filter(c => (c.factoryId ?? null) === factoryId);
-      const ContactList = ({ items }: { items: ApiSupplierContact[] }) => (
-        items.length ? (
-          <ul className="space-y-1">
-            {items.map(c => (
-              <li key={c.contactId} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-300">
-                <span className="font-semibold text-ink-100">{c.name ?? '-'}</span>
-                {c.role && <span className="text-ink-500">{c.role}</span>}
-                {c.email && <span>{c.email}</span>}
-                {(c.mobile ?? c.phone) && <span>{c.mobile ?? c.phone}</span>}
-                {c.isPrimary && <span className="rounded-full border border-ok-border bg-ok-bg px-1.5 py-0.5 text-[10px] font-bold text-ok-text">대표</span>}
-              </li>
-            ))}
-          </ul>
-        ) : <div className="text-xs text-ink-500">등록된 담당자가 없습니다.</div>
-      );
-      const factories = (real?.factories ?? []).filter(f => f.isActive !== false);
+      // 공장 정보(원산지·이름·주소) + 공장 담당자(이름·직책·연락처·메일). 공장 단위 필드 직접 사용.
+      const factoryRows = (real?.factories ?? []).filter(f => f.isActive !== false).map(f => [
+        f.factoryName ?? '-',
+        f.country ?? '-',                 // 원산지
+        f.address ?? '-',
+        f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-',
+        f.factoryManagerName ?? '-',
+        f.factoryManagerRole ?? '-',
+        f.factoryManagerPhone ?? '-',
+        f.factoryManagerEmail ?? '-',
+        fieldFilled(f.factoryName),
+      ]);
+      const contactRowsView = (real?.contacts ?? []).map(c => [
+        c.name ?? '-',
+        c.role ?? '-',
+        c.email ?? '-',
+        c.mobile ?? c.phone ?? '-',
+        c.isPrimary ? '대표' : '-',
+        fieldFilled(c.name),
+      ]);
       content = (
-        <div className="space-y-3">
-          {factories.length === 0 && <EmptyData />}
-          {factories.map(f => (
-            <div key={f.factoryId} className={clsx('space-y-3 rounded-sm border border-ink-700 bg-white p-4', f.factoryRole === 'mining' && 'bg-accent-50/40')}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-bold text-ink-100">{f.factoryName ?? '-'}</span>
-                <span className="rounded-full border border-ink-700 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-ink-500">
-                  {FACTORY_ROLE_OPTS.find(o => o.value === f.factoryRole)?.label ?? f.factoryRole ?? '-'}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4">
-                <div><span className="block text-sm font-medium text-ink-500">원산지</span><span className="text-sm font-semibold text-ink-100">{f.country ?? '-'}</span></div>
-                <div><span className="block text-sm font-medium text-ink-500">주소</span><span className="text-sm font-semibold text-ink-100">{f.address ?? '-'}</span></div>
-                <div><span className="block text-sm font-medium text-ink-500">공급비율</span><span className="text-sm font-semibold text-ink-100">{f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-'}</span></div>
-                <div><span className="block text-sm font-medium text-ink-500">소재 구성</span><span className="text-sm font-semibold text-ink-100">{mineralSummary(f.coreMinerals)}</span></div>
-              </div>
-              <div className="border-t border-ink-700 pt-3">
-                <div className="mb-1 text-sm font-medium text-ink-500">담당자</div>
-                <ContactList items={contactsOf(f.factoryId)} />
-              </div>
-            </div>
-          ))}
-          <div className="space-y-3 rounded-sm border border-ink-700 bg-slate-50 p-4">
-            <div className="text-sm font-bold text-ink-100">회사 공통 담당자</div>
-            <ContactList items={contactsOf(null)} />
+        <div className="space-y-4">
+          {factoryRows.length ? <DataTable headers={['공장명', '원산지', '주소', '공급비율', '공장 담당자', '직책', '연락처', '메일', '상태']} rows={factoryRows} /> : <EmptyData />}
+          <div>
+            <div className="mb-2 text-xs font-bold text-ink-500">협력사 담당자 (PIC · 연락처)</div>
+            {contactRowsView.length ? <DataTable headers={['이름', '직책', '이메일', '연락처', '대표', '상태']} rows={contactRowsView} /> : <EmptyData />}
           </div>
         </div>
       );
@@ -748,42 +1272,68 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
     const ci = m.carbonIntensity;
     const es = m.energySource;
-    const sr = real?.riskProfile?.selfReportedRiskLevel;
-    const srRaw = sr && sr !== 'unknown' ? sr : '';
-    const naMiner = (d?.providerType ?? '') === 'miner';  // 광산: 규제(탄소·자가진단) 판정 대상 아님 → 해당 없음
-    const comp = real?.comp;
-    const req = (key: string) => isFieldRequired(key, comp, true);
     const rows: string[][] = [
-      [reqLabel('탄소집약도 (kgCO2eq/kg)', req('regulation.carbon_intensity')), ci != null ? String(ci) : '-', naMiner ? '해당 없음' : filled('regulation.carbonIntensity', ci)],
-      [reqLabel('에너지원', req('regulation.energy_source')), (es as string) ?? '-', naMiner ? '해당 없음' : filled('regulation.energySource', es)],
-      [reqLabel('실사 자가진단', req('regulation.self_reported_risk_level')), srRaw, naMiner ? '해당 없음' : filled('regulation.selfReportedRiskLevel', srRaw)],
+      ['탄소집약도 (kgCO2eq/kg)', ci != null ? String(ci) : '-', fieldFilled(ci)],
+      ['에너지원', (es as string) ?? '-', fieldFilled(es)],
       // DD 보고서는 원청 전용 — 협력사 폼에는 표시하지 않는다.
       ...(isPrime ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
     ];
     content = (
       <div className="space-y-3">
-        <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isPrime ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} />
-        {/* 실사 자가진단 보고서 — 실사관리 페이지 대체. 내 기업 정보에서 업로드·확인. */}
-        <DocUploadField label="실사 자가진단 보고서" field="regulation.selfAssessmentDocUrl" initialUrl={d?.selfAssessmentDocUrl} editable={editable} supplierId={supplierId} />
+        <CarbonFootprintDocPanel
+          supplierId={supplierId}
+          initialUrl={d?.selfAssessmentDocUrl}
+          editable={editable}
+          onOpenViewer={doc => {
+            if (doc) setCarbonViewerDoc(doc);
+            setCarbonParsingOpen(true);
+          }}
+        />
+        <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', ...(isPrime ? ['ddReport'] : [])]} fieldPrefix="regulation" />
+        {carbonParsingOpen && (
+          <div className="fixed inset-0 z-[60] flex bg-black/50 p-4" onClick={() => setCarbonParsingOpen(false)}>
+            <div
+              className="m-auto flex h-[92vh] w-[96vw] max-w-[1440px] flex-col overflow-hidden rounded-md bg-white shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-white px-4 py-2.5">
+                <div className="text-sm font-bold text-ink-100">탄소발자국 문서 결과 보기</div>
+                <button
+                  type="button"
+                  onClick={() => setCarbonParsingOpen(false)}
+                  className="rounded-sm p-1 text-ink-400 hover:bg-slate-100 hover:text-ink-100"
+                  aria-label="닫기"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1">
+                <PartnerAiParsing
+                  aiOnly
+                  saveOnlyMode
+                  onConfirmComplete={() => setCarbonParsingOpen(false)}
+                  docCategoryFilter="carbon_footprint_declaration"
+                  docS3KeyFilter={carbonViewerDoc?.s3Key ?? null}
+                  initialDoc={carbonViewerDoc ? {
+                    docId: `carbon-${carbonViewerDoc.s3Key}`,
+                    fileName: carbonViewerDoc.fileName,
+                    fileUrl: carbonViewerDoc.url,
+                    requestType: '탄소발자국 문서',
+                    docS3Key: carbonViewerDoc.s3Key,
+                  } : null}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   } else {
     // documents — 사업자등록증·환경성적서 업로드(파일명 표시·영속화).
-    //   공장정보 섹션에서 원산지 증명서로 올린 파일이 사업자등록증/환경성적서로 보이면 여기로 자동 연결(같은 파일 재업로드 방지).
-    const bizRegUrl = detectedBizRegDoc?.s3Key ?? d?.businessRegDocUrl;
-    const envUrl = detectedEnvReport?.s3Key ?? d?.environmentalReportUrl;
-    const comp = real?.comp;
-    const req = (key: string) => isFieldRequired(key, comp, true);
     content = (
       <div className="space-y-2">
-        <DocUploadField label={reqLabel('사업자등록증', req('documents.business_reg_doc_url'))} field="documents.businessRegDocUrl" initialUrl={bizRegUrl} editable={editable} supplierId={supplierId} />
-        {detectedBizRegDoc && (
-          <div className="-mt-1 text-[11px] text-ink-400">공장정보 섹션에서 올린 자료에서 자동 연결됨 · {detectedBizRegDoc.fileName}</div>
-        )}
-        <DocUploadField label={reqLabel('환경성적서', req('documents.environmental_report_url'))} field="documents.environmentalReportUrl" initialUrl={envUrl} editable={editable} supplierId={supplierId} />
-        {detectedEnvReport && (
-          <div className="-mt-1 text-[11px] text-ink-400">공장정보 섹션에서 올린 자료에서 자동 연결됨 · {detectedEnvReport.fileName}</div>
-        )}
+        <DocUploadField label="사업자등록증" field="documents.businessRegDocUrl" initialUrl={d?.businessRegDocUrl} editable={editable} supplierId={supplierId} />
+        <DocUploadField label="환경성적서" field="documents.environmentalReportUrl" initialUrl={d?.environmentalReportUrl} editable={editable} supplierId={supplierId} />
       </div>
     );
   }
@@ -807,20 +1357,6 @@ function AccordionSection({
   setFactoriesDraft,
   contactsDraft,
   setContactsDraft,
-  noMoreMines,
-  setNoMoreMines,
-  isSmelter = false,
-  locked = false,
-  canProceed = false,
-  prompt = null,
-  onProceedClick,
-  onConfirmYes,
-  onConfirmNo,
-  readField,
-  detectedBizRegDoc,
-  setDetectedBizRegDoc,
-  detectedEnvReport,
-  setDetectedEnvReport,
 }: {
   section: CollectionSection;
   onRequestSection: (section: CollectionSection) => void;
@@ -833,23 +1369,6 @@ function AccordionSection({
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
   contactsDraft?: ContactDraft[];
   setContactsDraft?: (rows: ContactDraft[]) => void;
-  noMoreMines?: boolean;
-  setNoMoreMines?: (v: boolean) => void;
-  isSmelter?: boolean;
-  // 이전 섹션이 미완료 — 내용은 비쳐 보이되 편집 불가(단계별 강제 순서).
-  locked?: boolean;
-  // 잠긴 섹션 중 "바로 다음 순번"인가 — 여기에만 진행 버튼을 보여준다(순서를 건너뛰어 진행 불가).
-  canProceed?: boolean;
-  // 진행 버튼 클릭 결과 — 'missing'(필수값 미충족) | 'confirm'(정말 넘어가시겠습니까) | null(버튼만 표시).
-  prompt?: 'missing' | 'confirm' | null;
-  onProceedClick?: () => void;
-  onConfirmYes?: () => void;
-  onConfirmNo?: () => void;
-  readField?: (field: string) => string;
-  detectedBizRegDoc?: { s3Key: string; fileName: string } | null;
-  setDetectedBizRegDoc?: (v: { s3Key: string; fileName: string } | null) => void;
-  detectedEnvReport?: { s3Key: string; fileName: string } | null;
-  setDetectedEnvReport?: (v: { s3Key: string; fileName: string } | null) => void;
 }) {
   // 섹션은 항상 펼쳐서 고정 표시(드롭다운 제거). 미입력/확인 필요면 그 자리에서 보완 요청.
   const needsRequest = showRequest && (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
@@ -861,11 +1380,6 @@ function AccordionSection({
           <span className="truncate text-sm font-semibold text-ink-100">
             {section.order}. {section.title}
           </span>
-          {locked && (
-            <span className="inline-flex items-center gap-1 rounded-xs border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
-              <Lock className="h-3 w-3" />이전 섹션 완료 필요
-            </span>
-          )}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <span className="text-xs font-medium text-ink-500">{section.completed} / {section.total} 완료</span>
@@ -883,60 +1397,17 @@ function AccordionSection({
           )}
         </div>
       </div>
-      <div className="relative">
-        <SectionContent
-          section={section}
-          real={real}
-          editable={editable}
-          isPrime={isPrime}
-          supplierId={supplierId}
-          factoriesDraft={factoriesDraft}
-          setFactoriesDraft={setFactoriesDraft}
-          contactsDraft={contactsDraft}
-          setContactsDraft={setContactsDraft}
-          noMoreMines={noMoreMines}
-          setNoMoreMines={setNoMoreMines}
-          isSmelter={isSmelter}
-          readField={readField}
-          detectedBizRegDoc={detectedBizRegDoc}
-          setDetectedBizRegDoc={setDetectedBizRegDoc}
-          detectedEnvReport={detectedEnvReport}
-          setDetectedEnvReport={setDetectedEnvReport}
-        />
-        {/* 잠금 오버레이 — 내용은 비쳐 보이되(반투명) 클릭·입력은 막는다.
-            바로 다음 순번(canProceed)이면 진행 버튼을, 그 뒤 섹션들은 안내 문구만 보여준다. */}
-        {locked && (
-          <div className="absolute inset-0 z-10 flex items-start justify-center bg-white/70 pt-10 backdrop-blur-[1px]">
-            {canProceed ? (
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onProceedClick}
-                  className="flex items-center gap-2 rounded-full border-2 border-accent-300 bg-white px-5 py-3 text-base font-bold text-accent-700 shadow-md hover:bg-accent-50"
-                >
-                  <Lock className="h-5 w-5" />이전 세션 완료시 눌러주시면 다음 입력이 가능합니다
-                </button>
-                {prompt === 'missing' && (
-                  <div className="rounded-full border-2 border-alert-border bg-alert-bg px-4 py-2 text-sm font-bold text-alert-text">
-                    필수값을 먼저 입력해주세요
-                  </div>
-                )}
-                {prompt === 'confirm' && (
-                  <div className="flex items-center gap-3 rounded-md border-2 border-slate-300 bg-white px-4 py-3 text-base font-bold text-ink-100 shadow-md">
-                    정말 다음으로 넘어가시겠습니까?
-                    <button type="button" onClick={onConfirmYes} className="rounded-sm bg-accent-700 px-4 py-2 text-base text-white hover:bg-accent-900">네</button>
-                    <button type="button" onClick={onConfirmNo} className="rounded-sm border-2 border-ink-700 px-4 py-2 text-base text-ink-500 hover:bg-slate-50">아니오</button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 shadow-sm">
-                <Lock className="h-3.5 w-3.5" />이전 섹션을 완료하면 열립니다
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <SectionContent
+        section={section}
+        real={real}
+        editable={editable}
+        isPrime={isPrime}
+        supplierId={supplierId}
+        factoriesDraft={factoriesDraft}
+        setFactoriesDraft={setFactoriesDraft}
+        contactsDraft={contactsDraft}
+        setContactsDraft={setContactsDraft}
+      />
     </section>
   );
 }
@@ -965,38 +1436,11 @@ export function SupplierGeneralReviewContent({
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);   // 저장하기 직후 '저장됨' 피드백
-  // 제련소 등 연결된 상위 협력사가 이 광산의 '공장 정보'만 대신 입력하는 모드(§factories.mine_*).
-  //   광산 자신은 항상 읽기전용이라(managedBanner) 이 화면(mode='prime')에서 대신 입력한다.
-  //   실제 저장 범위 제한은 백엔드(submit_master_form의 on_behalf 분기)가 구조적으로 보장한다.
-  const [minerFactoryEditing, setMinerFactoryEditing] = useState(false);
-  // 광산 안내 배너 — 광산은 입력 주체가 아니라 읽기 전용(편집/자료 제출 비활성).
-  //   공장 정보는 광산 자체(광산=공장)의 supplier_factories 를 그대로 보여준다.
+  // 광산 안내 배너 — 광산은 입력 주체가 아니고, '공장 정보'만 상위 제련소(정보관리 주체)가
+  //   입력한 데이터로 채운다. 광산 리뷰는 읽기 전용(편집/자료 제출 비활성).
   const [managedBanner, setManagedBanner] = useState<{ mineName: string } | null>(null);
   const editable = isSupplier && editing && !managedBanner;
-  // '공장 정보' 섹션만: 대행 입력 모드에서도 편집 가능(다른 섹션은 계속 읽기전용/해당없음).
-  const factoriesEditable = editable || minerFactoryEditing;
   const formRef = useRef<HTMLElement>(null);
-  // 편집 중 입력칸 값이 바뀔 때마다 1씩 올려 리렌더를 강제 — data-field 입력칸은 비제어(defaultValue)라
-  //   렌더 사이에 값이 안 바뀌므로, 이 tick으로 "지금 실제로 입력칸에 뭐가 들어있는지"를 다시 읽게 한다.
-  const [, setFormTick] = useState(0);
-  const readField = (field: string): string => {
-    const el = formRef.current?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-field="${field}"]`);
-    return (el?.value ?? '').trim();
-  };
-  // 편집모드로 막 전환된 순간엔 입력칸(defaultValue)이 이번 렌더에서 새로 생기는 중이라, readField가
-  //   보는 DOM엔 아직 반영되기 전이다(이전 커밋 기준) — 그래서 값이 있어도 첫 화면엔 "미입력"으로 보였다.
-  //   커밋 이후 한 번 더 tick을 올려, 입력칸이 실제로 DOM에 붙은 다음 값을 다시 읽게 한다.
-  useEffect(() => {
-    if (editable) setFormTick(t => t + 1);
-  }, [editable]);
-  // 단계별 진행 — 자동으로 "완료됨" 판정만으로 다음 섹션을 열지 않고, 사용자가 직접
-  //   "다음 섹션으로 진행" 버튼을 눌러 확인해야 연다. unlockedUpTo = 지금까지 진행 확정한 섹션 idx.
-  const [unlockedUpTo, setUnlockedUpTo] = useState(0);
-  type ProceedPrompt = { idx: number; kind: 'confirm' | 'missing' } | null;
-  const [proceedPrompt, setProceedPrompt] = useState<ProceedPrompt>(null);
-  // 공장정보 섹션에서 원산지 증명서로 올린 파일이 사업자등록증/환경성적서로 보이면 문서 섹션에 자동 연결.
-  const [detectedBizRegDoc, setDetectedBizRegDoc] = useState<{ s3Key: string; fileName: string } | null>(null);
-  const [detectedEnvReport, setDetectedEnvReport] = useState<{ s3Key: string; fileName: string } | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supplierId = supplierIdProp ?? searchParams.get('supplierId') ?? '';
@@ -1004,22 +1448,17 @@ export function SupplierGeneralReviewContent({
   // supplierId가 UUID면 실 백엔드(detail·contacts·completeness)에서 채우고, mock S-ID면 기존 mock 폴백.
   const isRealSupplier = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId);
   const [api, setApi] = useState<RealData | null>(null);
-  // 자료요청 전체 — 원청 검토 상태(submissionStatus)·다음 제출 예정일(dueDate)을 "선택된 맵(bom_version)"별로 파생.
-  const [allRequests, setAllRequests] = useState<ApiDataRequest[]>([]);
-  // [제품별 독립 제출] 헤더에서 선택한 공급망 맵(=bom_version) key. '' = 첫 맵(자동).
-  const [selectedMapKey, setSelectedMapKey] = useState<string>('');
+  // 최신 자료요청 — 원청 검토 상태(submissionStatus)·다음 제출 예정일(dueDate) 표시용.
+  const [latestRequest, setLatestRequest] = useState<ApiDataRequest | null>(null);
   // 입력 모드 편집용 draft — 로드된 GET 데이터에서 시드(전체 현재 집합). master-form REPLACE-ALL 라운드트립.
   const [factoriesDraft, setFactoriesDraft] = useState<FactoryDraft[]>([]);
   const [contactsDraft, setContactsDraft] = useState<ContactDraft[]>([]);
-  // "추가 광산 없음" 명시 선언(제련소 전용) — PicRegister 말단선언 패턴과 동일 취지.
-  const [noMoreMines, setNoMoreMines] = useState(false);
   useEffect(() => {
-    if (!isRealSupplier) { setApi(null); setAllRequests([]); setManagedBanner(null); return; }
-    setSelectedMapKey(''); // 협력사 전환 시 맵 선택 초기화(첫 맵으로)
+    if (!isRealSupplier) { setApi(null); setLatestRequest(null); setManagedBanner(null); return; }
     let cancelled = false;
     (async () => {
-      // 광산도 자기 id로 조회한다 — 광산은 광산 자체가 곧 공장이라 자기 supplier_factories 를
-      //   그대로 받는다(리다이렉트 없음). 단 광산은 입력 주체가 아니라 보기 전용.
+      // 광산이어도 자기 id로 조회한다 — 백엔드가 광산의 공장 정보를 '정보관리 주체'인 상위
+      //   제련소의 supplier_factories 로 알아서 리다이렉트해 돌려준다(공장=곧 광산, 광산은 보기만).
       const [detail, contactsRes, factoriesRes, comp, itemsRes, riskRes, requestsRes] = await Promise.all([
         getSupplierDetail(supplierId).catch(() => null),
         getSupplierContacts(supplierId).catch(() => null),
@@ -1038,10 +1477,13 @@ export function SupplierGeneralReviewContent({
         items: itemsRes?.items ?? [],
         riskProfile: riskRes,
       });
-      // 광산은 입력 주체가 아니라 읽기 전용(공장 정보는 광산 자체 = 공장).
+      // 광산은 입력 주체가 아니라 읽기 전용 + 공장 정보는 상위 제련소 입력값을 안내.
       setManagedBanner(detail?.providerType === 'miner' ? { mineName: detail.companyName } : null);
-      // 전체 요청 보관 — 최신 선별은 선택된 맵(bom_version) 기준으로 렌더 시점에 파생한다.
-      setAllRequests(requestsRes ?? []);
+      // 가장 최신 요청(requestedAt 기준 내림차순 첫 번째)
+      const sorted = (requestsRes ?? []).sort((a: ApiDataRequest, b: ApiDataRequest) =>
+        (b.requestedAt ?? '').localeCompare(a.requestedAt ?? '')
+      );
+      setLatestRequest(sorted[0] ?? null);
     })();
     return () => { cancelled = true; };
   }, [isRealSupplier, supplierId]);
@@ -1049,35 +1491,9 @@ export function SupplierGeneralReviewContent({
   // api 로드 시 draft 시드(전체 현재 집합). 편집 진입 시에도 최신 서버 값으로 재시드(아래 setEditing 핸들러).
   // 비활성(is_active=false, 소프트 삭제) 공장은 편집 대상에서 제외 — 원산지 이력 보존용이라 UI엔 안 뜬다.
   useEffect(() => {
-    const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
-    setFactoriesDraft(factories);
-    setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
+    setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
+    setContactsDraft((api?.contacts ?? []).map(contactToDraft));
   }, [api]);
-
-  // [제품별 독립 제출] 공급망 맵 목록 + 선택된 맵. 회사정보/PIC/연락처는 맵 무관 공통.
-  const supplyMaps = buildSupplyMaps(api?.items ?? []);
-  const activeMap = supplyMaps.find(m => m.key === selectedMapKey) ?? supplyMaps[0] ?? null;
-  // 선택된 맵으로 스코프한 api — 공장(엣지가 무는 factory_id)·품목을 맵 단위로 한정.
-  //   factoryIds가 비면(레거시/미매핑) 전체 공장을 그대로 보여준다(정보 손실 방지).
-  const scopedApi: RealData | null = api && activeMap
-    ? {
-        ...api,
-        items: activeMap.rows,
-        factories: activeMap.factoryIds.length
-          ? api.factories.filter(f => activeMap.factoryIds.includes(f.factoryId))
-          : api.factories,
-      }
-    : api;
-  // 선택된 맵의 최신 자료요청(원청 검토 상태·예정일). 마이그레이션 안전:
-  //   요청 중 bom_version_id가 하나라도 있으면(=per-map 기능 가동) 맵별로 엄격 분리,
-  //   전부 null(기능 이전 데이터)이면 기존처럼 전체 최신으로 폴백.
-  const perMapRequestsActive = allRequests.some(r => r.bomVersionId);
-  const latestRequest: ApiDataRequest | null = (() => {
-    const pool = (activeMap && perMapRequestsActive)
-      ? allRequests.filter(r => r.bomVersionId === activeMap.key)
-      : allRequests;
-    return [...pool].sort((a, b) => (b.requestedAt ?? '').localeCompare(a.requestedAt ?? ''))[0] ?? null;
-  })();
 
   const apiPrimary = api?.contacts.find(c => c.isPrimary) ?? api?.contacts[0];
   const selectedSupplier = suppliers.find(supplier => supplier.id === supplierId);
@@ -1115,31 +1531,7 @@ export function SupplierGeneralReviewContent({
   const [requestSent, setRequestSent] = useState(false);
   const [requestNote, setRequestNote] = useState('');
   // 실 협력사면 섹션 집계를 실데이터로 도출, 아니면(데모/mock) static 구성 사용.
-  // 제련소 광산 요건 — 백엔드 완성도 SSOT가 아직 이 조건을 모르므로(요청 예정) 클라이언트에서 덧씌운다:
-  //   역할=광산 행이 최소 1개 있고, 전부 좌표가 있고, "추가 광산 없음"을 명시 선언해야 factories 완료.
-  const isSmelter = api?.detail?.providerType === 'smelter';
-  const miningRows = factoriesDraft.filter(f => f.factoryRole === 'mining');
-  const mineRequirementMet = !isSmelter || (miningRows.length > 0 && miningRows.every(f => f.latitude.trim() !== '' && f.longitude.trim() !== '') && noMoreMines);
-  // 편집 중엔 저장 전 입력칸 값 기준(live)으로, 아니면 마지막 저장된 스냅샷 기준으로 완료 여부 판정.
-  const liveCtx: LiveFieldCtx | undefined = editable ? { readField, factories: factoriesDraft } : undefined;
-  const liveSections = (scopedApi ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, scopedApi, liveCtx) })) : sections)
-    .map(s => (s.key === 'factories' && isSmelter && !mineRequirementMet)
-      ? { ...s, status: '미입력' as ReviewStatus, missing: Array.from(new Set([...s.missing, '광산 위치(최소 1곳) + 추가 광산 없음 확인'])) }
-      : s);
-
-  // 다음 섹션으로 진행 버튼 — 직전 섹션이 완료/해당없음이면 "정말 넘어가시겠습니까" 확인,
-  //   아니면 "필수값을 먼저 입력해주세요"만 띄우고 대기(자동으로 넘어가지 않음).
-  function handleProceedClick(idx: number) {
-    const prevOk = ['완료', '해당 없음'].includes(liveSections[idx - 1]?.status);
-    setProceedPrompt({ idx, kind: prevOk ? 'confirm' : 'missing' });
-  }
-  function confirmProceedYes() {
-    if (proceedPrompt) setUnlockedUpTo(u => Math.max(u, proceedPrompt.idx));
-    setProceedPrompt(null);
-  }
-  function confirmProceedNo() {
-    setProceedPrompt(null);
-  }
+  const liveSections = api ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, api) })) : sections;
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
   function toggleItem(key: string) {
@@ -1191,27 +1583,42 @@ export function SupplierGeneralReviewContent({
       established_year: d?.establishedYear ?? undefined,
       employee_count: d?.employeeCount ?? undefined,
     };
-    // 편집 입력값 override. 입력칸이 화면에 없는 필드(v===undefined)는 round-trip으로
-    //   기존 값을 유지한다 — 그래야 회사 섹션 전체가 편집 가능하지 않은 화면(예: 광산 대행
-    //   입력에서 '공장 정보'만 편집)에서 저장해도 나머지 회사 필드가 NULL로 덮이지 않는다.
-    const roundTrip = (v: string | undefined, current: unknown) => (v !== undefined ? (v || null) : (current ?? null));
+    // 편집 입력값 override.
     const companyName = orNull(read('company.companyName'));
     company.company_name = companyName ?? d?.companyName ?? '';                          // REQUIRED
     const pt = read('company.providerType');
     company.provider_type = (pt && pt !== '') ? pt : (d?.providerType ?? '');            // REQUIRED — 빈값이면 detail 폴백
-    company.country = roundTrip(read('company.country'), d?.country);
-    company.business_reg_no = roundTrip(read('company.businessRegNo'), d?.businessRegNo);
-    company.duns_number = roundTrip(read('company.dunsNumber'), d?.dunsNumber);
-    company.smelter_type = roundTrip(read('company.smelterType'), d?.smelterType);
-    // 소재 구성은 더 이상 회사 단위 입력칸이 없다(§factories 섹션의 공장 카드로 이전) —
-    // 레거시 값이 있으면 지우지 않고 그대로 라운드트립만 한다(master-form은 생략=NULL이라 필요).
-    company.core_minerals = d?.coreMinerals ?? null;
-    // 필요문서 업로드(S3 키) — company 컬럼으로 영속화. 입력칸이 없는 화면이면 round-trip.
-    company.business_reg_doc_url = roundTrip(read('documents.businessRegDocUrl'), d?.businessRegDocUrl);
-    company.environmental_report_url = roundTrip(read('documents.environmentalReportUrl'), d?.environmentalReportUrl);
-    company.self_assessment_doc_url = roundTrip(read('regulation.selfAssessmentDocUrl'), dRec.selfAssessmentDocUrl);
-    // 소재구성 문서(회사 단위 레거시 컬럼) — 더 이상 이 화면에서 올리지 않으니 라운드트립만.
-    company.material_composition_doc_url = dRec.materialCompositionDocUrl ?? null;
+    const country = read('company.country'); if (country !== undefined) company.country = country || null;
+    const businessRegNo = read('company.businessRegNo'); if (businessRegNo !== undefined) company.business_reg_no = businessRegNo || null;
+    const dunsNumber = read('company.dunsNumber'); if (dunsNumber !== undefined) company.duns_number = dunsNumber || null;
+    const st = read('company.smelterType'); if (st !== undefined) company.smelter_type = st || null;
+    // 소재 구성 → core_minerals. 편집칸에 노출된 광물 키 전부(흑연 포함) 동적 수집.
+    const prevCm = (d?.coreMinerals ?? {}) as Record<string, unknown>;
+    const mineralKeys = [...new Set([...MINERAL_EDIT_KEYS, ...mineralKeysOf(prevCm)])];
+    const entries = mineralKeys.map(k => [k, read(`materials.${k}`)] as const);
+    if (entries.some(([, v]) => v !== undefined)) {
+      const cm: Record<string, unknown> = {};
+      // 입력칸에 안 뜨는 비광물 키(hazardous_substances 등)는 그대로 보존.
+      Object.entries(prevCm).forEach(([k, v]) => {
+        if (!mineralKeys.includes(k) && v != null) cm[k] = v;
+      });
+      entries.forEach(([k, v]) => {
+        const val = v !== undefined ? v : prevCm[k];   // 편집 안 한 키는 기존 값 유지
+        if (val !== undefined && val !== null && val !== '') cm[k] = Number(val);
+      });
+      company.core_minerals = Object.keys(cm).length ? cm : null;
+    } else if (d?.coreMinerals) {
+      company.core_minerals = d.coreMinerals;   // round-trip
+    }
+    // 필요문서 업로드(S3 키) — company 컬럼으로 영속화.
+    const braUrl = read('documents.businessRegDocUrl'); if (braUrl !== undefined) company.business_reg_doc_url = braUrl || null;
+    const envUrl = read('documents.environmentalReportUrl'); if (envUrl !== undefined) company.environmental_report_url = envUrl || null;
+    const saUrl = read('regulation.selfAssessmentDocUrl'); if (saUrl !== undefined) company.self_assessment_doc_url = saUrl || null;
+    // 소재구성 문서(핵심광물 함량) — 패널 hidden input 우선, 없으면 detail round-trip.
+    //   master-form company 는 authoritative-overwrite(생략=NULL)라 반드시 실어 보낸다.
+    const mcUrl = read('materials.materialCompositionDocUrl');
+    if (mcUrl !== undefined) company.material_composition_doc_url = mcUrl || null;
+    else if (dRec.materialCompositionDocUrl) company.material_composition_doc_url = dRec.materialCompositionDocUrl;
 
     // ── factories: draft(전체 현재 집합) → snake_case (UPSERT) ──
     // 기존 공장은 factory_id 를 round-trip 해 백엔드가 UPDATE(id 보존)하도록 한다.
@@ -1226,7 +1633,6 @@ export function SupplierGeneralReviewContent({
       if (f.factoryRole) out.factory_role = f.factoryRole;
       if (f.destination) out.destination = f.destination;
       if (f.supplyRatioPercent !== '') out.supply_ratio_percent = Number(f.supplyRatioPercent);
-      if (Object.keys(f.coreMinerals).length) out.core_minerals = f.coreMinerals;
       // 공장 담당자(공장 단위)
       if (f.factoryManagerName) out.factory_manager_name = f.factoryManagerName;
       if (f.factoryManagerRole) out.factory_manager_role = f.factoryManagerRole;
@@ -1249,7 +1655,6 @@ export function SupplierGeneralReviewContent({
       if (c.phone) out.phone = c.phone;
       if (c.mobile) out.mobile = c.mobile;
       out.is_primary = c.isPrimary;
-      if (c.factoryIndex != null) out.factory_index = c.factoryIndex;
       return out;
     });
 
@@ -1266,17 +1671,13 @@ export function SupplierGeneralReviewContent({
     };
 
     const body: Record<string, unknown> = { company, factories, contacts, manufacturing };
-    const srl = read('regulation.selfReportedRiskLevel'); if (srl) body.self_reported_risk_level = srl;
-
     await submitMasterForm(supplierId, body);
-    // 입력값 반영 — detail·contacts·factories·risk-profile·완성도 재조회(정확한 서버 값으로).
-    //   completeness도 함께 갱신해야 저장 직후 배지·퍼센트가 바로 최신 상태로 뜬다.
-    const [fresh, contactsRes, factoriesRes, rp, comp] = await Promise.all([
+    // 입력값 반영 — detail·contacts·factories·risk-profile 재조회(정확한 서버 값으로).
+    const [fresh, contactsRes, factoriesRes, rp] = await Promise.all([
       getSupplierDetail(supplierId).catch(() => null),
       getSupplierContacts(supplierId).catch(() => null),
       getSupplierFactories(supplierId).catch(() => null),
       getSupplierRiskProfile(supplierId).catch(() => null),
-      getSupplierCompleteness(supplierId).catch(() => null),
     ]);
     setApi(prev => (prev ? {
       ...prev,
@@ -1284,7 +1685,6 @@ export function SupplierGeneralReviewContent({
       ...(contactsRes ? { contacts: contactsRes.contacts ?? [] } : {}),
       ...(factoriesRes ? { factories: factoriesRes.factories ?? [] } : {}),
       ...(rp ? { riskProfile: rp } : {}),
-      ...(comp ? { comp } : {}),
     } : prev));
   }
 
@@ -1378,17 +1778,12 @@ export function SupplierGeneralReviewContent({
   }
 
   return (
-    <main
-      ref={formRef}
-      className={embedded ? '' : 'min-h-screen bg-slate-50 px-7 py-5'}
-      // 입력칸 어디서든 값이 바뀌면 tick만 올려 리렌더 — 완료 배지·진행 가능 여부를 지금 입력값 기준으로 다시 계산.
-      onChange={() => setFormTick(t => t + 1)}
-    >
+    <main ref={formRef} className={embedded ? '' : 'min-h-screen bg-slate-50 px-7 py-5'}>
       {managedBanner && (
         <div className="mb-4 flex items-start gap-2 rounded-sm border border-info-border bg-info-bg px-4 py-3 text-sm text-info-text">
           <Building2 className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            <b>{managedBanner.mineName}</b>은 데이터 입력 주체가 아닙니다(읽기 전용). 공장 정보는 광산 자체(광산=공장)입니다.
+            <b>{managedBanner.mineName}</b>은 데이터 입력 주체가 아닙니다. 공장 정보는 정보관리 주체인 상위 제련소가 입력한 데이터입니다(읽기 전용).
           </span>
         </div>
       )}
@@ -1424,48 +1819,6 @@ export function SupplierGeneralReviewContent({
               )}
             </div>
           )}
-          {/* 연결된 상위 협력사(제련소 등)의 대행 입력 — 광산은 항상 읽기전용이라 '공장 정보'
-              섹션만 예외로 편집을 연다(§factories.mine_country/mine_composition). */}
-          {isPrime && managedBanner && !minerFactoryEditing && (
-            <button
-              type="button"
-              onClick={() => {
-                setSaved(false);
-                setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
-                setMinerFactoryEditing(true);
-              }}
-              className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
-            >
-              <Pencil className="h-4 w-4" />
-              공장 정보 대행 입력
-            </button>
-          )}
-          {isPrime && managedBanner && minerFactoryEditing && (
-            <>
-              {saved && (
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-ok-text">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  저장됨
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => { setSaved(false); setMinerFactoryEditing(false); }}
-                className="inline-flex h-9 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-sm font-semibold text-ink-500 transition-colors hover:border-accent-500 hover:text-accent-700"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={saveSupplierForm}
-                disabled={submitting}
-                className="inline-flex h-9 items-center gap-2 rounded-sm border border-accent-600 bg-accent-50 px-3 text-sm font-semibold text-accent-700 transition-colors hover:bg-accent-100 active:opacity-75 disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" />
-                {submitting ? '저장 중…' : '저장하기'}
-              </button>
-            </>
-          )}
           {/* 협력사: 보기 ↔ 입력 토글 (라우트 변경 없이 같은 양식의 칸만 전환) */}
           {isSupplier && !editing && !managedBanner && (
             <>
@@ -1482,17 +1835,8 @@ export function SupplierGeneralReviewContent({
                 type="button"
                 onClick={() => {
                   setSaved(false);
-                  const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
-                  setFactoriesDraft(factories);
-                  setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
-                  // 이미 저장돼 완료된 앞쪽 섹션들은 매번 재확인시키지 않고 그대로 이어서 열어준다.
-                  let alreadyDone = 0;
-                  for (const s of liveSections) {
-                    if (s.status === '완료' || s.status === '해당 없음') alreadyDone += 1;
-                    else break;
-                  }
-                  setUnlockedUpTo(alreadyDone);
-                  setProceedPrompt(null);
+                  setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
+                  setContactsDraft((api?.contacts ?? []).map(contactToDraft));
                   setEditing(true);
                 }}
                 className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
@@ -1539,32 +1883,6 @@ export function SupplierGeneralReviewContent({
           )}
         </div>
       </div>
-
-      {/* [제품별 독립 제출] 헤더 공급망 맵 탭 — 선택 시 페이지 전체(공장·원산지·핵심광물·원청 검토 상태·완성도)가
-          그 맵(bom_version) 기준으로 전환된다. 회사정보/PIC/연락처는 맵 무관 공통이라 아래 헤더에 고정.
-          편집(자료 제출) 중엔 공장 편집이 전체 집합 대상이라 탭을 숨긴다(맵 스코프 혼동 방지). */}
-      {supplyMaps.length > 1 && !editing && (
-        <div className="flex flex-wrap items-end gap-1 border-b border-ink-700/40">
-          {supplyMaps.map(m => {
-            const dup = supplyMaps.filter(x => x.label === m.label).length > 1;
-            const isActive = (activeMap?.key ?? '') === m.key;
-            return (
-              <button
-                key={m.key}
-                type="button"
-                onClick={() => setSelectedMapKey(m.key)}
-                className={`-mb-px rounded-t-sm border px-4 py-2 text-sm font-semibold transition-colors ${
-                  isActive
-                    ? 'border-ink-700 border-b-white bg-white text-ink-100'
-                    : 'border-transparent bg-slate-50 text-ink-400 hover:text-ink-100'
-                }`}
-              >
-                {m.label}{dup && m.version ? ` v${m.version}` : ''}
-              </button>
-            );
-          })}
-        </div>
-      )}
 
       <section className="rounded-sm border border-ink-700 bg-white shadow-control">
         <div className="px-5 py-3">
@@ -1619,48 +1937,26 @@ export function SupplierGeneralReviewContent({
           <LegendItem status="확인 필요" icon={<HelpCircle className="h-4 w-4" />} />
           <LegendItem status="미입력" icon={<XCircle className="h-4 w-4" />} />
           <LegendItem status="해당 없음" icon={<span className="block h-3 w-3 rounded-full bg-slate-300" />} />
-          <span className="text-xs font-medium text-alert-text">* 표시 = 필수 입력 항목</span>
         </div>
       </section>
 
       <section className="mt-4 rounded-sm border border-ink-700 bg-white shadow-control">
-        {/* 단계별 잠금 — 자료 제출 입력 모드에서만: idx가 unlockedUpTo보다 크면 잠금.
-            "직전 섹션 완료" 자동판정만으로는 열리지 않고, 사용자가 진행 버튼을 눌러 확인해야 열린다.
-            원청 검토·협력사 보기 모드는 항상 전체 노출(검토는 순서 강제할 이유가 없음). */}
-        {liveSections.map((section, idx) => {
-          const locked = editable && idx > unlockedUpTo;
-          const isNextToUnlock = locked && idx === unlockedUpTo + 1;
-          return (
-            <AccordionSection
-              key={section.key}
-              section={section}
-              onRequestSection={openRequestForSection}
-              real={scopedApi}
-              editable={section.key === 'factories' ? factoriesEditable : editable}
-              showRequest={isPrime}
-              isPrime={isPrime}
-              supplierId={supplierId}
-              factoriesDraft={factoriesDraft}
-              setFactoriesDraft={setFactoriesDraft}
-              contactsDraft={contactsDraft}
-              setContactsDraft={setContactsDraft}
-              noMoreMines={noMoreMines}
-              setNoMoreMines={setNoMoreMines}
-              isSmelter={isSmelter}
-              locked={locked}
-              canProceed={isNextToUnlock}
-              prompt={isNextToUnlock && proceedPrompt?.idx === idx ? proceedPrompt.kind : null}
-              onProceedClick={() => handleProceedClick(idx)}
-              onConfirmYes={confirmProceedYes}
-              onConfirmNo={confirmProceedNo}
-              readField={editable ? readField : undefined}
-              detectedBizRegDoc={detectedBizRegDoc}
-              setDetectedBizRegDoc={setDetectedBizRegDoc}
-              detectedEnvReport={detectedEnvReport}
-              setDetectedEnvReport={setDetectedEnvReport}
-            />
-          );
-        })}
+        {liveSections.map(section => (
+          <AccordionSection
+            key={section.key}
+            section={section}
+            onRequestSection={openRequestForSection}
+            real={api}
+            editable={editable}
+            showRequest={isPrime}
+            isPrime={isPrime}
+            supplierId={supplierId}
+            factoriesDraft={factoriesDraft}
+            setFactoriesDraft={setFactoriesDraft}
+            contactsDraft={contactsDraft}
+            setContactsDraft={setContactsDraft}
+          />
+        ))}
       </section>
 
       <section className="mt-4 grid rounded-sm border border-ink-700 bg-white shadow-control md:grid-cols-2">
