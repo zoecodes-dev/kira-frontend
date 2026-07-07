@@ -35,42 +35,26 @@ const FactoryLocationPicker = dynamic(() => import('@/components/supplier/Factor
 const editCellCls = 'w-full min-w-24 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20';
 const factoryRoleSelectCls = 'w-full min-w-20 rounded-xs border border-ink-700 bg-white px-2 py-1 text-sm text-ink-100 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20';
 
-// 라벨+입력칸 한 칸 — 카드 안 필드 그리드 공용 셀.
+// 라벨+입력칸 한 칸 — 다른 섹션(CompanyGrid: 회사정보·규제 등)과 같은 테두리 표 톤으로
+//   통일한 카드 안 필드 그리드 공용 셀. 부모가 `grid ... md:grid-cols-2`로 감싸 쓴다.
 function FieldCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-[11px] font-semibold text-ink-500">{label}</span>
+    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3 border-b border-r border-ink-700 px-4 py-2.5 last:border-b-0 even:border-r-0">
+      <span className="text-sm font-medium text-ink-500">{label}</span>
       {children}
-    </label>
-  );
-}
-
-// 담당자 한 명 — 편집 행(카드 안 "담당자" 서브섹션 공용, 공장별/공통 카드가 함께 쓴다).
-function ContactRow({ c, onUpdate, onSetPrimary, onRemove }: {
-  c: ContactDraft;
-  onUpdate: (patch: Partial<ContactDraft>) => void;
-  onSetPrimary: () => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-xs border border-ink-700 bg-white p-1.5">
-      <input value={c.name} onChange={e => onUpdate({ name: e.target.value })} placeholder="이름" className={clsx(editCellCls, 'w-28')} />
-      <input value={c.role} onChange={e => onUpdate({ role: e.target.value })} placeholder="직책" className={clsx(editCellCls, 'w-24')} />
-      <input value={c.email} onChange={e => onUpdate({ email: e.target.value })} placeholder="이메일" className={clsx(editCellCls, 'w-36')} />
-      <input value={c.mobile} onChange={e => onUpdate({ mobile: e.target.value })} placeholder="연락처" className={clsx(editCellCls, 'w-28')} />
-      <label className="flex items-center gap-1 text-xs text-ink-400">
-        <input type="radio" name="contact-primary" checked={c.isPrimary} onChange={onSetPrimary} className="h-3.5 w-3.5 accent-brand" />대표
-      </label>
-      <button type="button" onClick={onRemove} className="ml-auto rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
     </div>
   );
 }
 
 // 담당자 서브섹션 — factoryIndex(null=회사 공통)에 속한 담당자만 골라 렌더링. 카드마다 재사용.
-function ContactsSubsection({ factoryIndex, contacts, onContactsChange }: {
+//   이름/직책/이메일/연락처를 표(열)로 나눠 세로 정렬한다(한 줄에 다 몰아넣던 이전 방식 대신,
+//   확인화면(SupplierGeneralReview)의 표 톤과 통일). max 지정 시(공장 카드 = 1명만) 그 수만큼
+//   채워지면 "담당자 추가" 버튼을 숨긴다 — 회사 공통 담당자는 max 미지정(무제한).
+function ContactsSubsection({ factoryIndex, contacts, onContactsChange, max }: {
   factoryIndex: number | null;
   contacts: ContactDraft[];
   onContactsChange: (rows: ContactDraft[]) => void;
+  max?: number;
 }) {
   const items = contacts.map((c, i) => ({ c, i })).filter(({ c }) => c.factoryIndex === factoryIndex);
   const update = (i: number, patch: Partial<ContactDraft>) =>
@@ -78,14 +62,45 @@ function ContactsSubsection({ factoryIndex, contacts, onContactsChange }: {
   const setPrimary = (i: number) => onContactsChange(contacts.map((c, idx) => ({ ...c, isPrimary: idx === i })));
   const remove = (i: number) => onContactsChange(contacts.filter((_, idx) => idx !== i));
   const add = () => onContactsChange([...contacts, emptyContactDraft(factoryIndex)]);
+  const showPrimary = max == null;
   return (
     <div className="space-y-1.5">
       <div className="text-[11px] font-bold text-ink-500">담당자</div>
       {items.length === 0 && <div className="text-xs text-ink-500">등록된 담당자가 없습니다.</div>}
-      {items.map(({ c, i }) => (
-        <ContactRow key={i} c={c} onUpdate={patch => update(i, patch)} onSetPrimary={() => setPrimary(i)} onRemove={() => remove(i)} />
-      ))}
-      <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-2.5 py-1 text-xs font-semibold text-accent-700 hover:bg-accent-100">담당자 추가</button>
+      {items.length > 0 && (
+        <div className="overflow-hidden rounded-xs border border-ink-700">
+          <table className="w-full border-collapse">
+            <thead className="bg-slate-50">
+              <tr>
+                {['이름', '직책', '이메일', '연락처', ...(showPrimary ? ['대표'] : []), ''].map((h, idx) => (
+                  <th key={`${h}-${idx}`} className="border-b border-ink-700 px-2 py-1.5 text-left text-xs font-semibold text-ink-500">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(({ c, i }) => (
+                <tr key={i} className="border-b border-ink-700 last:border-b-0">
+                  <td className="px-2 py-1.5"><input value={c.name} onChange={e => update(i, { name: e.target.value })} placeholder="이름" className={editCellCls} /></td>
+                  <td className="px-2 py-1.5"><input value={c.role} onChange={e => update(i, { role: e.target.value })} placeholder="직책" className={editCellCls} /></td>
+                  <td className="px-2 py-1.5"><input value={c.email} onChange={e => update(i, { email: e.target.value })} placeholder="이메일" className={editCellCls} /></td>
+                  <td className="px-2 py-1.5"><input value={c.mobile} onChange={e => update(i, { mobile: e.target.value })} placeholder="연락처" className={editCellCls} /></td>
+                  {showPrimary && (
+                    <td className="px-2 py-1.5 text-center">
+                      <input type="radio" name="contact-primary" checked={c.isPrimary} onChange={() => setPrimary(i)} className="h-3.5 w-3.5 accent-brand" aria-label="대표 담당자" />
+                    </td>
+                  )}
+                  <td className="px-2 py-1.5 text-center">
+                    <button type="button" onClick={() => remove(i)} className="rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {(max == null || items.length < max) && (
+        <button type="button" onClick={add} className="rounded-xs border border-accent-100 bg-accent-50 px-2.5 py-1 text-xs font-semibold text-accent-700 hover:bg-accent-100">담당자 추가</button>
+      )}
     </div>
   );
 }
@@ -116,24 +131,25 @@ function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
   }
 
   return (
-    <div className="space-y-2 rounded-xs border border-ink-700 bg-white p-2.5">
+    <div className="space-y-2">
       <MaterialDocParsePanel supplierId={supplierId} editable onParsed={applyExtraction} onOpenViewer={() => setParsingOpen(true)} />
-      <div className="flex flex-wrap items-start gap-3">
-        <span className="shrink-0 pt-1.5 text-xs font-semibold text-ink-500">이 공장의 소재 구성(%)</span>
+      <div className="mb-1 text-sm font-medium text-ink-500">이 공장의 소재 구성</div>
+      {/* 다른 섹션(CompanyGrid)과 같은 테두리 표 톤 — 광물마다 한 칸, 균일하게 나뉜다. */}
+      <div className="grid overflow-hidden rounded-sm border border-ink-700 md:grid-cols-2">
         {MINERAL_EDIT_KEYS.map(k => (
-          <label key={k} className="flex flex-col gap-0.5 text-xs text-ink-400">
-            <span className="flex items-center gap-1">
-              {MINERAL_LABELS[k]}
+          <div key={k} className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3 border-b border-r border-ink-700 px-4 py-2.5 last:border-b-0 even:border-r-0">
+            <span className="text-sm font-medium text-ink-500">{MINERAL_LABELS[k]} 함량(%)</span>
+            <div>
               <input
                 value={coreMinerals[k] ?? ''}
                 onChange={e => onUpdateMineral(k, e.target.value)}
                 placeholder="-"
                 inputMode="decimal"
-                className="w-16 rounded-xs border border-ink-700 bg-white px-1.5 py-1 text-xs text-ink-100 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500/20"
+                className={editCellCls}
               />
-            </span>
-            {flagged[k] && <span className="text-[10px] text-warn-text">{flagged[k]}</span>}
-          </label>
+              {flagged[k] && <div className="mt-1 text-[11px] font-bold text-warn-text">{flagged[k]}</div>}
+            </div>
+          </div>
         ))}
       </div>
       <AiParsingReviewModal supplierId={supplierId} open={parsingOpen} onClose={() => setParsingOpen(false)} />
@@ -244,18 +260,12 @@ export default function FactoryCards({ rows, onChange, isSmelter = false, active
                 </select>
                 <button type="button" onClick={() => remove(i)} className="shrink-0 rounded-xs border border-ink-700 bg-white px-2 py-1 text-xs font-semibold text-ink-500 hover:border-alert-border hover:text-alert-text">삭제</button>
               </div>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="grid overflow-hidden rounded-sm border border-ink-700 md:grid-cols-2">
                 <FieldCell label="국가"><input value={r.country} onChange={e => update(i, { country: e.target.value })} placeholder="국가" className={editCellCls} /></FieldCell>
                 <FieldCell label="지역"><input value={r.region} onChange={e => update(i, { region: e.target.value })} placeholder="지역" className={editCellCls} /></FieldCell>
                 <FieldCell label="주소"><input value={r.address} onChange={e => update(i, { address: e.target.value })} placeholder="주소" className={editCellCls} /></FieldCell>
                 <FieldCell label="납품처"><input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} /></FieldCell>
                 <FieldCell label="공급비율(%)"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></FieldCell>
-                <FieldCell label="위도"><input value={r.latitude} onChange={e => update(i, { latitude: e.target.value })} placeholder="위도" inputMode="decimal" className={editCellCls} /></FieldCell>
-                <FieldCell label="경도"><input value={r.longitude} onChange={e => update(i, { longitude: e.target.value })} placeholder="경도" inputMode="decimal" className={editCellCls} /></FieldCell>
-                <FieldCell label="공장 담당자(대표 1명)"><input value={r.factoryManagerName} onChange={e => update(i, { factoryManagerName: e.target.value })} placeholder="담당자" className={editCellCls} /></FieldCell>
-                <FieldCell label="직책"><input value={r.factoryManagerRole} onChange={e => update(i, { factoryManagerRole: e.target.value })} placeholder="직책" className={editCellCls} /></FieldCell>
-                <FieldCell label="연락처"><input value={r.factoryManagerPhone} onChange={e => update(i, { factoryManagerPhone: e.target.value })} placeholder="연락처" className={editCellCls} /></FieldCell>
-                <FieldCell label="메일"><input value={r.factoryManagerEmail} onChange={e => update(i, { factoryManagerEmail: e.target.value })} placeholder="메일" className={editCellCls} /></FieldCell>
               </div>
               {/* 소재 구성 — 공장(사이트)마다 다룰 수 있어 회사 단위가 아니라 공장 단위로 관리한다
                   (광산뿐 아니라 모든 유형 공통 — §materials.any/materials.handled_any). */}
@@ -265,7 +275,8 @@ export default function FactoryCards({ rows, onChange, isSmelter = false, active
                 onUpdateMineral={(k, v) => updateMineral(i, k, v)}
               />
               <div className="border-t border-ink-700 pt-3">
-                <ContactsSubsection factoryIndex={i} contacts={contacts} onContactsChange={onContactsChange} />
+                {/* 공장은 담당자 1명만 — 여러 명 필요하면 회사 공통 담당자 카드 사용. */}
+                <ContactsSubsection factoryIndex={i} contacts={contacts} onContactsChange={onContactsChange} max={1} />
               </div>
             </div>
           ))}
