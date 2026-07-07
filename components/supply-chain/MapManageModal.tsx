@@ -7,7 +7,8 @@ import clsx from 'clsx';
 import { CheckCircle2, FileSignature, Leaf, Loader2, Paperclip, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
 import ModalShell from './ModalShell';
 import type { RequestGapItem } from './DataRequestModal';
-import { downloadSupplyChainExcel, getDataConsents, getSupplierCarbonDeclarations, getValidationSummary, listFilesByContext, uploadFile, type CarbonDeclaration, type DataConsent, type SupplierBrief, type ValidationSummary } from '@/lib/api';
+import { downloadSupplyChainExcel, getDataConsents, getSupplierCarbonDeclarations, getSupplyChainEvaluation, getValidationSummary, listFilesByContext, uploadFile, type CarbonDeclaration, type DataConsent, type SupplierBrief, type SupplyChainEvaluation, type ValidationSummary } from '@/lib/api';
+import EvaluationReportCard from './EvaluationReportCard';
 
 type EpdStatus = 'verified' | 'declared' | 'expired' | 'missing';
 
@@ -75,6 +76,7 @@ export default function MapManageModal({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [summary, setSummary] = useState<ValidationSummary | null>(null);   // [P7]
   const [downloading, setDownloading] = useState(false);
+  const [evaluation, setEvaluation] = useState<SupplyChainEvaluation | null>(null);  // 평가 리포트(종합 판정 문구)
 
   // [P7] 최종 검증 요약/판정 조회 (get_gaps + 비율검증 롤업).
   useEffect(() => {
@@ -83,6 +85,9 @@ export default function MapManageModal({
     getValidationSummary(productId, bomVersionId)
       .then(s => { if (!cancelled) setSummary(s); })
       .catch(() => { if (!cancelled) setSummary(null); });
+    getSupplyChainEvaluation(productId, bomVersionId)
+      .then(e => { if (!cancelled) setEvaluation(e); })
+      .catch(() => { if (!cancelled) setEvaluation(null); });
     return () => { cancelled = true; };
   }, [productId, bomVersionId, reload]);
 
@@ -191,6 +196,9 @@ export default function MapManageModal({
         </div>
       }
     >
+      {/* 공급망 맵 평가 리포트(종합 판정 문구) — 최종 검증 패널 최상단. */}
+      {evaluation?.available && <EvaluationReportCard report={evaluation} className="mb-4" />}
+
       {/* [P7] 공급망 최종 검증 요약 + 고객사 제출용 엑셀 */}
       {summary && (
         <section className="mb-4 rounded-md border border-slate-200 bg-white p-4">
