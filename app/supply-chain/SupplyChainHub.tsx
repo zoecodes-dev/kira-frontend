@@ -87,6 +87,9 @@ export default function SupplyChainHub() {
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
   // STEP 4 — 협력사별 '동의서 수신 확인' 집합(= 차수 노출 게이트) + 활성 BOM 버전(verify 대상).
   const [confirmedSuppliers, setConfirmedSuppliers] = useState<Set<string>>(new Set());
+  // 사용자가 명시적으로 '확인 취소'한 협력사 — 동의서가 agreed/returned라도 아래 자동 재확인
+  // useEffect가 다시 확인 처리하지 못하게 막는 제외 목록. 사용자가 직접 재확인하면 제거된다.
+  const [manuallyUnconfirmed, setManuallyUnconfirmed] = useState<Set<string>>(new Set());
   // STEP 3 — 동의 메일/요청 발송된 협력사 id 집합(발송 완료 판정용). STEP 4 — 동의서 수신 자동 판정 새로고침 트리거.
   const [mailedIds, setMailedIds] = useState<Set<string>>(new Set());
   const [consentRefresh, setConsentRefresh] = useState(0);
@@ -284,6 +287,12 @@ export default function SupplyChainHub() {
       const willConfirm = !n.has(id);
       willConfirm ? n.add(id) : n.delete(id);
       persistVerify(id, willConfirm);
+      // 수동 취소는 제외 목록에 기록(자동 재확인 방지). 수동 재확인이면 제외 목록에서 뺀다.
+      setManuallyUnconfirmed(prevEx => {
+        const nEx = new Set(prevEx);
+        willConfirm ? nEx.delete(id) : nEx.add(id);
+        return nEx;
+      });
       return n;
     });
   const confirmAll = () => {
@@ -314,19 +323,23 @@ export default function SupplyChainHub() {
       if (cancelled) return;
       setMailedIds(new Set(rows.filter(r => r.mailed).map(r => r.id)));
       // 자동 판정 — 수신된 동의서는 수신 확인으로 자동 반영(사용자 수동 확인과 병행). 차수 노출 게이트에 즉시 반영.
+      //   단, 사용자가 명시적으로 '확인 취소'한 협력사(manuallyUnconfirmed)는 동의서 상태와
+      //   무관하게 자동 재확인 대상에서 제외한다 — 안 그러면 취소가 이 effect 재실행 때 바로 덮어써진다.
       const autoReceived = rows.filter(r => r.received).map(r => r.id);
       if (autoReceived.length) {
         setConfirmedSuppliers(prev => {
           let changed = false;
           const next = new Set(prev);
-          autoReceived.forEach(id => { if (!next.has(id)) { next.add(id); changed = true; persistVerify(id, true); } });
+          autoReceived.forEach(id => {
+            if (!next.has(id) && !manuallyUnconfirmed.has(id)) { next.add(id); changed = true; persistVerify(id, true); }
+          });
           return changed ? next : prev;
         });
       }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapSuppliers, consentRefresh]);
+  }, [mapSuppliers, consentRefresh, manuallyUnconfirmed]);
   // STEP6 최종 검증 결과 영속 — 환경성적서 통과=verified, 실패=unverified로 백엔드 반영.
   const onStep4Verified = (results: { supplierId: string; passed: boolean }[]) => {
     setConfirmedSuppliers(prev => {

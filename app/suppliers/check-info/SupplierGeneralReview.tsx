@@ -835,6 +835,8 @@ function deriveSectionMeta(
     };
   }
   if (key === 'regulation') {
+    // 광산(miner)은 입력 주체가 아니라 규제(자가진단·탄소) 판정 대상 아님 → 해당 없음(백엔드 완성도와 동일 규칙).
+    if ((d?.providerType ?? '') === 'miner') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
     const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
     const fields: [string, unknown][] = [
       ['탄소집약도', pick('regulation.carbonIntensity', m.carbonIntensity)],
@@ -848,6 +850,8 @@ function deriveSectionMeta(
     return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
   }
   if (key === 'documents') {
+    // 광산은 필요문서(사업자등록증·환경성적서) 제출 주체 아님 → 해당 없음.
+    if ((d?.providerType ?? '') === 'miner') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
     const fields: [string, unknown][] = [
       ['사업자등록증', pick('documents.businessRegDocUrl', d?.businessRegDocUrl)],
       ['환경성적서', pick('documents.environmentalReportUrl', d?.environmentalReportUrl)],
@@ -1388,12 +1392,13 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const es = m.energySource;
     const sr = real?.riskProfile?.selfReportedRiskLevel;
     const srRaw = sr && sr !== 'unknown' ? sr : '';
+    const naMiner = (d?.providerType ?? '') === 'miner';  // 광산: 규제(탄소·자가진단) 판정 대상 아님 → 해당 없음
     const comp = real?.comp;
     const req = (key: string) => isFieldRequired(key, comp, true);
     const rows: string[][] = [
-      [reqLabel('탄소집약도 (kgCO2eq/kg)', req('regulation.carbon_intensity')), ci != null ? String(ci) : '-', filled('regulation.carbonIntensity', ci)],
-      [reqLabel('에너지원', req('regulation.energy_source')), (es as string) ?? '-', filled('regulation.energySource', es)],
-      [reqLabel('실사 자가진단', req('regulation.self_reported_risk_level')), srRaw, filled('regulation.selfReportedRiskLevel', srRaw)],
+      [reqLabel('탄소집약도 (kgCO2eq/kg)', req('regulation.carbon_intensity')), ci != null ? String(ci) : '-', naMiner ? '해당 없음' : filled('regulation.carbonIntensity', ci)],
+      [reqLabel('에너지원', req('regulation.energy_source')), (es as string) ?? '-', naMiner ? '해당 없음' : filled('regulation.energySource', es)],
+      [reqLabel('실사 자가진단', req('regulation.self_reported_risk_level')), srRaw, naMiner ? '해당 없음' : filled('regulation.selfReportedRiskLevel', srRaw)],
       // DD 보고서는 원청 전용 — 협력사 폼에는 표시하지 않는다.
       ...(isPrime ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
     ];
