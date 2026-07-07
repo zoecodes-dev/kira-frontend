@@ -11,6 +11,7 @@ import {
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type SuppliedItem as ApiItem, type ApiDataRequest,
+  type AiExtraction,
   ApiError,
 } from '@/lib/api';
 import { addDemoNotification } from '@/lib/demo-notifications';
@@ -70,6 +71,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import FactoryCards from '@/components/supplier/FactoryCards';
+import CarbonFootprintDocPanel from '@/components/supplier/CarbonFootprintDocPanel';
+import AiParsingReviewModal from '@/components/supplier/AiParsingReviewModal';
 import {
   type ContactDraft,
   type FactoryDraft,
@@ -593,6 +596,10 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
 }) {
   // 공장정보 섹션 — 원산지 증명서 업로드/없음 확인 전엔 나머지 입력을 가린다.
   const [originCertResolved, setOriginCertResolved] = useState(false);
+  // 규제 섹션 — 탄소발자국 문서 AI 파싱 결과. key 리마운트로 CompanyGrid(defaultValue 기반)에 반영.
+  const [carbonExtraction, setCarbonExtraction] = useState<AiExtraction | null>(null);
+  const [carbonParseVersion, setCarbonParseVersion] = useState(0);
+  const [carbonParsingOpen, setCarbonParsingOpen] = useState(false);
   let content: ReactNode;
   const d = real?.detail ?? null;
   // live면 지금 입력칸 값, 아니면 마지막 저장된 스냅샷 — 완료 배지 판정용(defaultValue 표시엔 영향 없음).
@@ -746,8 +753,20 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     }
   } else if (section.key === 'regulation') {
     const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
-    const ci = m.carbonIntensity;
-    const es = m.energySource;
+    // AI 파싱 결과 병합(편집 모드 전용) — 값이 있으면 채우고, 신뢰도 < 0.8이면 '검토 권장' 플래그.
+    const pf = carbonExtraction?.parsedFields ?? {};
+    const conf = carbonExtraction?.confidenceMap ?? {};
+    const flagged: Record<string, string> = {};
+    let ci: unknown = m.carbonIntensity;
+    let es: unknown = m.energySource;
+    if (editable && pf.carbon_intensity != null && pf.carbon_intensity !== '') {
+      ci = pf.carbon_intensity;
+      if ((conf.carbon_intensity ?? 0) < 0.8) flagged.carbonIntensity = `검토 권장 · 신뢰도 ${Math.round((conf.carbon_intensity ?? 0) * 100)}%`;
+    }
+    if (editable && pf.energy_source != null && pf.energy_source !== '') {
+      es = pf.energy_source;
+      if ((conf.energy_source ?? 0) < 0.8) flagged.energySource = `검토 권장 · 신뢰도 ${Math.round((conf.energy_source ?? 0) * 100)}%`;
+    }
     const sr = real?.riskProfile?.selfReportedRiskLevel;
     const srRaw = sr && sr !== 'unknown' ? sr : '';
     const naMiner = (d?.providerType ?? '') === 'miner';  // 광산: 규제(탄소·자가진단) 판정 대상 아님 → 해당 없음
@@ -762,9 +781,27 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     ];
     content = (
       <div className="space-y-3">
-        <CompanyGrid rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isPrime ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} />
+        {/* 탄소발자국 문서 업로드 + AI 파싱 */}
+        <CarbonFootprintDocPanel
+          supplierId={supplierId}
+          initialUrl={d?.carbonFootprintDocUrl}
+          editable={editable}
+          onParsed={extraction => {
+            setCarbonExtraction(extraction);
+            setCarbonParseVersion(v => v + 1);
+          }}
+          onOpenViewer={() => setCarbonParsingOpen(true)}
+        />
+        <CompanyGrid key={`regulation-${carbonParseVersion}`} rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isPrime ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} flagged={flagged} />
         {/* 실사 자가진단 보고서 — 실사관리 페이지 대체. 내 기업 정보에서 업로드·확인. */}
         <DocUploadField label="실사 자가진단 보고서" field="regulation.selfAssessmentDocUrl" initialUrl={d?.selfAssessmentDocUrl} editable={editable} supplierId={supplierId} />
+        <AiParsingReviewModal
+          supplierId={supplierId}
+          open={carbonParsingOpen}
+          onClose={() => setCarbonParsingOpen(false)}
+          docCategoryFilter="carbon_footprint_declaration"
+          title="AI 파싱 확인 및 수정 · 탄소발자국 문서"
+        />
       </div>
     );
   } else {
@@ -1212,6 +1249,8 @@ export function SupplierGeneralReviewContent({
     company.self_assessment_doc_url = roundTrip(read('regulation.selfAssessmentDocUrl'), dRec.selfAssessmentDocUrl);
     // 소재구성 문서(회사 단위 레거시 컬럼) — 더 이상 이 화면에서 올리지 않으니 라운드트립만.
     company.material_composition_doc_url = dRec.materialCompositionDocUrl ?? null;
+    // 탄소발자국 문서 — CarbonFootprintDocPanel(규제 섹션) hidden input 우선, 없으면 round-trip.
+    company.carbon_footprint_doc_url = roundTrip(read('regulation.carbonFootprintDocUrl'), dRec.carbonFootprintDocUrl);
 
     // ── factories: draft(전체 현재 집합) → snake_case (UPSERT) ──
     // 기존 공장은 factory_id 를 round-trip 해 백엔드가 UPDATE(id 보존)하도록 한다.

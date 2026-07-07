@@ -5,10 +5,22 @@
 import { X } from 'lucide-react';
 import AiParsingView from '@/components/supplier/AiParsingView';
 
-export default function AiParsingReviewModal({ supplierId, open, onClose }: {
+export default function AiParsingReviewModal({
+  supplierId,
+  open,
+  onClose,
+  docCategoryFilter = 'material_composition',
+  docS3KeyFilter,
+  initialDoc,
+  title = 'AI 파싱 확인 및 수정 · 소재구성 문서',
+}: {
   supplierId: string;
   open: boolean;
   onClose: () => void;
+  docCategoryFilter?: string;
+  docS3KeyFilter?: string | null;
+  initialDoc?: { docId: string; fileName: string; fileUrl: string | null; requestType: string; docS3Key?: string | null } | null;
+  title?: string;
 }) {
   if (!open) return null;
   return (
@@ -18,7 +30,7 @@ export default function AiParsingReviewModal({ supplierId, open, onClose }: {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-white px-4 py-2.5">
-          <div className="text-sm font-bold text-ink-100">AI 파싱 확인 및 수정 · 소재구성 문서</div>
+          <div className="text-sm font-bold text-ink-100">{title}</div>
           <button
             type="button"
             onClick={onClose}
@@ -29,7 +41,13 @@ export default function AiParsingReviewModal({ supplierId, open, onClose }: {
           </button>
         </div>
         <div className="min-h-0 flex-1">
-          <AiParsingView supplierId={supplierId} onConfirmComplete={onClose} />
+          <AiParsingView
+            supplierId={supplierId}
+            onConfirmComplete={onClose}
+            docCategoryFilter={docCategoryFilter}
+            docS3KeyFilter={docS3KeyFilter}
+            initialDoc={initialDoc}
+          />
         </div>
       </div>
     </div>

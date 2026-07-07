@@ -522,6 +522,7 @@ export interface SupplierDetail extends SupplierBrief {
   environmentalReportUrl?: string | null;   // 환경성적서 업로드 URL
   selfAssessmentDocUrl?: string | null;     // 실사 자가진단 보고서 업로드 URL
   materialCompositionDocUrl?: string | null; // 소재구성 문서(핵심광물 함량) 업로드 URL
+  carbonFootprintDocUrl?: string | null;     // 탄소발자국 신고서(탄소집약도/에너지원) 업로드 URL
   manufacturerDetail: SupplierManufacturerDetail | null;
   recyclerDetail: SupplierRecyclerDetail | null;
   traderDetail: SupplierTraderDetail | null;
@@ -844,13 +845,41 @@ export interface AiExtraction {
   // 원본 문서(PDF 뷰어) — 임시 다운로드 URL + 파일명. 없으면 null(로컬 S3 미구성 등).
   documentUrl?: string | null;
   documentFileName?: string | null;
+  evidenceSummary?: string | null;
   // hitl_reviews 연결(있으면) — 승인/반려가 백엔드 HITL 큐도 갱신.
   batchId?: string | null;
   hitlReviewId?: string | null;
   hitlStatus?: string | null;
   hitlReason?: string | null;
 }
-export const getAiExtractions = () => api.get<AiExtraction[]>(`/data-requests/ai-extractions`);
+// parsed_fields/confidence_map의 키는 문서 필드 ID(스네이크케이스, masterform_prefill 카탈로그 SSOT)라
+// 원본 그대로 유지해야 한다. snakeToCamel은 재귀적으로 모든 중첩 키를 변환하므로(carbon_intensity →
+// carbonIntensity) 그대로 쓰면 프론트 필드 카탈로그(CARBON_DOC_CATALOG 등)와 어긋나 파싱 결과가 안 보인다.
+// → raw로 받아 최상위 필드만 수동으로 camelCase 매핑하고, 두 딕셔너리는 원본 키 그대로 둔다.
+export const getAiExtractions = () =>
+  api.get<Record<string, unknown>[]>(`/data-requests/ai-extractions`, { raw: true }).then(list =>
+    list.map((x): AiExtraction => ({
+      requestId: x.request_id as string,
+      supplierId: (x.supplier_id as string) ?? null,
+      supplierName: (x.supplier_name as string) ?? null,
+      requestedDataType: (x.requested_data_type as string) ?? null,
+      submissionStatus: (x.submission_status as string) ?? null,
+      parsedFields: (x.parsed_fields as Record<string, string | number>) ?? {},
+      confidenceMap: (x.confidence_map as Record<string, number>) ?? {},
+      unparsedFields: (x.unparsed_fields as string[]) ?? [],
+      blankFields: x.blank_fields as string[] | undefined,
+      unreadableFields: x.unreadable_fields as string[] | undefined,
+      docCategory: (x.doc_category as string) ?? null,
+      docS3Key: (x.doc_s3_key as string) ?? null,
+      documentUrl: (x.document_url as string) ?? null,
+      documentFileName: (x.document_file_name as string) ?? null,
+      evidenceSummary: (x.evidence_summary as string) ?? null,
+      batchId: (x.batch_id as string) ?? null,
+      hitlReviewId: (x.hitl_review_id as string) ?? null,
+      hitlStatus: (x.hitl_status as string) ?? null,
+      hitlReason: (x.hitl_reason as string) ?? null,
+    }))
+  );
 
 /** AI 규제 검증 결과(compliance_results) — verdict + confidence + HITL 후보. */
 export interface RegulationResult {
