@@ -1610,7 +1610,7 @@ export function SupplierGeneralReviewContent({
         <div className="mb-2.5 flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-ink-100">수집 항목 요약</h2>
         </div>
-        <div className="grid grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {liveSections.map(section => <SummaryCard key={section.key} section={section} />)}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-4">
