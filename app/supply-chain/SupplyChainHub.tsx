@@ -32,6 +32,7 @@ interface EntryChainRow {
   productId: string;
   productName: string;
   productCode: string;
+  customerId?: string;
   customerName: string;
   bomVersionId?: string;
   versionNumber: string;
@@ -424,6 +425,7 @@ export default function SupplyChainHub() {
               productId: p.product_id,
               productName: p.product_name,
               productCode: p.product_code,
+              customerId: p.customer_id,
               customerName: p.customer_name,
               bomVersionId: v.bomVersionId,
               versionNumber: v.versionNumber,
@@ -436,6 +438,7 @@ export default function SupplyChainHub() {
             productId: p.product_id,
             productName: p.product_name,
             productCode: p.product_code,
+            customerId: p.customer_id,
             customerName: p.customer_name,
             bomVersionId: undefined,
             versionNumber: '',
@@ -705,6 +708,7 @@ export default function SupplyChainHub() {
   const mapContext = mapStarted
     ? {
         customer: ctxRow?.customerName || entryCustomer || '—',
+        customerId: ctxRow?.customerId,
         product: ctxRow?.productName || '—',
         productCode: ctxRow?.productCode,
         bomVersion: ctxRow?.versionNumber || '—',
@@ -1345,6 +1349,7 @@ export default function SupplyChainHub() {
           pool={mapSuppliers}
           {...(selectedProductId ? { productId: selectedProductId } : {})}
           {...(activeBomVersionId ? { bomVersionId: activeBomVersionId } : {})}
+          {...(mapContext?.customerId ? { customerId: mapContext.customerId } : {})}
           onClose={close}
           onVerified={onStep4Verified}
           onRequestUpdate={(supplier, gaps) => {

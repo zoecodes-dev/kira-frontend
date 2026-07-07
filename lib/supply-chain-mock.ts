@@ -438,7 +438,7 @@ export const supply_chain_map: SupplyChainMapRow[] = [
   { map_id: 'map-gr-2', bom_version_id: 'bomv-ncm811-v32', parent_supplier_id: 'sup-anode', child_supplier_id: 'sup-gr-balama', part_id: 'part-graphite', po_number: 'PO-2026-0546', invoice_number: 'INV-2026-0546', supply_period_from: '2026-05-01', supply_period_to: '2026-05-31', link_status: 'supplychain_confirmed', source_system: 'ERP', verification_status: 'verified' },
 ];
 
-export const supply_chain_ratios: SupplyChainRatio[] = [
+const supply_chain_ratios: SupplyChainRatio[] = [
   { ratio_id: 'ratio-cell-module', map_id: 'map-cell-module', factory_id: 'fac-hanyang-f003', ratio_percentage: 100, volume: 48 },
   { ratio_id: 'ratio-cathode', map_id: 'map-cathode', factory_id: 'fac-pos-cathode-gwangyang', ratio_percentage: 100, volume: 128.5 },
   { ratio_id: 'ratio-lioh', map_id: 'map-lioh', factory_id: 'fac-pohang-refining', ratio_percentage: 100, volume: 10.8 },
