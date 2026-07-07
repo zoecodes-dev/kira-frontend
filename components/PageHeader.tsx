@@ -38,7 +38,7 @@ export default function PageHeader({ title, badge, description, actions, notific
   }, []);
 
   return (
-    <header className="sticky top-0 z-10 bg-white">
+    <header className="sticky top-0 z-30 bg-white">
       {/* ① 제목줄 */}
       <div className="flex items-center justify-between gap-4 border-b border-[#E2E8F0] px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">

@@ -85,11 +85,9 @@ export default function SupplyChainHub() {
   const [dataReviewDone, setDataReviewDone] = useState(false);
   // 사용자가 방문/수행한 액션 단계. STEP1·2는 데이터, STEP3은 발송, STEP4는 동의서 수신 확인으로 판정.
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
-  // STEP 4 — 협력사별 '동의서 수신 확인' 집합(= 차수 노출 게이트) + 활성 BOM 버전(verify 대상).
+  // STEP 4 — 협력사별 '동의서 수신 확인' 집합(= 차수 노출 게이트). 원청이 직접 확인한 것만
+  //   인정한다(자동 확인 없음) — 자세한 이유는 ConsentReviewModal.tsx의 isDone 주석 참고.
   const [confirmedSuppliers, setConfirmedSuppliers] = useState<Set<string>>(new Set());
-  // 사용자가 명시적으로 '확인 취소'한 협력사 — 동의서가 agreed/returned라도 아래 자동 재확인
-  // useEffect가 다시 확인 처리하지 못하게 막는 제외 목록. 사용자가 직접 재확인하면 제거된다.
-  const [manuallyUnconfirmed, setManuallyUnconfirmed] = useState<Set<string>>(new Set());
   // STEP 3 — 동의 메일/요청 발송된 협력사 id 집합(발송 완료 판정용). STEP 4 — 동의서 수신 자동 판정 새로고침 트리거.
   const [mailedIds, setMailedIds] = useState<Set<string>>(new Set());
   const [consentRefresh, setConsentRefresh] = useState(0);
@@ -187,24 +185,6 @@ export default function SupplyChainHub() {
     return m;
   }, [activeMapStatus, dataset.supply_chain_map, activeBomVersionId]);
 
-  // building 맵만 게이트: Tier0(원청)만 항상 노출. Tier1(1차)은 STEP2에서 Pool을
-  //   실제로 '확정'(pool.length > 0)해야 열린다 — 후보로 뜨는 것과 확정은 다르다.
-  //   Tier N(N>=2)은 Tier(N-1) 협력사가 전부 confirmedSuppliers에 들어와야(STEP3 '확인') 열린다.
-  const maxVisibleTier = useMemo(() => {
-    if (activeMapStatus !== 'building') return Infinity;
-    const tiers = [...edgesByTier.keys()].sort((a, b) => a - b);
-    let visible = pool.length > 0 ? 1 : 0;
-    for (const tier of tiers) {
-      if (tier <= visible) continue;
-      const prevTierSuppliers = edgesByTier.get(tier - 1);
-      const prevAllConfirmed = !!prevTierSuppliers && prevTierSuppliers.size > 0
-        && [...prevTierSuppliers].every(id => confirmedSuppliers.has(id));
-      if (!prevAllConfirmed) break;
-      visible = tier;
-    }
-    return visible;
-  }, [activeMapStatus, edgesByTier, confirmedSuppliers, pool.length]);
-
   // [FIX] STEP2 Pool 모달에서 체크 안 한 1차 후보(예: 04)가 그대로 트리·STEP3 대상에
   //   섞여 나오던 문제 — "확정 여부(pool.length>0)"만 보고 티어 전체를 열었지, 실제로
   //   "누가 pool에 있는지"는 안 걸렀다. pool(확정된 협력사)에서 시작해 하위로 내려가며
@@ -228,6 +208,29 @@ export default function SupplyChainHub() {
     }
     return reachable;
   }, [activeMapStatus, pool, dataset.supply_chain_map, activeBomVersionId]);
+
+  // building 맵만 게이트: Tier0(원청)만 항상 노출. Tier1(1차)은 STEP2에서 Pool을
+  //   실제로 '확정'(pool.length > 0)해야 열린다 — 후보로 뜨는 것과 확정은 다르다.
+  //   Tier N(N>=2)은 Tier(N-1) 협력사가 전부 confirmedSuppliers에 들어와야(STEP3 '확인') 열린다.
+  //   [FIX] "전부"의 기준을 Pool에서 도달 가능한(poolReachableIds) 협력사로 한정한다.
+  //   안 그러면 Pool에 안 넣은 형제 1차(예: 04)까지 확인해야 다음 차수가 열리는 것으로
+  //   계산되어, 실제로 확인을 마쳐도 STEP3로 다음 차수가 안 넘어가는 문제가 있었다.
+  const maxVisibleTier = useMemo(() => {
+    if (activeMapStatus !== 'building') return Infinity;
+    const tiers = [...edgesByTier.keys()].sort((a, b) => a - b);
+    let visible = pool.length > 0 ? 1 : 0;
+    for (const tier of tiers) {
+      if (tier <= visible) continue;
+      const prevTierSuppliers = edgesByTier.get(tier - 1);
+      const prevTierScoped = prevTierSuppliers
+        ? [...prevTierSuppliers].filter(id => !poolReachableIds || poolReachableIds.has(id))
+        : [];
+      const prevAllConfirmed = prevTierScoped.length > 0 && prevTierScoped.every(id => confirmedSuppliers.has(id));
+      if (!prevAllConfirmed) break;
+      visible = tier;
+    }
+    return visible;
+  }, [activeMapStatus, edgesByTier, confirmedSuppliers, pool.length, poolReachableIds]);
 
   // STEP3 모달(ConnectedSuppliersModal)에 넘길 협력사 — maxVisibleTier까지 + Pool에서
   //   도달 가능한 협력사만(형제 후보 제외).
@@ -287,12 +290,6 @@ export default function SupplyChainHub() {
       const willConfirm = !n.has(id);
       willConfirm ? n.add(id) : n.delete(id);
       persistVerify(id, willConfirm);
-      // 수동 취소는 제외 목록에 기록(자동 재확인 방지). 수동 재확인이면 제외 목록에서 뺀다.
-      setManuallyUnconfirmed(prevEx => {
-        const nEx = new Set(prevEx);
-        willConfirm ? nEx.delete(id) : nEx.add(id);
-        return nEx;
-      });
       return n;
     });
   const confirmAll = () => {
@@ -301,9 +298,12 @@ export default function SupplyChainHub() {
     visibleMapSuppliers.forEach(p => persistVerify(p.supplierId, true));
   };
 
-  // STEP3(동의 메일 발송)·STEP4(동의서 수신 확인) 상태 집계 — 편입 협력사(광산 제외, 실 UUID)의
-  //   동의/요청 이력을 조회해 (1) 발송 여부(mailed)로 STEP3 완료를 판정하고,
-  //   (2) 동의서 회신 수신(returned/agreed)된 협력사는 자동으로 수신 확인 처리(자동+수동 병행)해 차수 노출에 반영한다.
+  // STEP3(동의 메일 발송) 상태 집계 — 편입 협력사(광산 제외, 실 UUID)의 동의/요청 이력을
+  //   조회해 발송 여부(mailed)로 STEP3 완료를 판정한다.
+  // STEP4(동의서 수신 확인)는 원청이 직접 확인 처리한 것만 인정한다(confirmedSuppliers,
+  //   toggleConfirm/confirmAll 경유) — 회신 여부는 ConsentReviewModal에 참고용 배지("동의서
+  //   회신됨")로만 노출하고, confirmedSuppliers를 자동으로 강제 추가하지 않는다. (예전엔
+  //   자동 반영했는데, "확인 취소"를 눌러도 다음 재조회 때 다시 자동으로 켜지는 문제가 있었다.)
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -316,30 +316,15 @@ export default function SupplyChainHub() {
             getDataRequests({ supplierId: s.supplierId }).catch(() => []),
           ]);
           const mailed = (consents ?? []).length > 0 || (requests ?? []).length > 0;
-          const received = (consents ?? []).some(c => c.status === 'returned' || c.status === 'agreed');
-          return { id: s.supplierId, mailed, received };
+          return { id: s.supplierId, mailed };
         }),
       );
       if (cancelled) return;
       setMailedIds(new Set(rows.filter(r => r.mailed).map(r => r.id)));
-      // 자동 판정 — 수신된 동의서는 수신 확인으로 자동 반영(사용자 수동 확인과 병행). 차수 노출 게이트에 즉시 반영.
-      //   단, 사용자가 명시적으로 '확인 취소'한 협력사(manuallyUnconfirmed)는 동의서 상태와
-      //   무관하게 자동 재확인 대상에서 제외한다 — 안 그러면 취소가 이 effect 재실행 때 바로 덮어써진다.
-      const autoReceived = rows.filter(r => r.received).map(r => r.id);
-      if (autoReceived.length) {
-        setConfirmedSuppliers(prev => {
-          let changed = false;
-          const next = new Set(prev);
-          autoReceived.forEach(id => {
-            if (!next.has(id) && !manuallyUnconfirmed.has(id)) { next.add(id); changed = true; persistVerify(id, true); }
-          });
-          return changed ? next : prev;
-        });
-      }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapSuppliers, consentRefresh, manuallyUnconfirmed]);
+  }, [mapSuppliers, consentRefresh]);
   // STEP6 최종 검증 결과 영속 — 환경성적서 통과=verified, 실패=unverified로 백엔드 반영.
   const onStep4Verified = (results: { supplierId: string; passed: boolean }[]) => {
     setConfirmedSuppliers(prev => {
@@ -403,9 +388,10 @@ export default function SupplyChainHub() {
   }, [selectedProductId, activeBomVersionId, isDemo, confirmedSuppliers]);
 
   // 진입 게이트 통합 목록 — 제품마다 BOM 버전을 조회해 (제품×고객사×기간) 행으로 펼친다.
-  // 게이트가 떠 있을 때만(맵 미시작·실데이터) 1회 구성.
+  // [FIX] mapStarted(URL productId로 곧장 진입)여도 "기준 변경" 모달이 이 목록을 쓰므로
+  //   건너뛰면 안 된다 — 예전엔 mapStarted면 스킵해서 딥링크 진입 시 드롭다운이 항상 비어 있었다.
   useEffect(() => {
-    if (isDemo || mapStarted) return;
+    if (isDemo) return;
     const products = dataset.products;
     if (!products.length) return;
     let cancelled = false;
@@ -458,7 +444,12 @@ export default function SupplyChainHub() {
         // 기본 선택값 — 첫 행(고객사→제품→기간 정렬 기준). 이미 고른 값은 유지.
         const first = rows[0];
         const defProductId = entryProductId || first?.productId || '';
-        setEntryCustomer(c => c || first?.customerName || '');
+        // [FIX] entryProductId가 이미 있으면(URL로 곧장 진입) 그 제품의 실제 고객사를
+        //   기본값으로 써야 한다 — 안 그러면 "전체 목록 알파벳순 첫 고객사"가 그냥 잡혀서
+        //   entryProductId(다른 고객사 소속 제품)와 안 맞는 조합이 되고, "기준 변경" 모달에
+        //   실제 값과 다른 고객사·제품이 잘못 표시되는 문제로 이어졌다.
+        const matchedRow = entryProductId ? rows.find(r => r.productId === entryProductId) : undefined;
+        setEntryCustomer(c => c || matchedRow?.customerName || first?.customerName || '');
         setEntryProductId(p => p || first?.productId || '');
         // 단위기간 기본값 = 그 제품 BOM 전체를 감싸는 범위. 그 안 첫 BOM을 봄으로 선택.
         const prodRows = rows.filter(r => r.productId === defProductId);
@@ -472,7 +463,7 @@ export default function SupplyChainHub() {
     return () => {
       cancelled = true;
     };
-  }, [dataset.products, isDemo, mapStarted]);
+  }, [dataset.products, isDemo]);
 
   // 진입 게이트 3개 드롭다운 파생 목록 — 고객사 → (그 고객사) 제품 → (그 제품) 단위기간.
   const entryCustomers = Array.from(
@@ -611,15 +602,51 @@ export default function SupplyChainHub() {
         //   누르지 않았는데 STEP2/3가 자동 확정으로 뜨던 문제를 막는다(부분 verified는 사용자가 직접 진행).
         const allVerified =
           map.supplyChainMap.length > 0 && map.supplyChainMap.every(n => n.verificationStatus === 'verified');
-        setPool(allVerified ? tier1List : []);
+        // Pool 확정(STEP2)은 confirmPool()이 1차 엣지의 link_status를 'supplychain_confirmed'로
+        // 영속화한다 — 새로고침/딥링크 재진입 시 이 값으로 복원해야 매번 다시 확정할 필요가 없다.
+        // (allVerified는 별개 케이스 — 하위 전 차수까지 검증된 레거시 완결 맵 전용 하이드레이션.)
+        const poolConfirmedIds = new Set(
+          map.supplyChainMap
+            .filter(n => tier1Ids.has(n.supplierId) && n.linkStatus === 'supplychain_confirmed')
+            .map(n => n.supplierId),
+        );
+        setPool(
+          allVerified ? tier1List : tier1List.filter(s => poolConfirmedIds.has(s.supplierId)),
+        );
+        // STEP4 확인(원청이 직접 확인하거나, 이전 세션에서 이미 확인한 것)도 persistVerify()가
+        // 엣지의 verification_status를 'verified'로 영속화한다 — 새로고침/딥링크 재진입 시
+        // 이 값으로 복원해야 이미 확인했던 협력사가 다시 미확인으로 보이지 않는다.
         setConfirmedSuppliers(
-          allVerified ? new Set(map.supplyChainMap.map(n => n.supplierId)) : new Set(),
+          new Set(
+            map.supplyChainMap
+              .filter(n => n.verificationStatus === 'verified')
+              .map(n => n.supplierId),
+          ),
         );
       } catch {
         // 공급망 맵 없음 — 협력사 빈 상태 유지
       }
     }
   }
+
+  // 알림 딥링크 등으로 productId를 들고 곧장 진입(mapStarted가 URL 기준으로 이미 true)하면
+  // 진입 게이트의 "맵 생성" 버튼(startMapFromSelection)을 안 거치므로 handleProductChange가
+  // 한 번도 안 불려 tier1Pool이 빈 채로 남는다 — STEP2가 "1차 협력사 없음"으로 오탐하던 원인.
+  // 최초 1회만 여기서 대신 호출해 데이터를 채운다.
+  // + focusSupplier(알림의 "동의서 회신" 딥링크)가 같이 있으면, 데이터 로드 후 STEP4(동의서
+  //   수신 확인) 모달을 바로 열어준다 — 안 그러면 맵 화면(협력사 상세 팝업)까지만 가고, 정작
+  //   알림이 안내한 "STEP4에서 확인" 액션은 사용자가 직접 STEP4 버튼을 다시 눌러야 했다.
+  useEffect(() => {
+    if (initialProductId) {
+      (async () => {
+        await handleProductChange(initialProductId, initialBomVersionId);
+        if (initialFocusSupplierId) {
+          setActiveModal('consent');
+        }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function loadDemo() {
     setIsDemo(true);
@@ -1062,12 +1089,16 @@ export default function SupplyChainHub() {
         </div>
       )}
 
+      {/* [FIX] entryProductId를 우선한다 — initialProductId(URL 고정값)를 그대로 두면
+          "기준 변경"으로 다른 제품을 새로 골라도 트리는 계속 최초 진입 URL의 제품만
+          보여주는 문제가 있었다(헤더 표시(entryProductId 기반)와 실제 트리가 어긋남).
+          entryProductId는 애초에 initialProductId로 초기화되므로 최초 진입 시엔 동일하다. */}
       {mapStarted && (
         <SupplyChainMapPageContent
           dataset={dataset}
           embedded
-          initialProductId={initialProductId ?? entryProductId}
-          initialBomVersionId={initialBomVersionId ?? entryBomVersionId}
+          initialProductId={entryProductId || initialProductId}
+          initialBomVersionId={entryBomVersionId ?? initialBomVersionId}
           initialPeriodFrom={entryPeriodFrom}
           initialPeriodTo={entryPeriodTo}
           highlightSupplierIds={new Set(pool.map(s => s.supplierId))}

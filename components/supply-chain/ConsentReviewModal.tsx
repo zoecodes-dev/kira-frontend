@@ -60,8 +60,9 @@ export default function ConsentReviewModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [suppliers]);
 
-  // 수신 확인됨 = 동의서 회신 수신(자동) 또는 사용자가 수동 확인.
-  const isDone = (s: SupplierBrief) => received[s.supplierId] || confirmed.has(s.supplierId);
+  // 수신 확인됨 = 원청이 직접 확인 처리한 것만 인정한다. received(회신 여부)는 참고용 배지일 뿐
+  // — 자동으로 완료 처리하면 "확인 취소"를 눌러도 계속 완료로 보이는(취소 불가) 문제가 있었다.
+  const isDone = (s: SupplierBrief) => confirmed.has(s.supplierId);
   const doneCount = targets.filter(isDone).length;
   const allDone = targets.length > 0 && doneCount === targets.length;
 
