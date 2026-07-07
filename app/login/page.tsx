@@ -25,7 +25,7 @@ type LoginRole = 'prime' | 'supplier';
 
 const demoAccounts: Record<LoginRole, { email: string; password: string; label: string; target: string }> = {
   prime: {
-    email: 'oem@kira.demo',
+    email: 'prime@kira.demo',
     password: 'demo1234',
     label: '원청사 계정',
     target: '/dashboard',
