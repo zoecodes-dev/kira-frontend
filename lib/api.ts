@@ -1515,6 +1515,28 @@ export async function downloadSupplyChainExcel(productId: string, bomVersionId?:
   return res.blob();
 }
 
+// ── 공급망 맵 평가 리포트(종합 판정 문구) ─────────────────────────────────────
+// 배치 파이프라인 종합판정(batch_final_judgment)을 bom_version_id로 이 맵에 연결해
+// 문구를 노출. 판정이 아직 없으면 available=false(문구 필드는 null/빈배열).
+export type EvaluationVerdict = 'pass' | 'conditional' | 'fail';
+export interface SupplyChainEvaluation {
+  productId: string;
+  bomVersionId: string | null;
+  available: boolean;
+  batchId: string | null;
+  overallVerdict: EvaluationVerdict | null;
+  executiveSummary: string | null;   // 핵심 판정 문구(예: "이 배치는 규제 위반 1건으로 부적합(fail) 판정입니다.")
+  keyRisks: string[];                 // 핵심 리스크 불릿
+  recommendedAction: string | null;  // 권고 조치
+  confidence: number | null;
+  createdAt: string | null;
+}
+/** 공급망 맵 평가 리포트 — 종합 판정 문구/리스크/권고. 조회 전용. */
+export const getSupplyChainEvaluation = (productId: string, bomVersionId?: string) =>
+  api.get<SupplyChainEvaluation>(
+    `/products/${productId}/supply-chain-map/evaluation${bomVersionId ? `?bom_version_id=${bomVersionId}` : ""}`,
+  );
+
 // ── 공급망 맵 헤더(맵 그 자체) — 목록/단건/상태 ──────────────────────────────
 export interface SupplyChainMapHeader {
   mapId: string;

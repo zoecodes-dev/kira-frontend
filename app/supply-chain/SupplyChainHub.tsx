@@ -6,8 +6,9 @@ import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil, RefreshCw, X } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
-import { ApiError, confirmPool, createDataRequest, getDataConsents, getDataRequests, getSupplyChainGaps, getSupplyChainMaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, getValidationSummary, verifySupplier, type SupplierBrief, type SupplyChainGapsResult, type ValidationSummary } from '@/lib/api';
+import { ApiError, confirmPool, createDataRequest, getDataConsents, getDataRequests, getSupplyChainEvaluation, getSupplyChainGaps, getSupplyChainMaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, getValidationSummary, verifySupplier, type SupplierBrief, type SupplyChainEvaluation, type SupplyChainGapsResult, type ValidationSummary } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
+import EvaluationReportCard from '@/components/supply-chain/EvaluationReportCard';
 import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
 import PageHeader from '@/components/PageHeader';
 import HubStepBar from '@/components/supply-chain/HubStepBar';
@@ -113,6 +114,8 @@ export default function SupplyChainHub() {
   const [gaps, setGaps] = useState<SupplyChainGapsResult | null>(null);
   const [summary, setSummary] = useState<ValidationSummary | null>(null);  // [R1] 데이터 완성도 rollup
   const [requestingGaps, setRequestingGaps] = useState(false);             // [R2] 미완성 일괄요청 진행중
+  // 공급망 맵 평가 리포트(종합 판정 문구) — 제품×BOM 기준으로 배치 종합판정을 조회. null=미로드/없음.
+  const [evaluation, setEvaluation] = useState<SupplyChainEvaluation | null>(null);
 
   // activeBomVersionId가 바뀔 때마다 이 맵의 완료 상태(building/completed)를 조회 — 차수별 노출 게이트용.
   useEffect(() => {
@@ -401,6 +404,16 @@ export default function SupplyChainHub() {
     getSupplyChainGaps(selectedProductId, activeBomVersionId).then(setGaps).catch(() => {});
     getValidationSummary(selectedProductId, activeBomVersionId).then(setSummary).catch(() => setSummary(null));
   }, [selectedProductId, activeBomVersionId, isDemo, confirmedSuppliers]);
+
+  // 평가 리포트(종합 판정 문구) — 제품×BOM 확정 시 조회. 데모/미선택이면 비움.
+  useEffect(() => {
+    if (!selectedProductId || isDemo || !isUuid(selectedProductId)) { setEvaluation(null); return; }
+    let cancelled = false;
+    getSupplyChainEvaluation(selectedProductId, activeBomVersionId)
+      .then(r => { if (!cancelled) setEvaluation(r); })
+      .catch(() => { if (!cancelled) setEvaluation(null); });
+    return () => { cancelled = true; };
+  }, [selectedProductId, activeBomVersionId, isDemo]);
 
   // 진입 게이트 통합 목록 — 제품마다 BOM 버전을 조회해 (제품×고객사×기간) 행으로 펼친다.
   // 게이트가 떠 있을 때만(맵 미시작·실데이터) 1회 구성.
@@ -981,6 +994,11 @@ export default function SupplyChainHub() {
         </div>
       )}
 
+      {/* 공급망 맵 평가 리포트(종합 판정 문구) — 배치 파이프라인 종합판정을 이 맵 기준으로 노출. */}
+      {mapStarted && evaluation?.available && (
+        <EvaluationReportCard report={evaluation} className="mx-6 mt-3" />
+      )}
+
       {loadStatus === 'auth' && (
         <div className="mx-6 mt-4 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1079,6 +1097,7 @@ export default function SupplyChainHub() {
           focusSupplierId={initialFocusSupplierId}
           maxVisibleTier={maxVisibleTier}
           visibleSupplierIds={poolReachableIds ?? undefined}
+          evaluationReport={evaluation}
         />
       )}
 
