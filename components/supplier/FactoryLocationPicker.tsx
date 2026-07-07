@@ -2,7 +2,7 @@
 // 위치 픽커 — "위치 먼저" 흐름. 좌표는 "직접 타이핑"이 아니라 "선택/보정 결과값".
 //   공장 위치·광산(원산지) 위치 등, 지명검색→지도선택→좌표+국가/지역 자동입력이 필요한 곳에 공용으로 쓴다.
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Search, MapPin, Loader2, AlertTriangle } from 'lucide-react';
@@ -28,6 +28,12 @@ function Recenter({ lat, lon }: { lat: number; lon: number }) {
   useEffect(() => { map.setView([lat, lon], Math.max(map.getZoom(), 12)); }, [lat, lon, map]);
   return null;
 }
+// 검색이 안 통하는 경우(사내 시설명 등)를 위한 탈출구 — 지도를 직접 보고 이동/확대해 정확한 지점을
+//   클릭하면 그 좌표로 핀을 찍고 역지오코딩한다. 검색 결과가 하나도 없어도 항상 쓸 수 있다.
+function ClickToPin({ onPick }: { onPick: (lat: number, lon: number) => void }) {
+  useMapEvents({ click: e => onPick(e.latlng.lat, e.latlng.lng) });
+  return null;
+}
 export default function FactoryLocationPicker({
   open, onClose, onConfirm, title = '위치 선택', initialQuery = '', initialCountry, initialLat, initialLon,
 }: {
@@ -49,7 +55,16 @@ export default function FactoryLocationPicker({
     if (!open) return;
     setQuery(initialQuery); setCandidates([]); setSearched(false); setSearchError(null);
     if (initialLat != null && initialLon != null) {
-      setSelected({ lat: initialLat, lon: initialLon, displayName: initialQuery || '기존 좌표', admin: null, countryCode: country ?? null, isXinjiang: false });
+      // 기존 좌표가 있으면 곧바로 역지오코딩해서 "실제로 이 좌표가 어디를 가리키는지" 확인한다.
+      //   예전엔 initialQuery(공장명 텍스트)를 그대로 displayName으로 써서, 검색이 실패해도
+      //   확정 버튼을 누르면 그 텍스트가 그대로 "주소"인 것처럼 저장돼버리는 문제가 있었다.
+      const fallbackName = (lat: number, lon: number) => `${lat.toFixed(5)}, ${lon.toFixed(5)} (주소 확인 불가 — 좌표만 존재)`;
+      setSelected({ lat: initialLat, lon: initialLon, displayName: '기존 좌표 확인 중…', admin: null, countryCode: country ?? null, isXinjiang: false });
+      setReverseLoading(true);
+      geocodeReverse(initialLat, initialLon)
+        .then(r => setSelected(r ?? { lat: initialLat, lon: initialLon, displayName: fallbackName(initialLat, initialLon), admin: null, countryCode: country ?? null, isXinjiang: false }))
+        .catch(() => setSelected({ lat: initialLat, lon: initialLon, displayName: fallbackName(initialLat, initialLon), admin: null, countryCode: country ?? null, isXinjiang: false }))
+        .finally(() => setReverseLoading(false));
     } else setSelected(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -63,21 +78,23 @@ export default function FactoryLocationPicker({
     } catch { setSearchError('검색에 실패했습니다. 잠시 후 다시 시도해 주세요.'); }
     finally { setSearching(false); }
   }
-  async function handleDragEnd(lat: number, lon: number) {
-    setSelected(prev => (prev ? { ...prev, lat, lon } : prev));
+  // 핀을 끌거나(dragend) 지도를 클릭했을 때(ClickToPin) 공통으로 쓰는 역지오코딩 확정 로직.
+  //   드래그는 기존 selected를 이어받고(prev 있어야 함), 클릭은 selected가 없어도(검색 실패 상태) 새로 만든다.
+  async function resolveAt(lat: number, lon: number) {
+    setSelected(prev => (prev ? { ...prev, lat, lon } : { lat, lon, displayName: '주소 확인 중…', admin: null, countryCode: country ?? null, isXinjiang: false }));
     setReverseLoading(true);
     try {
       const r = await geocodeReverse(lat, lon);
       if (r) setSelected(r);
-      else setSelected(prev => (prev ? { ...prev, lat, lon, admin: null, displayName: `${lat.toFixed(5)}, ${lon.toFixed(5)}` } : prev));
-    } catch { /* 좌표 유지 */ } finally { setReverseLoading(false); }
+      else setSelected(prev => ({ ...(prev ?? { admin: null, countryCode: country ?? null, isXinjiang: false }), lat, lon, displayName: `${lat.toFixed(5)}, ${lon.toFixed(5)} (주소 확인 불가)` }));
+    } catch { /* 좌표는 유지 */ } finally { setReverseLoading(false); }
   }
   if (!open) return null;
   const center: [number, number] = selected ? [selected.lat, selected.lon] : [36.5, 127.9];
   return (
     <ModalShell
       title={title}
-      subtitle="지명·주소·이름으로 검색해 지도에서 실제 위치를 선택하세요. 핀을 끌어 정확한 지점으로 보정할 수 있습니다."
+      subtitle="지명·주소로 검색하거나, 지도를 직접 이동·확대해 원하는 지점을 클릭해도 핀이 찍힙니다. 핀을 끌어 정확한 지점으로 보정할 수도 있습니다."
       onClose={onClose} maxWidth="max-w-3xl"
       footer={
         <div className="flex items-center justify-between gap-3">
@@ -112,14 +129,22 @@ export default function FactoryLocationPicker({
             {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}검색
           </button>
         </div>
-        {country && <div className="text-[11px] text-slate-500">국가 <b>{country}</b>로 한정 검색 중 (동명 지명이 많으면 국가 코드를 비워 전세계로 검색).</div>}
+        {/* 국가 코드는 이 화면에서 바꿀 수 없다(호출한 쪽의 값을 그대로 받아 씀) — 그대로 설명. */}
+        {country && <div className="text-[11px] text-slate-500">(국가 코드 입력값에 따라 검색 국가가 한정됩니다.) 국가 <b>{country}</b>로 한정 검색 중.</div>}
         {searchError && <div className="text-xs text-alert-text">{searchError}</div>}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[220px_1fr]">
           {/* 후보 리스트 */}
           <div className="max-h-[320px] overflow-y-auto rounded-sm border border-slate-200">
             {candidates.length === 0 ? (
-              <div className="p-3 text-xs text-slate-400">{searched ? '검색 결과가 없습니다. 지명이나 주소로 다시 검색해 보세요.' : '검색하면 후보가 여기에 표시됩니다.'}</div>
+              searched ? (
+                <div className="flex items-start gap-1.5 p-3 text-xs font-semibold text-alert-text">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  검색 결과가 없습니다. 사내 공장 이름 대신 실제 지명(도시명)이나 정확한 주소로 다시 검색해 보세요.
+                </div>
+              ) : (
+                <div className="p-3 text-xs text-slate-400">검색하면 후보가 여기에 표시됩니다.</div>
+              )
             ) : (
               <ul className="divide-y divide-slate-100">
                 {candidates.map((c, i) => {
@@ -141,12 +166,15 @@ export default function FactoryLocationPicker({
               </ul>
             )}
           </div>
-          {/* 지도 */}
-          <div className="relative h-[320px] overflow-hidden rounded-sm border border-slate-200">
+          <div className="min-w-0">
+            {/* 검색이 안 통하면(사내 시설명 등) 이 지도를 직접 이동·확대해 원하는 지점을 클릭하면 된다. */}
+            <div className="mb-1 text-[11px] font-semibold text-accent-700">지도를 클릭하면 그 자리에 핀이 찍힙니다 (검색이 안 될 때 이 방법을 쓰세요).</div>
+            <div className="relative h-[300px] overflow-hidden rounded-sm border border-slate-200">
             {mounted ? (
               <MapContainer center={center} zoom={selected ? 12 : 6} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
                 <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 {selected && <Recenter lat={selected.lat} lon={selected.lon} />}
+                <ClickToPin onPick={resolveAt} />
                 {candidates.map((c, i) => {
                   const isSel = selected?.lat === c.lat && selected?.lon === c.lon;
                   if (isSel) return null;
@@ -154,11 +182,12 @@ export default function FactoryLocationPicker({
                 })}
                 {selected && (
                   <Marker position={[selected.lat, selected.lon]} icon={PIN_SELECTED} draggable
-                    eventHandlers={{ dragend: e => { const { lat, lng } = (e.target as L.Marker).getLatLng(); handleDragEnd(lat, lng); } }} />
+                    eventHandlers={{ dragend: e => { const { lat, lng } = (e.target as L.Marker).getLatLng(); resolveAt(lat, lng); } }} />
                 )}
               </MapContainer>
             ) : <div className="flex h-full items-center justify-center text-xs text-slate-400">지도 로딩…</div>}
             {reverseLoading && <div className="absolute right-2 top-2 z-[400] flex items-center gap-1 rounded-sm bg-white/90 px-2 py-1 text-[11px] text-slate-500 shadow-sm"><Loader2 className="h-3 w-3 animate-spin" /> 주소 확인 중</div>}
+            </div>
           </div>
         </div>
 
