@@ -727,6 +727,8 @@ function deriveSectionMeta(
     };
   }
   if (key === 'regulation') {
+    // 광산(miner)은 입력 주체가 아니라 규제(자가진단·탄소) 판정 대상 아님 → 해당 없음(백엔드 완성도와 동일 규칙).
+    if ((d?.providerType ?? '') === 'miner') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
     const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
     const fields: [string, unknown][] = [
       ['탄소집약도', m.carbonIntensity],
@@ -738,6 +740,8 @@ function deriveSectionMeta(
     return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
   }
   if (key === 'documents') {
+    // 광산은 필요문서(사업자등록증·환경성적서) 제출 주체 아님 → 해당 없음.
+    if ((d?.providerType ?? '') === 'miner') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
     const fields: [string, unknown][] = [['사업자등록증', d?.businessRegDocUrl], ['환경성적서', d?.environmentalReportUrl]];
     const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
     const completed = fields.length - missing.length;
@@ -1201,10 +1205,11 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const es = m.energySource;
     const sr = real?.riskProfile?.selfReportedRiskLevel;
     const srRaw = sr && sr !== 'unknown' ? sr : '';
+    const naMiner = (d?.providerType ?? '') === 'miner';  // 광산: 규제(탄소·자가진단) 판정 대상 아님 → 해당 없음
     const rows: string[][] = [
-      ['탄소집약도 (kgCO2eq/kg)', ci != null ? String(ci) : '-', fieldFilled(ci)],
-      ['에너지원', (es as string) ?? '-', fieldFilled(es)],
-      ['실사 자가진단', srRaw, srRaw ? '완료' : '미입력'],
+      ['탄소집약도 (kgCO2eq/kg)', ci != null ? String(ci) : '-', naMiner ? '해당 없음' : fieldFilled(ci)],
+      ['에너지원', (es as string) ?? '-', naMiner ? '해당 없음' : fieldFilled(es)],
+      ['실사 자가진단', srRaw, naMiner ? '해당 없음' : (srRaw ? '완료' : '미입력')],
       // DD 보고서는 원청 전용 — 협력사 폼에는 표시하지 않는다.
       ...(isPrime ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
     ];
