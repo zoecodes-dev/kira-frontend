@@ -1176,6 +1176,79 @@ function OriginCertUploadPanel({ supplierId, onResolved, onDetected }: {
 
 // 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
 // editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isPrime)만 노출.
+// [맵별 탭] 이 협력사가 속한 공급망 맵(=bom_version)별로 탭을 나눠, 맵마다 달라지는
+//   '대는 부품 · 차수(hop) · 소재구성(핵심광물)'만 갈아끼워 읽기 전용으로 보여준다.
+//   회사정보·연락처·공장·서류 같은 공통 데이터는 이 탭 밖(각 섹션)에서 1벌로 유지.
+//   광물값은 백엔드에서 엣지 override(제품별) 우선 · 없으면 회사값 폴백으로 내려온다.
+function SupplyMapTabs({ items }: { items: ApiItem[] }) {
+  const maps: { key: string; label: string; version: string | null; rows: ApiItem[] }[] = [];
+  const idxOf = new Map<string, number>();
+  for (const it of items) {
+    const key = it.bomVersionId ?? `${it.productId ?? ''}:${it.bomVersionNumber ?? ''}`;
+    if (!key) continue;
+    if (!idxOf.has(key)) {
+      const label = [it.customerName, it.modelName ?? it.productName].filter(Boolean).join(' ') || '제품';
+      idxOf.set(key, maps.length);
+      maps.push({ key, label, version: it.bomVersionNumber ?? null, rows: [] });
+    }
+    maps[idxOf.get(key)!].rows.push(it);
+  }
+
+  const [active, setActive] = useState(0);
+  if (!maps.length) return null;
+  const idx = active < maps.length ? active : 0;
+  const cur = maps[idx];
+  const fmt = (cm?: Record<string, number> | null) => {
+    const e = Object.entries(cm ?? {}).filter(([, v]) => v != null);
+    return e.length ? e.map(([k, v]) => `${k} ${v}%`).join(' · ') : '—';
+  };
+
+  return (
+    <div className="rounded-md border border-ink-700/40">
+      <div className="border-b border-ink-700/30 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-ink-300">
+        제품(공급망 맵)별 공급 정보 — 같은 협력사라도 제품마다 대는 부품·소재가 다릅니다
+      </div>
+      <div className="flex flex-wrap gap-1 px-2 pt-2">
+        {maps.map((m, i) => {
+          const dup = maps.filter(x => x.label === m.label).length > 1;
+          return (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => setActive(i)}
+              className={`rounded-t-sm border px-3 py-1.5 text-xs font-medium ${
+                i === idx
+                  ? 'border-ink-700/40 border-b-white bg-white text-ink-100'
+                  : 'border-transparent text-ink-400 hover:text-ink-100'
+              }`}
+            >
+              {m.label}{dup && m.version ? ` v${m.version}` : ''}
+            </button>
+          );
+        })}
+      </div>
+      <table className="w-full border-t border-ink-700/30 text-xs">
+        <thead>
+          <tr className="text-left text-ink-400">
+            <th className="px-3 py-1.5 font-medium">부품</th>
+            <th className="px-3 py-1.5 font-medium">차수(hop)</th>
+            <th className="px-3 py-1.5 font-medium">핵심광물 함량(%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cur.rows.map((r, i) => (
+            <tr key={`${r.partId}-${i}`} className="border-t border-ink-700/15">
+              <td className="px-3 py-1.5 text-ink-100">{r.partName ?? r.partCode ?? '-'}</td>
+              <td className="px-3 py-1.5 text-ink-300">{r.hopLevel ?? '-'}</td>
+              <td className="px-3 py-1.5 text-ink-200">{fmt(r.coreMinerals)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft, noMoreMines = false, setNoMoreMines, isSmelter = false, readField, detectedBizRegDoc, setDetectedBizRegDoc, detectedEnvReport, setDetectedEnvReport }: {
   section: CollectionSection;
   real?: RealData | null;
@@ -1268,6 +1341,8 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
           onOpenViewer={() => setMineralParsingOpen(true)}
         />
         <CompanyGrid key={`materials-${parseVersion}`} rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="materials" flagged={flagged} />
+        {/* [맵별 탭] 제품(공급망 맵)별 공급 부품·차수·핵심광물 — 회사 공통값 아래에 맵별 실제값 읽기전용 */}
+        <SupplyMapTabs items={real?.items ?? []} />
         {/* AI 파싱 확인 팝업 — /partner/ai-parsing 페이지와 동일 화면(AiParsingView 공통 모듈)을
             모달 셸(AiParsingReviewModal 패턴)로 띄운다. 닫거나 전체 제출 완료 시 close. */}
         {mineralParsingOpen && (
