@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { CheckCircle2, FileSignature, Loader2, X } from 'lucide-react';
 import { updateDataConsent, getSessionUser, type DataConsent } from '@/lib/api';
 import { buildConsentDocument } from '@/lib/consent-clauses';
+import { addDemoNotification } from '@/lib/demo-notifications';
 
 // 라벨은 lib/consent-clauses가 SSOT. ConsentDetailView 등 기존 import 경로 호환을 위해 재노출.
 export { SCOPE_LABEL, PURPOSE_LABEL, SIGNATURE_METHODS } from '@/lib/consent-clauses';
@@ -71,6 +72,16 @@ export default function ConsentReplyForm({
         signatureMethod: 'email_form',
         formData,
         agreementHash: agreementHashOf(`${consent.consentId}|${signerName}|${Date.now()}`),
+      });
+      // 회원가입 완료와는 별개(두 흐름은 독립) — 동의 확정 시점에 협력사 탭에
+      // "이제 자료를 입력해 주세요" 정보 입력요청 알림을 전파한다(InviteMailModal의 발송 알림과 동일 패턴).
+      addDemoNotification({
+        audience: 'partner',
+        notification_type: 'approval_needed',
+        subject: '제3자 정보제공 동의 완료 · 자료 입력 요청',
+        body: `${companyName}의 제3자 정보제공 동의가 확인되었습니다. 이제 표준 양식에 따라 공급망 정보를 입력해 주세요.`,
+        deep_link: 'company-info',
+        actor: 'KIRA 원청',
       });
       onDone();
     } catch {
