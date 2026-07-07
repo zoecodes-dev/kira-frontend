@@ -2,7 +2,7 @@
 
 // 회원가입 — 회사 기본정보 + 본인(담당자) 정보확인 + 필요 문서 (+ n차 로그인 계정). "미확인 등록" 예외 경로 지원.
 //   1차는 DB에 이미 있는 정보가 prefill되어 확인·최신화만 하고, MES 계정을 쓰므로 로그인 계정 섹션이 없다.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, FileUp, Loader2, Upload, KeyRound, UserCheck, Info } from 'lucide-react';
 import { uploadFile } from '@/lib/api';
 import type { OnboardingType, SignupData } from './SupplierOnboarding';
@@ -50,6 +50,15 @@ export default function SignupForm({
   function set(patch: Partial<SignupData>) {
     onChange({ ...data, ...patch });
   }
+
+  // n차 로그인 이메일 — 위에서 입력한 본인(담당자) 이메일을 기본값으로 채워준다(수정 가능).
+  // 비밀번호는 자동 채움 대상이 아니다(항상 직접 입력).
+  useEffect(() => {
+    if (!isFirstTier && !data.accountEmail && data.contactEmail) {
+      set({ accountEmail: data.contactEmail });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.contactEmail]);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
