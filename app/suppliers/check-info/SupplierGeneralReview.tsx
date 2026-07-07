@@ -1174,14 +1174,12 @@ function OriginCertUploadPanel({ supplierId, onResolved, onDetected }: {
   );
 }
 
-// 협력사 입력 양식 5섹션 — 모두 실 백엔드(supplier detail/factories/contacts/risk-profile)로 렌더.
-// editable=true면 값 셀이 입력칸(data-field=섹션.필드)으로. DD 보고서는 원청(isPrime)만 노출.
-// [맵별 탭] 이 협력사가 속한 공급망 맵(=bom_version)별로 탭을 나눠, 맵마다 달라지는
-//   '대는 부품 · 차수(hop) · 소재구성(핵심광물)'만 갈아끼워 읽기 전용으로 보여준다.
-//   회사정보·연락처·공장·서류 같은 공통 데이터는 이 탭 밖(각 섹션)에서 1벌로 유지.
-//   광물값은 백엔드에서 엣지 override(제품별) 우선 · 없으면 회사값 폴백으로 내려온다.
-function SupplyMapTabs({ items }: { items: ApiItem[] }) {
-  const maps: { key: string; label: string; version: string | null; rows: ApiItem[] }[] = [];
+// [제품별 독립 제출] 공급 품목(supplied-items)을 공급망 맵(=bom_version) 단위로 묶는다.
+//   같은 협력사라도 map 마다 대는 부품·공장·핵심광물이 다르므로, 페이지 전체를 이 단위로 분리한다.
+//   factoryIds: 이 맵의 엣지가 물리는 공장 id 집합 — 공장/원산지 섹션을 맵별로 필터하는 키.
+type SupplyMap = { key: string; label: string; version: string | null; rows: ApiItem[]; factoryIds: string[] };
+function buildSupplyMaps(items: ApiItem[]): SupplyMap[] {
+  const maps: SupplyMap[] = [];
   const idxOf = new Map<string, number>();
   for (const it of items) {
     const key = it.bomVersionId ?? `${it.productId ?? ''}:${it.bomVersionNumber ?? ''}`;
@@ -1189,64 +1187,13 @@ function SupplyMapTabs({ items }: { items: ApiItem[] }) {
     if (!idxOf.has(key)) {
       const label = [it.customerName, it.modelName ?? it.productName].filter(Boolean).join(' ') || '제품';
       idxOf.set(key, maps.length);
-      maps.push({ key, label, version: it.bomVersionNumber ?? null, rows: [] });
+      maps.push({ key, label, version: it.bomVersionNumber ?? null, rows: [], factoryIds: [] });
     }
-    maps[idxOf.get(key)!].rows.push(it);
+    const m = maps[idxOf.get(key)!];
+    m.rows.push(it);
+    if (it.factoryId && !m.factoryIds.includes(it.factoryId)) m.factoryIds.push(it.factoryId);
   }
-
-  const [active, setActive] = useState(0);
-  if (!maps.length) return null;
-  const idx = active < maps.length ? active : 0;
-  const cur = maps[idx];
-  const fmt = (cm?: Record<string, number> | null) => {
-    const e = Object.entries(cm ?? {}).filter(([, v]) => v != null);
-    return e.length ? e.map(([k, v]) => `${k} ${v}%`).join(' · ') : '—';
-  };
-
-  return (
-    <div className="rounded-md border border-ink-700/40">
-      <div className="border-b border-ink-700/30 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-ink-300">
-        제품(공급망 맵)별 공급 정보 — 같은 협력사라도 제품마다 대는 부품·소재가 다릅니다
-      </div>
-      <div className="flex flex-wrap gap-1 px-2 pt-2">
-        {maps.map((m, i) => {
-          const dup = maps.filter(x => x.label === m.label).length > 1;
-          return (
-            <button
-              key={m.key}
-              type="button"
-              onClick={() => setActive(i)}
-              className={`rounded-t-sm border px-3 py-1.5 text-xs font-medium ${
-                i === idx
-                  ? 'border-ink-700/40 border-b-white bg-white text-ink-100'
-                  : 'border-transparent text-ink-400 hover:text-ink-100'
-              }`}
-            >
-              {m.label}{dup && m.version ? ` v${m.version}` : ''}
-            </button>
-          );
-        })}
-      </div>
-      <table className="w-full border-t border-ink-700/30 text-xs">
-        <thead>
-          <tr className="text-left text-ink-400">
-            <th className="px-3 py-1.5 font-medium">부품</th>
-            <th className="px-3 py-1.5 font-medium">차수(hop)</th>
-            <th className="px-3 py-1.5 font-medium">핵심광물 함량(%)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cur.rows.map((r, i) => (
-            <tr key={`${r.partId}-${i}`} className="border-t border-ink-700/15">
-              <td className="px-3 py-1.5 text-ink-100">{r.partName ?? r.partCode ?? '-'}</td>
-              <td className="px-3 py-1.5 text-ink-300">{r.hopLevel ?? '-'}</td>
-              <td className="px-3 py-1.5 text-ink-200">{fmt(r.coreMinerals)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return maps;
 }
 
 function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft, noMoreMines = false, setNoMoreMines, isSmelter = false, readField, detectedBizRegDoc, setDetectedBizRegDoc, detectedEnvReport, setDetectedEnvReport }: {
@@ -1341,8 +1288,6 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
           onOpenViewer={() => setMineralParsingOpen(true)}
         />
         <CompanyGrid key={`materials-${parseVersion}`} rows={rows} editable={editable} fieldKeys={keys} fieldPrefix="materials" flagged={flagged} />
-        {/* [맵별 탭] 제품(공급망 맵)별 공급 부품·차수·핵심광물 — 회사 공통값 아래에 맵별 실제값 읽기전용 */}
-        <SupplyMapTabs items={real?.items ?? []} />
         {/* AI 파싱 확인 팝업 — /partner/ai-parsing 페이지와 동일 화면(AiParsingView 공통 모듈)을
             모달 셸(AiParsingReviewModal 패턴)로 띄운다. 닫거나 전체 제출 완료 시 close. */}
         {mineralParsingOpen && (
@@ -1715,15 +1660,18 @@ export function SupplierGeneralReviewContent({
   // supplierId가 UUID면 실 백엔드(detail·contacts·completeness)에서 채우고, mock S-ID면 기존 mock 폴백.
   const isRealSupplier = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId);
   const [api, setApi] = useState<RealData | null>(null);
-  // 최신 자료요청 — 원청 검토 상태(submissionStatus)·다음 제출 예정일(dueDate) 표시용.
-  const [latestRequest, setLatestRequest] = useState<ApiDataRequest | null>(null);
+  // 자료요청 전체 — 원청 검토 상태(submissionStatus)·다음 제출 예정일(dueDate)을 "선택된 맵(bom_version)"별로 파생.
+  const [allRequests, setAllRequests] = useState<ApiDataRequest[]>([]);
+  // [제품별 독립 제출] 헤더에서 선택한 공급망 맵(=bom_version) key. '' = 첫 맵(자동).
+  const [selectedMapKey, setSelectedMapKey] = useState<string>('');
   // 입력 모드 편집용 draft — 로드된 GET 데이터에서 시드(전체 현재 집합). master-form REPLACE-ALL 라운드트립.
   const [factoriesDraft, setFactoriesDraft] = useState<FactoryDraft[]>([]);
   const [contactsDraft, setContactsDraft] = useState<ContactDraft[]>([]);
   // "추가 광산 없음" 명시 선언(제련소 전용) — PicRegister 말단선언 패턴과 동일 취지.
   const [noMoreMines, setNoMoreMines] = useState(false);
   useEffect(() => {
-    if (!isRealSupplier) { setApi(null); setLatestRequest(null); setManagedBanner(null); return; }
+    if (!isRealSupplier) { setApi(null); setAllRequests([]); setManagedBanner(null); return; }
+    setSelectedMapKey(''); // 협력사 전환 시 맵 선택 초기화(첫 맵으로)
     let cancelled = false;
     (async () => {
       // 광산도 자기 id로 조회한다 — 광산은 광산 자체가 곧 공장이라 자기 supplier_factories 를
@@ -1748,11 +1696,8 @@ export function SupplierGeneralReviewContent({
       });
       // 광산은 입력 주체가 아니라 읽기 전용(공장 정보는 광산 자체 = 공장).
       setManagedBanner(detail?.providerType === 'miner' ? { mineName: detail.companyName } : null);
-      // 가장 최신 요청(requestedAt 기준 내림차순 첫 번째)
-      const sorted = (requestsRes ?? []).sort((a: ApiDataRequest, b: ApiDataRequest) =>
-        (b.requestedAt ?? '').localeCompare(a.requestedAt ?? '')
-      );
-      setLatestRequest(sorted[0] ?? null);
+      // 전체 요청 보관 — 최신 선별은 선택된 맵(bom_version) 기준으로 렌더 시점에 파생한다.
+      setAllRequests(requestsRes ?? []);
     })();
     return () => { cancelled = true; };
   }, [isRealSupplier, supplierId]);
@@ -1763,6 +1708,31 @@ export function SupplierGeneralReviewContent({
     setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
     setContactsDraft((api?.contacts ?? []).map(contactToDraft));
   }, [api]);
+
+  // [제품별 독립 제출] 공급망 맵 목록 + 선택된 맵. 회사정보/PIC/연락처는 맵 무관 공통.
+  const supplyMaps = buildSupplyMaps(api?.items ?? []);
+  const activeMap = supplyMaps.find(m => m.key === selectedMapKey) ?? supplyMaps[0] ?? null;
+  // 선택된 맵으로 스코프한 api — 공장(엣지가 무는 factory_id)·품목을 맵 단위로 한정.
+  //   factoryIds가 비면(레거시/미매핑) 전체 공장을 그대로 보여준다(정보 손실 방지).
+  const scopedApi: RealData | null = api && activeMap
+    ? {
+        ...api,
+        items: activeMap.rows,
+        factories: activeMap.factoryIds.length
+          ? api.factories.filter(f => activeMap.factoryIds.includes(f.factoryId))
+          : api.factories,
+      }
+    : api;
+  // 선택된 맵의 최신 자료요청(원청 검토 상태·예정일). 마이그레이션 안전:
+  //   요청 중 bom_version_id가 하나라도 있으면(=per-map 기능 가동) 맵별로 엄격 분리,
+  //   전부 null(기능 이전 데이터)이면 기존처럼 전체 최신으로 폴백.
+  const perMapRequestsActive = allRequests.some(r => r.bomVersionId);
+  const latestRequest: ApiDataRequest | null = (() => {
+    const pool = (activeMap && perMapRequestsActive)
+      ? allRequests.filter(r => r.bomVersionId === activeMap.key)
+      : allRequests;
+    return [...pool].sort((a, b) => (b.requestedAt ?? '').localeCompare(a.requestedAt ?? ''))[0] ?? null;
+  })();
 
   const apiPrimary = api?.contacts.find(c => c.isPrimary) ?? api?.contacts[0];
   const selectedSupplier = suppliers.find(supplier => supplier.id === supplierId);
@@ -1807,7 +1777,7 @@ export function SupplierGeneralReviewContent({
   const mineRequirementMet = !isSmelter || (miningRows.length > 0 && miningRows.every(f => f.latitude.trim() !== '' && f.longitude.trim() !== '') && noMoreMines);
   // 편집 중엔 저장 전 입력칸 값 기준(live)으로, 아니면 마지막 저장된 스냅샷 기준으로 완료 여부 판정.
   const liveCtx: LiveFieldCtx | undefined = editable ? { readField, factoriesCount: factoriesDraft.length } : undefined;
-  const liveSections = (api ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, api, liveCtx) })) : sections)
+  const liveSections = (scopedApi ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, scopedApi, liveCtx) })) : sections)
     .map(s => (s.key === 'factories' && isSmelter && !mineRequirementMet)
       ? { ...s, status: '미입력' as ReviewStatus, missing: Array.from(new Set([...s.missing, '광산 위치(최소 1곳) + 추가 광산 없음 확인'])) }
       : s);
@@ -2192,6 +2162,32 @@ export function SupplierGeneralReviewContent({
         </div>
       </div>
 
+      {/* [제품별 독립 제출] 헤더 공급망 맵 탭 — 선택 시 페이지 전체(공장·원산지·핵심광물·원청 검토 상태·완성도)가
+          그 맵(bom_version) 기준으로 전환된다. 회사정보/PIC/연락처는 맵 무관 공통이라 아래 헤더에 고정.
+          편집(자료 제출) 중엔 공장 편집이 전체 집합 대상이라 탭을 숨긴다(맵 스코프 혼동 방지). */}
+      {supplyMaps.length > 1 && !editing && (
+        <div className="flex flex-wrap items-end gap-1 border-b border-ink-700/40">
+          {supplyMaps.map(m => {
+            const dup = supplyMaps.filter(x => x.label === m.label).length > 1;
+            const isActive = (activeMap?.key ?? '') === m.key;
+            return (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setSelectedMapKey(m.key)}
+                className={`-mb-px rounded-t-sm border px-4 py-2 text-sm font-semibold transition-colors ${
+                  isActive
+                    ? 'border-ink-700 border-b-white bg-white text-ink-100'
+                    : 'border-transparent bg-slate-50 text-ink-400 hover:text-ink-100'
+                }`}
+              >
+                {m.label}{dup && m.version ? ` v${m.version}` : ''}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <section className="rounded-sm border border-ink-700 bg-white shadow-control">
         <div className="px-5 py-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -2261,7 +2257,7 @@ export function SupplierGeneralReviewContent({
               key={section.key}
               section={section}
               onRequestSection={openRequestForSection}
-              real={api}
+              real={scopedApi}
               editable={editable}
               showRequest={isPrime}
               isPrime={isPrime}

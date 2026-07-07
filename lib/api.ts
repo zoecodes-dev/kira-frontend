@@ -779,6 +779,7 @@ export interface SuppliedItem {
   productName?: string | null;
   customerName?: string | null;  // 고객사 (예: BMW) — 탭 라벨
   hopLevel?: number | null;      // 이 맵에서 협력사 차수
+  factoryId?: string | null;     // 이 맵(엣지)에서 대는 공장 — map 탭 공장 필터용
   coreMinerals?: Record<string, number> | null; // 이 맵(엣지)의 핵심광물 함량 %(회사값 폴백)
 }
 export const getSupplierSuppliedItems = (id: string) =>
@@ -794,6 +795,7 @@ export interface ApiDataRequest {
   requestId: string;
   requesterUserId: string | null;
   targetSupplierId: string | null;
+  bomVersionId: string | null;   // [map별 독립 제출] 이 요청이 속한 공급망 맵(제품 BOM)
   requestedDataType: string | null;
   requestedAt: string | null;
   dueDate: string | null;
@@ -801,9 +803,12 @@ export interface ApiDataRequest {
   submissionStatus: SubmissionStatusCode | null;
   missingCount: number | null;
 }
-export const getDataRequests = (params?: { supplierId?: string }) => {
-  const q = params?.supplierId ? `?supplier_id=${params.supplierId}` : "";
-  return api.get<ApiDataRequest[]>(`/data-requests${q}`);
+export const getDataRequests = (params?: { supplierId?: string; bomVersionId?: string }) => {
+  const qs = [
+    params?.supplierId ? `supplier_id=${params.supplierId}` : "",
+    params?.bomVersionId ? `bom_version_id=${params.bomVersionId}` : "",
+  ].filter(Boolean).join("&");
+  return api.get<ApiDataRequest[]>(`/data-requests${qs ? `?${qs}` : ""}`);
 };
 
 /** GET /submissions — 원청 제출 검토 목록 (§4.1a) */
