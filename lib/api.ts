@@ -895,10 +895,14 @@ export interface SupplyChainAlternative {
   ratio_percentage: number | null;
 }
 
-export const getSupplyChainGaps = (productId: string) =>
+export const getSupplyChainGaps = (productId: string, bomVersionId?: string) =>
   // raw: 응답을 snake_case 그대로 받는다(SupplyChainGapsResult 타입·소비부가 snake_case 기준).
   //   raw 없으면 snakeToCamel로 변환돼 node.supplier_id 등이 undefined가 된다.
-  api.get<SupplyChainGapsResult>(`/supply-chain/gaps?product_id=${productId}`, { raw: true });
+  // bomVersionId 지정 시 그 맵(엣지)으로만 한정 — 차수 게이트(hop_level 기준)와 완성도 집계 범위를 일치시킨다.
+  api.get<SupplyChainGapsResult>(
+    `/supply-chain/gaps?product_id=${productId}${bomVersionId ? `&bom_version_id=${bomVersionId}` : ''}`,
+    { raw: true },
+  );
 
 export const getSupplyChainAlternatives = (productId: string, partId: string) =>
   api.get<SupplyChainAlternative[]>(`/supply-chain/alternatives?product_id=${productId}&part_id=${partId}`);

@@ -398,7 +398,7 @@ export default function SupplyChainHub() {
   //   confirmedSuppliers(협력사 확인/자료제출 반영)가 바뀔 때도 재조회해 완성도를 최신화.
   useEffect(() => {
     if (!selectedProductId || isDemo) { setGaps(null); setSummary(null); return; }
-    getSupplyChainGaps(selectedProductId).then(setGaps).catch(() => {});
+    getSupplyChainGaps(selectedProductId, activeBomVersionId).then(setGaps).catch(() => {});
     getValidationSummary(selectedProductId, activeBomVersionId).then(setSummary).catch(() => setSummary(null));
   }, [selectedProductId, activeBomVersionId, isDemo, confirmedSuppliers]);
 
@@ -731,14 +731,26 @@ export default function SupplyChainHub() {
     return pending ? pending.depth : (depthStats.length ? depthStats[depthStats.length - 1].depth : null);
   }, [depthStats]);
 
-  // [R2] 데이터 완성도 요약 — '이 공급망 맵'(progressNodes) 기준으로 집계한다.
+  // 회사 단위 집계용(전체 "협력사 N곳"·완비/미보유 건수·표) — 같은 회사가 겸업/이중소싱으로
+  //   여러 차수(depth)에 걸쳐 있으면 progressNodes에 그 수만큼 행이 있다(depthStats는 그걸
+  //   그대로 써서 차수별 칸을 채운다). 하지만 전체 집계는 "관계 수"가 아니라 "회사 수"라서
+  //   여기서는 회사(supplierId)당 한 번만 세도록 중복 제거한다.
+  const uniqueProgressNodes = useMemo(() => {
+    const seen = new Map<string, (typeof progressNodes)[number]>();
+    for (const n of progressNodes) {
+      if (!seen.has(n.supplierId)) seen.set(n.supplierId, n);
+    }
+    return [...seen.values()];
+  }, [progressNodes]);
+
+  // [R2] 데이터 완성도 요약 — '이 공급망 맵'(uniqueProgressNodes) 기준으로 집계한다.
   //   gaps 미로드(데모 등)면 progressNodes가 맵 협력사로 폴백하므로 데모에서도 칸 구획/완성도가 뜬다.
   const mapStats = useMemo(() => {
-    const supplierCount = progressNodes.length;
-    const nodesWithGaps = progressNodes.filter(n => n.gapCount > 0).length;
-    const totalGapCount = progressNodes.reduce((sum, n) => sum + n.gapCount, 0);
+    const supplierCount = uniqueProgressNodes.length;
+    const nodesWithGaps = uniqueProgressNodes.filter(n => n.gapCount > 0).length;
+    const totalGapCount = uniqueProgressNodes.reduce((sum, n) => sum + n.gapCount, 0);
     return { supplierCount, nodesWithGaps, complete: supplierCount - nodesWithGaps, totalGapCount };
-  }, [progressNodes]);
+  }, [uniqueProgressNodes]);
 
   // 완성도(%) — 맵 협력사 중 미보유 없는 곳 비율. 맵 노드가 없으면(gaps 미로드 등) summary로 폴백.
   const completePct = mapStats.supplierCount > 0
