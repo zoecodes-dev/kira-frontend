@@ -69,6 +69,28 @@ const FIELD_LABEL_KO: Record<string, string> = {
   certifying_agency:            '평가 기관명',
 };
 
+const CARBON_FIELD_LABELS: Record<string, string> = {
+  carbon_intensity: '탄소집약도 (kgCO2eq/kg)',
+  energy_source: '에너지원',
+};
+
+// 소재구성/탄소발자국 문서의 "뽑아야 할 필드" 카탈로그 — 못 찾아도(신뢰도 0) 항상 행을 만들어
+// 수정 필요로 표시한다. 문서에 있는 무관한 필드(회사명 등)는 이 카탈로그 밖이라 노출하지 않는다.
+// ids: 같은 개념의 대체 필드명(예 인조흑연 = artificial_graphite_content|synthetic_graphite_content).
+type DocCatalogRow = { label: string; unit: string; ids: string[] };
+const MATERIAL_DOC_CATALOG: DocCatalogRow[] = [
+  { label: 'Li (리튬) 함량(%)', unit: '%', ids: ['li_content'] },
+  { label: 'Co (코발트) 함량(%)', unit: '%', ids: ['co_content'] },
+  { label: 'Ni (니켈) 함량(%)', unit: '%', ids: ['ni_content'] },
+  { label: 'Mn (망간) 함량(%)', unit: '%', ids: ['mn_content'] },
+  { label: '천연흑연 함량(%)', unit: '%', ids: ['natural_graphite_content'] },
+  { label: '인조흑연 함량(%)', unit: '%', ids: ['artificial_graphite_content', 'synthetic_graphite_content'] },
+];
+const CARBON_DOC_CATALOG: DocCatalogRow[] = [
+  { label: '탄소집약도 (kgCO2eq/kg)', unit: 'kgCO2eq/kg', ids: ['carbon_intensity'] },
+  { label: '에너지원', unit: '', ids: ['energy_source'] },
+];
+
 const MOCK_PARSED_DOCS: ParsedDoc[] = [
   {
     docId: 'doc-001',
@@ -113,18 +135,82 @@ const STATUS_TO_REVIEW: Record<string, ParsedDoc['submissionStatus']> = {
   submission_approved: 'approved', submission_rework: 'rework', submission_rejected: 'rejected',
 };
 
+function pickEvidenceNumber(text: string, patterns: RegExp[]): number | null {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match?.[1]) continue;
+    const value = Number(match[1].replace(',', '.'));
+    if (Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function extractMaterialFieldsFromEvidence(summary?: string | null): Record<string, number> {
+  if (!summary) return {};
+  const specs: Array<[string, RegExp[]]> = [
+    ['li_content', [/(?:Li|리튬)[^0-9]{0,50}(\d+(?:[.,]\d+)?)\s*%/i]],
+    ['co_content', [/(?:Co|코발트)[^0-9]{0,50}(\d+(?:[.,]\d+)?)\s*%/i]],
+    ['ni_content', [/(?:Ni|니켈)[^0-9]{0,50}(\d+(?:[.,]\d+)?)\s*%/i]],
+    ['mn_content', [/(?:Mn|망간)[^0-9]{0,50}(\d+(?:[.,]\d+)?)\s*%/i]],
+    ['natural_graphite_content', [/(?:natural graphite|천연흑연)[^0-9]{0,80}(\d+(?:[.,]\d+)?)\s*%/i]],
+    ['artificial_graphite_content', [/(?:artificial graphite|synthetic graphite|인조흑연)[^0-9]{0,80}(\d+(?:[.,]\d+)?)\s*%/i]],
+  ];
+  const parsed: Record<string, number> = {};
+  for (const [key, patterns] of specs) {
+    const value = pickEvidenceNumber(summary, patterns);
+    if (value != null) parsed[key] = value;
+  }
+  return parsed;
+}
+
 function extractionToDoc(x: AiExtraction, initialDoc?: InitialDoc | null): ParsedDoc {
-  const fields: ExtractionField[] = Object.keys(x.parsedFields).map(k => {
-    const confidence = x.confidenceMap[k] ?? 0;
-    return {
-      fieldId: k,
-      label: FIELD_LABEL_KO[k] ?? k,   // 한국어 레이블, 없으면 원본 키
-      aiValue: String(x.parsedFields[k]),
-      confidence,
-      requiresAttention: confidence < 0.8,
-      unit: '',
-    };
-  });
+  const isMaterialExtraction =
+    x.docCategory === 'material_composition' ||
+    x.requestedDataType === '소재구성 문서' ||
+    x.requestId?.startsWith('local-material-');
+  const isCarbonExtraction =
+    x.docCategory === 'carbon_footprint_declaration' ||
+    x.requestedDataType === '탄소발자국 문서' ||
+    x.requestedDataType?.includes('carbon') ||
+    x.requestedDataType?.includes('환경성적') ||
+    x.requestId?.startsWith('local-carbon-');
+  const evidenceMaterialFields = isMaterialExtraction ? extractMaterialFieldsFromEvidence(x.evidenceSummary) : {};
+  const parsedFields = isMaterialExtraction ? { ...evidenceMaterialFields, ...x.parsedFields } : x.parsedFields;
+
+  let fields: ExtractionField[];
+  let unparsedFields: string[];
+  if (isMaterialExtraction || isCarbonExtraction) {
+    // 카탈로그 기반 — 뽑아야 할 필드만, 못 찾아도 신뢰도 0의 "수정 필요" 행으로 항상 노출.
+    // 카탈로그 밖 필드(회사명 등 문서에 같이 적힌 무관한 정보)는 이 화면에서 아예 보여주지 않는다.
+    const catalog = isMaterialExtraction ? MATERIAL_DOC_CATALOG : CARBON_DOC_CATALOG;
+    fields = catalog.map(row => {
+      const matchedId = row.ids.find(id => parsedFields[id] != null && parsedFields[id] !== '');
+      const confidence = matchedId ? (x.confidenceMap[matchedId] ?? (evidenceMaterialFields[matchedId] != null ? 0.75 : 0)) : 0;
+      return {
+        fieldId: matchedId ?? row.ids[0],
+        label: row.label,
+        aiValue: matchedId ? String(parsedFields[matchedId]) : '',
+        confidence,
+        requiresAttention: confidence < 0.8,
+        unit: row.unit,
+      };
+    });
+    unparsedFields = [];
+  } else {
+    fields = Object.keys(parsedFields).map(k => {
+      const confidence = x.confidenceMap[k] ?? 0;
+      return {
+        fieldId: k,
+        label: FIELD_LABEL_KO[k] ?? k,
+        aiValue: String(parsedFields[k]),
+        confidence,
+        requiresAttention: confidence < 0.8,
+        unit: '',
+      };
+    });
+    unparsedFields = x.unparsedFields;
+  }
+
   const sameInitialDoc = initialDoc && x.docS3Key && x.docS3Key === initialDoc.docS3Key;
   return {
     docId: x.requestId,
@@ -133,11 +219,25 @@ function extractionToDoc(x: AiExtraction, initialDoc?: InitialDoc | null): Parse
     requestType: x.requestedDataType ?? '자료',
     uploadedAt: '',
     submissionStatus: STATUS_TO_REVIEW[x.submissionStatus ?? ''] ?? 'review',
-    extractionResult: { fields, unparsedFields: x.unparsedFields },
+    extractionResult: { fields, unparsedFields },
   };
 }
 
 function initialDocToParsedDoc(doc: InitialDoc): ParsedDoc {
+  const isCarbonDoc = doc.requestType.includes('탄소') || doc.requestType.toLowerCase().includes('carbon');
+  const fields = isCarbonDoc
+    ? [
+        { fieldId: 'carbon_intensity', label: CARBON_FIELD_LABELS.carbon_intensity, aiValue: '', confidence: 0, requiresAttention: true, unit: 'kgCO2eq/kg' },
+        { fieldId: 'energy_source', label: CARBON_FIELD_LABELS.energy_source, aiValue: '', confidence: 0, requiresAttention: true, unit: '' },
+      ]
+    : [
+        { fieldId: 'Li',                label: 'Li (리튬) 함량(%)',     aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+        { fieldId: 'Co',                label: 'Co (코발트) 함량(%)',   aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+        { fieldId: 'Ni',                label: 'Ni (니켈) 함량(%)',     aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+        { fieldId: 'Mn',                label: 'Mn (망간) 함량(%)',     aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+        { fieldId: 'natural_graphite',  label: '천연흑연 함량(%)',       aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+        { fieldId: 'synthetic_graphite',label: '인조흑연 함량(%)',       aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
+      ];
   return {
     docId: doc.docId,
     fileName: doc.fileName,
@@ -146,17 +246,49 @@ function initialDocToParsedDoc(doc: InitialDoc): ParsedDoc {
     uploadedAt: '',
     submissionStatus: 'review',
     extractionResult: {
-      fields: [
-        { fieldId: 'Li',                label: 'Li (리튬) 함량(%)',     aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
-        { fieldId: 'Co',                label: 'Co (코발트) 함량(%)',   aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
-        { fieldId: 'Ni',                label: 'Ni (니켈) 함량(%)',     aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
-        { fieldId: 'Mn',                label: 'Mn (망간) 함량(%)',     aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
-        { fieldId: 'natural_graphite',  label: '천연흑연 함량(%)',       aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
-        { fieldId: 'synthetic_graphite',label: '인조흑연 함량(%)',       aiValue: '', confidence: 0, requiresAttention: true, unit: '%' },
-      ],
+      fields,
       unparsedFields: [],
     },
   };
+}
+
+function isImageFile(doc: ParsedDoc): boolean {
+  const source = `${doc.fileUrl ?? doc.fileName}`.toLowerCase();
+  return source.startsWith('data:image/') || /\.(png|jpe?g|webp|gif)(?:[?#].*)?$/.test(source);
+}
+
+function OriginalDocumentPreview({ doc }: { doc: ParsedDoc }) {
+  if (doc.fileUrl && isImageFile(doc)) {
+    return (
+      <div className="flex h-full flex-col overflow-hidden bg-[#E5E7EB]">
+        <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-ink-800/30 px-4 py-2.5">
+          <span className="truncate text-[11px] font-bold text-ink-500">{doc.fileName}</span>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          <img src={doc.fileUrl} alt={doc.fileName} className="mx-auto max-h-full max-w-full object-contain shadow-sm" />
+        </div>
+      </div>
+    );
+  }
+
+  if (doc.fileUrl) {
+    return <PdfViewer fileUrl={doc.fileUrl} fileName={doc.fileName} />;
+  }
+
+  return (
+    <>
+      <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-ink-800/30 px-4 py-2.5">
+        <span className="text-[11px] font-bold text-ink-500">원본 문서 뷰어</span>
+      </div>
+      <div className="flex flex-1 items-center justify-center bg-[#E5E7EB]">
+        <div className="text-center text-ink-400">
+          <FileText className="mx-auto mb-2 h-10 w-10 opacity-30" />
+          <p className="text-xs">{doc.fileName}</p>
+          <p className="mt-1 text-[11px] opacity-60">원본 문서 URL이 없습니다.</p>
+        </div>
+      </div>
+    </>
+  );
 }
 
 // ─── 소재구성 문서 미리보기 — 파싱된 값을 문서 내 셀에 직접 하이라이트 ──────
@@ -337,6 +469,76 @@ function MaterialDocumentPreview({
 }
 
 // ─── 메인 컴포넌트 ──────────────────────────────────────────────────────────
+function CarbonDocumentPreview({
+  doc,
+  hoveredFieldId,
+  onFieldHover,
+}: {
+  doc: ParsedDoc;
+  hoveredFieldId: string | null;
+  onFieldHover: (fieldId: string | null) => void;
+}) {
+  const fields = doc.extractionResult.fields;
+  const rows = [
+    { label: '탄소집약도 (kgCO2eq/kg)', ids: ['carbon_intensity'] },
+    { label: '에너지원', ids: ['energy_source'] },
+  ];
+
+  return (
+    <div className="h-full overflow-y-auto bg-white">
+      <div className="mx-auto max-w-2xl px-10 py-10 font-[pretendard,_sans-serif] text-gray-800">
+        <div className="mb-8 text-center">
+          <h1 className="text-xl font-bold text-gray-900">탄소발자국 명세서 (Carbon Footprint Sheet)</h1>
+          <p className="mt-2 text-[13px] text-blue-600">
+            본 문서는 제품 탄소집약도와 에너지원 정보를 확인하기 위한 자료입니다.
+          </p>
+        </div>
+
+        <div className="mb-8">
+          <h2 className="mb-3 text-[15px] font-bold text-gray-900">1. 탄소발자국 정보</h2>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr>
+                <th className="w-64 border border-gray-300 bg-[#1a4731] px-4 py-2.5 text-left text-[13px] font-semibold text-white">항목</th>
+                <th className="border border-gray-300 bg-[#1a4731] px-4 py-2.5 text-left text-[13px] font-semibold text-white">값</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => {
+                const matched = getFieldMatch(fields, row.ids);
+                const fieldId = matched?.fieldId ?? null;
+                const isActive = fieldId !== null && hoveredFieldId === fieldId;
+
+                return (
+                  <tr
+                    key={row.label}
+                    className={`border-b border-gray-200 transition-colors duration-150 ${matched ? 'cursor-pointer' : ''}`}
+                    onMouseEnter={() => fieldId && onFieldHover(fieldId)}
+                    onMouseLeave={() => onFieldHover(null)}
+                  >
+                    <td className={`border border-gray-300 px-4 py-2.5 text-[13px] transition-colors duration-150 ${isActive ? 'bg-green-50' : 'bg-white'}`}>
+                      {row.label}
+                    </td>
+                    <td className={`border border-gray-300 px-4 py-2.5 text-[13px] font-semibold transition-colors duration-150 ${isActive ? 'bg-green-50' : 'bg-white'}`}>
+                      {matched ? (
+                        <span className={`inline-block rounded px-2 py-0.5 transition-all duration-150 ${getHighlightColor(matched.confidence, isActive)}`}>
+                          {matched.aiValue}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AiParsingView({
   supplierId,
   onConfirmComplete,
@@ -379,6 +581,29 @@ export default function AiParsingView({
 
   // 소재구성 문서 전용 HTML 미리보기 사용 여부
   const isMaterialDoc = docCategoryFilter === 'material_composition';
+  const isCarbonDoc = docCategoryFilter === 'carbon_footprint_declaration';
+  const matchesDocumentFilter = (x: AiExtraction) => {
+    if (!docS3KeyFilter) return true;
+    if (x.docS3Key === docS3KeyFilter) return true;
+    if (initialDoc?.fileName && x.documentFileName === initialDoc.fileName) return true;
+    if (initialDoc?.fileName && x.documentUrl?.includes(encodeURIComponent(initialDoc.fileName))) return true;
+    if (initialDoc?.fileName && x.documentUrl?.includes(initialDoc.fileName)) return true;
+    return false;
+  };
+  const matchesCategoryFilter = (x: AiExtraction) => {
+    if (!docCategoryFilter) return true;
+    if (x.docCategory === docCategoryFilter) return true;
+    if (docCategoryFilter === 'material_composition') return x.requestedDataType === '소재구성 문서';
+    if (docCategoryFilter === 'carbon_footprint_declaration') {
+      return Boolean(
+        x.requestedDataType?.includes('탄소') ||
+        x.requestedDataType?.includes('carbon') ||
+        x.requestedDataType?.includes('환경성적') ||
+        x.requestedDataType?.includes('self_upload:carbon')
+      );
+    }
+    return false;
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -386,9 +611,10 @@ export default function AiParsingView({
       .then(list => {
         const mine = list
           .filter(x => !supplierId || x.supplierId === supplierId)
-          .filter(x => !docCategoryFilter || x.docCategory === docCategoryFilter || x.requestedDataType === '소재구성 문서')
-          .filter(x => !docS3KeyFilter || x.docS3Key === docS3KeyFilter)
-          .map(x => extractionToDoc(x, initialDoc));
+          .filter(matchesCategoryFilter)
+          .filter(matchesDocumentFilter)
+          .map(x => extractionToDoc(x, initialDoc))
+          .filter(doc => !docCategoryFilter || doc.extractionResult.fields.length > 0);
         if (cancelled) return;
         if (mine.length) { setDocs(mine); setActiveDocId(mine[0].docId); }
         else if (initialExtraction) {
@@ -412,8 +638,8 @@ export default function AiParsingView({
     const maxAttempts = 16;
     const matchesFilter = (x: AiExtraction) =>
       (!supplierId || x.supplierId === supplierId) &&
-      (!docCategoryFilter || x.docCategory === docCategoryFilter || x.requestedDataType === '소재구성 문서') &&
-      (!docS3KeyFilter || x.docS3Key === docS3KeyFilter);
+      matchesCategoryFilter(x) &&
+      matchesDocumentFilter(x);
 
     const poll = () => {
       attempt += 1;
@@ -426,6 +652,10 @@ export default function AiParsingView({
             return;
           }
           const parsedDoc = extractionToDoc(matchedExtraction, initialDoc);
+          if (docCategoryFilter && parsedDoc.extractionResult.fields.length === 0) {
+            if (attempt < maxAttempts) timeoutId = setTimeout(poll, 2500);
+            return;
+          }
           setDocs([parsedDoc]);
           setActiveDocId(parsedDoc.docId);
           if (notifiedExtractionRef.current !== matchedExtraction.requestId) {
@@ -465,6 +695,10 @@ export default function AiParsingView({
 
   const activeDoc = docs.find(d => d.docId === activeDocId) ?? docs[0];
   const allCompleted = docs.every(d => completedDocs[d.docId]);
+  // 실제 업로드된 원본 문서가 있으면 항상 그걸 보여준다 — AI 파싱 성공 여부와 무관하게
+  // 사용자가 올린 파일을 임의의 양식 템플릿으로 대체해 보여주면 안 된다.
+  // 원본 URL이 없는 경우(mock 데모 데이터 등)에만 소재구성/탄소발자국 전용 HTML 템플릿으로 대체.
+  const showOriginalMaterialPreview = (isMaterialDoc || isCarbonDoc) && Boolean(activeDoc.fileUrl);
 
   function handleDocComplete() {
     const updated: CompletedMap = { ...completedDocs, [activeDocId]: true };
@@ -537,7 +771,15 @@ export default function AiParsingView({
 
         {/* 좌측: 소재구성 → HTML 문서 미리보기 / 그 외 → PDF iframe */}
         <div className="flex flex-1 flex-col overflow-hidden rounded-sm border border-ink-700 bg-white">
-          {isMaterialDoc ? (
+          {showOriginalMaterialPreview ? (
+            <OriginalDocumentPreview doc={activeDoc} />
+          ) : isCarbonDoc ? (
+            <CarbonDocumentPreview
+              doc={activeDoc}
+              hoveredFieldId={tableFieldHover ?? docFieldHover}
+              onFieldHover={setDocFieldHover}
+            />
+          ) : isMaterialDoc ? (
             // 소재구성 전용 HTML 렌더링 + 노란 하이라이트
             <MaterialDocumentPreview
               doc={activeDoc}

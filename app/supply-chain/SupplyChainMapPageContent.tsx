@@ -4,7 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ExcelJS from 'exceljs';
 import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
-import { getSupplierDetail, getSupplierContacts, getSupplierFactories, getSupplierRiskProfile } from '@/lib/api';
+import { getSupplierDetail, getSupplierContacts, getSupplierFactories, getSupplierRiskProfile, getSupplyChainEvaluation, type SupplyChainEvaluation } from '@/lib/api';
+import EvaluationReportCard, { evaluationTextLines } from '@/components/supply-chain/EvaluationReportCard';
 import {
   Box,
   ChevronDown,
@@ -65,6 +66,7 @@ export function SupplyChainMapPageContent({
   focusSupplierId,
   maxVisibleTier = 1,
   visibleSupplierIds,
+  evaluationReport,
 }: {
   formationMode?: boolean;
   // 허브 안에 임베드될 때 true — 중복 헤더와 별도 "맵 형성하기" 링크를 숨긴다.
@@ -99,6 +101,9 @@ export function SupplyChainMapPageContent({
   //   허브가 pool에서 도달 가능한 협력사 id만 담아 넘긴다. 미전달(undefined)이면 필터 없음
   //   (completed 맵 등 — 기존 동작 유지).
   visibleSupplierIds?: Set<string>;
+  // 공급망 맵 평가 리포트(종합 판정 문구). 허브(embedded)가 조회해 넘긴다. 단독 사용 시엔
+  //   이 컴포넌트가 자체 조회한다(아래 selfEvaluation). 카드 표시 + 엑셀/CSV 문구에 쓰인다.
+  evaluationReport?: SupplyChainEvaluation | null;
 }) {
   // 허브가 고른 제품(initialProductId)이 이미 로드된 데이터셋에 있으면 그걸로 시작한다.
   //   (허브는 products 전체가 로드된 뒤 이 컴포넌트를 마운트하므로 products[0]로 초기화하면
@@ -125,6 +130,11 @@ export function SupplyChainMapPageContent({
   const [showConnectConfirm, setShowConnectConfirm] = useState(false);
   const [formationGenerated, setFormationGenerated] = useState(!formationMode);
   const [customerDownloading, setCustomerDownloading] = useState(false);  // 고객사 데이터(하이브리드 xlsx) 생성중
+  // onRowClick 미전달(허브 없이 이 화면 단독 사용, 예: 기본 export 페이지) 시 표 행 클릭에 대한 폴백 —
+  //   실 협력사(UUID)면 이 화면 안에서 바로 general review 팝업을 띄운다(SupplyChainHub의 openSupplierReview와 동일 패턴).
+  const [reviewSupplier, setReviewSupplier] = useState<{ id: string; name: string } | null>(null);
+  // 단독 사용(허브 밖)일 때만 평가 리포트를 자체 조회. 허브 임베드면 evaluationReport prop을 그대로 쓴다.
+  const [selfEvaluation, setSelfEvaluation] = useState<SupplyChainEvaluation | null>(null);
 
   const selectedProduct = dataset.products.find(product => product.product_id === selectedProductId) ?? dataset.products[0];
   const selectedBomVersion = dataset.bom_versions.find(version => version.bom_version_id === selectedBomVersionId) ?? availableBomVersions[0];
@@ -244,6 +254,20 @@ export function SupplyChainMapPageContent({
     }
   }, [availableBomVersions, selectedBomVersionId, initialBomVersionId]);
 
+  // 단독 사용(허브 밖)일 때 평가 리포트 자체 조회 — 선택 제품×BOM 기준. 허브 임베드면 prop을 쓰므로 스킵.
+  useEffect(() => {
+    if (evaluationReport !== undefined) return;               // 허브가 넘겨준 값 사용
+    if (!selectedProductId || !isUuid(selectedProductId)) { setSelfEvaluation(null); return; }
+    let cancelled = false;
+    getSupplyChainEvaluation(selectedProductId, selectedBomVersionId || undefined)
+      .then(r => { if (!cancelled) setSelfEvaluation(r); })
+      .catch(() => { if (!cancelled) setSelfEvaluation(null); });
+    return () => { cancelled = true; };
+  }, [evaluationReport, selectedProductId, selectedBomVersionId]);
+
+  // 표시/엑셀에 쓸 평가 리포트 — 허브 임베드면 prop, 단독이면 자체 조회분.
+  const evaluation = evaluationReport !== undefined ? evaluationReport : selfEvaluation;
+
   // 알림 딥링크(focusSupplierId)로 진입 시: 표가 그 협력사 행을 렌더한 순간
   //   ① 행 하이라이트 ② 그 행으로 스크롤 ③ (실 협력사면) 상세 모달 오픈.
   // 제품·BOM 자동 선택 → traceRows 생성이 비동기라, traceRows 변화에 반응하고 focusSupplierId당 1회만 적용.
@@ -339,13 +363,22 @@ export function SupplyChainMapPageContent({
   }
 
   // 실 .xlsx 생성(exceljs) — 헤더 강조(굵은 흰글씨+브랜드 배경)·테두리·헤더 고정·자동필터·공급비율 % 서식.
+  //   평가 리포트(종합 판정 문구)가 있으면 표 위에 문구 블록을 먼저 적는다.
   async function writeXlsx(filename: string, sheetName: string, dataRows: (string | number)[][]) {
     const thin = { style: 'thin' as const, color: { argb: 'FFD9D9D9' } };
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet(sheetName, { views: [{ state: 'frozen', ySplit: 1 }] });
-    ws.columns = exportHeaders.map((h, i) => ({ header: h, width: COL_WIDTHS[i] }));
+    const ws = wb.addWorksheet(sheetName);
+    ws.columns = exportHeaders.map((_, i) => ({ width: COL_WIDTHS[i] }));
 
-    const headerRow = ws.getRow(1);
+    // 평가 리포트 문구 블록 — 표 헤더 위에.
+    const introLines = evaluation?.available ? evaluationTextLines(evaluation) : [];
+    introLines.forEach((line, i) => {
+      const r = ws.addRow([line]);
+      r.getCell(1).font = { bold: i === 0, color: { argb: 'FF14532D' }, size: i === 0 ? 12 : 11 };
+    });
+    if (introLines.length) ws.addRow([]);
+
+    const headerRow = ws.addRow(exportHeaders);
     headerRow.height = 22;
     headerRow.eachCell(cell => {
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
@@ -353,16 +386,19 @@ export function SupplyChainMapPageContent({
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
       cell.border = { top: thin, bottom: thin, left: thin, right: thin };
     });
+    const headerRowNum = headerRow.number;
+    const dataFrom = ws.rowCount + 1;
 
     dataRows.forEach(r => ws.addRow(r));
-    for (let i = 2; i <= ws.rowCount; i++) {
+    for (let i = dataFrom; i <= ws.rowCount; i++) {
       ws.getRow(i).eachCell(cell => {
         cell.border = { top: thin, bottom: thin, left: thin, right: thin };
         cell.alignment = { vertical: 'middle' };
       });
     }
     ws.getColumn(12).numFmt = '0"%"'; // 공급비율(%) — PO 번호 제거로 한 칸 당겨짐
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: exportHeaders.length } };
+    ws.views = [{ state: 'frozen', ySplit: headerRowNum }];
+    ws.autoFilter = { from: { row: headerRowNum, column: 1 }, to: { row: headerRowNum, column: exportHeaders.length } };
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -443,6 +479,16 @@ export function SupplyChainMapPageContent({
       const r = ws.addRow([k, v]);
       r.getCell(1).font = { bold: true, color: { argb: 'FF14532D' } };
     });
+
+    // 평가 리포트 문구 블록(있으면) — 제품 정보 아래, 표 위에.
+    const introLines = evaluation?.available ? evaluationTextLines(evaluation) : [];
+    if (introLines.length) {
+      ws.addRow([]);
+      introLines.forEach((line, i) => {
+        const r = ws.addRow([line]);
+        r.getCell(1).font = { bold: i === 0, color: { argb: 'FF14532D' } };
+      });
+    }
     ws.addRow([]);
 
     // 표 헤더.
@@ -521,7 +567,9 @@ export function SupplyChainMapPageContent({
   }
 
   function downloadCsv() {
-    const rows = [exportHeaders, ...getExportRows(traceRows, periodLabel)];
+    // 평가 리포트 문구(있으면)를 상단에 먼저, 그다음 빈 줄, 표 헤더/데이터.
+    const introRows = (evaluation?.available ? evaluationTextLines(evaluation) : []).map(l => [l]);
+    const rows = [...introRows, ...(introRows.length ? [[]] : []), exportHeaders, ...getExportRows(traceRows, periodLabel)];
     const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -735,6 +783,11 @@ export function SupplyChainMapPageContent({
         </div>
       )}
 
+      {/* 공급망 맵 평가 리포트(종합 판정 문구) — 표/엑셀과 같은 화면에 노출. */}
+      {!formationMode && evaluation?.available && (
+        <EvaluationReportCard report={evaluation} className="mt-4" />
+      )}
+
       {formationGenerated && hasSelection && (
         <section className="mt-4 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
           <div className="flex items-start justify-between gap-4 border-b border-ink-700 bg-ink-800/40 px-5 py-4">
@@ -778,8 +831,12 @@ export function SupplyChainMapPageContent({
                     key={row.node_key}
                     data-supplier-id={row.supplier_id}
                     className={`cursor-pointer hover:bg-ink-800/30 ${selectedNodeKey === row.node_key ? 'bg-accent-50/60' : ''}`}
-                    onClick={() => (onRowClick ? onRowClick(row) : setSelectedNodeKey(row.node_key))}
-                    title={onRowClick && !formationMode ? `${row.supplier_name} 상세 보기` : undefined}
+                    onClick={() => {
+                      if (onRowClick) { onRowClick(row); return; }
+                      if (isUuid(row.supplier_id)) { setReviewSupplier({ id: row.supplier_id, name: row.supplier_name }); return; }
+                      setSelectedNodeKey(row.node_key);
+                    }}
+                    title={!formationMode && (onRowClick || isUuid(row.supplier_id)) ? `${row.supplier_name} 상세 보기` : undefined}
                   >
                     <td className="whitespace-nowrap px-4 py-3 text-xs font-bold text-ink-400">{row.tier}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-bold text-ink-100">
@@ -809,6 +866,35 @@ export function SupplyChainMapPageContent({
             </table>
           </div>
         </section>
+      )}
+
+      {/* onRowClick 미전달(허브 없이 단독 사용) 폴백 — 실 협력사 행 클릭 시 general review 팝업.
+          닫으면 이 공급망 맵으로 바로 복귀. */}
+      {reviewSupplier && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 md:p-8"
+          onClick={() => setReviewSupplier(null)}
+        >
+          <div
+            className="relative w-full max-w-5xl rounded-sm border border-ink-700 bg-white shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-ink-700 bg-white px-5 py-3">
+              <div className="text-sm font-bold text-ink-100">협력사 상세 — {reviewSupplier.name}</div>
+              <button
+                type="button"
+                onClick={() => setReviewSupplier(null)}
+                aria-label="닫기"
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-4">
+              <SupplierGeneralReviewContent supplierId={reviewSupplier.id} supplierName={reviewSupplier.name} embedded mode="prime" />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -522,6 +522,7 @@ export interface SupplierDetail extends SupplierBrief {
   environmentalReportUrl?: string | null;   // 환경성적서 업로드 URL
   selfAssessmentDocUrl?: string | null;     // 실사 자가진단 보고서 업로드 URL
   materialCompositionDocUrl?: string | null; // 소재구성 문서(핵심광물 함량) 업로드 URL
+  carbonFootprintDocUrl?: string | null;     // 탄소발자국 신고서(탄소집약도/에너지원) 업로드 URL
   manufacturerDetail: SupplierManufacturerDetail | null;
   recyclerDetail: SupplierRecyclerDetail | null;
   traderDetail: SupplierTraderDetail | null;
@@ -571,6 +572,7 @@ export interface SupplierFactory {
   destinationDetail: string | null;
   supplyRatioPercent: number | null;
   supplyQuantity: string | null;
+  coreMinerals: Record<string, number> | null;  // 공장(사이트)별 소재 구성 — 광산 사이트마다 다를 수 있음
   // 공장 담당자(공장 단위) — 협력사 PIC(SupplierContact)와 별개
   factoryManagerName: string | null;
   factoryManagerRole: string | null;
@@ -779,6 +781,7 @@ export interface SuppliedItem {
   productName?: string | null;
   customerName?: string | null;  // 고객사 (예: BMW) — 탭 라벨
   hopLevel?: number | null;      // 이 맵에서 협력사 차수
+  factoryId?: string | null;     // 이 맵(엣지)에서 대는 공장 — map 탭 공장 필터용
   coreMinerals?: Record<string, number> | null; // 이 맵(엣지)의 핵심광물 함량 %(회사값 폴백)
 }
 export const getSupplierSuppliedItems = (id: string) =>
@@ -794,6 +797,7 @@ export interface ApiDataRequest {
   requestId: string;
   requesterUserId: string | null;
   targetSupplierId: string | null;
+  bomVersionId: string | null;   // [map별 독립 제출] 이 요청이 속한 공급망 맵(제품 BOM)
   requestedDataType: string | null;
   requestedAt: string | null;
   dueDate: string | null;
@@ -801,9 +805,12 @@ export interface ApiDataRequest {
   submissionStatus: SubmissionStatusCode | null;
   missingCount: number | null;
 }
-export const getDataRequests = (params?: { supplierId?: string }) => {
-  const q = params?.supplierId ? `?supplier_id=${params.supplierId}` : "";
-  return api.get<ApiDataRequest[]>(`/data-requests${q}`);
+export const getDataRequests = (params?: { supplierId?: string; bomVersionId?: string }) => {
+  const qs = [
+    params?.supplierId ? `supplier_id=${params.supplierId}` : "",
+    params?.bomVersionId ? `bom_version_id=${params.bomVersionId}` : "",
+  ].filter(Boolean).join("&");
+  return api.get<ApiDataRequest[]>(`/data-requests${qs ? `?${qs}` : ""}`);
 };
 
 /** GET /submissions — 원청 제출 검토 목록 (§4.1a) */
@@ -838,13 +845,41 @@ export interface AiExtraction {
   // 원본 문서(PDF 뷰어) — 임시 다운로드 URL + 파일명. 없으면 null(로컬 S3 미구성 등).
   documentUrl?: string | null;
   documentFileName?: string | null;
+  evidenceSummary?: string | null;
   // hitl_reviews 연결(있으면) — 승인/반려가 백엔드 HITL 큐도 갱신.
   batchId?: string | null;
   hitlReviewId?: string | null;
   hitlStatus?: string | null;
   hitlReason?: string | null;
 }
-export const getAiExtractions = () => api.get<AiExtraction[]>(`/data-requests/ai-extractions`);
+// parsed_fields/confidence_map의 키는 문서 필드 ID(스네이크케이스, masterform_prefill 카탈로그 SSOT)라
+// 원본 그대로 유지해야 한다. snakeToCamel은 재귀적으로 모든 중첩 키를 변환하므로(carbon_intensity →
+// carbonIntensity) 그대로 쓰면 프론트 필드 카탈로그(CARBON_DOC_CATALOG 등)와 어긋나 파싱 결과가 안 보인다.
+// → raw로 받아 최상위 필드만 수동으로 camelCase 매핑하고, 두 딕셔너리는 원본 키 그대로 둔다.
+export const getAiExtractions = () =>
+  api.get<Record<string, unknown>[]>(`/data-requests/ai-extractions`, { raw: true }).then(list =>
+    list.map((x): AiExtraction => ({
+      requestId: x.request_id as string,
+      supplierId: (x.supplier_id as string) ?? null,
+      supplierName: (x.supplier_name as string) ?? null,
+      requestedDataType: (x.requested_data_type as string) ?? null,
+      submissionStatus: (x.submission_status as string) ?? null,
+      parsedFields: (x.parsed_fields as Record<string, string | number>) ?? {},
+      confidenceMap: (x.confidence_map as Record<string, number>) ?? {},
+      unparsedFields: (x.unparsed_fields as string[]) ?? [],
+      blankFields: x.blank_fields as string[] | undefined,
+      unreadableFields: x.unreadable_fields as string[] | undefined,
+      docCategory: (x.doc_category as string) ?? null,
+      docS3Key: (x.doc_s3_key as string) ?? null,
+      documentUrl: (x.document_url as string) ?? null,
+      documentFileName: (x.document_file_name as string) ?? null,
+      evidenceSummary: (x.evidence_summary as string) ?? null,
+      batchId: (x.batch_id as string) ?? null,
+      hitlReviewId: (x.hitl_review_id as string) ?? null,
+      hitlStatus: (x.hitl_status as string) ?? null,
+      hitlReason: (x.hitl_reason as string) ?? null,
+    }))
+  );
 
 /** AI 규제 검증 결과(compliance_results) — verdict + confidence + HITL 후보. */
 export interface RegulationResult {
@@ -895,10 +930,14 @@ export interface SupplyChainAlternative {
   ratio_percentage: number | null;
 }
 
-export const getSupplyChainGaps = (productId: string) =>
+export const getSupplyChainGaps = (productId: string, bomVersionId?: string) =>
   // raw: 응답을 snake_case 그대로 받는다(SupplyChainGapsResult 타입·소비부가 snake_case 기준).
   //   raw 없으면 snakeToCamel로 변환돼 node.supplier_id 등이 undefined가 된다.
-  api.get<SupplyChainGapsResult>(`/supply-chain/gaps?product_id=${productId}`, { raw: true });
+  // bomVersionId 지정 시 그 맵(엣지)으로만 한정 — 차수 게이트(hop_level 기준)와 완성도 집계 범위를 일치시킨다.
+  api.get<SupplyChainGapsResult>(
+    `/supply-chain/gaps?product_id=${productId}${bomVersionId ? `&bom_version_id=${bomVersionId}` : ''}`,
+    { raw: true },
+  );
 
 export const getSupplyChainAlternatives = (productId: string, partId: string) =>
   api.get<SupplyChainAlternative[]>(`/supply-chain/alternatives?product_id=${productId}&part_id=${partId}`);
@@ -1504,6 +1543,28 @@ export async function downloadSupplyChainExcel(productId: string, bomVersionId?:
   if (!res.ok) throw new ApiError(res.status, `엑셀 다운로드 실패 (HTTP ${res.status})`);
   return res.blob();
 }
+
+// ── 공급망 맵 평가 리포트(종합 판정 문구) ─────────────────────────────────────
+// 배치 파이프라인 종합판정(batch_final_judgment)을 bom_version_id로 이 맵에 연결해
+// 문구를 노출. 판정이 아직 없으면 available=false(문구 필드는 null/빈배열).
+export type EvaluationVerdict = 'pass' | 'conditional' | 'fail';
+export interface SupplyChainEvaluation {
+  productId: string;
+  bomVersionId: string | null;
+  available: boolean;
+  batchId: string | null;
+  overallVerdict: EvaluationVerdict | null;
+  executiveSummary: string | null;   // 핵심 판정 문구(예: "이 배치는 규제 위반 1건으로 부적합(fail) 판정입니다.")
+  keyRisks: string[];                 // 핵심 리스크 불릿
+  recommendedAction: string | null;  // 권고 조치
+  confidence: number | null;
+  createdAt: string | null;
+}
+/** 공급망 맵 평가 리포트 — 종합 판정 문구/리스크/권고. 조회 전용. */
+export const getSupplyChainEvaluation = (productId: string, bomVersionId?: string) =>
+  api.get<SupplyChainEvaluation>(
+    `/products/${productId}/supply-chain-map/evaluation${bomVersionId ? `?bom_version_id=${bomVersionId}` : ""}`,
+  );
 
 // ── 공급망 맵 헤더(맵 그 자체) — 목록/단건/상태 ──────────────────────────────
 export interface SupplyChainMapHeader {
