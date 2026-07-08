@@ -7,8 +7,8 @@ import clsx from 'clsx';
 import { CheckCircle2, FileSignature, Leaf, Loader2, Paperclip, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
 import ModalShell from './ModalShell';
 import type { RequestGapItem } from './DataRequestModal';
-import { downloadSupplyChainExcel, getDataConsents, getSupplierCarbonDeclarations, getSupplyChainEvaluation, getValidationSummary, listFilesByContext, uploadFile, type CarbonDeclaration, type DataConsent, type SupplierBrief, type SupplyChainEvaluation, type ValidationSummary } from '@/lib/api';
-import EvaluationReportCard from './EvaluationReportCard';
+import { getDataConsents, getSupplierCarbonDeclarations, getValidationSummary, listFilesByContext, uploadFile, type CarbonDeclaration, type DataConsent, type SupplierBrief, type ValidationSummary } from '@/lib/api';
+import CustomerRiskSummaryCard from './CustomerRiskSummaryCard';
 
 type EpdStatus = 'verified' | 'declared' | 'expired' | 'missing';
 
@@ -58,6 +58,7 @@ export default function MapManageModal({
   onVerified,
   productId,
   bomVersionId,
+  customerId,
 }: {
   pool: SupplierBrief[];
   onClose: () => void;
@@ -67,6 +68,7 @@ export default function MapManageModal({
   onVerified?: (results: { supplierId: string; passed: boolean }[]) => void;
   productId?: string;         // [P7] 최종 검증 요약/판정 + 고객사 엑셀용
   bomVersionId?: string;
+  customerId?: string;        // 고객사 전송용 다국어 리스크 요약 조회용
 }) {
   const [rows, setRows] = useState<VerifyRow[]>([]);
   const [loading, setLoading] = useState(pool.length > 0);
@@ -75,8 +77,6 @@ export default function MapManageModal({
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [summary, setSummary] = useState<ValidationSummary | null>(null);   // [P7]
-  const [downloading, setDownloading] = useState(false);
-  const [evaluation, setEvaluation] = useState<SupplyChainEvaluation | null>(null);  // 평가 리포트(종합 판정 문구)
 
   // [P7] 최종 검증 요약/판정 조회 (get_gaps + 비율검증 롤업).
   useEffect(() => {
@@ -85,30 +85,8 @@ export default function MapManageModal({
     getValidationSummary(productId, bomVersionId)
       .then(s => { if (!cancelled) setSummary(s); })
       .catch(() => { if (!cancelled) setSummary(null); });
-    getSupplyChainEvaluation(productId, bomVersionId)
-      .then(e => { if (!cancelled) setEvaluation(e); })
-      .catch(() => { if (!cancelled) setEvaluation(null); });
     return () => { cancelled = true; };
   }, [productId, bomVersionId, reload]);
-
-  // [P7] 고객사 제출용 엑셀(서버 생성) 다운로드.
-  async function handleDownloadExcel() {
-    if (!productId) return;
-    setDownloading(true);
-    try {
-      const blob = await downloadSupplyChainExcel(productId, bomVersionId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `공급망_고객사제출_${productId}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      alert('엑셀 다운로드에 실패했습니다.');
-    } finally {
-      setDownloading(false);
-    }
-  }
 
   useEffect(() => {
     if (pool.length === 0) { setLoading(false); return; }
@@ -148,20 +126,27 @@ export default function MapManageModal({
     }
   }
 
+  // 광산(miner)은 데이터 입력 주체가 아니다 — 제련소가 원산지·광물 데이터를 대신 제공하므로
+  // 환경성적서(EPD)·데이터 제공 동의 축은 적용 대상이 아니다. 다른 화면들과 동일한 규칙.
+  // (ConnectedSuppliersModal, ConsentReviewModal, DataReviewModal, SupplyChainHub 참고)
+  const isMiner = (r: VerifyRow) => r.supplier.providerType === 'miner';
+
   // 그 협력사의 공급망 필수필드 누락 수(최종 검증 3축 중 ③). summary 미로드면 0으로 중립 처리.
   const supplyGapCount = (r: VerifyRow) =>
     summary?.gapsBySupplier.find(s => s.supplierId === r.supplier.supplierId)?.missingFields.length ?? 0;
   // 검증 통과 = 환경성적서 통과 AND 데이터 계약 동의 AND 공급망 필수필드 완비 (3축 모두 충족).
-  const rowPass = (r: VerifyRow) => EPD_META[r.epd].pass && r.consent.agreed && supplyGapCount(r) === 0;
+  // 광산은 ①②축이 적용 대상이 아니므로 ③(공급망 필수필드)만으로 판정한다.
+  const rowPass = (r: VerifyRow) => (isMiner(r) || (EPD_META[r.epd].pass && r.consent.agreed)) && supplyGapCount(r) === 0;
   const failed = rows.filter(r => !rowPass(r));
   const allPass = rows.length > 0 && failed.length === 0;
 
   // 그 협력사의 미흡 항목(최종 검증 3축) — 자료 요청에 그대로 실어 보낸다.
   //   ① 환경성적서 미검증(미제출/만료)  ② 데이터 제공 동의 미완료  ③ 공급망 필수필드 누락(summary.gaps)
+  //   광산은 ①②축 제외(제련소 대행).
   function buildGaps(r: VerifyRow): RequestGapItem[] {
     const gaps: RequestGapItem[] = [];
-    if (!EPD_META[r.epd].pass) gaps.push({ key: 'epd', label: `환경성적서 ${EPD_META[r.epd].label}` });
-    if (!r.consent.agreed) gaps.push({ key: 'consent', label: `데이터 제공 동의 ${r.consent.label}` });
+    if (!isMiner(r) && !EPD_META[r.epd].pass) gaps.push({ key: 'epd', label: `환경성적서 ${EPD_META[r.epd].label}` });
+    if (!isMiner(r) && !r.consent.agreed) gaps.push({ key: 'consent', label: `데이터 제공 동의 ${r.consent.label}` });
     const node = summary?.gapsBySupplier.find(s => s.supplierId === r.supplier.supplierId);
     (node?.missingFields ?? []).forEach(f =>
       gaps.push({ key: `field:${f.fieldName}`, label: `공급망 필수필드: ${f.fieldLabel || f.fieldName}` }),
@@ -196,29 +181,24 @@ export default function MapManageModal({
         </div>
       }
     >
-      {/* 공급망 맵 평가 리포트(종합 판정 문구) — 최종 검증 패널 최상단. */}
-      {evaluation?.available && <EvaluationReportCard report={evaluation} className="mb-4" />}
+      {/* 고객사 전송용 다국어 리스크 요약 — 최종 검증 패널 최상단. 검증 완료 직전에
+          실제로 고객사에 보낼 내용을 언어별로 미리 확인한다(§7 risk-summary/outbound). */}
+      <CustomerRiskSummaryCard
+        productId={productId}
+        customerId={customerId}
+        bomVersionId={bomVersionId}
+        className="mb-4"
+      />
 
-      {/* [P7] 공급망 최종 검증 요약 + 고객사 제출용 엑셀 */}
+      {/* [P7] 공급망 최종 검증 요약. 고객사 제출용 엑셀은 STEP7(고객사 데이터 다운로드)에서 받는다. */}
       {summary && (
         <section className="mb-4 rounded-md border border-slate-200 bg-white p-4">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-ink-100">공급망 최종 검증 요약</span>
-              <span className={clsx('rounded-full px-2 py-0.5 text-[11px] font-bold',
-                summary.readyForFinal ? 'border border-ok-border bg-ok-bg text-ok-text' : 'border border-warn-border bg-warn-bg text-warn-text')}>
-                {summary.readyForFinal ? '최종 검증 준비 완료' : '입력 미흡'}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleDownloadExcel}
-              disabled={downloading}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-brand hover:text-brand disabled:opacity-50"
-            >
-              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-              고객사 제출용 엑셀
-            </button>
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-sm font-bold text-ink-100">공급망 최종 검증 요약</span>
+            <span className={clsx('rounded-full px-2 py-0.5 text-[11px] font-bold',
+              summary.readyForFinal ? 'border border-ok-border bg-ok-bg text-ok-text' : 'border border-warn-border bg-warn-bg text-warn-text')}>
+              {summary.readyForFinal ? '최종 검증 준비 완료' : '입력 미흡'}
+            </span>
           </div>
           <div className="grid grid-cols-4 gap-3">
             {([
@@ -282,44 +262,58 @@ export default function MapManageModal({
             const meta = EPD_META[r.epd];
             const gapN = supplyGapCount(r);   // 공급망 필수필드 누락 수(3축 중 ③)
             const needsRequest = !rowPass(r);
+            const miner = isMiner(r);         // 광산 — 제련소가 EPD·데이터 동의를 대행
             return (
               <div key={r.supplier.supplierId} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2">
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold text-ink-100">{r.supplier.companyName}</div>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-                    <span className={clsx('inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-bold', meta.cls)}>
-                      {meta.pass ? <ShieldCheck className="h-3 w-3" /> : <Leaf className="h-3 w-3" />}
-                      환경성적서 {meta.label}
-                    </span>
-                    <span className={clsx('inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-bold',
-                      r.consent.agreed ? 'border-ok-border bg-ok-bg text-ok-text' : 'border-alert-border bg-alert-bg text-alert-text')}>
-                      <FileSignature className="h-3 w-3" />
-                      데이터 동의 {r.consent.label}
-                    </span>
+                    {miner ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-bold text-slate-400">
+                        <ShieldCheck className="h-3 w-3" />
+                        환경성적서·데이터 동의 제련소 대행
+                      </span>
+                    ) : (
+                      <>
+                        <span className={clsx('inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-bold', meta.cls)}>
+                          {meta.pass ? <ShieldCheck className="h-3 w-3" /> : <Leaf className="h-3 w-3" />}
+                          환경성적서 {meta.label}
+                        </span>
+                        <span className={clsx('inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-bold',
+                          r.consent.agreed ? 'border-ok-border bg-ok-bg text-ok-text' : 'border-alert-border bg-alert-bg text-alert-text')}>
+                          <FileSignature className="h-3 w-3" />
+                          데이터 동의 {r.consent.label}
+                        </span>
+                      </>
+                    )}
                     <span className={clsx('inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-bold',
                       gapN === 0 ? 'border-ok-border bg-ok-bg text-ok-text' : 'border-alert-border bg-alert-bg text-alert-text')}>
                       <ShieldCheck className="h-3 w-3" />
                       공급망 데이터 {gapN === 0 ? '완비' : `미보유 ${gapN}건`}
                     </span>
-                    {r.carbonIntensity != null && (
+                    {!miner && r.carbonIntensity != null && (
                       <span className="text-slate-500">{r.carbonIntensity} kgCO₂e/kWh</span>
                     )}
-                    <span className={clsx('inline-flex items-center gap-1', r.epdDocs > 0 ? 'text-ok-text' : 'text-slate-400')}>
-                      <Paperclip className="h-3 w-3" />환경성적서 첨부 {r.epdDocs}건
-                    </span>
+                    {!miner && (
+                      <span className={clsx('inline-flex items-center gap-1', r.epdDocs > 0 ? 'text-ok-text' : 'text-slate-400')}>
+                        <Paperclip className="h-3 w-3" />환경성적서 첨부 {r.epdDocs}건
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 hover:border-ok-border hover:text-ok-text">
-                    {uploadingId === r.supplier.supplierId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                    환경성적서 업로드
-                    <input
-                      type="file"
-                      accept="application/pdf,image/*"
-                      className="hidden"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(r.supplier.supplierId, f); e.target.value = ''; }}
-                    />
-                  </label>
+                  {!miner && (
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 hover:border-ok-border hover:text-ok-text">
+                      {uploadingId === r.supplier.supplierId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                      환경성적서 업로드
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*"
+                        className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(r.supplier.supplierId, f); e.target.value = ''; }}
+                      />
+                    </label>
+                  )}
                   {needsRequest && (
                     <button
                       type="button"

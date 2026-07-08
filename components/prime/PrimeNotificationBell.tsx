@@ -18,8 +18,6 @@ export const PRIME_DEEP_LINK_ROUTE: Record<string, string> = {
   'supply-chain-map': '/supply-chain/map',
   suppliers:        '/suppliers',
   'supplier-review':'/suppliers/check-info',
-  report:           '/report',
-  'report-inbox':   '/report/inbox',
   audit:            '/audit',
 };
 
