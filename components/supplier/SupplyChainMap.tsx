@@ -34,7 +34,6 @@ import Badge from '@/components/Badge';
 import Card from '@/components/Card';
 import { suppliers } from '@/lib/data';
 import {
-  getCertifications,
   getContacts,
   getFactories,
   getRiskProfile,
@@ -99,10 +98,6 @@ const REGULATION_FULLNAME: Record<string, string> = {
   CRMA:       'EU 핵심 원자재법',
   CBAM:       'EU 탄소국경조정제도',
   LkSG:       '독일 공급망 실사법',
-};
-
-const certStatusLabel: Record<string, string> = {
-  active: '유효', expiring_soon: '만료 임박', expired: '만료',
 };
 
 function statusTone(status: string): 'ok' | 'warn' | 'alert' | 'neutral' | 'info' {
@@ -288,7 +283,6 @@ function SupplierDetailPanel({
   const allFactories = getFactories(item.supplier.id);
   const production  = allFactories.filter(f => f.factoryRole !== 'headquarters');
   const primary     = contacts.find(c => c.isPrimary) ?? contacts[0];
-  const certs       = getCertifications(item.supplier.id);
   const risk        = getRiskProfile(item.supplier.id);
   const rc          = risk ? (riskConfig[risk.riskLevel] ?? riskConfig.low) : null;
   const direction   = item.edge.from === myId ? 'downstream' : 'upstream';
@@ -430,29 +424,6 @@ function SupplierDetailPanel({
             </div>
           ))}
         </div>
-      </Card>
-
-      {/* ── 인증서 ──────────────────────────────────────────────────────────── */}
-      <Card title="인증서" subtitle={`${certs.length}건 · 제출/검토 기준`}>
-        {certs.length === 0 ? (
-          <div className="rounded-xs border border-dashed border-ink-700 p-4 text-xs text-ink-500">
-            등록된 인증서가 없습니다.
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {certs.map(cert => (
-              <div key={cert.certId} className="flex items-center justify-between gap-3 rounded-xs border border-ink-700 bg-ink-800 px-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="truncate text-xs font-semibold text-ink-100">{cert.certName}</div>
-                  <div className="truncate text-[10px] text-ink-500">{cert.issuingBody}</div>
-                </div>
-                <Badge tone={cert.status === 'active' ? 'ok' : cert.status === 'expired' ? 'alert' : 'warn'}>
-                  {certStatusLabel[cert.status]}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        )}
       </Card>
 
       {/* isMasked 안내 — 수정 요청 버튼 없음 */}

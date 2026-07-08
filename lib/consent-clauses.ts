@@ -48,7 +48,7 @@ export const SCOPE_IS_PERSONAL: Record<string, boolean> = {
 
 export const SCOPE_CLAUSE: Record<string, string> = {
   company:
-    '기업 기본정보 — 상호, 사업자등록번호, 본사 소재지, 대표자명, 업종 등 귀사의 식별·자격 확인에 필요한 기본 정보',
+    '기업 기본정보 — 상호, 사업자등록번호, 본사 소재지, 업종 등 귀사의 식별·자격 확인에 필요한 기본 정보',
   contacts:
     '담당자 연락처(개인정보) — 업무 담당자의 성명, 부서·직위, 이메일, 전화번호',
   factories:

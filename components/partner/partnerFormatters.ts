@@ -19,12 +19,6 @@ export const supplierStatusMeta: Record<string, { label: string; tone: BadgeTone
   rejected:         { label: '반려',       tone: 'alert'   },
 };
 
-export const certStatusLabel: Record<string, string> = {
-  active: '유효',
-  expiring_soon: '만료 임박',
-  expired: '만료',
-};
-
 // ─── D-Day 계산 유틸 ──────────────────────────────────────────────────────────
 // 기준일: 2026-06-13 (시스템 날짜)
 // 반환값: { label: 'D-12' | 'D-Day' | '만료됨', days: number }
@@ -66,32 +60,6 @@ export function deriveCertStatusPortal(expiresAt: string): 'active' | 'expiring_
   if (days < 0) return 'expired';
   if (days <= 60) return 'expiring_soon';
   return 'active';
-}
-
-// 잔여일 기준 배지 스타일 결정
-// · 만료됨(days<0) or 7일 이하 → 최고 긴급 (진한 빨강)
-// · 8~30일             → 긴급     (중간 빨강)
-// · 31~60일            → 주의     (주황)
-export function certDDayStyle(days: number): {
-  wrapperCls: string;
-  badgeCls: string;
-} {
-  if (days <= 7) {
-    return {
-      wrapperCls: 'border-alert-border bg-alert-bg',
-      badgeCls:   'bg-alert-solid text-white',
-    };
-  }
-  if (days <= 30) {
-    return {
-      wrapperCls: 'border-alert-border bg-alert-bg',
-      badgeCls:   'bg-alert-solid text-white',
-    };
-  }
-  return {
-    wrapperCls: 'border-warn-border bg-warn-bg',
-    badgeCls:   'bg-warn-solid text-white',
-  };
 }
 
 // Action Center 제출 기한 D-day → Badge tone 매핑

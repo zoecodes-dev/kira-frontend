@@ -8,7 +8,7 @@ Next.js 14, TypeScript, Tailwind CSS 기반으로 구성되어 있습니다.
 | 계정 유형 | 아이디 | 비밀번호 | 이동 화면 |
 | --- | --- | --- | --- |
 | 원청사 | `prime@kira.demo` | `demo1234` | `/dashboard` |
-| 협력사 | `supplier@hanyang-cell.com` | `demo1234` | `/supplier` |
+| 협력사 | `supplier@hanyang-cell.com` | `demo1234` | `/partner` |
 
 `/` 경로는 로그인 화면입니다. 입력한 계정 권한에 따라 원청사 화면과 협력사 화면으로 자동 분기됩니다.
 
@@ -22,8 +22,8 @@ Next.js 14, TypeScript, Tailwind CSS 기반으로 구성되어 있습니다.
 | `/suppliers/[id]/info` | 협력사 상세 | 기업 정보, 담당자, 사업장, 인증서, 데이터 완성도 |
 | `/supply-chain` | 공급망 맵 허브(원청) | 고객·제품·BOM 선택 → 맵 생성/조회, 협력사 Pool 확정, 자료 일괄요청, 최종 검증 요약·엑셀 다운로드 |
 | `/supply-chain/map` | 공급망 맵 상세 | N차 트리·공급비율·검증 상태 시각화 |
-| `/supplier` | 협력사 업무공간 | 내 기업 정보, 자료 제출(AI 파싱 확인), 원청 알림, 하위 협력사 초대 |
-| `/supplier/onboarding` | 협력사 온보딩(URL 초대 진입) | 제3자 정보제공 동의 → 회사·PIC·필요문서 등록(회원가입 전 진입점) |
+| `/partner` | 협력사 업무공간 | 내 기업 정보, 자료 제출(AI 파싱 확인), 원청 알림, 하위 협력사 초대 |
+| `/partner/onboarding` | 협력사 온보딩(URL 초대 진입) | 제3자 정보제공 동의 → 회사·PIC·필요문서 등록(회원가입 전 진입점) |
 
 ## 화면 구성
 

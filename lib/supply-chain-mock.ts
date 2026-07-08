@@ -1026,7 +1026,7 @@ export const mockDataset: SupplyChainDataset = {
   suppliers: suppliers.map(s => ({
     ...s,
     company_name: withDemoPrefix(s.company_name)!,
-    company_name_en: withDemoPrefix(s.company_name_en),
+    company_name_en: withDemoPrefix(s.company_name_en)!,
   })),
   supplier_factories,
   supply_chain_map,
