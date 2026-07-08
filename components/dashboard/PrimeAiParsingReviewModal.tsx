@@ -5,7 +5,7 @@
 import { X } from 'lucide-react';
 import AiParsingView from '@/components/supplier/AiParsingView';
 
-export default function AiParsingReviewModal({
+export default function PrimeAiParsingReviewModal({
   supplierId,
   supplierName,
   onClose,

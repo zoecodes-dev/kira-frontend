@@ -7,13 +7,10 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { suppliers, supplyEdges } from '@/lib/data';
 import {
-  getCertifications,
-  getCompleteness,
   getContacts,
   getFactories,
   getRiskProfile,
   getSupplierName,
-  purchaseOrders,
 } from '@/lib/supplier-detail-data';
 import {
   getTokenSupplierId,
@@ -86,12 +83,8 @@ interface PartnerWorkspaceValue {
   contacts: MockContact[];
   contactsWithOverride: MockContact[];
   primaryOverride: MockContact | undefined;
-  completeness: { completionRate: number; filledFieldCount: number; requiredFieldCount: number; missingFields: string[] };
   risk: ReturnType<typeof getRiskProfile>;
   factories: MockFactory[];
-  // 목 인증서 데이터 + 화면용 오버라이드 삽입분이 섞여 있어(작업7-2), 원본처럼 느슨한 타입을 유지한다.
-  certifications: any[];
-  myPOs: typeof purchaseOrders;
   // 실제 supplyEdges(SupplyEdge)와 mock 폴백 edge의 필드 타입이 달라(volume: number vs string),
   // 원본 코드처럼 개별 표현식 추론에 맡기지 않고 명시 타입을 쓰는 대신 느슨하게 둔다.
   upstream: { edge: any; supplier: MockSupplier }[];
@@ -160,52 +153,9 @@ export function PartnerWorkspaceProvider({ children }: { children: ReactNode }) 
   const name = getSupplierName(supplierId);
   const contacts = getContacts(supplierId) as unknown as MockContact[];
 
-  // ── 작업7-1. completeness 오버라이드 — T1 배터리 제조사 현실적 완성도 반영 ──
-  const completeness = (() => {
-    const raw = getCompleteness(supplierId);
-    return {
-      ...(raw ?? {}),
-      completionRate:    81.8,
-      filledFieldCount:  18,
-      requiredFieldCount:22,
-      // 작업7-1. T1 배터리 제조사 실무 맞춤 누락 서류 3개
-      missingFields: [
-        '전과정평가(LCA) 보고서',
-        '분쟁광물(3TG) 미사용 선언서',
-        '공급망 실사(Due Diligence) 보고서',
-      ],
-    };
-  })();
-
   const risk = getRiskProfile(supplierId);
   const factories = (getFactories(supplierId) as unknown as MockFactory[]).filter(factory => factory.factoryRole !== 'headquarters');
 
-  // ── 작업7-2. certifications 오버라이드 — 만료 임박 인증서 강제 삽입 ──
-  const certifications = (() => {
-    const raw = getCertifications(supplierId) ?? [];
-    const injected = [
-      // 기존 인증서 유지
-      ...raw,
-      // 만료 임박 인증서 추가 (대시보드 리스크 카드 활성화용)
-      {
-        certId:      'CERT-RBA-001',
-        certName:    'RBA (책임있는 비즈니스 연합) 인증',
-        issuingBody: 'Responsible Business Alliance',
-        status:      'expiring_soon' as const,
-        expiresAt:   '2026-07-05',
-      },
-      {
-        certId:      'CERT-ISO14001-002',
-        certName:    'ISO 14001 환경경영시스템',
-        issuingBody: 'TÜV NORD',
-        status:      'expired' as const,
-        expiresAt:   '2026-05-31',
-      },
-    ];
-    return injected;
-  })();
-
-  const myPOs = purchaseOrders.filter(po => po.supplierId === supplierId);
   // ── 공급망 방향성 (Edge Direction) ──────────────────────────────────────────
   // supplyEdge: { from: 공급자, to: 수요자(납품처) }
   // · Downstream(납품처): 내(supplierId)가 from → 내가 납품하는 쪽
@@ -293,11 +243,8 @@ export function PartnerWorkspaceProvider({ children }: { children: ReactNode }) 
     contacts,
     contactsWithOverride,
     primaryOverride,
-    completeness,
     risk,
     factories,
-    certifications,
-    myPOs,
     upstream,
     downstream,
     submissions,

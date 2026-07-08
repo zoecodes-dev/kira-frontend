@@ -1,17 +1,16 @@
 'use client';
 
-import { Calendar, MapPin, Send, Upload } from 'lucide-react';
+import { Calendar, MapPin, Send } from 'lucide-react';
 import Badge from '@/components/Badge';
 import { suppliers } from '@/lib/data';
 import {
-  getCertifications,
   getContacts,
   getFactories,
   getSupplierName,
   regulationMeta,
 } from '@/lib/supplier-detail-data';
 import type { MockContact, MockFactory, MockSupplier } from './partnerTypes';
-import { calculateDDay, certDDayStyle, certStatusLabel, supplierStatusMeta } from './partnerFormatters';
+import { supplierStatusMeta } from './partnerFormatters';
 
 // 협력사 업무공간(/partner) 공용 카드 — 내 회사(self) 또는 직접 연결된 협력사(공급망 노드) 정보를 보여준다.
 // app/supplier/page.tsx의 SupplierInfoPreview를 그대로 이관.
@@ -19,18 +18,12 @@ export default function SupplierInfoPreview({
   supplierId,
   self = false,
   relation,
-  completeness,
-  onCertRenew,
   onRequestForm,
 }: {
   supplierId: string;
   self?: boolean;
   /** 로그인 기업 기준 관계 방향 — self=true이면 불필요 */
   relation?: 'parent' | 'child';
-  /** ③ 완성도 데이터 — self=true일 때 프로그레스바 표시용 */
-  completeness?: { completionRate: number; filledFieldCount: number; requiredFieldCount: number; missingFields: string[] } | null;
-  /** ⑤ 인증서 갱신 딥링크 콜백 — 인증서명을 인자로 받아 모달 진입 */
-  onCertRenew?: (certName: string) => void;
   /** 하위 협력사(child)에게 표준 양식 요청 발송 — 공급망 연결 화면 퀵액션 */
   onRequestForm?: () => void;
 }) {
@@ -40,7 +33,6 @@ export default function SupplierInfoPreview({
   const factories = getFactories(supplierId) as unknown as MockFactory[];
   const production = factories.filter(factory => factory.factoryRole !== 'headquarters');
   const primary = contacts.find(contact => contact.isPrimary) ?? contacts[0];
-  const certs = getCertifications(supplierId);
 
   // 관계 라벨 — Tier 숫자 대신 가시성 기반 표시
   const relationLabel = relation === 'parent' ? '직속 상위 (Parent)' : relation === 'child' ? '직속 하위 (Child)' : null;
@@ -195,76 +187,6 @@ export default function SupplierInfoPreview({
           </div>
         </div>
       </div>{/* /사업장 카드 */}
-
-      {/* 인증서 카드 */}
-      <div className="rounded-sm border border-ink-700 bg-white shadow-control">
-        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-ink-700">
-          <div>
-            <div className="text-xs font-bold text-ink-100">인증서</div>
-            <div className="mt-0.5 text-[11px] text-ink-500">{certs.length}건 · 제출/검토 기준</div>
-          </div>
-          {self && (
-            <button
-              type="button"
-              onClick={() => alert('원청사에 변경 승인 요청이 전송되었습니다. (검토 대기)')}
-              className="inline-flex items-center gap-1.5 rounded-xs border border-ink-600 bg-ink-800 px-3 py-1.5 text-[11px] font-semibold text-ink-400 transition-colors hover:border-accent-600 hover:bg-accent-50 hover:text-accent-700"
-            >
-              수정 요청
-            </button>
-          )}
-        </div>
-        <div className="p-5">
-          <div className="grid grid-cols-2 gap-2">
-            {certs.map(cert => {
-              const isInactive = cert.status !== 'active';
-              const { label: ddayLabel, days } = calculateDDay(cert.expiresAt);
-              const { badgeCls } = certDDayStyle(days);
-              return (
-                <div
-                  key={cert.certId}
-                  className={`flex items-start justify-between gap-3 rounded-xs border px-3 py-2.5 ${
-                    isInactive ? 'border-alert-border bg-alert-bg' : 'border-ink-700 bg-ink-800'
-                  }`}
-                >
-                  {/* 인증서명 + 발급기관 */}
-                  <div className="min-w-0">
-                    <div className={`truncate text-xs font-semibold ${isInactive ? 'text-alert-text' : 'text-ink-100'}`}>
-                      {cert.certName}
-                    </div>
-                    <div className="truncate text-[10px] text-ink-500">{cert.issuingBody}</div>
-                  </div>
-                  {/* ② D-N 배지 + ⑤ 갱신 버튼 */}
-                  <div className="shrink-0 flex flex-col items-end gap-1.5">
-                    {isInactive ? (
-                      <>
-                        <span className={`rounded-xs px-2 py-0.5 text-[11px] font-bold tabular-nums ${badgeCls}`}>
-                          {ddayLabel}
-                        </span>
-                        <span className="text-[10px] text-alert-text font-medium">
-                          {certStatusLabel[cert.status]}
-                        </span>
-                        {/* ⑤ 갱신 증빙 업로드 버튼 — self 모드 + 콜백 있을 때만 */}
-                        {self && onCertRenew && (
-                          <button
-                            type="button"
-                            onClick={() => onCertRenew(cert.certName)}
-                            className="mt-0.5 inline-flex items-center gap-1 rounded-xs border border-accent-500 bg-accent-50 px-2 py-1 text-[10px] font-bold text-accent-700 transition-colors hover:bg-accent-700 hover:text-white"
-                          >
-                            <Upload className="h-2.5 w-2.5" />
-                            갱신 증빙 업로드
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <Badge tone="ok">유효</Badge>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>{/* /인증서 카드 */}
     </div>
   );
 }
