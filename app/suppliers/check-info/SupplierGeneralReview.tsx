@@ -1245,7 +1245,6 @@ export function SupplierGeneralReviewContent({
       // round-trip(편집 UI 없는 필드) — 누락 시 NULL 화 방지.
       company_name_en: d?.companyNameEn ?? undefined,
       company_name_ko: d?.companyNameKo ?? undefined,
-      ceo_name: d?.ceoName ?? undefined,
       corporate_reg_no: dRec.corporateRegNo ?? undefined,
       tax_number: dRec.taxNumber ?? undefined,
       website: d?.website ?? undefined,
