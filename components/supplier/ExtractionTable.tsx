@@ -80,6 +80,8 @@ interface ExtractionTableProps {
   hoveredFieldId?: string | null;
   /** 이 패널에서 필드 호버 시 외부에 전파하는 콜백. */
   onFieldHover?: (fieldId: string | null) => void;
+  /** [목표2] 필드 클릭 → 좌측 원본에서 해당 데이터 고정 하이라이트(역추적). */
+  onFieldSelect?: (fieldId: string | null) => void;
   /** 소재구성 팝업 모드(true) — 하단에 저장 버튼만 노출(원청사 제출 버튼 숨김). */
   saveOnlyMode?: boolean;
 }
@@ -167,6 +169,7 @@ export default function ExtractionTable({
   mode = 'supplier',
   hoveredFieldId,
   onFieldHover,
+  onFieldSelect,
   saveOnlyMode = false,
 }: ExtractionTableProps) {
   const prime = mode === 'prime';
@@ -314,7 +317,9 @@ export default function ExtractionTable({
                   data-field-id={field.fieldId}
                   onMouseEnter={() => handleFieldMouseEnter(field.fieldId)}
                   onMouseLeave={handleFieldMouseLeave}
-                  className={`rounded-xs border px-3 py-3 transition-all duration-200 cursor-default ${
+                  onClick={() => onFieldSelect?.(field.fieldId)}
+                  title="클릭하면 좌측 원본에서 해당 항목을 표시합니다"
+                  className={`rounded-xs border px-3 py-3 transition-all duration-200 cursor-pointer ${
                     isHighlighted
                       ? 'ring-2 ring-accent-500 ring-offset-1 shadow-md scale-[1.01]'
                       : ''
