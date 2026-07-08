@@ -23,9 +23,8 @@ import {
   type SubmissionBrief,
   type NotificationItem,
 } from '@/lib/api';
-import { type Submission } from '@/components/supplier/EightStageStepper';
 import { useDemoNotifications } from '@/lib/demo-notifications';
-import type { MockContact, MockFactory, MockSupplier } from './partnerTypes';
+import type { MockContact, MockFactory, MockSupplier, Submission } from './partnerTypes';
 
 /** 백엔드 status → 8단계 스테이지 배열로 변환 */
 function mapToSubmission(s: SubmissionBrief): Submission {
