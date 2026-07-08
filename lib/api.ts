@@ -1566,6 +1566,30 @@ export const getSupplyChainEvaluation = (productId: string, bomVersionId?: strin
     `/products/${productId}/supply-chain-map/evaluation${bomVersionId ? `?bom_version_id=${bomVersionId}` : ""}`,
   );
 
+// ── 고객사 전송용 다국어 리스크 요약 (이 맵=product+bom_version 단위) ──────
+export interface OutboundRiskSummaryLocaleRender {
+  locale: string;
+  sectionTitle: string;
+  summaryText: string;
+  keyPoints: string[];
+}
+export interface OutboundRiskSummary {
+  productId: string;
+  bomVersionId: string | null;
+  customer: { customerId: string; customerName: string; country: string | null };
+  countryKnown: boolean;
+  locales: string[];
+  renders: OutboundRiskSummaryLocaleRender[];
+  metrics: Record<string, number>;
+  note: string | null;
+}
+/** 고객사 전송용 다국어 리스크 요약 프리뷰 — 이 맵의 협력사로만 집계를 좁혀 렌더링. 조회 전용. */
+export const getOutboundRiskSummary = (productId: string, customerId: string, bomVersionId?: string) =>
+  api.get<OutboundRiskSummary>(
+    `/products/${productId}/supply-chain-map/risk-summary/outbound?customer_id=${customerId}`
+    + (bomVersionId ? `&bom_version_id=${bomVersionId}` : ""),
+  );
+
 // ── 공급망 맵 헤더(맵 그 자체) — 목록/단건/상태 ──────────────────────────────
 export interface SupplyChainMapHeader {
   mapId: string;
