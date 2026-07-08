@@ -416,18 +416,20 @@ export function SupplyChainMapPageContent({
   // 고객사 제출용(단일 시트) — 맵 행마다 그 협력사의 general review 컬럼을 오른쪽에 붙인 넓은 표(+상단 제품 헤더 블록).
   // 필터 무시하고 이 BOM의 전체 공급망을 내보낸다. general review는 맵에 편입된 실 협력사(UUID)를 API로 조회해 합친다.
   const CUSTOMER_HEADERS = [
-    '차수', '품목/부품', '원재료/광물', '공급사', '사업장', '국가(원산지)', '공급기간', '공급비율(%)', '리스크 상태',
-    '영문명', '사업자등록번호', '본사 국가', '업종', 'smelter 구분', '핵심광물(함량 %)',
-    'PIC 이름', 'PIC 직책', 'PIC 이메일', 'PIC 연락처', '공장(원산지·비율·담당자)',
-    '탄소집약도', '에너지원', '실사 자가진단', '사업자등록증', '환경성적서',
+    '차수', '품목/부품', '원재료/광물', '공급사', '사업장', '국가(원산지)', '공급기간', '리스크 상태',
+    '영문명', '본사 국가', '업종', 'smelter 구분', '핵심광물(함량 %)',
+    'PIC 이름', 'PIC 직책', 'PIC 이메일', 'PIC 연락처',
+    '공장 원산지', '공장 비율(%)', '공장 담당자',
+    '탄소집약도', '에너지원', '실사 자가진단',
   ];
   const CUSTOMER_WIDTHS = [
-    8, 22, 16, 22, 16, 10, 20, 12, 12,
-    18, 16, 10, 12, 12, 18,
-    14, 12, 24, 16, 40,
-    12, 14, 12, 12, 12,
+    8, 22, 16, 22, 16, 10, 20, 12,
+    18, 10, 12, 12, 18,
+    14, 12, 24, 16,
+    10, 10, 14,
+    12, 14, 12,
   ];
-  const RATIO_COL = 8; // 공급비율(%) 열 번호
+  const FACTORY_RATIO_COL = 19; // 공장 비율(%) 열 번호 — 공장별로 행이 나뉘므로 셀당 값 하나뿐이라 숫자 서식 적용 가능
 
   async function downloadCustomerExcel() {
     if (!selectedBomVersion || customerDownloading) return;
@@ -511,34 +513,35 @@ export function SupplyChainMapPageContent({
       const md = (dt?.manufacturerDetail ?? {}) as Record<string, unknown>;
       const pic = b?.contacts.find(c => c.isPrimary) ?? b?.contacts[0];
       const sr = b?.risk?.selfReportedRiskLevel;
-      const factoryStr = (b?.factories ?? [])
-        .filter(f => f.isActive !== false)
-        .map(f => `${f.factoryName ?? '-'}(${f.country ?? '-'}·${f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-'}·${f.factoryManagerName ?? '-'})`)
-        .join(' / ');
-      ws.addRow([
-        // ── 맵 정보 ──
-        row.tier, row.part_name, row.material_or_mineral, row.supplier_name,
-        row.factory_name, row.country, row.supply_period, row.supply_ratio, statusMeta[row.risk_status].label,
-        // ── 협력사 general review ──
-        (dt?.companyNameEn as string) ?? '-',
-        (dt?.businessRegNo as string) ?? '-',
-        (dt?.country as string) ?? '-',
-        (dt?.providerType as string) ?? '-',
-        (dt?.smelterType as string) ?? '-',
-        // 있는 광물 키만 직렬화(흑연 등 포함) — 예: "Li 7.2 / Ni 80 / graphite_natural 88"
-        Object.entries(cm).filter(([k, v]) => k !== 'hazardous_substances' && v != null)
-          .map(([k, v]) => `${k} ${v}`).join(' / ') || '-',
-        pic?.name ?? '-',
-        pic?.role ?? '-',
-        pic?.email ?? '-',
-        pic?.mobile ?? pic?.phone ?? '-',
-        factoryStr || '-',
-        md.carbonIntensity != null ? (md.carbonIntensity as number) : '-',
-        (md.energySource as string) ?? '-',
-        sr && sr !== 'unknown' ? sr : '-',
-        (dt?.businessRegDocUrl as string) ? '있음' : '없음',
-        (dt?.environmentalReportUrl as string) ? '있음' : '없음',
-      ]);
+      // 공장별 원산지·비율·담당자 — 사업장(row.factory_name, 이 맵 행이 지정한 특정 공장)과 달리
+      // 협력사가 등록한 전체 공장 목록(general review)이다. 공장이 여러 곳이면 그만큼 행을 나눠 각각 찍는다.
+      const activeFactories = (b?.factories ?? []).filter(f => f.isActive !== false);
+      const factoryList = activeFactories.length > 0 ? activeFactories : [null];
+      factoryList.forEach(f => {
+        ws.addRow([
+          // ── 맵 정보 ──
+          row.tier, row.part_name, row.material_or_mineral, row.supplier_name,
+          row.factory_name, row.country, row.supply_period, statusMeta[row.risk_status].label,
+          // ── 협력사 general review ──
+          (dt?.companyNameEn as string) ?? '-',
+          (dt?.country as string) ?? '-',
+          (dt?.providerType as string) ?? '-',
+          (dt?.smelterType as string) ?? '-',
+          // 있는 광물 키만 직렬화(흑연 등 포함) — 예: "Li 7.2 / Ni 80 / graphite_natural 88"
+          Object.entries(cm).filter(([k, v]) => k !== 'hazardous_substances' && v != null)
+            .map(([k, v]) => `${k} ${v}`).join(' / ') || '-',
+          pic?.name ?? '-',
+          pic?.role ?? '-',
+          pic?.email ?? '-',
+          pic?.mobile ?? pic?.phone ?? '-',
+          f?.country ?? '-',
+          f?.supplyRatioPercent != null ? f.supplyRatioPercent : '-',
+          f?.factoryManagerName ?? '-',
+          md.carbonIntensity != null ? (md.carbonIntensity as number) : '-',
+          (md.energySource as string) ?? '-',
+          sr && sr !== 'unknown' ? sr : '-',
+        ]);
+      });
     });
 
     for (let i = dataFrom; i <= ws.rowCount; i++) {
@@ -547,7 +550,7 @@ export function SupplyChainMapPageContent({
         cell.alignment = { vertical: 'middle' };
       });
     }
-    ws.getColumn(RATIO_COL).numFmt = '0"%"';
+    ws.getColumn(FACTORY_RATIO_COL).numFmt = '0"%"';
     ws.views = [{ state: 'frozen', ySplit: headerRowNum }];
     ws.autoFilter = { from: { row: headerRowNum, column: 1 }, to: { row: headerRowNum, column: CUSTOMER_HEADERS.length } };
 
@@ -789,7 +792,7 @@ export function SupplyChainMapPageContent({
       )}
 
       {formationGenerated && hasSelection && (
-        <section className="mt-4 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
+        <section id="supplier-progress-section" className="mt-4 overflow-hidden rounded-sm border border-ink-700 bg-white shadow-control">
           <div className="flex items-start justify-between gap-4 border-b border-ink-700 bg-ink-800/40 px-5 py-4">
             <div>
               <h2 className="text-base font-bold text-ink-100">협력사별 진행 사항 확인</h2>

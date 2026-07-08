@@ -64,22 +64,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* 보고·결재 */}
-          <div className="border-t border-white/10 py-2.5">
-            <div className="space-y-0.5">
-              <NavLink
-                href="/report"
-                iconName="file-text"
-                label="보고 관리"
-                subtitle="보고서 작성·결재 추적"
-                subItems={[
-                  { href: '/report', label: '보고서 목록', exact: true },
-                  { href: '/report/inbox', label: '결재함' },
-                ]}
-              />
-            </div>
-          </div>
-
           {/* 감사·추적 */}
           <div className="border-t border-white/10 py-2.5">
             <div className="space-y-0.5">
@@ -88,10 +72,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 iconName="shield-check"
                 label="증적 관리"
                 subtitle="추적·증거 묶음"
-                subItems={[
-                  { href: '/audit', label: '감사 추적' },
-                  { href: '/audit/package', label: '감사 패키지' },
-                ]}
               />
             </div>
           </div>

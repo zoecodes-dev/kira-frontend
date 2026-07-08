@@ -148,17 +148,14 @@ export default function HubStepBar({
           disabled={!step5Done || locked}
           done={completed.has(6)}
         />
-        {/* 7 — 고객사 데이터 다운로드 (아래 추적 테이블) */}
-        <div className="flex min-w-[150px] flex-1 items-center gap-3 rounded-md border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-ink-400">
-            <FileSpreadsheet className="h-4 w-4" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[11px] font-bold text-slate-400">STEP 7</span>
-            <span className="block truncate text-sm font-bold text-ink-100">고객사 데이터 다운로드</span>
-            <span className="block truncate text-[11px] font-medium text-slate-500">추적 테이블에서 엑셀 다운로드</span>
-          </span>
-        </div>
+        {/* 7 — 고객사 데이터 다운로드. 아래 '협력사별 진행 사항 확인' 추적 테이블로 스크롤 이동 — 엑셀은 그 테이블의 다운로드 버튼에서 받는다(중복 구현 금지). */}
+        <StepTile
+          index={7}
+          label="고객사 데이터 다운로드"
+          hint="추적 테이블에서 엑셀 다운로드"
+          Icon={FileSpreadsheet}
+          onClick={() => document.getElementById('supplier-progress-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        />
       </div>
     </section>
   );
