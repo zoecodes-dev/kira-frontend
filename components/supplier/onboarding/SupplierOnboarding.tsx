@@ -109,6 +109,9 @@ export default function SupplierOnboarding() {
       // 이미 업로드된 사업자등록증 — 파일명/키를 채워 '첨부됨'으로 보이게(재확인).
       registrationDocName: prev.registrationDocName || detail.businessRegDoc?.fileName || '',
       registrationDocS3Key: prev.registrationDocS3Key || detail.businessRegDoc?.s3Key || '',
+      // 이미 업로드된 환경성적서 — 사업자등록증과 동일 패턴(재확인).
+      envReportName: prev.envReportName || detail.environmentalReport?.fileName || '',
+      envReportS3Key: prev.envReportS3Key || detail.environmentalReport?.s3Key || '',
       // 미확인 등록 상태는 DB 값을 반영(사용자가 아직 안 건드렸을 때만).
       unverified: prev.unverified || Boolean(detail.unverified),
     }));
