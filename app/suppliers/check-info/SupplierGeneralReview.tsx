@@ -72,6 +72,9 @@ import {
 } from 'lucide-react';
 import FactoryCards from '@/components/supplier/FactoryCards';
 import CarbonFootprintDocPanel from '@/components/supplier/CarbonFootprintDocPanel';
+import SelfAssessmentDocPanel from '@/components/supplier/SelfAssessmentDocPanel';
+import CarbonComplianceReport from '@/components/supplier/CarbonComplianceReport';
+import SaqComplianceReport from '@/components/supplier/SaqComplianceReport';
 import AiParsingReviewModal from '@/components/supplier/AiParsingReviewModal';
 import {
   type ContactDraft,
@@ -245,7 +248,7 @@ function FieldStatus({ status }: { status: ReviewStatus }) {
   return <span className="text-xs font-semibold text-slate-500">해당 없음</span>;
 }
 
-function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPrefix = 'company', selects, flagged }: { rows?: string[][]; editable?: boolean; fieldKeys?: string[]; fieldPrefix?: string; selects?: Record<string, { value: string; label: string }[]>; flagged?: Record<string, string> }) {
+function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPrefix = 'company', selects, flagged, placeholders, parsedFieldKeys }: { rows?: string[][]; editable?: boolean; fieldKeys?: string[]; fieldPrefix?: string; selects?: Record<string, { value: string; label: string }[]>; flagged?: Record<string, string>; placeholders?: Record<string, string>; parsedFieldKeys?: string[] }) {
   return (
     <div className="grid overflow-hidden rounded-sm border border-ink-700 md:grid-cols-2">
       {rows.map(([label, value, status], i) => {
@@ -254,6 +257,10 @@ function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPre
         const dataField = key ? `${fieldPrefix}.${key}` : undefined;
         // AI 파싱 신뢰도 낮음 등 — 값은 채우되 warn 톤 + 배지로 검토를 유도(ExtractionTable 패턴).
         const flag = key ? flagged?.[key] : undefined;
+        // [작업②] AI 파싱으로 자동 입력된 값 — 연한 배경 + ✓ 배지로 '직접 입력'과 시각 구분(warn 우선).
+        const parsedFilled = !flag && !!key && !!parsedFieldKeys?.includes(key);
+        // [작업②] 빈값일 때 안내형 placeholder(필드별 커스텀 → 없으면 기본 '<라벨> 입력').
+        const ph = (key && placeholders?.[key]) || `${label} 입력`;
         return (
         <div key={label} className="grid grid-cols-[150px_minmax(0,1fr)_96px] items-center border-b border-r border-ink-700 px-4 py-3 last:border-b-0 even:border-r-0">
           <div className="text-sm font-medium text-ink-500">{label}</div>
@@ -271,25 +278,35 @@ function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPre
               <div className="min-w-0">
                 <input
                   defaultValue={value === '-' || value === '미입력' ? '' : value}
-                  placeholder={`${label} 입력`}
+                  placeholder={ph}
                   data-field={dataField}
                   className={clsx(
                     'w-full rounded-xs border px-2.5 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-500 focus:ring-1',
                     flag
                       ? 'border-warn-border bg-warn-bg focus:border-warn-text focus:ring-warn-border'
-                      : 'border-ink-700 bg-white focus:border-accent-500 focus:ring-accent-500/20',
+                      : parsedFilled
+                        ? 'border-accent-200 bg-blue-50/60 focus:border-accent-500 focus:ring-accent-500/20'
+                        : 'border-ink-700 bg-white focus:border-accent-500 focus:ring-accent-500/20',
                   )}
                 />
-                {flag && (
+                {flag ? (
                   <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-warn-text">
                     <Info className="h-3 w-3" />
                     {flag}
                   </div>
-                )}
+                ) : parsedFilled ? (
+                  <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-accent-700">
+                    <CheckCircle2 className="h-3 w-3" />
+                    AI 자동입력 · 값을 확인해주세요
+                  </div>
+                ) : null}
               </div>
             )
           ) : (
-            <div className="truncate text-sm font-semibold text-ink-100">{opts ? (opts.find(o => o.value === value)?.label ?? value) : value}</div>
+            <div className={clsx('flex items-center gap-1.5 truncate text-sm font-semibold text-ink-100', parsedFilled && 'rounded-xs bg-blue-50/60 px-1.5 py-0.5')}>
+              {parsedFilled && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-accent-700" />}
+              <span className="truncate">{opts ? (opts.find(o => o.value === value)?.label ?? value) : value}</span>
+            </div>
           )}
           <div className="flex justify-end">
             <FieldStatus status={status as ReviewStatus} />
@@ -600,7 +617,17 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   // 규제 섹션 — 탄소발자국 문서 AI 파싱 결과. key 리마운트로 CompanyGrid(defaultValue 기반)에 반영.
   const [carbonExtraction, setCarbonExtraction] = useState<AiExtraction | null>(null);
   const [carbonParseVersion, setCarbonParseVersion] = useState(0);
+  // 탄소발자국 문서 업로드/파싱 진행 여부 — 파싱 중 규제 입력칸 오버레이/잠금용.
+  const [carbonBusy, setCarbonBusy] = useState(false);
+  // 방금 업로드한 탄소 문서 — AI 파싱 확인 모달에 넘겨 '파싱 중' 표시/폴링 활성화.
+  const [carbonUploadedDoc, setCarbonUploadedDoc] = useState<{ docS3Key: string; fileName: string } | null>(null);
   const [carbonParsingOpen, setCarbonParsingOpen] = useState(false);
+  // [작업1] 실사 자가진단(SAQ) 문서 AI 파싱 — 탄소와 동일 파이프라인, 별도 상태로 관리.
+  const [saqExtraction, setSaqExtraction] = useState<AiExtraction | null>(null);
+  const [saqParseVersion, setSaqParseVersion] = useState(0);
+  const [saqBusy, setSaqBusy] = useState(false);
+  const [saqUploadedDoc, setSaqUploadedDoc] = useState<{ docS3Key: string; fileName: string } | null>(null);
+  const [saqParsingOpen, setSaqParsingOpen] = useState(false);
   let content: ReactNode;
   const d = real?.detail ?? null;
   // live면 지금 입력칸 값, 아니면 마지막 저장된 스냅샷 — 완료 배지 판정용(defaultValue 표시엔 영향 없음).
@@ -777,54 +804,185 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     }
   } else if (section.key === 'regulation') {
     const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
-    // AI 파싱 결과 병합(편집 모드 전용) — 값이 있으면 채우고, 신뢰도 < 0.8이면 '검토 권장' 플래그.
-    const pf = carbonExtraction?.parsedFields ?? {};
-    const conf = carbonExtraction?.confidenceMap ?? {};
-    const flagged: Record<string, string> = {};
-    let ci: unknown = m.carbonIntensity;
-    let es: unknown = m.energySource;
-    if (editable && pf.carbon_intensity != null && pf.carbon_intensity !== '') {
-      ci = pf.carbon_intensity;
-      if ((conf.carbon_intensity ?? 0) < 0.8) flagged.carbonIntensity = `검토 권장 · 신뢰도 ${Math.round((conf.carbon_intensity ?? 0) * 100)}%`;
-    }
-    if (editable && pf.energy_source != null && pf.energy_source !== '') {
-      es = pf.energy_source;
-      if ((conf.energy_source ?? 0) < 0.8) flagged.energySource = `검토 권장 · 신뢰도 ${Math.round((conf.energy_source ?? 0) * 100)}%`;
-    }
-    const sr = real?.riskProfile?.selfReportedRiskLevel;
-    const srRaw = sr && sr !== 'unknown' ? sr : '';
     const naMiner = (d?.providerType ?? '') === 'miner';  // 광산: 규제(탄소·자가진단) 판정 대상 아님 → 해당 없음
     const comp = real?.comp;
     const req = (key: string) => isFieldRequired(key, comp, true);
-    const rows: string[][] = [
+
+    // ── [3-1] 탄소 파싱 병합(편집 모드 전용) — 값이 있으면 채우고, 신뢰도 < 0.8이면 '검토 권장' 플래그. ──
+    const pf = carbonExtraction?.parsedFields ?? {};
+    const conf = carbonExtraction?.confidenceMap ?? {};
+    const flagged: Record<string, string> = {};
+    const carbonParsedKeys: string[] = [];   // [작업②] AI 자동입력 하이라이트 대상
+    let ci: unknown = m.carbonIntensity;
+    let es: unknown = m.energySource;
+    // [요구사항1] 파싱이 수행되면(carbonExtraction 존재) 추출 결과가 이 문서의 '권위값'이다.
+    //   서류상 공란인 필드(예: 에너지원)는 빈칸으로 확정한다 — 모달을 닫고 복귀할 때
+    //   이전에 저장돼 있던 스테일 DB값('한국 전력망 평균…')이 되살아나는 상태 드리프트 방지.
+    if (editable && carbonExtraction) {
+      const ciParsed = pf.carbon_intensity;
+      const esParsed = pf.energy_source;
+      if (ciParsed != null && ciParsed !== '') {
+        ci = ciParsed;
+        carbonParsedKeys.push('carbonIntensity');
+        if ((conf.carbon_intensity ?? 0) < 0.8) flagged.carbonIntensity = `검토 권장 · 신뢰도 ${Math.round((conf.carbon_intensity ?? 0) * 100)}%`;
+      } else {
+        ci = '';  // 파싱됐으나 탄소집약도 미기재 → 빈칸(스테일값 폴백 금지)
+      }
+      if (esParsed != null && esParsed !== '') {
+        es = esParsed;
+        carbonParsedKeys.push('energySource');
+        if ((conf.energy_source ?? 0) < 0.8) flagged.energySource = `검토 권장 · 신뢰도 ${Math.round((conf.energy_source ?? 0) * 100)}%`;
+      } else {
+        es = '';  // 서류상 에너지원 공란 → 빈칸 유지(스테일값 폴백 금지)
+      }
+    }
+    const ciNum = ci != null && ci !== '' ? parseFloat(String(ci)) : NaN;
+    const carbonRows: string[][] = [
       [reqLabel('탄소집약도 (kgCO2eq/kg)', req('regulation.carbon_intensity')), ci != null ? String(ci) : '-', naMiner ? '해당 없음' : filled('regulation.carbonIntensity', ci)],
       [reqLabel('에너지원', req('regulation.energy_source')), (es as string) ?? '-', naMiner ? '해당 없음' : filled('regulation.energySource', es)],
-      [reqLabel('실사 자가진단', req('regulation.self_reported_risk_level')), srRaw, naMiner ? '해당 없음' : filled('regulation.selfReportedRiskLevel', srRaw)],
+    ];
+    const carbonPlaceholders = {
+      carbonIntensity: '서류를 업로드하면 자동으로 채워집니다 (직접 입력도 가능)',
+      energySource: '주요 에너지원을 입력하거나 서류를 업로드하세요',
+    };
+
+    // ── [3-2] SAQ 파싱 병합 — 저장 컬럼은 self_reported_risk_level 뿐, 나머지는 parsed JSONB 표시+CSDDD 판정 입력. ──
+    const spf = (saqExtraction?.parsedFields ?? {}) as Record<string, unknown>;
+    const sr = real?.riskProfile?.selfReportedRiskLevel;
+    const srRaw = sr && sr !== 'unknown' ? sr : '';
+    const parsedRisk = typeof spf.saq_risk_level === 'string' ? (spf.saq_risk_level as string).toLowerCase() : '';
+    const srPrefill = editable && ['low', 'medium', 'high'].includes(parsedRisk) ? parsedRisk : srRaw;
+    const saqRows: string[][] = [
+      [reqLabel('실사 자가진단 (리스크 등급)', req('regulation.self_reported_risk_level')), srPrefill, naMiner ? '해당 없음' : filled('regulation.selfReportedRiskLevel', srPrefill)],
       // DD 보고서는 원청 전용 — 협력사 폼에는 표시하지 않는다.
       ...(isPrime ? [['실사(DD) 보고서', '원청 작성 — 협력사 비표시', '해당 없음'] as string[]] : []),
     ];
+    // SAQ 파싱 상세(읽기전용) — 저장 컬럼이 없어 표시 + CSDDD 판정 입력용.
+    const saqDetail: { label: string; key: string }[] = [
+      { label: '평가 표준', key: 'saq_standard' },
+      { label: '점수/등급', key: 'saq_score' },
+      { label: '유효기간', key: 'saq_valid_until' },
+      { label: '고충처리 채널', key: 'grievance_mechanism' },
+      { label: '강제노동 징후', key: 'forced_labor_risk' },
+      { label: '아동노동 징후', key: 'child_labor_risk' },
+      { label: '준수 등급', key: 'compliance_grade' },
+    ];
+    const shownSaqDetail = saqDetail.filter(x => { const v = spf[x.key]; return v != null && v !== ''; });
+    const saqFields: Record<string, unknown> = {
+      saq_standard: spf.saq_standard, saq_score: spf.saq_score, saq_valid_until: spf.saq_valid_until,
+      saq_risk_level: spf.saq_risk_level ?? (srRaw || undefined),
+      grievance_mechanism: spf.grievance_mechanism, forced_labor_risk: spf.forced_labor_risk,
+      child_labor_risk: spf.child_labor_risk, compliance_grade: spf.compliance_grade,
+    };
+
+    const busyOverlay = (
+      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-sm bg-white/70 backdrop-blur-[1px]">
+        <div className="flex items-center gap-2.5 rounded-full border border-accent-200 bg-white px-4 py-2 shadow-control">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-accent-100 border-t-accent-700" />
+          <span className="text-xs font-semibold text-accent-800">AI가 문서를 파싱하고 있어요…</span>
+        </div>
+      </div>
+    );
+
     content = (
-      <div className="space-y-3">
-        {/* 탄소발자국 문서 업로드 + AI 파싱 */}
-        <CarbonFootprintDocPanel
-          supplierId={supplierId}
-          initialUrl={d?.carbonFootprintDocUrl}
-          editable={editable}
-          onParsed={extraction => {
-            setCarbonExtraction(extraction);
-            setCarbonParseVersion(v => v + 1);
-          }}
-          onOpenViewer={() => setCarbonParsingOpen(true)}
-        />
-        <CompanyGrid key={`regulation-${carbonParseVersion}`} rows={rows} editable={editable} fieldKeys={['carbonIntensity', 'energySource', 'selfReportedRiskLevel', ...(isPrime ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} flagged={flagged} />
-        {/* 실사 자가진단 보고서 — 실사관리 페이지 대체. 내 기업 정보에서 업로드·확인. */}
-        <DocUploadField label="실사 자가진단 보고서" field="regulation.selfAssessmentDocUrl" initialUrl={d?.selfAssessmentDocUrl} editable={editable} supplierId={supplierId} />
+      <div className="space-y-4">
+        {/* ══ 3-1. 환경 규제 · 탄소발자국 ══ */}
+        <div className="space-y-3 rounded-sm border border-ink-700 bg-white p-4">
+          <div className="flex items-center gap-2">
+            <span className="rounded-xs bg-accent-50 px-2 py-0.5 text-xs font-bold text-accent-700">3-1</span>
+            <span className="text-sm font-bold text-ink-100">환경 규제 · 탄소발자국</span>
+            <span className="text-[11px] text-ink-500">EU 배터리법 Art.7</span>
+          </div>
+          <CarbonFootprintDocPanel
+            supplierId={supplierId}
+            initialUrl={d?.carbonFootprintDocUrl}
+            editable={editable}
+            onParsed={extraction => { setCarbonExtraction(extraction); setCarbonParseVersion(v => v + 1); }}
+            onOpenViewer={() => setCarbonParsingOpen(true)}
+            onBusyChange={setCarbonBusy}
+            onUploaded={setCarbonUploadedDoc}
+          />
+          {/* 파싱 중 입력칸 오버레이/잠금 */}
+          <div className="relative">
+            <div className={carbonBusy ? 'pointer-events-none select-none opacity-40 transition-opacity' : 'transition-opacity'} aria-busy={carbonBusy}>
+              <CompanyGrid key={`carbon-${carbonParseVersion}`} rows={carbonRows} editable={editable} fieldKeys={['carbonIntensity', 'energySource']} fieldPrefix="regulation" flagged={flagged} parsedFieldKeys={carbonParsedKeys} placeholders={carbonPlaceholders} />
+            </div>
+            {carbonBusy && busyOverlay}
+          </div>
+          {/* AI 규제 분석 보고서 (RAG · EU 배터리법) — 값이 있을 때만 */}
+          {!naMiner && <CarbonComplianceReport carbonIntensity={Number.isNaN(ciNum) ? null : ciNum} energySource={(es as string) || null} />}
+        </div>
+
+        {/* ══ 3-2. 인권·안전 실사 (SAQ) ══ */}
+        <div className="space-y-3 rounded-sm border border-ink-700 bg-white p-4">
+          <div className="flex items-center gap-2">
+            <span className="rounded-xs bg-accent-50 px-2 py-0.5 text-xs font-bold text-accent-700">3-2</span>
+            <span className="text-sm font-bold text-ink-100">인권·안전 실사 (SAQ)</span>
+            <span className="text-[11px] text-ink-500">CSDDD 공급망 실사 지침</span>
+          </div>
+          <SelfAssessmentDocPanel
+            supplierId={supplierId}
+            initialUrl={d?.selfAssessmentDocUrl}
+            editable={editable}
+            onParsed={extraction => { setSaqExtraction(extraction); setSaqParseVersion(v => v + 1); }}
+            onOpenViewer={() => setSaqParsingOpen(true)}
+            onBusyChange={setSaqBusy}
+            onUploaded={setSaqUploadedDoc}
+          />
+          <div className="relative">
+            <div className={saqBusy ? 'pointer-events-none select-none opacity-40 transition-opacity' : 'transition-opacity'} aria-busy={saqBusy}>
+              <CompanyGrid key={`saq-${saqParseVersion}`} rows={saqRows} editable={editable} fieldKeys={['selfReportedRiskLevel', ...(isPrime ? ['ddReport'] : [])]} fieldPrefix="regulation" selects={{ selfReportedRiskLevel: RISK_OPTS }} />
+            </div>
+            {saqBusy && busyOverlay}
+          </div>
+          {/* 파싱된 SAQ 상세 항목(읽기전용) */}
+          {shownSaqDetail.length > 0 && (
+            <div className="grid gap-px overflow-hidden rounded-sm border border-ink-700 bg-ink-700 md:grid-cols-2">
+              {shownSaqDetail.map(x => (
+                <div key={x.key} className="flex items-center justify-between gap-2 bg-white px-3 py-2">
+                  <span className="shrink-0 text-xs font-medium text-ink-500">{x.label}</span>
+                  <span className="flex items-center gap-1 truncate text-xs font-semibold text-ink-100">
+                    <CheckCircle2 className="h-3 w-3 shrink-0 text-accent-700" />
+                    <span className="truncate">{String(spf[x.key])}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* AI CSDDD 실사 분석 보고서 (RAG) — 파싱 항목이 있을 때만 */}
+          {!naMiner && <SaqComplianceReport saqFields={saqFields} />}
+        </div>
+
+        {/* 파싱 확인 모달 — 탄소 / SAQ 각각 */}
         <AiParsingReviewModal
           supplierId={supplierId}
           open={carbonParsingOpen}
           onClose={() => setCarbonParsingOpen(false)}
           docCategoryFilter="carbon_footprint_declaration"
+          docS3KeyFilter={carbonUploadedDoc?.docS3Key ?? null}
+          initialDoc={carbonUploadedDoc ? {
+            docId: carbonUploadedDoc.docS3Key,
+            fileName: carbonUploadedDoc.fileName,
+            fileUrl: null,
+            requestType: '탄소발자국 증빙',
+            docS3Key: carbonUploadedDoc.docS3Key,
+          } : null}
           title="AI 파싱 확인 및 수정 · 탄소발자국 문서"
+        />
+        <AiParsingReviewModal
+          supplierId={supplierId}
+          open={saqParsingOpen}
+          onClose={() => setSaqParsingOpen(false)}
+          docCategoryFilter="dd_audit_report"
+          docS3KeyFilter={saqUploadedDoc?.docS3Key ?? null}
+          initialDoc={saqUploadedDoc ? {
+            docId: saqUploadedDoc.docS3Key,
+            fileName: saqUploadedDoc.fileName,
+            fileUrl: null,
+            requestType: '실사 자가진단(SAQ)',
+            docS3Key: saqUploadedDoc.docS3Key,
+          } : null}
+          title="AI 파싱 확인 및 수정 · 실사 자가진단(SAQ)"
         />
       </div>
     );
@@ -1062,6 +1220,18 @@ export function SupplierGeneralReviewContent({
   const searchParams = useSearchParams();
   const supplierId = supplierIdProp ?? searchParams.get('supplierId') ?? '';
   const supplierName = supplierNameProp ?? searchParams.get('supplier') ?? supplierSummary.name;
+
+  // [오늘의 알림 딥링크] ?section=키 → 해당 섹션(id="section-키")으로 스크롤.
+  // 섹션은 항상 렌더되지만 데이터 로드/레이아웃 후 위치가 잡히도록 다음 틱에 이동.
+  useEffect(() => {
+    const target = searchParams.get('section');
+    if (!target) return;
+    const timer = setTimeout(() => {
+      document.getElementById(`section-${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchParams]);
+
   // supplierId가 UUID면 실 백엔드(detail·contacts·completeness)에서 채우고, mock S-ID면 기존 mock 폴백.
   const isRealSupplier = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId);
   const [api, setApi] = useState<RealData | null>(null);

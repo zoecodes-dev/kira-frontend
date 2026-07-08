@@ -1663,3 +1663,34 @@ export const getCurrentSupplySource = (
   api.get<CurrentSupplySource>(
     `/supply-chain/current-supply-source?bom_version_id=${bomVersionId}&part_id=${partId}&parent_supplier_id=${parentSupplierId}`,
   );
+
+// ── [목표3] RAG 기반 탄소 규제 준수 진단 ──────────────────────────────────────
+export interface CarbonComplianceResult {
+  verdict: 'pass' | 'violation' | 'warning';
+  regulationName: string;
+  citation: string;
+  clauseText: string;
+  reasoning: string;
+  carbonIntensity?: number | null;
+  energySource?: string | null;
+}
+
+/** 추출된 탄소집약도·에너지원 → 백엔드 RAG 규제 판정(POST /regulation/analyze-carbon). */
+export const analyzeCarbonRegulation = (body: { carbonIntensity?: number | null; energySource?: string | null }) =>
+  api.post<CarbonComplianceResult>('/regulation/analyze-carbon', {
+    carbon_intensity: body.carbonIntensity ?? null,
+    energy_source: body.energySource ?? null,
+  });
+
+// ── [작업1] RAG 기반 CSDDD 실사(SAQ) 규제 준수 진단 ───────────────────────────
+export interface SaqComplianceResult {
+  verdict: 'pass' | 'violation' | 'warning';
+  regulationName: string;
+  citation: string;
+  clauseText: string;
+  reasoning: string;
+}
+
+/** 파싱된 SAQ 항목(고충처리 채널·강제노동 징후 등) → 백엔드 RAG CSDDD 판정(POST /regulation/analyze-saq). */
+export const analyzeSaqRegulation = (saqFields: Record<string, unknown>) =>
+  api.post<SaqComplianceResult>('/regulation/analyze-saq', { saq_fields: saqFields ?? {} });
