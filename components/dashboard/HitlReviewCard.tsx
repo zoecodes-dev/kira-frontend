@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { Bot, CheckCircle2, ChevronDown, ChevronRight, Loader2, ScanLine, ShieldAlert, XCircle } from 'lucide-react';
 import { approveDataRequest, approveHitl, getAiExtractions, rejectHitl, type AiExtraction } from '@/lib/api';
-import AiParsingReviewModal from './AiParsingReviewModal';
+import PrimeAiParsingReviewModal from './PrimeAiParsingReviewModal';
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   submission_approved: { label: '승인됨', cls: 'border-ok-border bg-ok-bg text-ok-text' },
@@ -100,7 +100,7 @@ export default function HitlReviewCard() {
                   </button>
                   <div className="flex shrink-0 items-center gap-1.5">
                     {x.supplierId && (
-                      <button type="button" onClick={() => setReview({ supplierId: x.supplierId, supplierName: x.supplierName ?? '협력사' })}
+                      <button type="button" onClick={() => setReview({ supplierId: x.supplierId!, supplierName: x.supplierName ?? '협력사' })}
                         className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-ink-700 bg-white px-3 text-xs font-bold text-ink-200 hover:bg-slate-50">
                         <ScanLine className="h-3.5 w-3.5" /> 검토
                       </button>
@@ -164,7 +164,7 @@ export default function HitlReviewCard() {
       )}
     </section>
     {review && (
-      <AiParsingReviewModal supplierId={review.supplierId} supplierName={review.supplierName} onClose={() => setReview(null)} />
+      <PrimeAiParsingReviewModal supplierId={review.supplierId} supplierName={review.supplierName} onClose={() => setReview(null)} />
     )}
     </>
   );

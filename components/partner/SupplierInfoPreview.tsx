@@ -53,7 +53,7 @@ export default function SupplierInfoPreview({
   }
 
   // ⑥ 상태값 메타 — 존재하지 않는 키는 원문 표시
-  const statusMeta = supplierStatusMeta[supplier.status] ?? { label: supplier.status, tone: 'neutral' as const };
+  const statusMeta = supplierStatusMeta[supplier.status ?? ''] ?? { label: supplier.status ?? '-', tone: 'neutral' as const };
 
   return (
     <div className="space-y-4">
@@ -184,7 +184,7 @@ export default function SupplierInfoPreview({
                     <div className="flex flex-wrap gap-1.5">
                       {factory.applicableRegulations.map(reg => (
                         <span key={reg} className="rounded-xs border border-accent-100 bg-accent-50 px-2 py-1 text-[10px] font-bold text-accent-900">
-                          {regulationMeta[reg]?.label ?? reg}
+                          {(regulationMeta as Record<string, { label: string }>)[reg]?.label ?? reg}
                         </span>
                       ))}
                     </div>

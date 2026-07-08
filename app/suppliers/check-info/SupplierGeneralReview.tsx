@@ -638,7 +638,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     }
   } else if (section.key === 'factories') {
     // 입력 모드: 공장·담당자를 모두 편집(master-form REPLACE-ALL 라운드트립). 보기 모드: 읽기 전용 테이블.
-    if (editable && factoriesDraft && setFactoriesDraft) {
+    if (editable && factoriesDraft && setFactoriesDraft && contactsDraft && setContactsDraft) {
       const miningRows = factoriesDraft.filter(f => f.factoryRole === 'mining');
       const miningRowsComplete = miningRows.length > 0 && miningRows.every(f => f.latitude.trim() !== '' && f.longitude.trim() !== '');
       content = (
