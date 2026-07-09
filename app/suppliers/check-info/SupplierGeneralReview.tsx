@@ -14,7 +14,6 @@ import {
   type AiExtraction, type SupplierDocKind,
   ApiError,
 } from '@/lib/api';
-import { addDemoNotification } from '@/lib/demo-notifications';
 
 const providerTypeLabel: Record<string, string> = {
   manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산', smelter: '제련소',
@@ -1742,17 +1741,10 @@ export function SupplierGeneralReviewContent({
       await persistForm();
       setSaved(false);
       setEditing(false);
-      // [process.md L28·52] 협력사가 표준 양식 자료 제출 완료 → 원청 탭에 검토/승인 요청 알림.
-      if (isSupplier) {
-        addDemoNotification({
-          audience: 'prime',
-          notification_type: 'approval_needed',
-          subject: '협력사 자료 제출 완료',
-          body: '협력사가 표준 양식 자료 입력을 완료했습니다. My Task에서 내용을 검토하고 승인해 주세요.',
-          deep_link: 'my-task',
-          actor: '협력사',
-        });
-      }
+      // [process.md L28·52] 협력사가 표준 양식 자료 제출 완료 → 원청에 검토 요청 알림.
+      //   원청 알림 벨(PrimeNotificationBell)은 이제 실 백엔드 알림만 읽는다(데모 스토어 미사용) —
+      //   실제 알림은 백엔드가 submitMasterForm 커밋 후 MasterFormSubmitted를 발행해 만든다
+      //   (backend/domains/supplier/service.py submit_master_form → handlers/master_form_submitted_notify.py).
     } catch (err) {
       if (err instanceof ApiError && err.status === 403 && err.message === 'CONSENT_REQUIRED') {
         alert('제3자 정보제공 동의가 필요합니다. 초대 메일의 링크로 접속해 동의를 완료한 뒤 자료를 제출할 수 있어요.');
