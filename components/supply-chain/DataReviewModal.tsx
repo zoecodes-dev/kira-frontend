@@ -2,12 +2,12 @@
 
 // STEP 4 — 자료 수집·보완 검토. 이 공급망 맵 협력사가 제출한 자료의 '문제'를 짚어주는 화면.
 //  · 입력 누락(규제 필수필드 부족) 확인 → general review로 연결해 상세 확인 + 미완료 협력사 알림 요청
-//  · 제출 자료(문서) 확인 → AI 파싱 검토(AiParsingReviewModal)
+//  · 제출 자료(문서) 확인 → AI 파싱 검토(PrimeAiParsingReviewModal)
 //  · '전체 확인'을 눌러야 STEP5(최종 검증)로 넘어간다.
 import { useEffect, useMemo, useState } from 'react';
 import { Bell, CheckCircle2, ClipboardCheck, Eye, FileText, FileWarning, Loader2, X } from 'lucide-react';
 import { getAiExtractions, getDataRequests, type AiExtraction, type ApiDataRequest, type SupplierBrief, type SupplyChainGapNode } from '@/lib/api';
-import AiParsingReviewModal from '@/components/dashboard/AiParsingReviewModal';
+import PrimeAiParsingReviewModal from '@/components/dashboard/PrimeAiParsingReviewModal';
 
 const PROVIDER_LABEL: Record<string, string> = {
   manufacturer: '제조사', recycler: '재활용', trader: '유통', miner: '광산', smelter: '제련소',
@@ -224,7 +224,7 @@ export default function DataReviewModal({
         </div>
       </div>
 
-      {review && <AiParsingReviewModal supplierId={review.id} supplierName={review.name} onClose={() => setReview(null)} />}
+      {review && <PrimeAiParsingReviewModal supplierId={review.id} supplierName={review.name} onClose={() => setReview(null)} />}
     </div>
   );
 }

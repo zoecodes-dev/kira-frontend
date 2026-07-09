@@ -19,12 +19,6 @@ export const supplierStatusMeta: Record<string, { label: string; tone: BadgeTone
   rejected:         { label: '반려',       tone: 'alert'   },
 };
 
-export const certStatusLabel: Record<string, string> = {
-  active: '유효',
-  expiring_soon: '만료 임박',
-  expired: '만료',
-};
-
 // ─── D-Day 계산 유틸 ──────────────────────────────────────────────────────────
 // 기준일: 2026-06-13 (시스템 날짜)
 // 반환값: { label: 'D-12' | 'D-Day' | '만료됨', days: number }
@@ -39,6 +33,25 @@ export function calculateDDay(expiresAt: string): { label: string; days: number 
   return { label: `D-${days}`, days };
 }
 
+// [오늘의 알림] 로그인 시점(클라이언트 현재 날짜) 기준 마감일 D-Day 동적 산출.
+// ⚠️ calculateDDay(REFERENCE_DATE 고정)와 별개 함수 — 기존 인증서 화면 로직 보호.
+//   · days > 0   → 'D-N'   (기한 여유)       · state: 'future'
+//   · days === 0 → 'D-Day' (당일 마감)       · state: 'dday'   (호출부에서 Red 강조)
+//   · days < 0   → 'D+N'   (기한 초과=연체)  · state: 'overdue'(호출부에서 상태 '연체' 강제)
+export function calcDeadlineDDay(
+  dueDate: string,
+  now: Date = new Date(),
+): { label: string; days: number; state: 'future' | 'dday' | 'overdue' } {
+  const due = new Date(dueDate);
+  // 시·분·초 무시하고 '날짜' 단위로만 차이 계산
+  const dueMidnight = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+  const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const days = Math.round((dueMidnight - nowMidnight) / (1000 * 60 * 60 * 24));
+  if (days > 0) return { label: `D-${days}`, days, state: 'future' };
+  if (days === 0) return { label: 'D-Day', days, state: 'dday' };
+  return { label: `D+${Math.abs(days)}`, days, state: 'overdue' };
+}
+
 // ESG API는 인증서 status를 주지 않음 → 만료일 기준으로 파생 (기준일 REFERENCE_DATE)
 export function deriveCertStatusPortal(expiresAt: string): 'active' | 'expiring_soon' | 'expired' {
   const exp = new Date(expiresAt + 'T00:00:00').getTime();
@@ -47,32 +60,6 @@ export function deriveCertStatusPortal(expiresAt: string): 'active' | 'expiring_
   if (days < 0) return 'expired';
   if (days <= 60) return 'expiring_soon';
   return 'active';
-}
-
-// 잔여일 기준 배지 스타일 결정
-// · 만료됨(days<0) or 7일 이하 → 최고 긴급 (진한 빨강)
-// · 8~30일             → 긴급     (중간 빨강)
-// · 31~60일            → 주의     (주황)
-export function certDDayStyle(days: number): {
-  wrapperCls: string;
-  badgeCls: string;
-} {
-  if (days <= 7) {
-    return {
-      wrapperCls: 'border-alert-border bg-alert-bg',
-      badgeCls:   'bg-alert-solid text-white',
-    };
-  }
-  if (days <= 30) {
-    return {
-      wrapperCls: 'border-alert-border bg-alert-bg',
-      badgeCls:   'bg-alert-solid text-white',
-    };
-  }
-  return {
-    wrapperCls: 'border-warn-border bg-warn-bg',
-    badgeCls:   'bg-warn-solid text-white',
-  };
 }
 
 // Action Center 제출 기한 D-day → Badge tone 매핑

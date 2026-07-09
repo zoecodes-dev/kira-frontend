@@ -24,13 +24,22 @@ const USE_API = process.env.NEXT_PUBLIC_USE_API === 'true';
 
 function PartnerHeader() {
   const router = useRouter();
+  const pathname = usePathname();
   const { notifications, markNotifRead, markAllNotifsRead } = usePartnerWorkspace();
+
+  // [작업2 / 요구사항2] 특정 페이지만 설명을 목적에 맞게 오버라이드(제목/배지는 공용 유지).
+  //   헤더는 이 공용 레이아웃이 렌더하므로 각 페이지 컴포넌트가 아니라 여기서 경로별로 분기한다.
+  const DESC_BY_PATH: Record<string, string> = {
+    '/partner/company-info': '회사 기본정보·필요서류를 입력하고 원청에 제출합니다.',
+    '/partner/settings': '계정 보안 정보와 주 담당자의 연락처 및 역할을 관리합니다.',
+  };
+  const description = DESC_BY_PATH[pathname ?? ''] ?? '내 회사 정보, 원청 요청 자료, 직접 연결된 공급망만 확인합니다.';
 
   return (
     <PageHeader
       title="협력사 업무공간"
       badge="내 회사 기준"
-      description="내 회사 정보, 원청 요청 자료, 직접 연결된 공급망만 확인합니다."
+      description={description}
       notification={
         <SupplierNotificationBell
           notifications={notifications}

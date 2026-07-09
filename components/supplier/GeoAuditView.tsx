@@ -3,12 +3,11 @@
 // 원산지 geo audit 확인 뷰 — 협력사가 업로드한 자료의 원산지(좌표·폴리곤·위성 대조) 검증 결과를
 // AI 파싱과 함께 확인하는 화면. AI 파싱 뷰와 탭으로 분리되어 나란히 뜬다(process.md L23·42).
 //
-// 데모: 협력사 공장 좌표(getFactories) + 원산지 증명서(getOriginCertificates)를 바탕으로
-// 원산지 검증 상태를 결정적으로(공장 index 기반) 렌더링한다.
+// 데모: 협력사 공장 좌표(getFactories)를 바탕으로 원산지 검증 상태를 결정적으로(공장 index 기반) 렌더링한다.
 
-import { Globe2, MapPin, ShieldCheck, CheckCircle2, AlertTriangle, Clock, Satellite, FileCheck2 } from 'lucide-react';
+import { Globe2, MapPin, ShieldCheck, CheckCircle2, AlertTriangle, Clock, Satellite } from 'lucide-react';
 import Badge from '@/components/Badge';
-import { getFactories, getOriginCertificates } from '@/lib/supplier-detail-data';
+import { getFactories } from '@/lib/supplier-detail-data';
 
 type AuditState = 'passed' | 'review' | 'pending';
 
@@ -35,17 +34,9 @@ function deriveState(idx: number): AuditState {
   return 'pending';
 }
 
-const CERT_STATUS_META: Record<string, { label: string; tone: 'ok' | 'warn' | 'alert' | 'info' }> = {
-  valid:         { label: '유효',       tone: 'ok'    },
-  expiring_soon: { label: '만료 임박',  tone: 'warn'  },
-  expired:       { label: '만료',       tone: 'alert' },
-  under_review:  { label: '검토 중',    tone: 'info'  },
-};
-
 export default function GeoAuditView({ supplierId }: { supplierId: string }) {
   const factories = (getFactories(supplierId) as unknown as FactoryLike[])
     .filter(f => f.factoryRole !== 'headquarters');
-  const originCerts = getOriginCertificates(supplierId);
 
   const audited = factories.map((f, idx) => ({ factory: f, state: deriveState(idx) }));
   const passedCount = audited.filter(a => a.state === 'passed').length;
@@ -73,8 +64,8 @@ export default function GeoAuditView({ supplierId }: { supplierId: string }) {
       </div>
 
       <div className="space-y-6 p-6">
-        {/* 요약 카드 3개 */}
-        <div className="grid grid-cols-3 gap-4">
+        {/* 요약 카드 2개 */}
+        <div className="grid grid-cols-2 gap-4">
           <div className="rounded-sm border border-ink-700 bg-white p-4 shadow-control">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-ink-500">검증 통과</span>
@@ -90,14 +81,6 @@ export default function GeoAuditView({ supplierId }: { supplierId: string }) {
             </div>
             <div className={`mt-2 num-mono text-2xl font-bold ${reviewCount > 0 ? 'text-warn-text' : 'text-ink-100'}`}>{reviewCount}<span className="text-sm text-ink-400"> 개소</span></div>
             <div className="mt-1 text-[10px] text-ink-500">좌표 오차 · 폴리곤 미제출</div>
-          </div>
-          <div className="rounded-sm border border-ink-700 bg-white p-4 shadow-control">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-ink-500">원산지 증명서</span>
-              <FileCheck2 className="h-4 w-4 text-accent-700" />
-            </div>
-            <div className="mt-2 num-mono text-2xl font-bold text-ink-100">{originCerts.length}<span className="text-sm text-ink-400"> 건</span></div>
-            <div className="mt-1 text-[10px] text-ink-500">EUDR·분쟁광물 증빙</div>
           </div>
         </div>
 
@@ -149,46 +132,6 @@ export default function GeoAuditView({ supplierId }: { supplierId: string }) {
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* 원산지 증명서 */}
-        <div className="rounded-sm border border-ink-700 bg-white shadow-control">
-          <div className="border-b border-ink-700 px-5 py-4">
-            <div className="text-sm font-bold text-ink-100">원산지 증명서 · 분쟁광물 증빙</div>
-            <div className="mt-0.5 text-[10px] text-ink-500">{originCerts.length}건 · 3TG / EUDR 대응</div>
-          </div>
-          <div className="p-5">
-            {originCerts.length === 0 ? (
-              <div className="rounded-xs border border-ink-700 bg-ink-800 px-4 py-6 text-center text-xs text-ink-500">
-                이 사업장은 광물 원산지 증명서 대상이 아닙니다(완제·조립 공정). 상위 원자재 공급사 단계에서 검증됩니다.
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {originCerts.map(cert => {
-                  const cm = CERT_STATUS_META[cert.status] ?? { label: cert.status, tone: 'info' as const };
-                  return (
-                    <div key={cert.certId} className="rounded-xs border border-ink-700 bg-ink-800 p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="truncate text-xs font-bold text-ink-100">{cert.certType}</div>
-                          <div className="truncate text-[10px] text-ink-500">{cert.issuingAuthority} · {cert.originCountry}</div>
-                        </div>
-                        <Badge tone={cm.tone}>{cm.label}</Badge>
-                      </div>
-                      {cert.coveredMinerals && cert.coveredMinerals.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {cert.coveredMinerals.map(m => (
-                            <span key={m} className="rounded-xs border border-accent-100 bg-accent-50 px-1.5 py-0.5 text-[10px] font-bold text-accent-900">{m}</span>
-                          ))}
-                        </div>
-                      )}
-                      <div className="mt-2 text-[10px] text-ink-500 num-mono">유효기간 ~ {cert.expiresAt}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
         </div>
       </div>

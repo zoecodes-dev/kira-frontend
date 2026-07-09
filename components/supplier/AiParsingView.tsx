@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { getAiExtractions, type AiExtraction } from '@/lib/api';
-import { CheckCircle2, FileText, ScanLine } from 'lucide-react';
+import { CheckCircle2, FileText, ScanLine, X, Loader2 } from 'lucide-react';
 import Badge from '@/components/Badge';
 import ExtractionTable from './ExtractionTable';
+import CarbonComplianceReport from './CarbonComplianceReport';
 
 // PDF 뷰어는 pdfjs(브라우저 전용)에 의존 → SSR 금지. 클라이언트에서만 로드한다.
 const PdfViewer = dynamic(() => import('./PdfViewer'), {
@@ -22,6 +23,8 @@ interface ExtractionField {
   requiresAttention: boolean;
   unit?: string;
   warning?: string;
+  // [목표2] PDF 원문 역추적 좌표 (PyMuPDF 산출, __locations__에서 부착)
+  location?: { page: number; bbox: number[]; page_width?: number; page_height?: number } | null;
 }
 
 interface ParsedDoc {
@@ -183,6 +186,7 @@ function extractionToDoc(x: AiExtraction, initialDoc?: InitialDoc | null): Parse
     // 카탈로그 기반 — 뽑아야 할 필드만, 못 찾아도 신뢰도 0의 "수정 필요" 행으로 항상 노출.
     // 카탈로그 밖 필드(회사명 등 문서에 같이 적힌 무관한 정보)는 이 화면에서 아예 보여주지 않는다.
     const catalog = isMaterialExtraction ? MATERIAL_DOC_CATALOG : CARBON_DOC_CATALOG;
+    const fieldLocations = ((parsedFields as Record<string, unknown>)['__locations__'] ?? {}) as Record<string, ExtractionField['location']>;
     fields = catalog.map(row => {
       const matchedId = row.ids.find(id => parsedFields[id] != null && parsedFields[id] !== '');
       const confidence = matchedId ? (x.confidenceMap[matchedId] ?? (evidenceMaterialFields[matchedId] != null ? 0.75 : 0)) : 0;
@@ -193,11 +197,13 @@ function extractionToDoc(x: AiExtraction, initialDoc?: InitialDoc | null): Parse
         confidence,
         requiresAttention: confidence < 0.8,
         unit: row.unit,
+        location: matchedId ? fieldLocations[matchedId] : undefined,
       };
     });
     unparsedFields = [];
   } else {
-    fields = Object.keys(parsedFields).map(k => {
+    const fieldLocations = ((parsedFields as Record<string, unknown>)['__locations__'] ?? {}) as Record<string, ExtractionField['location']>;
+    fields = Object.keys(parsedFields).filter(k => !k.startsWith('__')).map(k => {
       const confidence = x.confidenceMap[k] ?? 0;
       return {
         fieldId: k,
@@ -206,6 +212,7 @@ function extractionToDoc(x: AiExtraction, initialDoc?: InitialDoc | null): Parse
         confidence,
         requiresAttention: confidence < 0.8,
         unit: '',
+        location: fieldLocations[k],
       };
     });
     unparsedFields = x.unparsedFields;
@@ -571,6 +578,10 @@ export default function AiParsingView({
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [completedDocs, setCompletedDocs] = useState<CompletedMap>({});
+  // 파싱 진행 상태 — initialDoc(방금 업로드)에 대한 추출 폴링 동안 true. 우측 폼 로딩UI 게이트.
+  const [isParsing, setIsParsing] = useState(false);
+  // [목표2] 우측 폼에서 클릭한 필드 → 좌측 원본에서 고정 하이라이트(역추적).
+  const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const notifiedExtractionRef = useRef<string | null>(null);
 
   // ── 좌↔우 하이라이트 연동 상태 ──────────────────────────────────────────
@@ -636,6 +647,7 @@ export default function AiParsingView({
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let attempt = 0;
     const maxAttempts = 16;
+    setIsParsing(true);  // 방금 업로드한 문서 → 추출 완료까지 파싱 로딩 표시
     const matchesFilter = (x: AiExtraction) =>
       (!supplierId || x.supplierId === supplierId) &&
       matchesCategoryFilter(x) &&
@@ -649,15 +661,18 @@ export default function AiParsingView({
           const matchedExtraction = list.find(matchesFilter);
           if (!matchedExtraction) {
             if (attempt < maxAttempts) timeoutId = setTimeout(poll, 2500);
+            else setIsParsing(false);
             return;
           }
           const parsedDoc = extractionToDoc(matchedExtraction, initialDoc);
           if (docCategoryFilter && parsedDoc.extractionResult.fields.length === 0) {
             if (attempt < maxAttempts) timeoutId = setTimeout(poll, 2500);
+            else setIsParsing(false);
             return;
           }
           setDocs([parsedDoc]);
           setActiveDocId(parsedDoc.docId);
+          setIsParsing(false);  // 추출 완료 → 로딩 해제, 폼 표시
           if (notifiedExtractionRef.current !== matchedExtraction.requestId) {
             notifiedExtractionRef.current = matchedExtraction.requestId;
             onParsed?.(matchedExtraction);
@@ -665,6 +680,7 @@ export default function AiParsingView({
         })
         .catch(() => {
           if (!cancelled && attempt < maxAttempts) timeoutId = setTimeout(poll, 2500);
+          else if (!cancelled) setIsParsing(false);
         });
     };
 
@@ -695,10 +711,30 @@ export default function AiParsingView({
 
   const activeDoc = docs.find(d => d.docId === activeDocId) ?? docs[0];
   const allCompleted = docs.every(d => completedDocs[d.docId]);
+
+  // 탭 닫기 — 활성 탭이면 첫 남은 탭으로 포커스 이동, 마지막 탭이면 모달 닫기.
+  function closeDoc(docId: string) {
+    const remaining = docs.filter(d => d.docId !== docId);
+    if (remaining.length === 0) { onConfirmComplete(); return; }
+    setDocs(remaining);
+    setCompletedDocs(prev => { const n = { ...prev }; delete n[docId]; return n; });
+    if (activeDocId === docId) setActiveDocId(remaining[0].docId);
+  }
+
+  // 파싱 중 우측 폼 로딩 표시 — isParsing이면서 활성 문서가 아직 미추출(fields 비었을 때).
+  const showParsingLoader = isParsing && (!activeDoc || activeDoc.extractionResult.fields.length === 0);
   // 실제 업로드된 원본 문서가 있으면 항상 그걸 보여준다 — AI 파싱 성공 여부와 무관하게
   // 사용자가 올린 파일을 임의의 양식 템플릿으로 대체해 보여주면 안 된다.
   // 원본 URL이 없는 경우(mock 데모 데이터 등)에만 소재구성/탄소발자국 전용 HTML 템플릿으로 대체.
   const showOriginalMaterialPreview = (isMaterialDoc || isCarbonDoc) && Boolean(activeDoc.fileUrl);
+
+  // [목표3] 규제 분석용 — 활성 문서의 추출 필드에서 탄소집약도·에너지원 값 추출.
+  const carbonIntensityVal = (() => {
+    const f = activeDoc?.extractionResult.fields.find(x => x.fieldId === 'carbon_intensity');
+    const n = f?.aiValue ? parseFloat(String(f.aiValue).replace(/[^0-9.]/g, '')) : NaN;
+    return Number.isFinite(n) ? n : null;
+  })();
+  const energySourceVal = activeDoc?.extractionResult.fields.find(x => x.fieldId === 'energy_source')?.aiValue || null;
 
   function handleDocComplete() {
     const updated: CompletedMap = { ...completedDocs, [activeDocId]: true };
@@ -747,21 +783,30 @@ export default function AiParsingView({
           const isActive = doc.docId === activeDocId;
           const isDone = !!completedDocs[doc.docId];
           return (
-            <button
+            <div
               key={doc.docId}
-              type="button"
-              onClick={() => setActiveDocId(doc.docId)}
-              className={`flex items-center gap-2 rounded-t-xs border-x border-t px-4 py-2.5 text-[11px] font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 rounded-t-xs border-x border-t py-2.5 pl-4 pr-2 text-[11px] font-semibold transition-colors ${
                 isActive
                   ? 'border-ink-600 bg-white text-ink-100 shadow-[0_1px_0_white]'
                   : 'border-transparent bg-ink-800 text-ink-400 hover:bg-white hover:text-ink-200'
               }`}
             >
-              <FileText className="h-3.5 w-3.5 shrink-0" />
-              <span className="max-w-[140px] truncate">{doc.fileName}</span>
-              <span className="text-[10px] text-ink-500">{doc.requestType}</span>
-              {isDone && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-signal-ok" />}
-            </button>
+              <button type="button" onClick={() => setActiveDocId(doc.docId)} className="flex min-w-0 items-center gap-2">
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <span className="max-w-[140px] truncate">{doc.fileName}</span>
+                <span className="text-[10px] text-ink-500">{doc.requestType}</span>
+                {isDone && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-signal-ok" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => closeDoc(doc.docId)}
+                aria-label={`${doc.fileName} 탭 닫기`}
+                title="탭 닫기"
+                className="ml-0.5 shrink-0 rounded-sm p-0.5 text-ink-500 transition-colors hover:bg-alert-bg hover:text-alert-text"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
           );
         })}
       </div>
@@ -776,14 +821,14 @@ export default function AiParsingView({
           ) : isCarbonDoc ? (
             <CarbonDocumentPreview
               doc={activeDoc}
-              hoveredFieldId={tableFieldHover ?? docFieldHover}
+              hoveredFieldId={activeFieldId ?? tableFieldHover ?? docFieldHover}
               onFieldHover={setDocFieldHover}
             />
           ) : isMaterialDoc ? (
             // 소재구성 전용 HTML 렌더링 + 노란 하이라이트
             <MaterialDocumentPreview
               doc={activeDoc}
-              hoveredFieldId={tableFieldHover ?? docFieldHover}   // 우측 패널 OR 문서 자체 hover 모두 반영
+              hoveredFieldId={activeFieldId ?? tableFieldHover ?? docFieldHover}   // 우측 패널 OR 문서 자체 hover 모두 반영
               onFieldHover={setDocFieldHover}     // 문서 셀 hover → 우측 강조
             />
           ) : activeDoc.fileUrl ? (
@@ -804,21 +849,50 @@ export default function AiParsingView({
           )}
         </div>
 
-        {/* 우측: ExtractionTable */}
-        <ExtractionTable
-          key={activeDoc.docId}
-          doc={activeDoc}
-          supplierId={supplierId}
-          mode={mode}
-          onConfirmComplete={handleDocComplete}
-          isLastDoc={
-            docs.filter(d => !completedDocs[d.docId]).length === 1 &&
-            !completedDocs[activeDoc.docId]
-          }
-          hoveredFieldId={docFieldHover}       // 좌측 문서 hover → 우측 강조
-          onFieldHover={setTableFieldHover}    // 우측 hover → 좌측 문서 강조
-          saveOnlyMode={saveOnlyMode}
-        />
+        {/* 우측: 추출폼(+파싱 로딩) + [목표3] AI 규제 분석 보고서 */}
+        <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto">
+          {showParsingLoader ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-5 rounded-sm border border-ink-700 bg-white px-6">
+              <Loader2 className="h-11 w-11 animate-spin text-accent-700" />
+              <div className="text-center">
+                <div className="text-sm font-bold text-ink-100">🤖 AI가 문서를 분석하고 데이터를 추출하고 있습니다...</div>
+                <div className="mt-1.5 text-xs text-ink-500">잠시만 기다려주세요.</div>
+              </div>
+              {/* 스켈레톤 (추출 폼 자리) */}
+              <div className="w-full max-w-sm space-y-2.5" aria-hidden>
+                {[0, 1, 2, 3].map(i => (
+                  <div key={i} className="h-10 animate-pulse rounded-xs bg-ink-800" />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex min-h-0 flex-1">
+                <ExtractionTable
+                  key={activeDoc.docId}
+                  doc={activeDoc}
+                  supplierId={supplierId}
+                  mode={mode}
+                  onConfirmComplete={handleDocComplete}
+                  isLastDoc={
+                    docs.filter(d => !completedDocs[d.docId]).length === 1 &&
+                    !completedDocs[activeDoc.docId]
+                  }
+                  hoveredFieldId={activeFieldId ?? docFieldHover}   // 좌측 문서 hover/선택 → 우측 강조
+                  onFieldHover={setTableFieldHover}    // 우측 hover → 좌측 문서 강조
+                  onFieldSelect={setActiveFieldId}     // [목표2] 우측 필드 클릭 → 좌측 원본 고정 하이라이트
+                  saveOnlyMode={saveOnlyMode}
+                />
+              </div>
+              {/* [목표3] 탄소 문서 → 폼 바로 아래 RAG 규제 분석 보고서(자동 트리거) */}
+              {isCarbonDoc && (
+                <div className="shrink-0">
+                  <CarbonComplianceReport carbonIntensity={carbonIntensityVal} energySource={energySourceVal} />
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
       </div>
     </div>

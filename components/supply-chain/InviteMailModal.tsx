@@ -103,11 +103,12 @@ export default function InviteMailModal({
         setFetchedPics(prev => new Set(prev).add(id));
         const list = res.contacts ?? [];
         const primary = list.find(c => c.isPrimary) ?? list[0];
-        if (!primary?.email) return;
+        const primaryEmail = primary?.email;
+        if (!primaryEmail) return;
         setDrafts(prev => {
           const d = prev[id];
           if (!d || d.sent || d.email) return prev;
-          return { ...prev, [id]: { ...d, email: primary.email } };
+          return { ...prev, [id]: { ...d, email: primaryEmail } };
         });
       })
       .catch(() => { if (!cancelled) setFetchedPics(prev => new Set(prev).add(id)); });

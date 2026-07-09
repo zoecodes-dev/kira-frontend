@@ -7,7 +7,7 @@ import PageHeader from '@/components/PageHeader';
 import SupplierInputStatusBoard from '@/components/suppliers/SupplierInputStatusBoard';
 import HitlReviewCard from '@/components/dashboard/HitlReviewCard';
 import RegulationResultsCard, { type RegReviewRow } from '@/components/dashboard/RegulationResultsCard';
-import AiParsingReviewModal from '@/components/dashboard/AiParsingReviewModal';
+import PrimeAiParsingReviewModal from '@/components/dashboard/PrimeAiParsingReviewModal';
 import RegulationReviewModal from '@/components/dashboard/RegulationReviewModal';
 import { getStoredRequests, type DataRequestRecord } from '@/lib/data-request-store';
 import { getSupplierName } from '@/lib/supplier-detail-data';
@@ -374,7 +374,7 @@ export default function MyTaskPage() {
         {view === 'inputStatus' && <SupplierInputStatusBoard embedded />}
       </div>
       {review && (
-        <AiParsingReviewModal supplierId={review.supplierId} supplierName={review.supplierName} onClose={() => setReview(null)} />
+        <PrimeAiParsingReviewModal supplierId={review.supplierId} supplierName={review.supplierName} onClose={() => setReview(null)} />
       )}
       {regReview && (
         <RegulationReviewModal row={regReview} onClose={() => setRegReview(null)} />
