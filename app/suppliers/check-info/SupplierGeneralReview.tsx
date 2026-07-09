@@ -877,11 +877,10 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const conf = carbonExtraction?.confidenceMap ?? {};
     const flagged: Record<string, string> = {};
     const carbonParsedKeys: string[] = [];   // [작업②] AI 자동입력 하이라이트 대상
-    // [데모 흐름 강제] 업로드→파싱 전(세션 내 carbonExtraction 없음)에는 DB/시드값이 있어도
-    //   무조건 빈칸으로 시작한다 — 시드값이 화면에 떴다가 저장 라운드트립으로 DB에 되살아나는 것도 막는다.
-    //   세션에서 파싱→저장까지 마치면 persistForm이 detail을 재조회해 그 값(m)이 유지된다.
-    let ci: unknown = carbonExtraction ? m.carbonIntensity : '';
-    let es: unknown = carbonExtraction ? m.energySource : '';
+    // 기본값은 실제 저장된 백엔드 값(m) — 새 세션(예: 원청이 화면을 여는 경우)에서도
+    //   협력사가 이미 제출한 값이 그대로 보여야 한다(세션 상태 carbonExtraction에 의존하면 안 됨).
+    let ci: unknown = m.carbonIntensity;
+    let es: unknown = m.energySource;
     // [요구사항1] 파싱이 수행되면(carbonExtraction 존재) 추출 결과가 이 문서의 '권위값'이다.
     //   서류상 공란인 필드(예: 에너지원)는 빈칸으로 확정한다 — 모달을 닫고 복귀할 때
     //   이전에 저장돼 있던 스테일 DB값('한국 전력망 평균…')이 되살아나는 상태 드리프트 방지.
@@ -982,11 +981,10 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
             </div>
             {carbonBusy && busyOverlay}
           </div>
-          {/* AI 규제 분석 보고서 (RAG · EU 배터리법) — 탄소 문서가 파싱된 상태(carbonExtraction)일 때만.
-              초기 렌더(DB 저장값만 있는 상태)에는 노출하지 않는다 — SAQ(3-2)와 동일한 흐름:
-              모달 [저장] → 폼 채움 → 그때 보고서 노출.
+          {/* AI 규제 분석 보고서 (RAG · EU 배터리법) — 탄소집약도·에너지원 값이 실제로 있을 때만
+              (세션에서 방금 파싱했는지 여부와 무관 — 이전에 저장된 값이어도 분석 가능해야 한다).
               협력사 화면에는 노출하지 않는다 — 원청 자료 검토 시에만 표시(추후 협력사는 알림으로 대체). */}
-          {isPrime && !naMiner && carbonExtraction && <CarbonComplianceReport carbonIntensity={Number.isNaN(ciNum) ? null : ciNum} energySource={(es as string) || null} />}
+          {isPrime && !naMiner && !Number.isNaN(ciNum) && Boolean(es) && <CarbonComplianceReport carbonIntensity={ciNum} energySource={es as string} />}
         </div>
 
         {/* ══ 3-2. 인권·안전 실사 (SAQ) ══ */}
