@@ -114,6 +114,8 @@ function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
 }) {
   const [parsingOpen, setParsingOpen] = useState(false);
   const [flagged, setFlagged] = useState<Record<string, string>>({});
+  // 방금 업로드한 문서 정보 → 파싱 확인 모달에 넘겨 '파싱 중' 표시/폴링 활성화(업로드 직후 빈 화면 방지).
+  const [uploadedDoc, setUploadedDoc] = useState<{ docS3Key: string; fileName: string } | null>(null);
 
   function applyExtraction(extraction: AiExtraction) {
     const nextFlagged: Record<string, string> = {};
@@ -132,7 +134,7 @@ function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
 
   return (
     <div className="space-y-2">
-      <MaterialDocParsePanel supplierId={supplierId} editable onParsed={applyExtraction} onOpenViewer={() => setParsingOpen(true)} />
+      <MaterialDocParsePanel supplierId={supplierId} editable onParsed={applyExtraction} onOpenViewer={() => setParsingOpen(true)} onUploaded={setUploadedDoc} />
       <div className="mb-1 text-sm font-medium text-ink-500">이 공장의 소재 구성</div>
       {/* 다른 섹션(CompanyGrid)과 같은 테두리 표 톤 — 광물마다 한 칸, 균일하게 나뉜다. */}
       <div className="grid overflow-hidden rounded-sm border border-ink-700 md:grid-cols-2">
@@ -152,20 +154,35 @@ function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
           </div>
         ))}
       </div>
-      <AiParsingReviewModal supplierId={supplierId} open={parsingOpen} onClose={() => setParsingOpen(false)} />
+      <AiParsingReviewModal
+        supplierId={supplierId}
+        open={parsingOpen}
+        onClose={() => setParsingOpen(false)}
+        docS3KeyFilter={uploadedDoc?.docS3Key ?? null}
+        initialDoc={uploadedDoc ? {
+          docId: uploadedDoc.docS3Key,
+          fileName: uploadedDoc.fileName,
+          fileUrl: null,
+          requestType: '소재구성 문서',
+          docS3Key: uploadedDoc.docS3Key,
+        } : null}
+      />
     </div>
   );
 }
 
-export default function FactoryCards({ rows, onChange, isSmelter = false, active = true, contacts, onContactsChange, supplierId, hideDestination = false }: {
+export default function FactoryCards({ rows, onChange, isSmelter = false, active = true, contacts, onContactsChange, supplierId, hideDestination = false, destinations }: {
   rows: FactoryDraft[]; onChange: (rows: FactoryDraft[]) => void; isSmelter?: boolean;
   // 상위(원산지 증명서 게이트)가 아직 안 풀렸으면 false — 이 안에서는 재확인 픽커를 자동으로 띄우지 않는다.
   active?: boolean;
   contacts: ContactDraft[]; onContactsChange: (rows: ContactDraft[]) => void;
   supplierId: string;
   // 협력사 본인 화면에서는 납품처를 블라인드한다 — 이 값은 전체 공급망에 그대로 노출돼
-  // 하위 협력사가 최종 고객사·타 협력사를 알게 되는 경로가 된다. 원청 화면에서만 입력 가능.
+  // 하위 협력사가 최종 고객사·타 협력사를 알게 되는 경로가 된다. 원청 화면에서만 노출.
   hideDestination?: boolean;
+  // factoryId → 자동 계산된 납품처 리전(EU/US/KR). 더 이상 자유 입력이 아니라 고객사 국가 기준
+  // 서버 계산값을 고정 표시한다(hideDestination=false일 때만 쓰임).
+  destinations?: Map<string, string | null>;
 }) {
   const update = (i: number, patch: Partial<FactoryDraft>) =>
     onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -270,7 +287,7 @@ export default function FactoryCards({ rows, onChange, isSmelter = false, active
                 <FieldCell label="납품처">
                   {hideDestination
                     ? <span className="text-sm text-ink-500">비공개</span>
-                    : <input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} />}
+                    : <span className="text-sm font-semibold text-ink-100">{(r.factoryId && destinations?.get(r.factoryId)) || '-'}</span>}
                 </FieldCell>
                 <FieldCell label="공급비율(%)"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></FieldCell>
               </div>

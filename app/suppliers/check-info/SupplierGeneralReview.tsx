@@ -618,17 +618,24 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId, docKin
 // [제품별 독립 제출] 공급 품목(supplied-items)을 공급망 맵(=bom_version) 단위로 묶는다.
 //   같은 협력사라도 map 마다 대는 부품·공장·핵심광물이 다르므로, 페이지 전체를 이 단위로 분리한다.
 //   factoryIds: 이 맵의 엣지가 물리는 공장 id 집합 — 공장/원산지 섹션을 맵별로 필터하는 키.
-type SupplyMap = { key: string; label: string; version: string | null; rows: ApiItem[]; factoryIds: string[] };
-function buildSupplyMaps(items: ApiItem[]): SupplyMap[] {
+//   destination: 이 맵 최상위 고객사 국가로 백엔드가 자동 계산한 납품처 리전 — 맵 안 모든 행이
+//   같은 고객사로 흐르므로 첫 값을 그대로 대표값으로 쓴다(§공장 정보 "납품처" 표시용).
+type SupplyMap = { key: string; label: string; version: string | null; rows: ApiItem[]; factoryIds: string[]; destination: string | null };
+// isPrime=false(협력사 화면)면 라벨에서 고객사명을 뺀다 — 탭 라벨이 "BMW iX3 50"처럼 최종
+// 고객사를 그대로 드러내던 것도 납품처와 같은 leak 경로였다(§공장 정보 "납품처" 블라인드와 동일 취지).
+function buildSupplyMaps(items: ApiItem[], isPrime: boolean): SupplyMap[] {
   const maps: SupplyMap[] = [];
   const idxOf = new Map<string, number>();
   for (const it of items) {
     const key = it.bomVersionId ?? `${it.productId ?? ''}:${it.bomVersionNumber ?? ''}`;
     if (!key) continue;
     if (!idxOf.has(key)) {
-      const label = [it.customerName, it.modelName ?? it.productName].filter(Boolean).join(' ') || '제품';
+      const parts = isPrime
+        ? [it.customerName, it.modelName ?? it.productName]
+        : [it.modelName ?? it.productName];
+      const label = parts.filter(Boolean).join(' ') || '제품';
       idxOf.set(key, maps.length);
-      maps.push({ key, label, version: it.bomVersionNumber ?? null, rows: [], factoryIds: [] });
+      maps.push({ key, label, version: it.bomVersionNumber ?? null, rows: [], factoryIds: [], destination: it.destination ?? null });
     }
     const m = maps[idxOf.get(key)!];
     m.rows.push(it);
@@ -637,7 +644,7 @@ function buildSupplyMaps(items: ApiItem[]): SupplyMap[] {
   return maps;
 }
 
-function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft, noMoreMines = false, setNoMoreMines, isSmelter = false, readField, detectedBizRegDoc, setDetectedBizRegDoc, detectedEnvReport, setDetectedEnvReport, onRegulatoryRisk, onLiveMutate }: {
+function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft, factoryDestinations, noMoreMines = false, setNoMoreMines, isSmelter = false, readField, detectedBizRegDoc, setDetectedBizRegDoc, detectedEnvReport, setDetectedEnvReport, onRegulatoryRisk, onLiveMutate }: {
   section: CollectionSection;
   real?: RealData | null;
   editable?: boolean;
@@ -647,6 +654,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
   contactsDraft?: ContactDraft[];
   setContactsDraft?: (rows: ContactDraft[]) => void;
+  factoryDestinations?: Map<string, string | null>;
   // "추가 광산 없음" 명시 선언(제련소 전용) — PicRegister의 말단 선언 게이트와 같은 취지.
   noMoreMines?: boolean;
   setNoMoreMines?: (v: boolean) => void;
@@ -747,6 +755,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
                   onContactsChange={setContactsDraft}
                   supplierId={supplierId}
                   hideDestination={!isPrime}
+                  destinations={factoryDestinations}
                 />
               </div>
               {/* 제련소 전용 — 광산(직접 입력 불가)의 위치를 직상위가 대신 채우는 지점. 최소 1곳 + 추가 광산 없음 선언까지 있어야 완료로 인정. */}
@@ -1171,6 +1180,7 @@ function AccordionSection({
   setFactoriesDraft,
   contactsDraft,
   setContactsDraft,
+  factoryDestinations,
   noMoreMines,
   setNoMoreMines,
   isSmelter = false,
@@ -1199,6 +1209,8 @@ function AccordionSection({
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
   contactsDraft?: ContactDraft[];
   setContactsDraft?: (rows: ContactDraft[]) => void;
+  // factoryId → 자동 계산된 납품처 리전(EU/US/KR). 공장 정보 섹션의 "납품처" 표시용.
+  factoryDestinations?: Map<string, string | null>;
   noMoreMines?: boolean;
   setNoMoreMines?: (v: boolean) => void;
   isSmelter?: boolean;
@@ -1264,6 +1276,7 @@ function AccordionSection({
           setFactoriesDraft={setFactoriesDraft}
           contactsDraft={contactsDraft}
           setContactsDraft={setContactsDraft}
+          factoryDestinations={factoryDestinations}
           noMoreMines={noMoreMines}
           setNoMoreMines={setNoMoreMines}
           isSmelter={isSmelter}
@@ -1446,8 +1459,17 @@ export function SupplierGeneralReviewContent({
   }, [api]);
 
   // [제품별 독립 제출] 공급망 맵 목록 + 선택된 맵. 회사정보/PIC/연락처는 맵 무관 공통.
-  const supplyMaps = buildSupplyMaps(api?.items ?? []);
+  const supplyMaps = buildSupplyMaps(api?.items ?? [], isPrime);
   const activeMap = supplyMaps.find(m => m.key === selectedMapKey) ?? supplyMaps[0] ?? null;
+  // factoryId → destination — 편집(자료 제출) 중엔 맵 탭이 숨겨져 전체 공장을 한꺼번에 보여주므로
+  //   (맵 스코프 없음), 맵별로 다를 수 있는 destination을 공장 단위로 조회할 수 있게 전체
+  //   items에서 미리 매핑해둔다. 같은 공장이 여러 맵에 걸치면 먼저 만난 값을 대표로 쓴다.
+  const factoryDestinations = new Map<string, string | null>();
+  for (const it of api?.items ?? []) {
+    if (it.factoryId && !factoryDestinations.has(it.factoryId)) {
+      factoryDestinations.set(it.factoryId, it.destination ?? null);
+    }
+  }
   // 선택된 맵으로 스코프한 api — 공장(엣지가 무는 factory_id)·품목을 맵 단위로 한정.
   //   factoryIds가 비면(레거시/미매핑) 전체 공장을 그대로 보여준다(정보 손실 방지).
   const scopedApi: RealData | null = api && activeMap
@@ -2051,6 +2073,7 @@ export function SupplierGeneralReviewContent({
               setFactoriesDraft={setFactoriesDraft}
               contactsDraft={contactsDraft}
               setContactsDraft={setContactsDraft}
+              factoryDestinations={factoryDestinations}
               noMoreMines={noMoreMines}
               setNoMoreMines={setNoMoreMines}
               isSmelter={isSmelter}
