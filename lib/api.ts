@@ -660,6 +660,11 @@ export interface CarbonDeclaration {
 export const getSupplierCarbonDeclarations = (id: string) =>
   api.get<{ supplierId: string; declarations: CarbonDeclaration[] }>(`/suppliers/${id}/carbon-declarations`);
 
+/** 필요문서(사업자등록증/환경성적서 등) presigned 다운로드 URL. 미업로드면 404(호출부가 catch). */
+export type SupplierDocKind = "business_reg" | "environmental_report" | "self_assessment" | "material_composition" | "carbon_footprint";
+export const getSupplierDocumentUrl = (id: string, docKind: SupplierDocKind) =>
+  api.get<{ url: string; fileName: string }>(`/suppliers/${id}/documents/${docKind}/url`);
+
 /** 공통 파일 메타. 환경성적서 첨부 등 context별 업로드 파일. */
 export interface FileMeta {
   fileId: string;
@@ -825,7 +830,7 @@ export interface SubmissionBrief {
 }
 export const getSubmissions = () => api.get<SubmissionBrief[]>(`/submissions`);
 
-/** HITL 협력사 승인 — 자료요청 AI 파싱 결과(입력+AI분석+신뢰도). */
+/** HITL 협력사 승인 — 자료요청 AI 처리 결과(입력+AI분석+신뢰도). */
 export interface AiExtraction {
   requestId: string;
   supplierId: string | null;
@@ -982,7 +987,7 @@ export function getTokenUserId(): string | null {
   } catch { return null; }
 }
 
-/** 자료요청 승인(AI 파싱 검토 완료) — 자료 요청 완료로 전이. */
+/** 자료요청 승인(AI 처리 검토 완료) — 자료 요청 완료로 전이. */
 export const approveDataRequest = (requestId: string, reason?: string) =>
   api.post<ApiDataRequest>(`/data-requests/${requestId}/approve`, { actor_id: getTokenUserId(), reason });
 

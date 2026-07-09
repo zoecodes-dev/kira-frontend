@@ -1,6 +1,6 @@
 'use client';
 
-// ── 탄소발자국 문서 업로드 + AI 파싱 패널 ─────────────────────────────────────
+// ── 탄소발자국 문서 업로드 + AI 처리 패널 ─────────────────────────────────────
 // MaterialDocParsePanel과 동일 파이프라인(신규 엔드포인트 없음), 대상 컬럼만 다르다:
 //   ① uploadFile(POST /files) → s3Key
 //   ② PATCH /suppliers/{id}/detail { carbon_footprint_doc_url: s3Key }
@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import {
-  ApiError, getAiExtractions, updateSupplierDetail, uploadFile,
+  ApiError, getAiExtractions, getSupplierDocumentUrl, updateSupplierDetail, uploadFile,
   type AiExtraction,
 } from '@/lib/api';
 
@@ -24,7 +24,7 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
   initialUrl?: string | null;
   editable?: boolean;
   onParsed: (extraction: AiExtraction) => void;
-  // AI 파싱 확인 팝업(AiParsingView 모달) 열기 — 업로드 완료 직후 + '결과 보기' 클릭 시.
+  // AI 처리 확인 팝업(AiParsingView 모달) 열기 — 업로드 완료 직후 + '결과 보기' 클릭 시.
   onOpenViewer: () => void;
   // 업로드/파싱 진행 상태를 부모로 알림 → 부모가 입력칸 오버레이/잠금 적용.
   onBusyChange?: (busy: boolean) => void;
@@ -44,6 +44,7 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [viewingOriginal, setViewingOriginal] = useState(false);
   // 언마운트 후 setState 방지 — 폴링(수십 초)이 편집 취소보다 오래 살 수 있다.
   const cancelledRef = useRef(false);
   useEffect(() => {
@@ -87,6 +88,22 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
     }
   }
 
+  // 이미 저장된(DB persisted) 원본 문서 보기 — 세션 업로드 여부와 무관하게 docValue만 있으면 된다.
+  //   업로드 시점에 곧바로 PATCH로 컬럼이 갱신되므로(위 handleSelect) docValue는 항상 DB 최신값과 일치.
+  async function handleViewOriginal() {
+    if (!docValue) return;
+    setError('');
+    setViewingOriginal(true);
+    try {
+      const { url } = await getSupplierDocumentUrl(supplierId, 'carbon_footprint');
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '문서를 여는 데 실패했습니다.');
+    } finally {
+      setViewingOriginal(false);
+    }
+  }
+
   async function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = '';
@@ -125,18 +142,18 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
     : uploading
       ? '업로드 중…'
       : parsing
-        ? 'AI 파싱 중… (최대 30초 정도 걸릴 수 있어요)'
+        ? 'AI 처리 중… (최대 30초 정도 걸릴 수 있습니다)'
         : notice
           ? notice
           : sessionUploaded
             ? `업로드됨 · ${shownName}`
-            : '미업로드 · PDF/이미지(png/jpg/jpeg)를 올리면 탄소집약도/에너지원을 자동으로 채워요.';
+            : '';
 
   return (
     <div className="relative overflow-hidden rounded-sm border border-ink-700 bg-white">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-ink-100">탄소발자국 문서 (탄소집약도/에너지원 자동 추출)</div>
+          <div className="text-sm font-semibold text-ink-100">탄소발자국 문서</div>
           <div className={`mt-0.5 flex items-center gap-1.5 truncate text-xs ${error ? 'text-alert-text' : notice ? 'text-ok-text' : sessionUploaded ? 'text-ink-400' : 'text-ink-500'}`}>
             {busy && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent-700" />}
             <span className="truncate">{statusText}</span>
@@ -145,6 +162,17 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
         <div className="flex shrink-0 items-center gap-2">
           {sessionUploaded && !busy && (
             <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-[11px] font-bold text-ok-text">업로드됨</span>
+          )}
+          {/* 원본 보기 — 이번 세션 업로드 여부와 무관하게 DB에 저장된 문서가 있으면 언제나 활성. */}
+          {docValue && (
+            <button
+              type="button"
+              onClick={handleViewOriginal}
+              disabled={viewingOriginal}
+              className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-accent-500 hover:text-accent-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {viewingOriginal ? '여는 중…' : '원본 보기'}
+            </button>
           )}
           {editable && (
             <>
@@ -167,12 +195,12 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
                 {parsing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 {parsing ? '파싱 중…' : '파싱하기'}
               </button>
-              {/* 결과 보기도 세션 업로드 전에는 비활성 — 업로드 없이 열면 빈 파싱 팝업만 떠서
-                  [업로드→모달 확인→저장→분석] 흐름을 벗어난다. (파싱 지연 중 재열기는 허용) */}
+              {/* 결과 보기 — DB에 저장된 문서(docValue)만 있으면 활성. 이전 세션/시드로 이미
+                  저장된 문서도 열 수 있어야 한다(파싱 결과가 없으면 모달이 빈 상태로 뜬다). */}
               <button
                 type="button"
                 onClick={onOpenViewer}
-                disabled={!sessionUploaded}
+                disabled={!docValue}
                 className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-accent-500 hover:text-accent-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-ink-700 disabled:hover:text-ink-500"
               >
                 결과 보기

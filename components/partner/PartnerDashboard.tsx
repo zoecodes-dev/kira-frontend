@@ -17,6 +17,7 @@ const REQUEST_META: Record<string, { label: string; section: string }> = {
   pcf_energy:           { label: '제품 탄소발자국(PCF) 및 에너지 사용량 등록', section: 'regulation' },
   material_composition: { label: '제품 소재 구성 명세서 제출',                section: 'materials' },
   factory_info:         { label: '공장 정보 입력하기',                        section: 'factories' },
+  general_info:         { label: '원청사 정보 입력 요청',                    section: 'company' },
 };
 
 // 카운트 보드 4분류(파생 상태)
@@ -37,11 +38,11 @@ const STATUS_TONE_CLS: Record<DerivedStatus, string> = {
   '검토 대기': 'border-ink-700 bg-ink-800 text-ink-400',
 };
 
-const COUNT_DEFS: { key: DerivedStatus; icon: string; cls: string }[] = [
-  { key: '연체',      icon: '🚨', cls: 'text-alert-text' },
-  { key: '제출 필요', icon: '📝', cls: 'text-warn-text' },
-  { key: '재요청',    icon: '🔄', cls: 'text-alert-text' },
-  { key: '검토 대기', icon: '⏳', cls: 'text-ink-300' },
+const COUNT_DEFS: { key: DerivedStatus; cls: string }[] = [
+  { key: '연체',      cls: 'text-alert-text' },
+  { key: '제출 필요', cls: 'text-warn-text' },
+  { key: '재요청',    cls: 'text-alert-text' },
+  { key: '검토 대기', cls: 'text-ink-300' },
 ];
 
 interface Row {
@@ -108,18 +109,16 @@ export default function PartnerDashboard() {
     <section className="w-full">
       <div className="w-full rounded-sm border border-ink-700 bg-white shadow-control">
         <div className="border-b border-ink-700 px-6 py-4">
-          <div className="text-base font-bold text-ink-100">오늘의 알림</div>
-          <div className="mt-0.5 text-base text-ink-500">제출 기한이 가까운 원청 요청 · 우선순위 순</div>
+          <div className="text-sm font-bold text-ink-100">오늘의 알림</div>
+          <div className="mt-0.5 text-sm text-ink-500">제출 기한이 가까운 원청 요청 · 우선순위 순</div>
         </div>
 
         {/* ── ① 종합 Status 카운트 보드 ── */}
         <div className="grid grid-cols-2 gap-3 border-b border-ink-700 bg-ink-800/40 px-6 py-4 sm:grid-cols-4">
           {COUNT_DEFS.map(def => (
             <div key={def.key} className="flex items-center justify-between rounded-xs border border-ink-700 bg-white px-4 py-3">
-              <span className="text-base font-semibold text-ink-500">
-                <span className="mr-1.5">{def.icon}</span>{def.key}
-              </span>
-              <span className={`num-mono text-lg font-bold ${def.cls}`}>{counts[def.key]}건</span>
+              <span className="text-sm font-semibold text-ink-500">{def.key}</span>
+              <span className={`num-mono text-base font-bold ${def.cls}`}>{counts[def.key]}건</span>
             </div>
           ))}
         </div>
@@ -127,9 +126,9 @@ export default function PartnerDashboard() {
         {/* ── 개별 알림 리스트 ── */}
         <div className="divide-y divide-ink-800">
           {loading ? (
-            <div className="px-6 py-10 text-center text-base text-ink-500">불러오는 중…</div>
+            <div className="px-6 py-10 text-center text-sm text-ink-500">불러오는 중…</div>
           ) : rows.length === 0 ? (
-            <div className="px-6 py-10 text-center text-base text-ink-500">표시할 알림이 없습니다.</div>
+            <div className="px-6 py-10 text-center text-sm text-ink-500">표시할 알림이 없습니다.</div>
           ) : (
             rows.map((r, idx) => {
               const overdue = r.dday.state === 'overdue';
@@ -144,21 +143,21 @@ export default function PartnerDashboard() {
                   }`}
                 >
                   {/* 순서 번호 */}
-                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base font-bold ${
+                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xs text-sm font-bold ${
                     overdue ? 'bg-alert-bg text-alert-text' : 'bg-ink-800 text-ink-400'
                   }`}>
                     {idx + 1}
                   </div>
                   {/* 항목명 */}
-                  <div className={`min-w-0 truncate text-base font-bold ${overdue ? 'text-alert-text' : 'text-ink-100'}`}>
+                  <div className={`min-w-0 truncate text-sm font-bold ${overdue ? 'text-alert-text' : 'text-ink-100'}`}>
                     {r.label}
                   </div>
                   {/* 제출 기한 */}
-                  <div className="min-w-0 text-base text-ink-500">
+                  <div className="min-w-0 text-sm text-ink-500">
                     제출 기한 <span className="num-mono">{r.due ? r.due.slice(0, 10) : '-'}</span>
                   </div>
                   {/* D-Day — overdue/D-Day는 Red 강조 */}
-                  <span className={`num-mono rounded-xs border px-2 py-0.5 text-base font-bold ${
+                  <span className={`num-mono rounded-xs border px-2 py-0.5 text-sm font-bold ${
                     overdue || isDday
                       ? 'border-alert-border bg-alert-bg text-alert-text'
                       : 'border-ok-border bg-ok-bg text-ok-text'
@@ -166,7 +165,7 @@ export default function PartnerDashboard() {
                     {r.dday.label}
                   </span>
                   {/* 상태 — overdue면 deriveStatus가 '연체'로 강제 */}
-                  <span className={`inline-flex items-center gap-1.5 rounded-xs border px-2.5 py-1 text-base font-semibold whitespace-nowrap ${STATUS_TONE_CLS[r.status]}`}>
+                  <span className={`inline-flex items-center gap-1.5 rounded-xs border px-2.5 py-1 text-sm font-semibold whitespace-nowrap ${STATUS_TONE_CLS[r.status]}`}>
                     {r.status}
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 shrink-0 text-ink-600" />

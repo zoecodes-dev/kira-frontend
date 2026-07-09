@@ -208,7 +208,6 @@ export function buildConsentDocument(input: ConsentDocInput): string {
     '── 위 동의서의 내용을 모두 확인하였으며, 이에 동의합니다. ──',
     '',
     `정보제공자: ${providerCompany}`,
-    '동의 담당자: ____________________  (로그인 후 시스템에서 동의 체크)',
     `동의일: ${issued}`,
   ].join('\n');
 }

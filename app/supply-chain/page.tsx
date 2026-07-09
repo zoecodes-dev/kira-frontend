@@ -5,7 +5,7 @@
 // 행을 누르면 해당 공급망의 맵 허브(/supply-chain/map?productId=…)로 진입한다.
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, ArrowRight, Database, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Loader2 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import SupplyChainMapsPanel from '@/components/supply-chain/SupplyChainMapsPanel';
 import {
@@ -23,7 +23,6 @@ import {
   chainStatusMeta,
   emptyDataset,
   mergeSupplyChainMap,
-  mockDataset,
   type BomVersion,
   type SupplyChainDataset,
   type SupplyChainSummary,
@@ -33,7 +32,6 @@ export default function SupplyChainListPage() {
   const router = useRouter();
   const [chains, setChains] = useState<SupplyChainSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isDemo, setIsDemo] = useState(false);
   // 검색/필터 — 제품·고객사·단위기간. 'ALL'/빈 값이면 전체.
   const [filterProduct, setFilterProduct] = useState('ALL');
   const [filterCustomer, setFilterCustomer] = useState('ALL');
@@ -136,12 +134,6 @@ export default function SupplyChainListPage() {
     setFilterTo('');
   }
 
-  function loadDemo() {
-    setIsDemo(true);
-    setLoadStatus(null);
-    setChains(buildSupplyChainList(mockDataset));
-  }
-
   function openChain(chain: SupplyChainSummary) {
     const params = new URLSearchParams({ productId: chain.product_id });
     if (chain.bom_version_id) params.set('bomVersionId', chain.bom_version_id);
@@ -160,17 +152,6 @@ export default function SupplyChainListPage() {
           { label: '공급망 목록', href: '/supply-chain', active: true },
           { label: '공급망 맵', href: '/supply-chain/map' },
         ]}
-        actions={
-          <button
-            type="button"
-            onClick={loadDemo}
-            disabled={isDemo}
-            className="inline-flex items-center gap-1.5 rounded border-[0.5px] border-[#CBD5E1] px-2.5 py-1.5 text-[11px] text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-50"
-          >
-            <Database className="h-3.5 w-3.5" />
-            {isDemo ? '데모 데이터 로드됨' : '데모 데이터'}
-          </button>
-        }
       />
 
       <div className="p-6">
@@ -180,7 +161,7 @@ export default function SupplyChainListPage() {
             <div>
               <p className="font-semibold">로그인이 필요합니다</p>
               <p className="text-red-700/90">
-                인증 토큰이 없거나 만료됐습니다(401/403). 다시 로그인한 뒤 새로고침하세요. 또는 데모 데이터로 확인하세요.
+                인증 토큰이 없거나 만료됐습니다(401/403). 다시 로그인한 뒤 새로고침하세요.
               </p>
             </div>
           </div>
@@ -190,7 +171,7 @@ export default function SupplyChainListPage() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <p className="font-semibold">공급망 목록을 불러오지 못했습니다</p>
-              <p className="text-amber-700/90">백엔드 응답 오류 또는 네트워크 문제입니다. 잠시 후 다시 시도하거나 데모 데이터로 확인하세요.</p>
+              <p className="text-amber-700/90">백엔드 응답 오류 또는 네트워크 문제입니다. 잠시 후 다시 시도해주세요.</p>
             </div>
           </div>
         )}
@@ -304,7 +285,7 @@ function ChainListBody({
         <p className="mt-2 text-sm text-slate-500">
           {filtered
             ? '단위기간을 넓히거나 초기화해 보세요.'
-            : '제품의 공급망 맵이 형성되면 여기에 표시됩니다. 시연하려면 우측 상단 “데모 데이터”를 사용하세요.'}
+            : '제품의 공급망 맵이 형성되면 여기에 표시됩니다.'}
         </p>
       </div>
     );

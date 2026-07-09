@@ -1,6 +1,6 @@
 'use client';
 
-// ── [작업1] 실사 자가진단(SAQ) 문서 업로드 + AI 파싱 패널 ───────────────────────
+// ── [작업1] 실사 자가진단(SAQ) 문서 업로드 + AI 처리 패널 ───────────────────────
 // CarbonFootprintDocPanel과 동일 파이프라인(신규 엔드포인트 없음), 대상 컬럼만 다르다:
 //   ① uploadFile(POST /files) → s3Key
 //   ② PATCH /suppliers/{id}/detail { self_assessment_doc_url: s3Key }
@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 import {
-  ApiError, getAiExtractions, updateSupplierDetail, uploadFile,
+  ApiError, getAiExtractions, getSupplierDocumentUrl, updateSupplierDetail, uploadFile,
   type AiExtraction,
 } from '@/lib/api';
 
@@ -41,12 +41,29 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [viewingOriginal, setViewingOriginal] = useState(false);
   const cancelledRef = useRef(false);
   useEffect(() => {
     cancelledRef.current = false;
     return () => { cancelledRef.current = true; };
   }, []);
   useEffect(() => { setDocValue(initialUrl ?? ''); }, [initialUrl]);
+
+  // 이미 저장된(DB persisted) 원본 문서 보기 — 세션 업로드 여부와 무관하게 docValue만 있으면 된다.
+  //   업로드 시점에 곧바로 PATCH로 컬럼이 갱신되므로(아래 handleSelect) docValue는 항상 DB 최신값과 일치.
+  async function handleViewOriginal() {
+    if (!docValue) return;
+    setError('');
+    setViewingOriginal(true);
+    try {
+      const { url } = await getSupplierDocumentUrl(supplierId, 'self_assessment');
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '문서를 여는 데 실패했습니다.');
+    } finally {
+      setViewingOriginal(false);
+    }
+  }
 
   const busy = uploading || parsing;
   useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
@@ -115,18 +132,18 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
     : uploading
       ? '업로드 중…'
       : parsing
-        ? 'AI 파싱 중… (최대 30초 정도 걸릴 수 있어요)'
+        ? 'AI 처리 중… (최대 30초 정도 걸릴 수 있어요)'
         : notice
           ? notice
           : sessionUploaded
             ? `업로드됨 · ${shownName}`
-            : '미업로드 · SAQ 보고서(PDF/이미지)를 올리면 고충처리·강제노동 등 항목을 자동으로 채워요.';
+            : '';
 
   return (
     <div className="relative overflow-hidden rounded-sm border border-ink-700 bg-white">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-ink-100">실사 자가진단(SAQ) 보고서 (인권·안전 항목 자동 추출)</div>
+          <div className="text-sm font-semibold text-ink-100">실사 자가진단(SAQ) 보고서</div>
           <div className={`mt-0.5 flex items-center gap-1.5 truncate text-xs ${error ? 'text-alert-text' : notice ? 'text-ok-text' : sessionUploaded ? 'text-ink-400' : 'text-ink-500'}`}>
             {busy && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent-700" />}
             <span className="truncate">{statusText}</span>
@@ -135,6 +152,17 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
         <div className="flex shrink-0 items-center gap-2">
           {sessionUploaded && !busy && (
             <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-[11px] font-bold text-ok-text">업로드됨</span>
+          )}
+          {/* 원본 보기 — 이번 세션 업로드 여부와 무관하게 DB에 저장된 문서가 있으면 언제나 활성. */}
+          {docValue && (
+            <button
+              type="button"
+              onClick={handleViewOriginal}
+              disabled={viewingOriginal}
+              className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-accent-500 hover:text-accent-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {viewingOriginal ? '여는 중…' : '원본 보기'}
+            </button>
           )}
           {editable && (
             <>
@@ -157,12 +185,12 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
                 {parsing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                 {parsing ? '파싱 중…' : '파싱하기'}
               </button>
-              {/* 결과 보기도 세션 업로드 전에는 비활성 — 업로드 없이 열면 빈 파싱 팝업만 떠서
-                  [업로드→모달 확인→저장→분석] 흐름을 벗어난다. (파싱 지연 중 재열기는 허용) */}
+              {/* 결과 보기 — DB에 저장된 문서(docValue)만 있으면 활성. 이전 세션/시드로 이미
+                  저장된 문서도 열 수 있어야 한다(파싱 결과가 없으면 모달이 빈 상태로 뜬다). */}
               <button
                 type="button"
                 onClick={onOpenViewer}
-                disabled={!sessionUploaded}
+                disabled={!docValue}
                 className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-accent-500 hover:text-accent-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-ink-700 disabled:hover:text-ink-500"
               >
                 결과 보기

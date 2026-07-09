@@ -1,6 +1,6 @@
 'use client';
 
-// AI 규제 검증 결과 = AI 파싱 결과(verdict + confidence). 협력사 제출 자료를 AI가 규제별로 판정하고,
+// AI 규제 검증 결과 = AI 처리 결과(verdict + confidence). 협력사 제출 자료를 AI가 규제별로 판정하고,
 // 저신뢰(HITL 후보)는 사람이 검증한다. My Task '협력사 승인(HITL)'에 데이터 추출 검토와 함께 편입.
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';

@@ -1,12 +1,10 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
   ArrowRight,
-  Building2,
-  CheckCircle2,
   Eye,
   EyeOff,
   Factory,
@@ -23,35 +21,25 @@ const USE_API = process.env.NEXT_PUBLIC_USE_API === 'true';
 
 type LoginRole = 'prime' | 'supplier';
 
-const demoAccounts: Record<LoginRole, { email: string; password: string; label: string; target: string }> = {
+const demoAccounts: Record<LoginRole, { label: string; target: string }> = {
   prime: {
-    email: 'prime@kira.demo',
-    password: 'demo1234',
     label: '원청사 계정',
     target: '/dashboard',
   },
   supplier: {
-    email: 'supplier@hanyang-cell.com',
-    password: 'demo1234',
     label: '협력사 계정',
     target: '/partner',
   },
 };
 
-function inferRole(email: string): LoginRole {
-  const normalized = email.toLowerCase();
-  if (normalized.includes('supplier') || normalized.includes('vendor') || normalized.includes('hanyang')) {
-    return 'supplier';
-  }
-  return 'prime';
-}
-
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState(demoAccounts.prime.email);
-  const [password, setPassword] = useState(demoAccounts.prime.password);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const role = useMemo(() => inferRole(email), [email]);
+  // 특정 계정 이메일로 역할을 추측하지 않는다 — 좌측 토글로 직접 선택해야 여러 협력사 계정이
+  // 각자 자기 이메일로 로그인할 수 있다(과거엔 이메일에 'hanyang' 등이 포함돼야 협력사로 인식했음).
+  const [role, setRole] = useState<LoginRole>('prime');
   const account = demoAccounts[role];
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,11 +78,6 @@ export default function LoginPage() {
     }
   };
 
-  const useDemo = (nextRole: LoginRole) => {
-    setEmail(demoAccounts[nextRole].email);
-    setPassword(demoAccounts[nextRole].password);
-  };
-
   // 회원가입 진입 — 현재 URL의 쿼리스트링(?supplierId=... 등)을 그대로 온보딩으로 전달.
   // useSearchParams 훅 대신 클릭 시점 window.location 사용 → Suspense/빌드 이슈 회피.
   const goSignup = () => {
@@ -117,28 +100,23 @@ export default function LoginPage() {
           </div>
 
           <div className="max-w-xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-xs border border-accent-100 bg-accent-50 px-2.5 py-1 text-[11px] font-bold text-accent-700">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              권한 기반 자동 접속
+            <div className="mb-4 inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-ink-800 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-ink-400">
+              Compliance Intelligence Platform
             </div>
-            <h1 className="text-4xl font-bold tracking-tight text-ink-100">
-              하나의 로그인으로 원청사와 협력사 화면을 자동 분기합니다
+            <h1 className="text-3xl font-bold tracking-tight text-ink-100">
+              배터리 공급망 규제 대응 통합 관제 시스템
             </h1>
             <p className="mt-4 text-sm leading-6 text-ink-500">
-              원청사는 전체 관제 화면으로, 협력사는 자기 회사와 직접 연결된 공급망 관계 및 제출 요청 화면으로 이동합니다.
+              UFLPA·CSDDD·EU 배터리법 등 공급망 실사 규제 대응을 위한 사내 전용 시스템입니다.
             </p>
-
-            <div className="mt-8 grid grid-cols-2 gap-3">
-              <div className="rounded-sm border border-ink-700 bg-ink-800 p-4">
-                <Building2 className="h-5 w-5 text-accent-700" strokeWidth={1.8} />
-                <div className="mt-3 text-sm font-bold">원청사</div>
-                <div className="mt-1 text-xs leading-5 text-ink-500">전체 협력사, 리스크, 규제 대응, 감사 추적을 유지합니다.</div>
+            <div className="mt-6 flex items-start gap-3 rounded-sm border border-ink-700 bg-ink-800 p-4">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xs border border-ink-700 bg-white">
+                <ShieldCheck className="h-4 w-4 text-accent-700" />
               </div>
-              <div className="rounded-sm border border-ink-700 bg-ink-800 p-4">
-                <Factory className="h-5 w-5 text-info-text" strokeWidth={1.8} />
-                <div className="mt-3 text-sm font-bold">협력사</div>
-                <div className="mt-1 text-xs leading-5 text-ink-500">본인 기준 parent/child와 제출 상태만 보여줍니다.</div>
-              </div>
+              <p className="text-xs leading-5 text-ink-500">
+                본 시스템은 인가된 사용자만 접근할 수 있습니다. 모든 접속 및 사용 내역은 보안 정책에 따라
+                기록·모니터링되며, 무단 접근 시도는 관련 법령에 따라 조치될 수 있습니다.
+              </p>
             </div>
           </div>
 
@@ -159,7 +137,7 @@ export default function LoginPage() {
                   <button
                     key={item}
                     type="button"
-                    onClick={() => useDemo(item)}
+                    onClick={() => setRole(item)}
                     className={clsx(
                       'rounded-xs border px-3 py-2 text-left transition-colors',
                       role === item
@@ -168,7 +146,6 @@ export default function LoginPage() {
                     )}
                   >
                     <div className="text-xs font-bold">{demoAccounts[item].label}</div>
-                    <div className="mt-0.5 truncate text-[10px] num-mono">{demoAccounts[item].email}</div>
                   </button>
                 ))}
               </div>
@@ -178,7 +155,7 @@ export default function LoginPage() {
               <div className="mb-6">
                 <div className="text-2xl font-bold tracking-tight">로그인</div>
                 <div className="mt-2 text-sm text-ink-500">
-                  입력한 계정 권한에 따라 <span className="font-bold text-ink-100">{account.label}</span>으로 접속합니다.
+                  선택한 계정 유형에 따라 <span className="font-bold text-ink-100">{account.label}</span>으로 접속합니다.
                 </div>
               </div>
 

@@ -1,13 +1,13 @@
 'use client';
 
-// STEP 4 — 최종 검증. 환경성적서(탄소발자국, EU 배터리법 Art7)를 핵심으로
-// 연결 협력사의 실데이터를 가져와 검증한다.
+// STEP 6 — 최종 검증. 환경성적서(탄소발자국, EU 배터리법 Art7)를 핵심으로
+// 연결 협력사의 실데이터를 가져와 검증한다. (업로드는 협력사가 자기 화면에서 직접 — 이 화면은 상태 확인·자료 요청만.)
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { CheckCircle2, FileSignature, Leaf, Loader2, Paperclip, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
+import { CheckCircle2, FileSignature, Leaf, Loader2, Paperclip, RefreshCw, ShieldCheck } from 'lucide-react';
 import ModalShell from './ModalShell';
 import type { RequestGapItem } from './DataRequestModal';
-import { getDataConsents, getSupplierCarbonDeclarations, getValidationSummary, listFilesByContext, uploadFile, type CarbonDeclaration, type DataConsent, type SupplierBrief, type ValidationSummary } from '@/lib/api';
+import { getDataConsents, getSupplierCarbonDeclarations, getValidationSummary, listFilesByContext, type CarbonDeclaration, type DataConsent, type SupplierBrief, type ValidationSummary } from '@/lib/api';
 import CustomerRiskSummaryCard from './CustomerRiskSummaryCard';
 
 type EpdStatus = 'verified' | 'declared' | 'expired' | 'missing';
@@ -73,9 +73,6 @@ export default function MapManageModal({
   const [rows, setRows] = useState<VerifyRow[]>([]);
   const [loading, setLoading] = useState(pool.length > 0);
   const [finalConfirmed, setFinalConfirmed] = useState(false);
-  const [reload, setReload] = useState(0);       // 업로드 후 재조회 트리거
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const [summary, setSummary] = useState<ValidationSummary | null>(null);   // [P7]
 
   // [P7] 최종 검증 요약/판정 조회 (get_gaps + 비율검증 롤업).
@@ -86,7 +83,7 @@ export default function MapManageModal({
       .then(s => { if (!cancelled) setSummary(s); })
       .catch(() => { if (!cancelled) setSummary(null); });
     return () => { cancelled = true; };
-  }, [productId, bomVersionId, reload]);
+  }, [productId, bomVersionId]);
 
   useEffect(() => {
     if (pool.length === 0) { setLoading(false); return; }
@@ -110,21 +107,7 @@ export default function MapManageModal({
       if (!cancelled) { setRows(result); setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [pool, reload]);
-
-  // 환경성적서 PDF 업로드 → POST /files(context=carbon-epd:supplierId) → 재조회.
-  async function handleUpload(supplierId: string, file: File) {
-    setUploadingId(supplierId);
-    setUploadError(null);
-    try {
-      await uploadFile(file, epdContext(supplierId));
-      setReload(n => n + 1);
-    } catch {
-      setUploadError('업로드 실패 — 환경/자격증명(S3)을 확인하세요.');
-    } finally {
-      setUploadingId(null);
-    }
-  }
+  }, [pool]);
 
   // 광산(miner)은 데이터 입력 주체가 아니다 — 제련소가 원산지·광물 데이터를 대신 제공하므로
   // 환경성적서(EPD)·데이터 제공 동의 축은 적용 대상이 아니다. 다른 화면들과 동일한 규칙.
@@ -302,18 +285,6 @@ export default function MapManageModal({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  {!miner && (
-                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-400 hover:border-ok-border hover:text-ok-text">
-                      {uploadingId === r.supplier.supplierId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                      환경성적서 업로드
-                      <input
-                        type="file"
-                        accept="application/pdf,image/*"
-                        className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(r.supplier.supplierId, f); e.target.value = ''; }}
-                      />
-                    </label>
-                  )}
                   {needsRequest && (
                     <button
                       type="button"
@@ -328,7 +299,6 @@ export default function MapManageModal({
               </div>
             );
           })}
-          {uploadError && <p className="px-1 pt-1 text-xs font-semibold text-alert-text">{uploadError}</p>}
         </div>
       )}
     </ModalShell>

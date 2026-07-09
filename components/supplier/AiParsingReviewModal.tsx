@@ -1,6 +1,6 @@
 'use client';
 
-// AI 파싱 확인 팝업 — /partner/ai-parsing 페이지와 동일 화면(AiParsingView 공통 모듈)을
+// AI 처리 확인 팝업 — /partner/ai-parsing 페이지와 동일 화면(AiParsingView 공통 모듈)을
 //   거의 풀스크린 모달로 띄운다. 닫거나 전체 제출 완료 시 close.
 //   하단 버튼은 '저장' 단일 — 저장 시 확정값을 onSaved로 부모 폼에 반영하고 모달을 닫는다.
 import { X } from 'lucide-react';
@@ -14,7 +14,7 @@ export default function AiParsingReviewModal({
   docCategoryFilter = 'material_composition',
   docS3KeyFilter,
   initialDoc,
-  title = 'AI 파싱 확인 및 수정 · 소재구성 문서',
+  title = 'AI 처리 확인 및 수정 · 소재구성 문서',
   onSaved,
 }: {
   supplierId: string;

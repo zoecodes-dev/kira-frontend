@@ -105,7 +105,7 @@ function ContactsSubsection({ factoryIndex, contacts, onContactsChange, max }: {
   );
 }
 
-// 공장 카드 안 소재구성 — 문서 업로드 + AI 파싱 포함. 카드(공장)마다 독립된 파싱 상태를 가진다
+// 공장 카드 안 소재구성 — 문서 업로드 + AI 처리 포함. 카드(공장)마다 독립된 파싱 상태를 가진다
 //   (컨트롤드 입력이라 파싱 결과는 CompanyGrid의 defaultValue 트릭 없이 곧장 coreMinerals에 반영).
 function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
   supplierId: string;

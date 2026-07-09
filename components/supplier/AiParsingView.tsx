@@ -736,7 +736,7 @@ export default function AiParsingView({
           </p>
           {loaded && (
             <p className="mt-1 text-[11px] opacity-70">
-              {loadError ? '잠시 후 다시 시도해 주세요.' : '협력사가 자료를 제출하면 AI 파싱 결과가 여기에 표시됩니다.'}
+              {loadError ? '잠시 후 다시 시도해 주세요.' : '협력사가 자료를 제출하면 AI 처리 결과가 여기에 표시됩니다.'}
             </p>
           )}
         </div>
@@ -758,7 +758,7 @@ export default function AiParsingView({
 
   // 파싱 중 우측 폼 로딩 표시 — isParsing이면서 활성 문서가 아직 미추출(fields 비었을 때).
   const showParsingLoader = isParsing && (!activeDoc || activeDoc.extractionResult.fields.length === 0);
-  // 실제 업로드된 원본 문서가 있으면 항상 그걸 보여준다 — AI 파싱 성공 여부와 무관하게
+  // 실제 업로드된 원본 문서가 있으면 항상 그걸 보여준다 — AI 처리 성공 여부와 무관하게
   // 사용자가 올린 파일을 임의의 양식 템플릿으로 대체해 보여주면 안 된다.
   // 원본 URL이 없는 경우(mock 데모 데이터 등)에만 소재구성/탄소발자국 전용 HTML 템플릿으로 대체.
   const showOriginalMaterialPreview = (isMaterialDoc || isCarbonDoc) && Boolean(activeDoc.fileUrl);
@@ -791,7 +791,7 @@ export default function AiParsingView({
             <ScanLine className="h-4 w-4 text-accent-700" />
           </div>
           <div>
-            <div className="text-xs font-bold text-ink-100">{prime ? 'AI 파싱 검토' : 'AI 파싱 확인 및 수정'}</div>
+            <div className="text-xs font-bold text-ink-100">{prime ? 'AI 처리 검토' : 'AI 처리 확인 및 수정'}</div>
             <div className="mt-0.5 text-[10px] text-ink-500">
               {prime
                 ? '협력사 제출 자료의 AI 추출 결과입니다. 항목별로 검토·확인하세요.'

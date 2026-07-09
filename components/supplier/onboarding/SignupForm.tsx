@@ -200,8 +200,8 @@ export default function SignupForm({
           </button>
         </div>
 
-        {/* [P6] 환경성적서 — 회원가입 시 수집. AI 확인은 로그인 후 자료입력의 AI 파싱뷰에서. */}
-        <p className="mt-3 text-xs text-slate-500">환경성적서(기본 정보 확인용) — 로그인 후 자료입력에서 AI 파싱뷰로 확인합니다. 미보유면 아래 '미확인 등록'.</p>
+        {/* [P6] 환경성적서 — 회원가입 시 수집. AI 확인은 로그인 후 자료입력의 AI 처리뷰에서. */}
+        <p className="mt-3 text-xs text-slate-500">환경성적서(기본 정보 확인용) — 로그인 후 자료입력에서 AI 처리뷰로 확인합니다. 미보유면 아래 '미확인 등록'.</p>
         <div className="mt-2 flex items-center gap-2">
           <input value={data.envReportName} readOnly disabled={data.unverified} placeholder="첨부된 파일 없음" className={inputCls} />
           <input ref={envFileRef} type="file" className="hidden" onChange={handleEnvFile} accept=".pdf,.png,.jpg,.jpeg" />
@@ -218,7 +218,7 @@ export default function SignupForm({
         {data.envReportS3Key && (
           <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-ok-border bg-ok-bg px-2.5 py-1 text-[11px] font-semibold text-ok-text">
             <CheckCircle2 className="h-3.5 w-3.5" />
-            업로드됨 · AI 파싱 확인은 로그인 후 자료입력에서 진행
+            업로드됨 · AI 처리 확인은 로그인 후 자료입력에서 진행
           </div>
         )}
         {uploadError && <div className="mt-2 text-xs font-semibold text-alert-text">{uploadError}</div>}
