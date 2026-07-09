@@ -1641,8 +1641,12 @@ export const exportAuditPackage = (packageId: string) =>
  *   → 이 값은 협력사가 자료를 제출할 때가 아니라, 요청/초대를 보낸 시점의 맵 컨텍스트에서 채워져야 한다.
  */
 export interface NotificationTarget {
-  /** 맵을 여는 제품 id — 허브 진입의 1차 식별자(필수) */
-  productId: string;
+  /**
+   * 맵을 여는 제품 id — 있으면 공급망 맵으로 딥링크한다. 없으면(예: 협력사 마스터폼/
+   * 자가진단 제출처럼 특정 제품·맵에 매이지 않는 알림) focusSupplierId만으로
+   * 협력사 상세 리뷰로 보낸다(buildMapDeepLink 참고).
+   */
+  productId?: string;
   /**
    * 그 회차의 맵 인스턴스를 여는 BOM 버전. 맵은 매 회차 새로 만들어지므로 대상 맵을 특정하려면 사실상 필수.
    * 허브는 이 값을 URL(bomVersionId)로 읽어 해당 맵을 바로 선택한다. 생략 시 현재 버전으로 폴백(오조준 위험).
