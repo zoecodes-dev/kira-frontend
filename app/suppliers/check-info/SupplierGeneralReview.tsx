@@ -746,6 +746,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
                   contacts={contactsDraft}
                   onContactsChange={setContactsDraft}
                   supplierId={supplierId}
+                  hideDestination={!isPrime}
                 />
               </div>
               {/* 제련소 전용 — 광산(직접 입력 불가)의 위치를 직상위가 대신 채우는 지점. 최소 1곳 + 추가 광산 없음 선언까지 있어야 완료로 인정. */}
