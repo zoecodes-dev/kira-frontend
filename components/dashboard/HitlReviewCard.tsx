@@ -27,7 +27,11 @@ export default function HitlReviewCard() {
 
   async function load() {
     setLoading(true);
-    try { setItems(await getAiExtractions()); }
+    try {
+      const all = await getAiExtractions();
+      // 이미 사람이 승인한 건은 목록에서 뺀다 — 이 카드는 "검토가 필요한 건"만 보여준다.
+      setItems(all.filter(x => x.submissionStatus !== 'submission_approved'));
+    }
     catch { setItems([]); }
     finally { setLoading(false); }
   }

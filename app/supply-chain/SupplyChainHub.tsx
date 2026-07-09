@@ -802,8 +802,7 @@ export default function SupplyChainHub() {
   return (
     <div className="min-h-screen bg-white text-ink-100">
       <PageHeader
-        title="공급망 맵 허브"
-        description="고객사·제품·BOM버전·단위기간 기준으로 맵을 생성하고, 협력사 확인·Pool 구성·자료 요청·초대·최종 검증까지 이어갑니다."
+        title="공급망 맵 관리"
         tabs={[
           { label: '공급망 맵 목록', href: '/supply-chain' },
           { label: '공급망 맵 생성 및 조회', href: '/supply-chain/map', active: true },
