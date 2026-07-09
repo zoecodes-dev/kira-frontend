@@ -23,16 +23,14 @@ const USE_API = process.env.NEXT_PUBLIC_USE_API === 'true';
 
 type LoginRole = 'prime' | 'supplier';
 
-const demoAccounts: Record<LoginRole, { email: string; password: string; label: string; target: string }> = {
+const demoAccounts: Record<LoginRole, { email: string; label: string; target: string }> = {
   prime: {
     email: 'prime@kira.demo',
-    password: 'demo1234',
     label: '원청사 계정',
     target: '/dashboard',
   },
   supplier: {
     email: 'supplier@hanyang-cell.com',
-    password: 'demo1234',
     label: '협력사 계정',
     target: '/partner',
   },
@@ -49,7 +47,7 @@ function inferRole(email: string): LoginRole {
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState(demoAccounts.prime.email);
-  const [password, setPassword] = useState(demoAccounts.prime.password);
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const role = useMemo(() => inferRole(email), [email]);
   const account = demoAccounts[role];
@@ -92,7 +90,7 @@ export default function LoginPage() {
 
   const useDemo = (nextRole: LoginRole) => {
     setEmail(demoAccounts[nextRole].email);
-    setPassword(demoAccounts[nextRole].password);
+    setPassword('');
   };
 
   // 회원가입 진입 — 현재 URL의 쿼리스트링(?supplierId=... 등)을 그대로 온보딩으로 전달.
