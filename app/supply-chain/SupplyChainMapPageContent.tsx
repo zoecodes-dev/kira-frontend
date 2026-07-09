@@ -49,6 +49,21 @@ const PROVIDER_LABEL: Record<string, string> = {
 };
 const providerKo = (t: string) => PROVIDER_LABEL[t] ?? t;
 
+// 고객사 엑셀(대외 제출본) 전용 영문 라벨. statusMeta.label(화면 표시용, 한글)은 그대로 두고
+// 여기서만 별도 매핑한다 — 화면 UI에 영향 없이 엑셀만 영어로 통일하기 위함.
+const RISK_STATUS_LABEL_EN: Record<RiskStatus, string> = {
+  verified: 'Verified',
+  watch: 'Watch',
+  high: 'High Risk',
+  audit_required: 'Audit Required',
+};
+// PIC 직책은 대부분 이미 영문이고, 자유입력으로 들어온 한글 값 몇 종만 매핑한다.
+//   매핑에 없는 값(신규 한글 직책 등)은 원문 그대로 통과시킨다 — 무리하게 기계번역하지 않음.
+const PIC_TITLE_EN: Record<string, string> = {
+  '구매 담당자': 'Purchasing Officer',
+  'ESG 담당자': 'ESG Officer',
+};
+
 export function SupplyChainMapPageContent({
   formationMode = false,
   dataset = emptyDataset,
@@ -415,21 +430,25 @@ export function SupplyChainMapPageContent({
 
   // 고객사 제출용(단일 시트) — 맵 행마다 그 협력사의 general review 컬럼을 오른쪽에 붙인 넓은 표(+상단 제품 헤더 블록).
   // 필터 무시하고 이 BOM의 전체 공급망을 내보낸다. general review는 맵에 편입된 실 협력사(UUID)를 API로 조회해 합친다.
+  // 대외 제출본(고객사 전달용)이라 전부 영어로 통일한다. 실제 영문 필드가 있으면 그걸 쓰고
+  // (companyNameEn/factoryNameEn/contact.nameEn), 없는 값(직책 등 일부 한글 자유입력)은
+  // 아래 *_EN 매핑으로 변환한다. 담당자 성명(factoryManagerName)은 영문 필드가 아예 없어
+  // 원문 그대로 둔다(고유명사라 임의 번역이 오히려 오해를 부를 수 있음).
   const CUSTOMER_HEADERS = [
-    '차수', '품목/부품', '원재료/광물', '공급사', '사업장', '국가(원산지)', '공급기간', '리스크 상태',
-    '영문명', '본사 국가', '업종', 'smelter 구분', '핵심광물(함량 %)',
-    'PIC 이름', 'PIC 직책', 'PIC 이메일', 'PIC 연락처',
-    '공장 원산지', '공장 비율(%)', '공장 담당자',
-    '탄소집약도', '에너지원', '실사 자가진단',
+    'Tier', 'Part/Component', 'Material/Mineral', 'Supplier', 'Site', 'Country of Origin', 'Supply Period', 'Risk Status',
+    'HQ Country', 'Type', 'Smelter Type', 'Core Minerals (%)',
+    'PIC Name', 'PIC Title', 'PIC Email', 'PIC Phone',
+    'Factory Country', 'Factory Ratio (%)', 'Factory Manager',
+    'Carbon Intensity', 'Energy Source', 'Self-Assessed Risk',
   ];
   const CUSTOMER_WIDTHS = [
     8, 22, 16, 22, 16, 10, 20, 12,
-    18, 10, 12, 12, 18,
+    10, 12, 12, 18,
     14, 12, 24, 16,
     10, 10, 14,
     12, 14, 12,
   ];
-  const FACTORY_RATIO_COL = 19; // 공장 비율(%) 열 번호 — 공장별로 행이 나뉘므로 셀당 값 하나뿐이라 숫자 서식 적용 가능
+  const FACTORY_RATIO_COL = 18; // Factory Ratio (%) 열 번호 — 공장별로 행이 나뉘므로 셀당 값 하나뿐이라 숫자 서식 적용 가능
 
   async function downloadCustomerExcel() {
     if (!selectedBomVersion || customerDownloading) return;
@@ -466,17 +485,17 @@ export function SupplyChainMapPageContent({
   ) {
     const thin = { style: 'thin' as const, color: { argb: 'FFD9D9D9' } };
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('공급망 제출');
+    const ws = wb.addWorksheet('Supply Chain Submission');
     ws.columns = CUSTOMER_WIDTHS.map(w => ({ width: w }));
 
     // 상단 제품 정보 헤더 블록.
     ([
-      ['제품', selectedProduct?.product_name ?? '-'],
-      ['제품 코드', selectedProduct?.product_code ?? '-'],
-      ['고객사', customerName],
-      ['BOM 버전', selectedBomVersion?.version_number ?? '-'],
-      ['단위기간', (periodFrom || periodTo) ? `${periodFrom || '…'} ~ ${periodTo || '…'}` : '전체'],
-      ['생성일', stamp],
+      ['Product', selectedProduct?.product_name ?? '-'],
+      ['Product Code', selectedProduct?.product_code ?? '-'],
+      ['Customer', customerName],
+      ['BOM Version', selectedBomVersion?.version_number ?? '-'],
+      ['Period', (periodFrom || periodTo) ? `${periodFrom || '…'} ~ ${periodTo || '…'}` : 'All'],
+      ['Generated At', stamp],
     ] as [string, string][]).forEach(([k, v]) => {
       const r = ws.addRow([k, v]);
       r.getCell(1).font = { bold: true, color: { argb: 'FF14532D' } };
@@ -520,25 +539,26 @@ export function SupplyChainMapPageContent({
       factoryList.forEach(f => {
         ws.addRow([
           // ── 맵 정보 ──
-          // 사업장명은 f(이 행이 실제로 다루는 공장)을 우선한다 — row.factory_name(맵 대표 공장)
-          // 고정값을 그대로 쓰면 공장이 여러 곳인 협력사는 모든 행에 같은 사업장명이 찍히고
-          // 비율·담당자만 바뀌어 보여서, 실제로는 다른 공장인데 같은 곳처럼 오인된다.
-          row.tier, row.part_name, row.material_or_mineral, row.supplier_name,
-          f?.factoryName ?? row.factory_name, row.country, row.supply_period, statusMeta[row.risk_status].label,
+          // 공급사/사업장명은 영문 필드(companyNameEn/factoryNameEn)를 우선한다 — 대외 제출본은
+          // 전부 영어로 통일. 사업장명은 f(이 행이 실제로 다루는 공장)을 우선한다 — row.factory_name
+          // (맵 대표 공장) 고정값을 그대로 쓰면 공장이 여러 곳인 협력사는 모든 행에 같은 사업장명이
+          // 찍히고 비율·담당자만 바뀌어 보여서, 실제로는 다른 공장인데 같은 곳처럼 오인된다.
+          row.tier, row.part_name, row.material_or_mineral, (dt?.companyNameEn as string) ?? row.supplier_name,
+          f?.factoryNameEn ?? f?.factoryName ?? row.factory_name, row.country, row.supply_period, RISK_STATUS_LABEL_EN[row.risk_status],
           // ── 협력사 general review ──
-          (dt?.companyNameEn as string) ?? '-',
           (dt?.country as string) ?? '-',
           (dt?.providerType as string) ?? '-',
           (dt?.smelterType as string) ?? '-',
           // 있는 광물 키만 직렬화(흑연 등 포함) — 예: "Li 7.2 / Ni 80 / graphite_natural 88"
           Object.entries(cm).filter(([k, v]) => k !== 'hazardous_substances' && v != null)
             .map(([k, v]) => `${k} ${v}`).join(' / ') || '-',
-          pic?.name ?? '-',
-          pic?.role ?? '-',
+          pic?.nameEn ?? pic?.name ?? '-',
+          (pic?.role ? (PIC_TITLE_EN[pic.role] ?? pic.role) : '-'),
           pic?.email ?? '-',
           pic?.mobile ?? pic?.phone ?? '-',
           f?.country ?? '-',
           f?.supplyRatioPercent != null ? f.supplyRatioPercent : '-',
+          // 담당자 성명은 영문 필드가 없는 고유명사라 원문 그대로 둔다(임의 로마자 표기는 오히려 혼선).
           f?.factoryManagerName ?? '-',
           md.carbonIntensity != null ? (md.carbonIntensity as number) : '-',
           (md.energySource as string) ?? '-',
