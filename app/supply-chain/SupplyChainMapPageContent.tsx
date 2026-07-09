@@ -520,8 +520,11 @@ export function SupplyChainMapPageContent({
       factoryList.forEach(f => {
         ws.addRow([
           // ── 맵 정보 ──
+          // 사업장명은 f(이 행이 실제로 다루는 공장)을 우선한다 — row.factory_name(맵 대표 공장)
+          // 고정값을 그대로 쓰면 공장이 여러 곳인 협력사는 모든 행에 같은 사업장명이 찍히고
+          // 비율·담당자만 바뀌어 보여서, 실제로는 다른 공장인데 같은 곳처럼 오인된다.
           row.tier, row.part_name, row.material_or_mineral, row.supplier_name,
-          row.factory_name, row.country, row.supply_period, statusMeta[row.risk_status].label,
+          f?.factoryName ?? row.factory_name, row.country, row.supply_period, statusMeta[row.risk_status].label,
           // ── 협력사 general review ──
           (dt?.companyNameEn as string) ?? '-',
           (dt?.country as string) ?? '-',

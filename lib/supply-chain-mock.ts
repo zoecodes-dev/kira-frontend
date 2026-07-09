@@ -1194,7 +1194,9 @@ export function mergeSupplyChainMap(
     ratio_id: `${r.mapId}:${r.factoryId ?? 'na'}`,
     map_id: r.mapId,
     factory_id: r.factoryId ?? '',
-    ratio_percentage: r.ratioPercent ?? r.cumulativeContribution ?? 0,
+    // ratioPercent(이 엣지에서 이 공장의 분할 비율)만 쓴다. cumulativeContribution(루트→공장
+    // 누적곱)은 완전히 다른 지표라 폴백으로 섞으면 미입력 상태를 엉뚱한 누적값으로 위장한다.
+    ratio_percentage: r.ratioPercent ?? 0,
     volume: 0,
   }));
 
