@@ -1181,12 +1181,6 @@ function AccordionSection({
   noMoreMines,
   setNoMoreMines,
   isSmelter = false,
-  locked = false,
-  canProceed = false,
-  prompt = null,
-  onProceedClick,
-  onConfirmYes,
-  onConfirmNo,
   readField,
   detectedBizRegDoc,
   setDetectedBizRegDoc,
@@ -1211,15 +1205,6 @@ function AccordionSection({
   noMoreMines?: boolean;
   setNoMoreMines?: (v: boolean) => void;
   isSmelter?: boolean;
-  // 이전 섹션이 미완료 — 내용은 비쳐 보이되 편집 불가(단계별 강제 순서).
-  locked?: boolean;
-  // 잠긴 섹션 중 "바로 다음 순번"인가 — 여기에만 진행 버튼을 보여준다(순서를 건너뛰어 진행 불가).
-  canProceed?: boolean;
-  // 진행 버튼 클릭 결과 — 'missing'(필수값 미충족) | 'confirm'(정말 넘어가시겠습니까) | null(버튼만 표시).
-  prompt?: 'missing' | 'confirm' | null;
-  onProceedClick?: () => void;
-  onConfirmYes?: () => void;
-  onConfirmNo?: () => void;
   readField?: (field: string) => string;
   detectedBizRegDoc?: { s3Key: string; fileName: string } | null;
   setDetectedBizRegDoc?: (v: { s3Key: string; fileName: string } | null) => void;
@@ -1240,11 +1225,6 @@ function AccordionSection({
           <span className="truncate text-sm font-semibold text-ink-100">
             {section.order}. {section.title}
           </span>
-          {locked && (
-            <span className="inline-flex items-center gap-1 rounded-xs border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
-              <Lock className="h-3 w-3" />이전 섹션 완료 필요
-            </span>
-          )}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <span className="text-xs font-medium text-ink-500">{section.completed} / {section.total} 완료</span>
@@ -1262,63 +1242,28 @@ function AccordionSection({
           )}
         </div>
       </div>
-      <div className="relative">
-        <SectionContent
-          section={section}
-          real={real}
-          editable={editable}
-          isPrime={isPrime}
-          supplierId={supplierId}
-          factoriesDraft={factoriesDraft}
-          setFactoriesDraft={setFactoriesDraft}
-          contactsDraft={contactsDraft}
-          setContactsDraft={setContactsDraft}
-          factoryDestinations={factoryDestinations}
-          noMoreMines={noMoreMines}
-          setNoMoreMines={setNoMoreMines}
-          isSmelter={isSmelter}
-          readField={readField}
-          detectedBizRegDoc={detectedBizRegDoc}
-          setDetectedBizRegDoc={setDetectedBizRegDoc}
-          detectedEnvReport={detectedEnvReport}
-          setDetectedEnvReport={setDetectedEnvReport}
-          onRegulatoryRisk={onRegulatoryRisk}
-          onLiveMutate={onLiveMutate}
-        />
-        {/* 잠금 오버레이 — 내용은 비쳐 보이되(반투명) 클릭·입력은 막는다.
-            바로 다음 순번(canProceed)이면 진행 버튼을, 그 뒤 섹션들은 안내 문구만 보여준다. */}
-        {locked && (
-          <div className="absolute inset-0 z-10 flex items-start justify-center bg-white/70 pt-10 backdrop-blur-[1px]">
-            {canProceed ? (
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onProceedClick}
-                  className="flex items-center gap-2 rounded-full border-2 border-accent-300 bg-white px-5 py-3 text-base font-bold text-accent-700 shadow-md hover:bg-accent-50"
-                >
-                  <Lock className="h-5 w-5" />이전 세션 완료시 눌러주시면 다음 입력이 가능합니다
-                </button>
-                {prompt === 'missing' && (
-                  <div className="rounded-full border-2 border-alert-border bg-alert-bg px-4 py-2 text-sm font-bold text-alert-text">
-                    필수값을 먼저 입력해주세요
-                  </div>
-                )}
-                {prompt === 'confirm' && (
-                  <div className="flex items-center gap-3 rounded-md border-2 border-slate-300 bg-white px-4 py-3 text-base font-bold text-ink-100 shadow-md">
-                    정말 다음으로 넘어가시겠습니까?
-                    <button type="button" onClick={onConfirmYes} className="rounded-sm bg-accent-700 px-4 py-2 text-base text-white hover:bg-accent-900">네</button>
-                    <button type="button" onClick={onConfirmNo} className="rounded-sm border-2 border-ink-700 px-4 py-2 text-base text-ink-500 hover:bg-slate-50">아니오</button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 shadow-sm">
-                <Lock className="h-3.5 w-3.5" />이전 섹션을 완료하면 열립니다
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <SectionContent
+        section={section}
+        real={real}
+        editable={editable}
+        isPrime={isPrime}
+        supplierId={supplierId}
+        factoriesDraft={factoriesDraft}
+        setFactoriesDraft={setFactoriesDraft}
+        contactsDraft={contactsDraft}
+        setContactsDraft={setContactsDraft}
+        factoryDestinations={factoryDestinations}
+        noMoreMines={noMoreMines}
+        setNoMoreMines={setNoMoreMines}
+        isSmelter={isSmelter}
+        readField={readField}
+        detectedBizRegDoc={detectedBizRegDoc}
+        setDetectedBizRegDoc={setDetectedBizRegDoc}
+        detectedEnvReport={detectedEnvReport}
+        setDetectedEnvReport={setDetectedEnvReport}
+        onRegulatoryRisk={onRegulatoryRisk}
+        onLiveMutate={onLiveMutate}
+      />
     </section>
   );
 }
@@ -1378,11 +1323,6 @@ export function SupplierGeneralReviewContent({
   useEffect(() => {
     if (editable) setFormTick(t => t + 1);
   }, [editable]);
-  // 단계별 진행 — 자동으로 "완료됨" 판정만으로 다음 섹션을 열지 않고, 사용자가 직접
-  //   "다음 섹션으로 진행" 버튼을 눌러 확인해야 연다. unlockedUpTo = 지금까지 진행 확정한 섹션 idx.
-  const [unlockedUpTo, setUnlockedUpTo] = useState(0);
-  type ProceedPrompt = { idx: number; kind: 'confirm' | 'missing' } | null;
-  const [proceedPrompt, setProceedPrompt] = useState<ProceedPrompt>(null);
   // 공장정보 섹션에서 원산지 증명서로 올린 파일이 사업자등록증/환경성적서로 보이면 문서 섹션에 자동 연결.
   const [detectedBizRegDoc, setDetectedBizRegDoc] = useState<{ s3Key: string; fileName: string } | null>(null);
   const [detectedEnvReport, setDetectedEnvReport] = useState<{ s3Key: string; fileName: string } | null>(null);
@@ -1545,19 +1485,6 @@ export function SupplierGeneralReviewContent({
     ? (displayTotal > 0 ? Math.round((displayCompleted / displayTotal) * 100) : 0)
     : (selectedCompleteness?.completionRate ?? supplierSummary.collectionRate);
 
-  // 다음 섹션으로 진행 버튼 — 직전 섹션이 완료/해당없음이면 "정말 넘어가시겠습니까" 확인,
-  //   아니면 "필수값을 먼저 입력해주세요"만 띄우고 대기(자동으로 넘어가지 않음).
-  function handleProceedClick(idx: number) {
-    const prevOk = ['완료', '해당 없음'].includes(liveSections[idx - 1]?.status);
-    setProceedPrompt({ idx, kind: prevOk ? 'confirm' : 'missing' });
-  }
-  function confirmProceedYes() {
-    if (proceedPrompt) setUnlockedUpTo(u => Math.max(u, proceedPrompt.idx));
-    setProceedPrompt(null);
-  }
-  function confirmProceedNo() {
-    setProceedPrompt(null);
-  }
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
   function toggleItem(key: string) {
@@ -1904,14 +1831,6 @@ export function SupplierGeneralReviewContent({
                   const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
                   setFactoriesDraft(factories);
                   setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
-                  // 이미 저장돼 완료된 앞쪽 섹션들은 매번 재확인시키지 않고 그대로 이어서 열어준다.
-                  let alreadyDone = 0;
-                  for (const s of liveSections) {
-                    if (s.status === '완료' || s.status === '해당 없음') alreadyDone += 1;
-                    else break;
-                  }
-                  setUnlockedUpTo(alreadyDone);
-                  setProceedPrompt(null);
                   setEditing(true);
                 }}
                 className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
@@ -2043,46 +1962,33 @@ export function SupplierGeneralReviewContent({
       </section>
 
       <section className="mt-4 rounded-sm border border-ink-700 bg-white shadow-control">
-        {/* 단계별 잠금 — 자료 제출 입력 모드에서만: idx가 unlockedUpTo보다 크면 잠금.
-            "직전 섹션 완료" 자동판정만으로는 열리지 않고, 사용자가 진행 버튼을 눌러 확인해야 열린다.
-            원청 검토·협력사 보기 모드는 항상 전체 노출(검토는 순서 강제할 이유가 없음). */}
-        {liveSections.map((section, idx) => {
-          const locked = editable && idx > unlockedUpTo;
-          const isNextToUnlock = locked && idx === unlockedUpTo + 1;
-          return (
-            <AccordionSection
-              key={section.key}
-              section={section}
-              onRequestSection={openRequestForSection}
-              real={scopedApi}
-              editable={section.key === 'factories' ? factoriesEditable : editable}
-              showRequest={isPrime}
-              isPrime={isPrime}
-              supplierId={supplierId}
-              factoriesDraft={factoriesDraft}
-              setFactoriesDraft={setFactoriesDraft}
-              contactsDraft={contactsDraft}
-              setContactsDraft={setContactsDraft}
-              factoryDestinations={factoryDestinations}
-              noMoreMines={noMoreMines}
-              setNoMoreMines={setNoMoreMines}
-              isSmelter={isSmelter}
-              locked={locked}
-              canProceed={isNextToUnlock}
-              prompt={isNextToUnlock && proceedPrompt?.idx === idx ? proceedPrompt.kind : null}
-              onProceedClick={() => handleProceedClick(idx)}
-              onConfirmYes={confirmProceedYes}
-              onConfirmNo={confirmProceedNo}
-              readField={editable ? readField : undefined}
-              onLiveMutate={bumpFormTick}
-              detectedBizRegDoc={detectedBizRegDoc}
-              setDetectedBizRegDoc={setDetectedBizRegDoc}
-              detectedEnvReport={detectedEnvReport}
-              setDetectedEnvReport={setDetectedEnvReport}
-              onRegulatoryRisk={setHasRegulatoryRisk}
-            />
-          );
-        })}
+        {liveSections.map(section => (
+          <AccordionSection
+            key={section.key}
+            section={section}
+            onRequestSection={openRequestForSection}
+            real={scopedApi}
+            editable={section.key === 'factories' ? factoriesEditable : editable}
+            showRequest={isPrime}
+            isPrime={isPrime}
+            supplierId={supplierId}
+            factoriesDraft={factoriesDraft}
+            setFactoriesDraft={setFactoriesDraft}
+            contactsDraft={contactsDraft}
+            setContactsDraft={setContactsDraft}
+            factoryDestinations={factoryDestinations}
+            noMoreMines={noMoreMines}
+            setNoMoreMines={setNoMoreMines}
+            isSmelter={isSmelter}
+            readField={editable ? readField : undefined}
+            onLiveMutate={bumpFormTick}
+            detectedBizRegDoc={detectedBizRegDoc}
+            setDetectedBizRegDoc={setDetectedBizRegDoc}
+            detectedEnvReport={detectedEnvReport}
+            setDetectedEnvReport={setDetectedEnvReport}
+            onRegulatoryRisk={setHasRegulatoryRisk}
+          />
+        ))}
       </section>
 
       <section className="mt-4 grid rounded-sm border border-ink-700 bg-white shadow-control md:grid-cols-2">

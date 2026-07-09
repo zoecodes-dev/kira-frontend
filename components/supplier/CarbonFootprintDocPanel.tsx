@@ -78,7 +78,7 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
         if (hit) {
           onParsed(hit);
           setParseDone(true);
-          setNotice('파싱 완료 — 추출된 값이 입력칸에 채워졌어요. 값을 확인한 뒤 저장해주세요.');
+          setNotice('');
           return;
         }
       }
