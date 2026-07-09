@@ -1076,7 +1076,7 @@ export default function SupplyChainHub() {
             className="relative w-full max-w-5xl rounded-sm border border-ink-700 bg-white shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-ink-700 bg-white px-5 py-3">
+            <div className="flex items-center justify-between gap-3 border-b border-ink-700 bg-white px-5 py-3">
               <div className="text-sm font-bold text-ink-100">협력사 상세 — {reviewSupplier.name}</div>
               <button
                 type="button"
