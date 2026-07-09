@@ -787,6 +787,8 @@ export interface SuppliedItem {
   hopLevel?: number | null;      // 이 맵에서 협력사 차수
   factoryId?: string | null;     // 이 맵(엣지)에서 대는 공장 — map 탭 공장 필터용
   coreMinerals?: Record<string, number> | null; // 이 맵(엣지)의 핵심광물 함량 %(회사값 폴백)
+  /** 이 맵 최상위 고객사 국가로 자동 계산된 납품처 리전('EU'|'US'|'KR'). 매핑 밖 국가면 null. */
+  destination?: string | null;
 }
 export const getSupplierSuppliedItems = (id: string) =>
   api.get<{ supplierId: string; items: SuppliedItem[] }>(`/suppliers/${id}/supplied-items`);
