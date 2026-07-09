@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ExcelJS from 'exceljs';
 import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
-import { getSupplierDetail, getSupplierContacts, getSupplierFactories, getSupplierRiskProfile, getSupplyChainEvaluation, type SupplyChainEvaluation } from '@/lib/api';
+import { getSupplierDetail, getSupplierContacts, getSupplierFactories, getSupplierRiskProfile, getSupplyChainEvaluation, getOutboundRiskSummary, type SupplyChainEvaluation, type OutboundRiskSummaryLocaleRender } from '@/lib/api';
 import EvaluationReportCard, { evaluationTextLines } from '@/components/supply-chain/EvaluationReportCard';
 import {
   Box,
@@ -457,18 +457,26 @@ export function SupplyChainMapPageContent({
       const fullRows = buildTraceRows(dataset, selectedBomVersionId, ' ~ ', 'ALL', 'ALL');
       // 맵에 편입된 실 협력사(UUID)별 general review 조회 — supplier_id → 상세 번들.
       const uniqIds = [...new Set(fullRows.filter(r => isUuid(r.supplier_id)).map(r => r.supplier_id))];
-      const bundles = await Promise.all(
-        uniqIds.map(async id => {
-          const [detail, contactsRes, factoriesRes, risk] = await Promise.all([
-            getSupplierDetail(id).catch(() => null),
-            getSupplierContacts(id).catch(() => null),
-            getSupplierFactories(id).catch(() => null),
-            getSupplierRiskProfile(id).catch(() => null),
-          ]);
-          return [id, { detail, contacts: contactsRes?.contacts ?? [], factories: factoriesRes?.factories ?? [], risk }] as const;
-        }),
-      );
-      await writeCustomerWorkbook(fullRows, new Map(bundles));
+      const [bundles, outboundSummary] = await Promise.all([
+        Promise.all(
+          uniqIds.map(async id => {
+            const [detail, contactsRes, factoriesRes, risk] = await Promise.all([
+              getSupplierDetail(id).catch(() => null),
+              getSupplierContacts(id).catch(() => null),
+              getSupplierFactories(id).catch(() => null),
+              getSupplierRiskProfile(id).catch(() => null),
+            ]);
+            return [id, { detail, contacts: contactsRes?.contacts ?? [], factories: factoriesRes?.factories ?? [], risk }] as const;
+          }),
+        ),
+        // 고객사 전송용 요약(영어·독일어) — 화면 미리보기(CustomerRiskSummaryCard)와 같은 API.
+        //   ko 렌더는 화면 기본 표시용일 뿐 엑셀(대외 제출본)엔 넣지 않는다.
+        selectedProduct?.customer_id
+          ? getOutboundRiskSummary(selectedProductId, selectedProduct.customer_id, selectedBomVersionId).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      const outboundRenders = (outboundSummary?.renders ?? []).filter(r => r.locale !== 'ko');
+      await writeCustomerWorkbook(fullRows, new Map(bundles), outboundRenders);
     } finally {
       setCustomerDownloading(false);
     }
@@ -482,6 +490,7 @@ export function SupplyChainMapPageContent({
       factories: Awaited<ReturnType<typeof getSupplierFactories>>['factories'];
       risk: Awaited<ReturnType<typeof getSupplierRiskProfile>> | null;
     }>,
+    outboundRenders: OutboundRiskSummaryLocaleRender[],
   ) {
     const thin = { style: 'thin' as const, color: { argb: 'FFD9D9D9' } };
     const wb = new ExcelJS.Workbook();
@@ -501,13 +510,22 @@ export function SupplyChainMapPageContent({
       r.getCell(1).font = { bold: true, color: { argb: 'FF14532D' } };
     });
 
-    // 평가 리포트 문구 블록(있으면) — 제품 정보 아래, 표 위에.
-    const introLines = evaluation?.available ? evaluationTextLines(evaluation) : [];
-    if (introLines.length) {
+    // 고객사 전송용 요약 블록(영어·독일어만) — 제품 정보 아래, 표 위에.
+    //   CustomerRiskSummaryCard와 동일한 문구(협력사 수·고위험 비율·컴플라이언스 통과율·
+    //   공급망 검증율)를 언어별로 적는다. 화면 미리보기 기본 언어(ko)는 대외 제출본인
+    //   이 엑셀엔 넣지 않는다.
+    if (outboundRenders.length) {
       ws.addRow([]);
-      introLines.forEach((line, i) => {
-        const r = ws.addRow([line]);
-        r.getCell(1).font = { bold: i === 0, color: { argb: 'FF14532D' } };
+      outboundRenders.forEach(render => {
+        const titleRow = ws.addRow([`[${render.locale.toUpperCase()}] ${render.sectionTitle}`]);
+        titleRow.getCell(1).font = { bold: true, color: { argb: 'FF14532D' }, size: 12 };
+        const summaryRow = ws.addRow([render.summaryText]);
+        summaryRow.getCell(1).font = { color: { argb: 'FF14532D' } };
+        if (render.keyPoints.length) {
+          const kpRow = ws.addRow([render.keyPoints.join('   ·   ')]);
+          kpRow.getCell(1).font = { italic: true, color: { argb: 'FF14532D' } };
+        }
+        ws.addRow([]);
       });
     }
     ws.addRow([]);
