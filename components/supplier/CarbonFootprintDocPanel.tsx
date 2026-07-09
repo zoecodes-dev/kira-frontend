@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import {
-  ApiError, getAiExtractions, updateSupplierDetail, uploadFile,
+  ApiError, getAiExtractions, getSupplierDocumentUrl, updateSupplierDetail, uploadFile,
   type AiExtraction,
 } from '@/lib/api';
 
@@ -44,6 +44,7 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [viewingOriginal, setViewingOriginal] = useState(false);
   // 언마운트 후 setState 방지 — 폴링(수십 초)이 편집 취소보다 오래 살 수 있다.
   const cancelledRef = useRef(false);
   useEffect(() => {
@@ -84,6 +85,22 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
       setError('파싱이 지연되고 있습니다. 잠시 후 "파싱하기"로 다시 시도해주세요.');
     } finally {
       if (!cancelledRef.current) setParsing(false);
+    }
+  }
+
+  // 이미 저장된(DB persisted) 원본 문서 보기 — 세션 업로드 여부와 무관하게 docValue만 있으면 된다.
+  //   업로드 시점에 곧바로 PATCH로 컬럼이 갱신되므로(위 handleSelect) docValue는 항상 DB 최신값과 일치.
+  async function handleViewOriginal() {
+    if (!docValue) return;
+    setError('');
+    setViewingOriginal(true);
+    try {
+      const { url } = await getSupplierDocumentUrl(supplierId, 'carbon_footprint');
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '문서를 여는 데 실패했습니다.');
+    } finally {
+      setViewingOriginal(false);
     }
   }
 
@@ -146,6 +163,17 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
           {sessionUploaded && !busy && (
             <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-[11px] font-bold text-ok-text">업로드됨</span>
           )}
+          {/* 원본 보기 — 이번 세션 업로드 여부와 무관하게 DB에 저장된 문서가 있으면 언제나 활성. */}
+          {docValue && (
+            <button
+              type="button"
+              onClick={handleViewOriginal}
+              disabled={viewingOriginal}
+              className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-accent-500 hover:text-accent-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {viewingOriginal ? '여는 중…' : '원본 보기'}
+            </button>
+          )}
           {editable && (
             <>
               <label className={`rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 ${busy ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent-100'}`}>
@@ -167,12 +195,12 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
                 {parsing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 {parsing ? '파싱 중…' : '파싱하기'}
               </button>
-              {/* 결과 보기도 세션 업로드 전에는 비활성 — 업로드 없이 열면 빈 파싱 팝업만 떠서
-                  [업로드→모달 확인→저장→분석] 흐름을 벗어난다. (파싱 지연 중 재열기는 허용) */}
+              {/* 결과 보기 — DB에 저장된 문서(docValue)만 있으면 활성. 이전 세션/시드로 이미
+                  저장된 문서도 열 수 있어야 한다(파싱 결과가 없으면 모달이 빈 상태로 뜬다). */}
               <button
                 type="button"
                 onClick={onOpenViewer}
-                disabled={!sessionUploaded}
+                disabled={!docValue}
                 className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-accent-500 hover:text-accent-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-ink-700 disabled:hover:text-ink-500"
               >
                 결과 보기

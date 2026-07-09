@@ -660,6 +660,11 @@ export interface CarbonDeclaration {
 export const getSupplierCarbonDeclarations = (id: string) =>
   api.get<{ supplierId: string; declarations: CarbonDeclaration[] }>(`/suppliers/${id}/carbon-declarations`);
 
+/** 필요문서(사업자등록증/환경성적서 등) presigned 다운로드 URL. 미업로드면 404(호출부가 catch). */
+export type SupplierDocKind = "business_reg" | "environmental_report" | "self_assessment" | "material_composition" | "carbon_footprint";
+export const getSupplierDocumentUrl = (id: string, docKind: SupplierDocKind) =>
+  api.get<{ url: string; fileName: string }>(`/suppliers/${id}/documents/${docKind}/url`);
+
 /** 공통 파일 메타. 환경성적서 첨부 등 context별 업로드 파일. */
 export interface FileMeta {
   fileId: string;

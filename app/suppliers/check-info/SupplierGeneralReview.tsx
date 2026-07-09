@@ -6,12 +6,12 @@ import {
   createDataRequest, getDataRequests,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierSuppliedItems, submitMasterForm,
-  getSupplierRiskProfile, uploadFile,
+  getSupplierRiskProfile, uploadFile, getSupplierDocumentUrl,
   type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type SuppliedItem as ApiItem, type ApiDataRequest,
-  type AiExtraction,
+  type AiExtraction, type SupplierDocKind,
   ApiError,
 } from '@/lib/api';
 import { addDemoNotification } from '@/lib/demo-notifications';
@@ -519,12 +519,13 @@ function EmptyData() {
 // 키는 영구값이라(presigned url과 달리 만료 X) 백엔드 파싱(data_gateway)이 그대로 읽어 쓴다.
 // 영속화는 hidden input(data-field=섹션.필드)에 S3 키를 실어 persistForm이 읽어 처리.
 // 표시는 사람이 알아볼 파일명(키 경로의 마지막 조각)으로 보여준다.
-function DocUploadField({ label, field, initialUrl, editable, supplierId }: { label: string; field: string; initialUrl?: string | null; editable?: boolean; supplierId: string }) {
+function DocUploadField({ label, field, initialUrl, editable, supplierId, docKind }: { label: string; field: string; initialUrl?: string | null; editable?: boolean; supplierId: string; docKind?: SupplierDocKind }) {
   // docValue = 영속화할 값(S3 키). displayName = 화면 표시용 파일명.
   const [docValue, setDocValue] = useState(initialUrl ?? '');
   const [displayName, setDisplayName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [viewLoading, setViewLoading] = useState(false);
   // initialUrl은 비동기 GET(getSupplierDetail 등) 도착 후 나중에 채워짐 — 첫 렌더 때
   // useState 초기값만 잡고 끝나면 데이터가 도착해도 반영이 안 되므로 prop 변경 시 동기화.
   useEffect(() => {
@@ -533,6 +534,23 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId }: { la
   const uploaded = Boolean(docValue);
   // 표시명: 방금 올린 파일명 우선, 없으면 S3 키 경로의 마지막 조각.
   const shownName = displayName || (docValue ? docValue.split('/').pop() : '');
+  // '보기'는 서버에 이미 저장된 문서만 대상(initialUrl) — 방금 고른 파일은 폼 저장 전이라
+  // suppliers 컬럼에 아직 반영 안 됐고, 백엔드 presigned 발급은 그 컬럼 값을 읽는다.
+  const canView = Boolean(docKind && initialUrl);
+
+  async function handleView() {
+    if (!docKind) return;
+    setError('');
+    setViewLoading(true);
+    try {
+      const { url } = await getSupplierDocumentUrl(supplierId, docKind);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '문서를 여는 데 실패했습니다.');
+    } finally {
+      setViewLoading(false);
+    }
+  }
 
   async function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -563,6 +581,16 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId }: { la
       <div className="flex shrink-0 items-center gap-2">
         {uploaded && !uploading && (
           <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-[11px] font-bold text-ok-text">완료</span>
+        )}
+        {canView && (
+          <button
+            type="button"
+            onClick={handleView}
+            disabled={viewLoading}
+            className="rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-500 hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {viewLoading ? '여는 중…' : '보기'}
+          </button>
         )}
         {editable && (
           <>
@@ -1111,11 +1139,11 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const req = (key: string) => isFieldRequired(key, comp, true);
     content = (
       <div className="space-y-2">
-        <DocUploadField label={reqLabel('사업자등록증', req('documents.business_reg_doc_url'))} field="documents.businessRegDocUrl" initialUrl={bizRegUrl} editable={editable} supplierId={supplierId} />
+        <DocUploadField label={reqLabel('사업자등록증', req('documents.business_reg_doc_url'))} field="documents.businessRegDocUrl" initialUrl={bizRegUrl} editable={editable} supplierId={supplierId} docKind="business_reg" />
         {detectedBizRegDoc && (
           <div className="-mt-1 text-[11px] text-ink-400">공장정보 섹션에서 올린 자료에서 자동 연결됨 · {detectedBizRegDoc.fileName}</div>
         )}
-        <DocUploadField label={reqLabel('환경성적서', req('documents.environmental_report_url'))} field="documents.environmentalReportUrl" initialUrl={envUrl} editable={editable} supplierId={supplierId} />
+        <DocUploadField label={reqLabel('환경성적서', req('documents.environmental_report_url'))} field="documents.environmentalReportUrl" initialUrl={envUrl} editable={editable} supplierId={supplierId} docKind="environmental_report" />
         {detectedEnvReport && (
           <div className="-mt-1 text-[11px] text-ink-400">공장정보 섹션에서 올린 자료에서 자동 연결됨 · {detectedEnvReport.fileName}</div>
         )}
