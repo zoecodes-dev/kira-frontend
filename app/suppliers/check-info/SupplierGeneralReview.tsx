@@ -1,7 +1,7 @@
 ﻿'use client';
 
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createDataRequest, getDataRequests,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
@@ -439,6 +439,25 @@ function deriveSectionMeta(
   real: RealData,
   live?: LiveFieldCtx,
 ): Pick<CollectionSection, 'completed' | 'total' | 'status' | 'missing'> {
+  // [규제 = 3-1/3-2 두 항목 고정] 백엔드 requiredFields(탄소집약도·에너지원·자가진단 3필드)로 세면
+  //   화면 구성(3-1 탄소발자국, 3-2 SAQ)과 분모가 어긋난다(3/3처럼 표시) — 문서 단위 2항목으로 집계.
+  //   3-1 완료 = 탄소집약도·에너지원 둘 다 채움, 3-2 완료 = 자가진단 리스크 등급 확정.
+  if (key === 'regulation') {
+    const d = real.detail;
+    if ((d?.providerType ?? '') === 'miner') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
+    const has = (v: unknown) => v !== null && v !== undefined && v !== '';
+    const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
+    const carbonOk = live
+      ? live.readField('regulation.carbonIntensity') !== '' && live.readField('regulation.energySource') !== ''
+      : has(m.carbonIntensity) && has(m.energySource);
+    const saqLevel = live
+      ? live.readField('regulation.selfReportedRiskLevel')
+      : (real.riskProfile?.selfReportedRiskLevel ?? '');
+    const saqOk = saqLevel !== '' && saqLevel !== 'unknown';
+    const missing = [...(carbonOk ? [] : ['탄소발자국(3-1)']), ...(saqOk ? [] : ['실사 자가진단(3-2)'])];
+    const completed = 2 - missing.length;
+    return { completed, total: 2, missing, status: sectionStatusFrom(completed, 2) };
+  }
   const comp = real.comp;
   if (comp && comp.requiredFieldCount != null && Array.isArray(comp.requiredFields)) {
     return deriveSectionMetaFromBackend(key, comp, live);
@@ -464,21 +483,6 @@ function deriveSectionMeta(
       ['소재 국가', pick('company.country', d?.country)],
       ['사업자 등록번호', pick('company.businessRegNo', d?.businessRegNo)],
       ['업종(provider type)', pick('company.providerType', d?.providerType)],
-    ];
-    const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
-    const completed = fields.length - missing.length;
-    return { completed, total: fields.length, missing, status: sectionStatusFrom(completed, fields.length) };
-  }
-  if (key === 'regulation') {
-    // 광산(miner)은 입력 주체가 아니라 규제(자가진단·탄소) 판정 대상 아님 → 해당 없음(백엔드 완성도와 동일 규칙).
-    if ((d?.providerType ?? '') === 'miner') return { completed: 0, total: 0, missing: [], status: '해당 없음' };
-    const m = (d?.manufacturerDetail ?? {}) as Record<string, unknown>;
-    const fields: [string, unknown][] = [
-      ['탄소집약도', pick('regulation.carbonIntensity', m.carbonIntensity)],
-      ['에너지원', pick('regulation.energySource', m.energySource)],
-      ['실사 자가진단', live
-        ? live.readField('regulation.selfReportedRiskLevel')
-        : (real.riskProfile?.selfReportedRiskLevel && real.riskProfile.selfReportedRiskLevel !== 'unknown' ? real.riskProfile.selfReportedRiskLevel : null)],
     ];
     const missing = fields.filter(([, v]) => !has(v)).map(([l]) => l);
     const completed = fields.length - missing.length;
@@ -605,7 +609,7 @@ function buildSupplyMaps(items: ApiItem[]): SupplyMap[] {
   return maps;
 }
 
-function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft, noMoreMines = false, setNoMoreMines, isSmelter = false, readField, detectedBizRegDoc, setDetectedBizRegDoc, detectedEnvReport, setDetectedEnvReport, onRegulatoryRisk }: {
+function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft, noMoreMines = false, setNoMoreMines, isSmelter = false, readField, detectedBizRegDoc, setDetectedBizRegDoc, detectedEnvReport, setDetectedEnvReport, onRegulatoryRisk, onLiveMutate }: {
   section: CollectionSection;
   real?: RealData | null;
   editable?: boolean;
@@ -628,6 +632,9 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   setDetectedEnvReport?: (v: { s3Key: string; fileName: string } | null) => void;
   // CSDDD RAG 판정이 위반(Red)이면 true — 최상위 공통 '제출하기' 버튼의 경고 모달 게이트용 상태 끌어올리기.
   onRegulatoryRisk?: (risk: boolean) => void;
+  // 파싱/업로드가 입력칸을 프로그램적으로 채울 때 부모(수집 항목 요약)에 리렌더를 요청 —
+  //   폼 onChange는 사용자 입력에만 발화해 프로그램 채움은 진척도에 반영되지 않는다.
+  onLiveMutate?: () => void;
 }) {
   // 공장정보 섹션 — 원산지 증명서 업로드/없음 확인 전엔 나머지 입력을 가린다.
   const [originCertResolved, setOriginCertResolved] = useState(false);
@@ -645,6 +652,9 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   const [saqBusy, setSaqBusy] = useState(false);
   const [saqUploadedDoc, setSaqUploadedDoc] = useState<{ docS3Key: string; fileName: string } | null>(null);
   const [saqParsingOpen, setSaqParsingOpen] = useState(false);
+  // 파싱 완료(key 리마운트로 입력칸 채움)·업로드 종료 직후, DOM 커밋 뒤에 부모 진척도 재계산 요청.
+  //   readField는 실제 DOM 값을 읽으므로 커밋 이후(useEffect 시점)에 tick을 올려야 새 값이 보인다.
+  useEffect(() => { onLiveMutate?.(); }, [carbonParseVersion, saqParseVersion, carbonBusy, saqBusy, onLiveMutate]);
   let content: ReactNode;
   const d = real?.detail ?? null;
   // live면 지금 입력칸 값, 아니면 마지막 저장된 스냅샷 — 완료 배지 판정용(defaultValue 표시엔 영향 없음).
@@ -830,8 +840,11 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const conf = carbonExtraction?.confidenceMap ?? {};
     const flagged: Record<string, string> = {};
     const carbonParsedKeys: string[] = [];   // [작업②] AI 자동입력 하이라이트 대상
-    let ci: unknown = m.carbonIntensity;
-    let es: unknown = m.energySource;
+    // [데모 흐름 강제] 업로드→파싱 전(세션 내 carbonExtraction 없음)에는 DB/시드값이 있어도
+    //   무조건 빈칸으로 시작한다 — 시드값이 화면에 떴다가 저장 라운드트립으로 DB에 되살아나는 것도 막는다.
+    //   세션에서 파싱→저장까지 마치면 persistForm이 detail을 재조회해 그 값(m)이 유지된다.
+    let ci: unknown = carbonExtraction ? m.carbonIntensity : '';
+    let es: unknown = carbonExtraction ? m.energySource : '';
     // [요구사항1] 파싱이 수행되면(carbonExtraction 존재) 추출 결과가 이 문서의 '권위값'이다.
     //   서류상 공란인 필드(예: 에너지원)는 빈칸으로 확정한다 — 모달을 닫고 복귀할 때
     //   이전에 저장돼 있던 스테일 DB값('한국 전력망 평균…')이 되살아나는 상태 드리프트 방지.
@@ -1144,6 +1157,7 @@ function AccordionSection({
   detectedEnvReport,
   setDetectedEnvReport,
   onRegulatoryRisk,
+  onLiveMutate,
 }: {
   section: CollectionSection;
   onRequestSection: (section: CollectionSection) => void;
@@ -1175,6 +1189,8 @@ function AccordionSection({
   setDetectedEnvReport?: (v: { s3Key: string; fileName: string } | null) => void;
   // CSDDD 위반(Red) 상태 끌어올리기 — SectionContent → 최상위(공통 제출 버튼) 패스스루.
   onRegulatoryRisk?: (risk: boolean) => void;
+  // 파싱/업로드의 프로그램적 입력칸 채움 → 최상위 수집 항목 요약 재계산 패스스루.
+  onLiveMutate?: () => void;
 }) {
   // 섹션은 항상 펼쳐서 고정 표시(드롭다운 제거). 미입력/확인 필요면 그 자리에서 보완 요청.
   const needsRequest = showRequest && (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
@@ -1228,6 +1244,7 @@ function AccordionSection({
           detectedEnvReport={detectedEnvReport}
           setDetectedEnvReport={setDetectedEnvReport}
           onRegulatoryRisk={onRegulatoryRisk}
+          onLiveMutate={onLiveMutate}
         />
         {/* 잠금 오버레이 — 내용은 비쳐 보이되(반투명) 클릭·입력은 막는다.
             바로 다음 순번(canProceed)이면 진행 버튼을, 그 뒤 섹션들은 안내 문구만 보여준다. */}
@@ -1291,6 +1308,9 @@ export function SupplierGeneralReviewContent({
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);   // 저장하기 직후 '저장됨' 피드백
+  // [데모 초기화] 이번 세션에서 한 번이라도 저장했는가 — 저장 전에는 협력사 화면에서
+  //   DB 시드값(사업자번호·DUNS·업종·공장 목록 등)을 숨기고 완전한 빈 폼에서 시작한다.
+  const [sessionSaved, setSessionSaved] = useState(false);
   // [Red Flag] 규제 섹션 CSDDD RAG 판정이 위반(Red)이면 true — 하위(SaqComplianceReport)에서 끌어올림.
   // 공통 '제출하기' 클릭 시 이 값이 true면 즉시 제출하지 않고 경고 모달을 먼저 띄운다.
   const [hasRegulatoryRisk, setHasRegulatoryRisk] = useState(false);
@@ -1309,6 +1329,9 @@ export function SupplierGeneralReviewContent({
   // 편집 중 입력칸 값이 바뀔 때마다 1씩 올려 리렌더를 강제 — data-field 입력칸은 비제어(defaultValue)라
   //   렌더 사이에 값이 안 바뀌므로, 이 tick으로 "지금 실제로 입력칸에 뭐가 들어있는지"를 다시 읽게 한다.
   const [, setFormTick] = useState(0);
+  // 하위 섹션(3-1/3-2 파싱·업로드)의 useEffect 의존성으로 내려가므로 참조가 안정적이어야 한다
+  //   (인라인 함수를 넘기면 매 렌더마다 effect가 재발화 → tick 무한 루프).
+  const bumpFormTick = useCallback(() => setFormTick(t => t + 1), []);
   const readField = (field: string): string => {
     const el = formRef.current?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-field="${field}"]`);
     return (el?.value ?? '').trim();
@@ -1391,10 +1414,17 @@ export function SupplierGeneralReviewContent({
   // api 로드 시 draft 시드(전체 현재 집합). 편집 진입 시에도 최신 서버 값으로 재시드(아래 setEditing 핸들러).
   // 비활성(is_active=false, 소프트 삭제) 공장은 편집 대상에서 제외 — 원산지 이력 보존용이라 UI엔 안 뜬다.
   useEffect(() => {
+    // [데모 초기화] 세션 무저장 상태의 협력사 화면은 서버 공장 목록을 시드하지 않는다 —
+    //   사용자가 직접 추가(또는 엑셀 업로드)하기 전까지 완전히 빈 폼. 저장 후에는 서버 값으로 재시드.
+    if (isSupplier && !sessionSaved) {
+      setFactoriesDraft([]);
+      setContactsDraft(seedContactsDraft([], []));
+      return;
+    }
     const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
     setFactoriesDraft(factories);
     setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
-  }, [api]);
+  }, [api, isSupplier, sessionSaved]);
 
   // [제품별 독립 제출] 공급망 맵 목록 + 선택된 맵. 회사정보/PIC/연락처는 맵 무관 공통.
   const supplyMaps = buildSupplyMaps(api?.items ?? []);
@@ -1410,6 +1440,22 @@ export function SupplierGeneralReviewContent({
           : api.factories,
       }
     : api;
+  // [데모 흐름 강제] 협력사 화면 & 세션 무저장 → 시드/DB 값을 표시·집계 모두에서 숨긴 뷰.
+  //   comp:null은 서버 완성도(시드 포함 스냅샷) 대신 클라이언트 폴백으로 0부터 세게 한다.
+  //   저장(persistForm) 후에는 sessionSaved=true → 재조회된 서버 값이 그대로 보인다.
+  //   원청(prime) 검토 화면은 isSupplier=false라 영향 없음(실데이터 그대로).
+  const demoBlank = isSupplier && !sessionSaved;
+  const viewApi: RealData | null = demoBlank && scopedApi
+    ? {
+        ...scopedApi,
+        comp: null,
+        detail: scopedApi.detail
+          ? { ...scopedApi.detail, businessRegNo: '', dunsNumber: '', providerType: '' as ApiSupplierDetail['providerType'], smelterType: '', manufacturerDetail: null }
+          : scopedApi.detail,
+        factories: [],
+        riskProfile: null,
+      }
+    : scopedApi;
   // 선택된 맵의 최신 자료요청(원청 검토 상태·예정일). 마이그레이션 안전:
   //   요청 중 bom_version_id가 하나라도 있으면(=per-map 기능 가동) 맵별로 엄격 분리,
   //   전부 null(기능 이전 데이터)이면 기존처럼 전체 최신으로 폴백.
@@ -1434,9 +1480,8 @@ export function SupplierGeneralReviewContent({
   // 실 협력사인데 백엔드 값이 비면 다른 회사 mock(supplierSummary=한양제조)이 아니라 '미입력/—'으로.
   const displayCountry = api?.detail?.country ?? selectedSupplier?.country ?? (isRealSupplier ? '미입력' : supplierSummary.country);
   const displayTier = selectedSupplier ? `T${selectedSupplier.tier}` : (isRealSupplier ? '—' : supplierSummary.tier);
-  const displayRate = api?.comp?.completionRate ?? selectedCompleteness?.completionRate ?? supplierSummary.collectionRate;
-  const displayCompleted = api?.comp?.filledFieldCount ?? selectedCompleteness?.filledFieldCount ?? supplierSummary.completed;
-  const displayTotal = api?.comp?.requiredFieldCount ?? selectedCompleteness?.requiredFieldCount ?? supplierSummary.total;
+  // 전체 수집률 — 아래 liveSections(섹션별 완료/총계 합산)에서 파생한다(§수집 항목 요약과 항상 일치).
+  //   서버 completeness 스냅샷을 그대로 쓰면 시드값·저장 전 입력이 반영되지 않아 하단과 어긋난다.
   const displayLastUpdated = (api?.comp?.lastUpdatedAt ?? selectedCompleteness?.lastUpdatedAt ?? supplierSummary.lastSubmittedAt)?.slice(0, 16).replace('T', ' ');
   const displayManager = apiPrimary?.name ?? mockPrimary?.name ?? (isRealSupplier ? '미등록' : supplierSummary.manager);
   const displayEmail = apiPrimary?.email ?? mockPrimary?.email ?? (isRealSupplier ? '—' : supplierSummary.email);
@@ -1464,10 +1509,20 @@ export function SupplierGeneralReviewContent({
   const mineRequirementMet = !isSmelter || (miningRows.length > 0 && miningRows.every(f => f.latitude.trim() !== '' && f.longitude.trim() !== '') && noMoreMines);
   // 편집 중엔 저장 전 입력칸 값 기준(live)으로, 아니면 마지막 저장된 스냅샷 기준으로 완료 여부 판정.
   const liveCtx: LiveFieldCtx | undefined = editable ? { readField, factories: factoriesDraft } : undefined;
-  const liveSections = (scopedApi ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, scopedApi, liveCtx) })) : sections)
+  // 집계·표시 모두 viewApi 기준 — 데모 초기화 중에는 시드값이 진척도에 계산되지 않는다.
+  const liveSections = (viewApi ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, viewApi, liveCtx) })) : sections)
     .map(s => (s.key === 'factories' && isSmelter && !mineRequirementMet)
       ? { ...s, status: '미입력' as ReviewStatus, missing: Array.from(new Set([...s.missing, '광산 위치(최소 1곳) + 추가 광산 없음 확인'])) }
       : s);
+  // [전체 수집률 동적 계산] (완료된 필수 항목 총합 / 전체 필수 항목 총합) — 요약 카드와 같은
+  //   liveSections를 합산하므로 카드·헤더가 항상 일치하고, 편집 중 입력·파싱 즉시(tick) 갱신된다.
+  //   '해당 없음' 섹션은 total=0이라 자연히 분모에서 빠진다. mock(비실데이터)은 기존 폴백 유지.
+  const liveAgg = liveSections.reduce((a, s) => ({ done: a.done + s.completed, total: a.total + s.total }), { done: 0, total: 0 });
+  const displayCompleted = isRealSupplier ? liveAgg.done : (selectedCompleteness?.filledFieldCount ?? supplierSummary.completed);
+  const displayTotal = isRealSupplier ? liveAgg.total : (selectedCompleteness?.requiredFieldCount ?? supplierSummary.total);
+  const displayRate = isRealSupplier
+    ? (displayTotal > 0 ? Math.round((displayCompleted / displayTotal) * 100) : 0)
+    : (selectedCompleteness?.completionRate ?? supplierSummary.collectionRate);
 
   // 다음 섹션으로 진행 버튼 — 직전 섹션이 완료/해당없음이면 "정말 넘어가시겠습니까" 확인,
   //   아니면 "필수값을 먼저 입력해주세요"만 띄우고 대기(자동으로 넘어가지 않음).
@@ -1629,6 +1684,8 @@ export function SupplierGeneralReviewContent({
       ...(rp ? { riskProfile: rp } : {}),
       ...(comp ? { comp } : {}),
     } : prev));
+    // 첫 저장 완료 — 이후부터는 데모 초기화(빈 폼 강제)를 풀고 서버 값을 그대로 보여준다.
+    setSessionSaved(true);
   }
 
   // 저장하기 — DB 영속화 후 계속 입력(편집 유지).
@@ -1832,9 +1889,10 @@ export function SupplierGeneralReviewContent({
                 type="button"
                 onClick={() => {
                   setSaved(false);
-                  const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
+                  // 데모 초기화 중(세션 무저장)에는 편집 진입 시에도 서버 값 재시드를 건너뛴다.
+                  const factories = demoBlank ? [] : (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
                   setFactoriesDraft(factories);
-                  setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
+                  setContactsDraft(demoBlank ? seedContactsDraft([], []) : seedContactsDraft(api?.contacts ?? [], factories));
                   // 이미 저장돼 완료된 앞쪽 섹션들은 매번 재확인시키지 않고 그대로 이어서 열어준다.
                   let alreadyDone = 0;
                   for (const s of liveSections) {
@@ -1985,7 +2043,7 @@ export function SupplierGeneralReviewContent({
               key={section.key}
               section={section}
               onRequestSection={openRequestForSection}
-              real={scopedApi}
+              real={viewApi}
               editable={section.key === 'factories' ? factoriesEditable : editable}
               showRequest={isPrime}
               isPrime={isPrime}
@@ -2004,6 +2062,7 @@ export function SupplierGeneralReviewContent({
               onConfirmYes={confirmProceedYes}
               onConfirmNo={confirmProceedNo}
               readField={editable ? readField : undefined}
+              onLiveMutate={bumpFormTick}
               detectedBizRegDoc={detectedBizRegDoc}
               setDetectedBizRegDoc={setDetectedBizRegDoc}
               detectedEnvReport={detectedEnvReport}
