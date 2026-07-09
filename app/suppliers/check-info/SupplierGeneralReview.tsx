@@ -14,7 +14,6 @@ import {
   type AiExtraction, type SupplierDocKind,
   ApiError,
 } from '@/lib/api';
-import { addDemoNotification } from '@/lib/demo-notifications';
 
 const providerTypeLabel: Record<string, string> = {
   manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산', smelter: '제련소',
@@ -878,11 +877,10 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const conf = carbonExtraction?.confidenceMap ?? {};
     const flagged: Record<string, string> = {};
     const carbonParsedKeys: string[] = [];   // [작업②] AI 자동입력 하이라이트 대상
-    // [데모 흐름 강제] 업로드→파싱 전(세션 내 carbonExtraction 없음)에는 DB/시드값이 있어도
-    //   무조건 빈칸으로 시작한다 — 시드값이 화면에 떴다가 저장 라운드트립으로 DB에 되살아나는 것도 막는다.
-    //   세션에서 파싱→저장까지 마치면 persistForm이 detail을 재조회해 그 값(m)이 유지된다.
-    let ci: unknown = carbonExtraction ? m.carbonIntensity : '';
-    let es: unknown = carbonExtraction ? m.energySource : '';
+    // 기본값은 실제 저장된 백엔드 값(m) — 새 세션(예: 원청이 화면을 여는 경우)에서도
+    //   협력사가 이미 제출한 값이 그대로 보여야 한다(세션 상태 carbonExtraction에 의존하면 안 됨).
+    let ci: unknown = m.carbonIntensity;
+    let es: unknown = m.energySource;
     // [요구사항1] 파싱이 수행되면(carbonExtraction 존재) 추출 결과가 이 문서의 '권위값'이다.
     //   서류상 공란인 필드(예: 에너지원)는 빈칸으로 확정한다 — 모달을 닫고 복귀할 때
     //   이전에 저장돼 있던 스테일 DB값('한국 전력망 평균…')이 되살아나는 상태 드리프트 방지.
@@ -983,11 +981,10 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
             </div>
             {carbonBusy && busyOverlay}
           </div>
-          {/* AI 규제 분석 보고서 (RAG · EU 배터리법) — 탄소 문서가 파싱된 상태(carbonExtraction)일 때만.
-              초기 렌더(DB 저장값만 있는 상태)에는 노출하지 않는다 — SAQ(3-2)와 동일한 흐름:
-              모달 [저장] → 폼 채움 → 그때 보고서 노출.
+          {/* AI 규제 분석 보고서 (RAG · EU 배터리법) — 탄소집약도·에너지원 값이 실제로 있을 때만
+              (세션에서 방금 파싱했는지 여부와 무관 — 이전에 저장된 값이어도 분석 가능해야 한다).
               협력사 화면에는 노출하지 않는다 — 원청 자료 검토 시에만 표시(추후 협력사는 알림으로 대체). */}
-          {isPrime && !naMiner && carbonExtraction && <CarbonComplianceReport carbonIntensity={Number.isNaN(ciNum) ? null : ciNum} energySource={(es as string) || null} />}
+          {isPrime && !naMiner && !Number.isNaN(ciNum) && Boolean(es) && <CarbonComplianceReport carbonIntensity={ciNum} energySource={es as string} />}
         </div>
 
         {/* ══ 3-2. 인권·안전 실사 (SAQ) ══ */}
@@ -1742,17 +1739,10 @@ export function SupplierGeneralReviewContent({
       await persistForm();
       setSaved(false);
       setEditing(false);
-      // [process.md L28·52] 협력사가 표준 양식 자료 제출 완료 → 원청 탭에 검토/승인 요청 알림.
-      if (isSupplier) {
-        addDemoNotification({
-          audience: 'prime',
-          notification_type: 'approval_needed',
-          subject: '협력사 자료 제출 완료',
-          body: '협력사가 표준 양식 자료 입력을 완료했습니다. My Task에서 내용을 검토하고 승인해 주세요.',
-          deep_link: 'my-task',
-          actor: '협력사',
-        });
-      }
+      // [process.md L28·52] 협력사가 표준 양식 자료 제출 완료 → 원청에 검토 요청 알림.
+      //   원청 알림 벨(PrimeNotificationBell)은 이제 실 백엔드 알림만 읽는다(데모 스토어 미사용) —
+      //   실제 알림은 백엔드가 submitMasterForm 커밋 후 MasterFormSubmitted를 발행해 만든다
+      //   (backend/domains/supplier/service.py submit_master_form → handlers/master_form_submitted_notify.py).
     } catch (err) {
       if (err instanceof ApiError && err.status === 403 && err.message === 'CONSENT_REQUIRED') {
         alert('제3자 정보제공 동의가 필요합니다. 초대 메일의 링크로 접속해 동의를 완료한 뒤 자료를 제출할 수 있어요.');
