@@ -621,14 +621,19 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId, docKin
 //   destination: 이 맵 최상위 고객사 국가로 백엔드가 자동 계산한 납품처 리전 — 맵 안 모든 행이
 //   같은 고객사로 흐르므로 첫 값을 그대로 대표값으로 쓴다(§공장 정보 "납품처" 표시용).
 type SupplyMap = { key: string; label: string; version: string | null; rows: ApiItem[]; factoryIds: string[]; destination: string | null };
-function buildSupplyMaps(items: ApiItem[]): SupplyMap[] {
+// isPrime=false(협력사 화면)면 라벨에서 고객사명을 뺀다 — 탭 라벨이 "BMW iX3 50"처럼 최종
+// 고객사를 그대로 드러내던 것도 납품처와 같은 leak 경로였다(§공장 정보 "납품처" 블라인드와 동일 취지).
+function buildSupplyMaps(items: ApiItem[], isPrime: boolean): SupplyMap[] {
   const maps: SupplyMap[] = [];
   const idxOf = new Map<string, number>();
   for (const it of items) {
     const key = it.bomVersionId ?? `${it.productId ?? ''}:${it.bomVersionNumber ?? ''}`;
     if (!key) continue;
     if (!idxOf.has(key)) {
-      const label = [it.customerName, it.modelName ?? it.productName].filter(Boolean).join(' ') || '제품';
+      const parts = isPrime
+        ? [it.customerName, it.modelName ?? it.productName]
+        : [it.modelName ?? it.productName];
+      const label = parts.filter(Boolean).join(' ') || '제품';
       idxOf.set(key, maps.length);
       maps.push({ key, label, version: it.bomVersionNumber ?? null, rows: [], factoryIds: [], destination: it.destination ?? null });
     }
@@ -1454,7 +1459,7 @@ export function SupplierGeneralReviewContent({
   }, [api]);
 
   // [제품별 독립 제출] 공급망 맵 목록 + 선택된 맵. 회사정보/PIC/연락처는 맵 무관 공통.
-  const supplyMaps = buildSupplyMaps(api?.items ?? []);
+  const supplyMaps = buildSupplyMaps(api?.items ?? [], isPrime);
   const activeMap = supplyMaps.find(m => m.key === selectedMapKey) ?? supplyMaps[0] ?? null;
   // factoryId → destination — 편집(자료 제출) 중엔 맵 탭이 숨겨져 전체 공장을 한꺼번에 보여주므로
   //   (맵 스코프 없음), 맵별로 다를 수 있는 destination을 공장 단위로 조회할 수 있게 전체
