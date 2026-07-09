@@ -3,14 +3,25 @@
 // [작업1] AI CSDDD 실사 분석 보고서 — 파싱된 SAQ 항목(고충처리 채널·강제노동 징후 등)을
 //   백엔드 RAG(CSDDD 공급망 실사 지침)로 판정한 결과를 표시.
 //   리스크 발견 시 단순 '위반'이 아니라 근거 조항(예: CSDDD Art.9)을 인용한 경고 Alert.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, ShieldAlert } from 'lucide-react';
 import { analyzeSaqRegulation, type SaqComplianceResult } from '@/lib/api';
 
-export default function SaqComplianceReport({ saqFields }: { saqFields: Record<string, unknown> | null }) {
+export default function SaqComplianceReport({ saqFields, onVerdictChange }: {
+  saqFields: Record<string, unknown> | null;
+  /** RAG 판정 변경 통보 — 최상위(공통 제출 버튼)가 위반(Red) 여부를 알 수 있게 상태를 끌어올린다.
+      분석 전/해제 시 null. */
+  onVerdictChange?: (verdict: SaqComplianceResult['verdict'] | null) => void;
+}) {
   const [result, setResult] = useState<SaqComplianceResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // 콜백 identity 변동(인라인 arrow)에 흔들리지 않도록 ref로 고정.
+  const onVerdictChangeRef = useRef(onVerdictChange);
+  useEffect(() => { onVerdictChangeRef.current = onVerdictChange; });
+  // 판정 결과가 바뀔 때마다 부모에 통보, 언마운트 시 해제(null).
+  useEffect(() => { onVerdictChangeRef.current?.(result?.verdict ?? null); }, [result]);
+  useEffect(() => () => { onVerdictChangeRef.current?.(null); }, []);
 
   // saqFields의 의미있는 키 개수 — 항목이 하나라도 있어야 분석한다.
   const hasFields = !!saqFields && Object.values(saqFields).some(v => v !== null && v !== undefined && v !== '');

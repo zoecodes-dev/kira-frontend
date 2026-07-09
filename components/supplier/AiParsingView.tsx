@@ -6,7 +6,6 @@ import { getAiExtractions, type AiExtraction } from '@/lib/api';
 import { CheckCircle2, FileText, ScanLine, X, Loader2 } from 'lucide-react';
 import Badge from '@/components/Badge';
 import ExtractionTable from './ExtractionTable';
-import CarbonComplianceReport from './CarbonComplianceReport';
 
 // PDF 뷰어는 pdfjs(브라우저 전용)에 의존 → SSR 금지. 클라이언트에서만 로드한다.
 const PdfViewer = dynamic(() => import('./PdfViewer'), {
@@ -93,6 +92,20 @@ const CARBON_DOC_CATALOG: DocCatalogRow[] = [
   { label: '탄소집약도 (kgCO2eq/kg)', unit: 'kgCO2eq/kg', ids: ['carbon_intensity'] },
   { label: '에너지원', unit: '', ids: ['energy_source'] },
 ];
+// SAQ(실사 자가진단, dd_audit_report) 카탈로그 — 백엔드 masterform_prefill 'saq' 섹션과 1:1.
+// 소재구성/탄소 필드가 아니라 인권·안전 실사 항목만 노출한다.
+// 메인 화면(3-2)의 상단 콤팩트 폼(등급·점수·평가일·유효기간) + 하단 체크리스트와 동기화.
+const SAQ_DOC_CATALOG: DocCatalogRow[] = [
+  { label: '종합 리스크 등급 (low/medium/high)', unit: '', ids: ['saq_risk_level'] },
+  { label: '종합 평가 점수', unit: '점', ids: ['saq_score'] },
+  { label: '평가 일자 (YYYY-MM-DD)', unit: '', ids: ['saq_assessed_at'] },
+  { label: '유효 기간 (YYYY-MM-DD)', unit: '', ids: ['saq_valid_until'] },
+  { label: '고충처리 메커니즘 운영 여부', unit: '', ids: ['grievance_mechanism'] },
+  { label: '아동노동 금지 정책/징후', unit: '', ids: ['child_labor_risk'] },
+  { label: '강제노동 금지 정책/징후', unit: '', ids: ['forced_labor_risk'] },
+  { label: '안전보건경영시스템 인증 (ISO 45001 등)', unit: '', ids: ['iso_45001_certified'] },
+  { label: '환경경영시스템 인증 (ISO 14001 등)', unit: '', ids: ['iso_14001_certified'] },
+];
 
 const MOCK_PARSED_DOCS: ParsedDoc[] = [
   {
@@ -177,15 +190,20 @@ function extractionToDoc(x: AiExtraction, initialDoc?: InitialDoc | null): Parse
     x.requestedDataType?.includes('carbon') ||
     x.requestedDataType?.includes('환경성적') ||
     x.requestId?.startsWith('local-carbon-');
+  const isSaqExtraction =
+    x.docCategory === 'dd_audit_report' ||
+    Boolean(x.requestedDataType?.includes('실사')) ||
+    Boolean(x.requestedDataType?.includes('자가진단')) ||
+    Boolean(x.requestedDataType?.toUpperCase().includes('SAQ'));
   const evidenceMaterialFields = isMaterialExtraction ? extractMaterialFieldsFromEvidence(x.evidenceSummary) : {};
   const parsedFields = isMaterialExtraction ? { ...evidenceMaterialFields, ...x.parsedFields } : x.parsedFields;
 
   let fields: ExtractionField[];
   let unparsedFields: string[];
-  if (isMaterialExtraction || isCarbonExtraction) {
+  if (isMaterialExtraction || isCarbonExtraction || isSaqExtraction) {
     // 카탈로그 기반 — 뽑아야 할 필드만, 못 찾아도 신뢰도 0의 "수정 필요" 행으로 항상 노출.
     // 카탈로그 밖 필드(회사명 등 문서에 같이 적힌 무관한 정보)는 이 화면에서 아예 보여주지 않는다.
-    const catalog = isMaterialExtraction ? MATERIAL_DOC_CATALOG : CARBON_DOC_CATALOG;
+    const catalog = isMaterialExtraction ? MATERIAL_DOC_CATALOG : isSaqExtraction ? SAQ_DOC_CATALOG : CARBON_DOC_CATALOG;
     const fieldLocations = ((parsedFields as Record<string, unknown>)['__locations__'] ?? {}) as Record<string, ExtractionField['location']>;
     fields = catalog.map(row => {
       const matchedId = row.ids.find(id => parsedFields[id] != null && parsedFields[id] !== '');
@@ -232,7 +250,13 @@ function extractionToDoc(x: AiExtraction, initialDoc?: InitialDoc | null): Parse
 
 function initialDocToParsedDoc(doc: InitialDoc): ParsedDoc {
   const isCarbonDoc = doc.requestType.includes('탄소') || doc.requestType.toLowerCase().includes('carbon');
-  const fields = isCarbonDoc
+  const isSaqDoc = doc.requestType.includes('실사') || doc.requestType.includes('자가진단') || doc.requestType.toUpperCase().includes('SAQ');
+  const fields = isSaqDoc
+    ? // SAQ 문서 — 인권·안전 실사 항목만(소재구성 필드 오표시 방지)
+      SAQ_DOC_CATALOG.map(row => ({
+        fieldId: row.ids[0], label: row.label, aiValue: '', confidence: 0, requiresAttention: true, unit: row.unit,
+      }))
+    : isCarbonDoc
     ? [
         { fieldId: 'carbon_intensity', label: CARBON_FIELD_LABELS.carbon_intensity, aiValue: '', confidence: 0, requiresAttention: true, unit: 'kgCO2eq/kg' },
         { fieldId: 'energy_source', label: CARBON_FIELD_LABELS.energy_source, aiValue: '', confidence: 0, requiresAttention: true, unit: '' },
@@ -557,6 +581,7 @@ export default function AiParsingView({
   initialExtraction,
   onParsed,
   saveOnlyMode = false,
+  onSaved,
 }: {
   supplierId: string;
   onConfirmComplete: () => void;
@@ -568,6 +593,8 @@ export default function AiParsingView({
   initialExtraction?: AiExtraction | null;
   onParsed?: (extraction: AiExtraction) => void;
   saveOnlyMode?: boolean;
+  /** '저장' 확정 시 사용자 검토·수정이 반영된 최종 추출값을 부모로 전달(폼 자동 채움 + RAG 트리거). */
+  onSaved?: (extraction: AiExtraction) => void;
 }) {
   const prime = mode === 'prime';
   const initialDocs = initialExtraction
@@ -611,6 +638,14 @@ export default function AiParsingView({
         x.requestedDataType?.includes('carbon') ||
         x.requestedDataType?.includes('환경성적') ||
         x.requestedDataType?.includes('self_upload:carbon')
+      );
+    }
+    if (docCategoryFilter === 'dd_audit_report') {
+      return Boolean(
+        x.requestedDataType?.includes('실사') ||
+        x.requestedDataType?.includes('자가진단') ||
+        x.requestedDataType?.toUpperCase().includes('SAQ') ||
+        x.requestedDataType?.includes('self_upload:self_assessment')
       );
     }
     return false;
@@ -727,14 +762,6 @@ export default function AiParsingView({
   // 사용자가 올린 파일을 임의의 양식 템플릿으로 대체해 보여주면 안 된다.
   // 원본 URL이 없는 경우(mock 데모 데이터 등)에만 소재구성/탄소발자국 전용 HTML 템플릿으로 대체.
   const showOriginalMaterialPreview = (isMaterialDoc || isCarbonDoc) && Boolean(activeDoc.fileUrl);
-
-  // [목표3] 규제 분석용 — 활성 문서의 추출 필드에서 탄소집약도·에너지원 값 추출.
-  const carbonIntensityVal = (() => {
-    const f = activeDoc?.extractionResult.fields.find(x => x.fieldId === 'carbon_intensity');
-    const n = f?.aiValue ? parseFloat(String(f.aiValue).replace(/[^0-9.]/g, '')) : NaN;
-    return Number.isFinite(n) ? n : null;
-  })();
-  const energySourceVal = activeDoc?.extractionResult.fields.find(x => x.fieldId === 'energy_source')?.aiValue || null;
 
   function handleDocComplete() {
     const updated: CompletedMap = { ...completedDocs, [activeDocId]: true };
@@ -882,14 +909,31 @@ export default function AiParsingView({
                   onFieldHover={setTableFieldHover}    // 우측 hover → 좌측 문서 강조
                   onFieldSelect={setActiveFieldId}     // [목표2] 우측 필드 클릭 → 좌측 원본 고정 하이라이트
                   saveOnlyMode={saveOnlyMode}
+                  // '저장' 확정값(사용자 수정 반영) → AiExtraction 합성해 부모 폼으로 전달.
+                  // 사용자가 직접 검토·확정한 값이므로 신뢰도 1.0 (부모의 '검토 권장' 플래그 방지).
+                  onSaveValues={onSaved ? (finalValues) => {
+                    const parsedFields: Record<string, string | number> = {};
+                    const confidenceMap: Record<string, number> = {};
+                    for (const [fieldId, v] of Object.entries(finalValues)) {
+                      parsedFields[fieldId] = v;
+                      confidenceMap[fieldId] = 1;
+                    }
+                    onSaved({
+                      requestId: activeDoc.docId,
+                      supplierId,
+                      supplierName: null,
+                      requestedDataType: activeDoc.requestType,
+                      submissionStatus: null,
+                      parsedFields,
+                      confidenceMap,
+                      unparsedFields: [],
+                      docCategory: docCategoryFilter ?? null,
+                    });
+                  } : undefined}
                 />
               </div>
-              {/* [목표3] 탄소 문서 → 폼 바로 아래 RAG 규제 분석 보고서(자동 트리거) */}
-              {isCarbonDoc && (
-                <div className="shrink-0">
-                  <CarbonComplianceReport carbonIntensity={carbonIntensityVal} energySource={energySourceVal} />
-                </div>
-              )}
+              {/* AI 규제 분석 보고서는 모달에서 렌더하지 않는다 — 모달은 추출 데이터 검토/[저장] 전용.
+                  보고서는 저장 후 메인 화면(3-1/3-2 섹션 하단)에서만 노출 (흐름 통일). */}
             </>
           )}
         </div>

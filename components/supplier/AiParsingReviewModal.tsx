@@ -2,8 +2,10 @@
 
 // AI 파싱 확인 팝업 — /partner/ai-parsing 페이지와 동일 화면(AiParsingView 공통 모듈)을
 //   거의 풀스크린 모달로 띄운다. 닫거나 전체 제출 완료 시 close.
+//   하단 버튼은 '저장' 단일 — 저장 시 확정값을 onSaved로 부모 폼에 반영하고 모달을 닫는다.
 import { X } from 'lucide-react';
 import AiParsingView from '@/components/supplier/AiParsingView';
+import type { AiExtraction } from '@/lib/api';
 
 export default function AiParsingReviewModal({
   supplierId,
@@ -13,6 +15,7 @@ export default function AiParsingReviewModal({
   docS3KeyFilter,
   initialDoc,
   title = 'AI 파싱 확인 및 수정 · 소재구성 문서',
+  onSaved,
 }: {
   supplierId: string;
   open: boolean;
@@ -21,6 +24,8 @@ export default function AiParsingReviewModal({
   docS3KeyFilter?: string | null;
   initialDoc?: { docId: string; fileName: string; fileUrl: string | null; requestType: string; docS3Key?: string | null } | null;
   title?: string;
+  /** '저장' 확정 시 최종 추출값(사용자 수정 반영) 수신 — 부모 폼 자동 채움 + RAG 트리거. */
+  onSaved?: (extraction: AiExtraction) => void;
 }) {
   if (!open) return null;
   return (
@@ -44,9 +49,12 @@ export default function AiParsingReviewModal({
           <AiParsingView
             supplierId={supplierId}
             onConfirmComplete={onClose}
+            realOnly
+            saveOnlyMode
             docCategoryFilter={docCategoryFilter}
             docS3KeyFilter={docS3KeyFilter}
             initialDoc={initialDoc}
+            onSaved={onSaved}
           />
         </div>
       </div>
