@@ -157,12 +157,15 @@ function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
   );
 }
 
-export default function FactoryCards({ rows, onChange, isSmelter = false, active = true, contacts, onContactsChange, supplierId }: {
+export default function FactoryCards({ rows, onChange, isSmelter = false, active = true, contacts, onContactsChange, supplierId, hideDestination = false }: {
   rows: FactoryDraft[]; onChange: (rows: FactoryDraft[]) => void; isSmelter?: boolean;
   // 상위(원산지 증명서 게이트)가 아직 안 풀렸으면 false — 이 안에서는 재확인 픽커를 자동으로 띄우지 않는다.
   active?: boolean;
   contacts: ContactDraft[]; onContactsChange: (rows: ContactDraft[]) => void;
   supplierId: string;
+  // 협력사 본인 화면에서는 납품처를 블라인드한다 — 이 값은 전체 공급망에 그대로 노출돼
+  // 하위 협력사가 최종 고객사·타 협력사를 알게 되는 경로가 된다. 원청 화면에서만 입력 가능.
+  hideDestination?: boolean;
 }) {
   const update = (i: number, patch: Partial<FactoryDraft>) =>
     onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -264,7 +267,11 @@ export default function FactoryCards({ rows, onChange, isSmelter = false, active
                 <FieldCell label="국가"><input value={r.country} onChange={e => update(i, { country: e.target.value })} placeholder="국가" className={editCellCls} /></FieldCell>
                 <FieldCell label="지역"><input value={r.region} onChange={e => update(i, { region: e.target.value })} placeholder="지역" className={editCellCls} /></FieldCell>
                 <FieldCell label="주소"><input value={r.address} onChange={e => update(i, { address: e.target.value })} placeholder="주소" className={editCellCls} /></FieldCell>
-                <FieldCell label="납품처"><input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} /></FieldCell>
+                <FieldCell label="납품처">
+                  {hideDestination
+                    ? <span className="text-sm text-ink-500">비공개</span>
+                    : <input value={r.destination} onChange={e => update(i, { destination: e.target.value })} placeholder="납품처" className={editCellCls} />}
+                </FieldCell>
                 <FieldCell label="공급비율(%)"><input value={r.supplyRatioPercent} onChange={e => update(i, { supplyRatioPercent: e.target.value })} placeholder="%" inputMode="decimal" className={editCellCls} /></FieldCell>
               </div>
               {/* 소재 구성 — 공장(사이트)마다 다룰 수 있어 회사 단위가 아니라 공장 단위로 관리한다
