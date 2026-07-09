@@ -1,34 +1,31 @@
 'use client';
 
-// ── 탄소발자국 문서 업로드 + AI 파싱 패널 ─────────────────────────────────────
-// MaterialDocParsePanel과 동일 파이프라인(신규 엔드포인트 없음), 대상 컬럼만 다르다:
+// ── [작업1] 실사 자가진단(SAQ) 문서 업로드 + AI 파싱 패널 ───────────────────────
+// CarbonFootprintDocPanel과 동일 파이프라인(신규 엔드포인트 없음), 대상 컬럼만 다르다:
 //   ① uploadFile(POST /files) → s3Key
-//   ② PATCH /suppliers/{id}/detail { carbon_footprint_doc_url: s3Key }
-//      → 커밋 후 SupplierDocumentUploaded(doc_kind='carbon_footprint') 발행 → 파싱 큐
+//   ② PATCH /suppliers/{id}/detail { self_assessment_doc_url: s3Key }
+//      → 커밋 후 SupplierDocumentUploaded(doc_kind='self_assessment') 발행 → 파싱 큐
 //   ③ 업로드 직후 자동 파싱 폴링 → GET /data-requests/ai-extractions, docS3Key === s3Key 매칭
-//   ④ 매칭된 추출결과(AiExtraction)를 부모로 올려 탄소집약도/에너지원 입력칸에 반영
+//   ④ 매칭된 추출결과(AiExtraction)를 부모로 올려 SAQ 항목(고충처리·강제노동 등) 입력칸에 반영
 //   ※ 파싱 중에는 onBusyChange(true)로 부모에 알려 입력칸 오버레이/잠금을 유도한다.
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { ShieldCheck, Loader2 } from 'lucide-react';
 import {
   ApiError, getAiExtractions, updateSupplierDetail, uploadFile,
   type AiExtraction,
 } from '@/lib/api';
 
-const CARBON_DOC_ACCEPT = '.pdf,.png,.jpg,.jpeg';
+const SAQ_DOC_ACCEPT = '.pdf,.png,.jpg,.jpeg';
 const PARSE_POLL_TRIES = 12;      // 최대 재시도(총 ~30초)
 const PARSE_POLL_INTERVAL = 2500; // ms — 이벤트 기반 비동기 파싱이라 2-3초 대기 후 조회
 
-export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editable, onParsed, onOpenViewer, onBusyChange, onUploaded }: {
+export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editable, onParsed, onOpenViewer, onBusyChange, onUploaded }: {
   supplierId: string;
   initialUrl?: string | null;
   editable?: boolean;
   onParsed: (extraction: AiExtraction) => void;
-  // AI 파싱 확인 팝업(AiParsingView 모달) 열기 — 업로드 완료 직후 + '결과 보기' 클릭 시.
   onOpenViewer: () => void;
-  // 업로드/파싱 진행 상태를 부모로 알림 → 부모가 입력칸 오버레이/잠금 적용.
   onBusyChange?: (busy: boolean) => void;
-  // 방금 업로드한 문서 정보 → 부모가 파싱 확인 모달에 넘겨 '파싱 중' 표시/폴링 활성화.
   onUploaded?: (info: { docS3Key: string; fileName: string }) => void;
 }) {
   const [docValue, setDocValue] = useState(initialUrl ?? '');
@@ -44,7 +41,6 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  // 언마운트 후 setState 방지 — 폴링(수십 초)이 편집 취소보다 오래 살 수 있다.
   const cancelledRef = useRef(false);
   useEffect(() => {
     cancelledRef.current = false;
@@ -52,14 +48,11 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
   }, []);
   useEffect(() => { setDocValue(initialUrl ?? ''); }, [initialUrl]);
 
-  // 진행 상태를 부모로 브로드캐스트 (오버레이/잠금 트리거).
   const busy = uploading || parsing;
   useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
 
   const shownName = displayName || (docValue ? docValue.split('/').pop() : '');
 
-  // 업로드된 문서의 파싱 결과를 폴링. keyArg로 방금 올린 s3Key를 직접 받아
-  // (setState 비동기로 docValue가 아직 안 바뀐 상태에서도) 즉시 파싱을 시작할 수 있게 한다.
   async function runParse(keyArg?: string) {
     const key = keyArg ?? docValue;
     if (!key) return;
@@ -72,12 +65,11 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
         if (cancelledRef.current) return;
         const list = await getAiExtractions().catch(() => null);
         if (cancelledRef.current) return;
-        // created_at DESC 정렬 — 첫 매칭이 곧 최신(같은 파일 두 번 업로드해도 최신 선택).
         const hit = (list ?? []).find(e => e.docS3Key === key);
         if (hit) {
           onParsed(hit);
           setParseDone(true);
-          setNotice('파싱 완료 — 추출된 값이 입력칸에 채워졌어요. 값을 확인한 뒤 저장해주세요.');
+          setNotice('파싱 완료 — 추출된 SAQ 항목이 입력칸에 채워졌어요. CSDDD 준수 분석 결과를 확인해주세요.');
           return;
         }
       }
@@ -100,16 +92,14 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
     setError('');
     setNotice('');
     try {
-      const meta = await uploadFile(f, `carbon-footprint-doc:${supplierId}`);
-      // PATCH → 컬럼 갱신 + 커밋 후 문서 이벤트 발행(파싱 파이프라인 트리거).
-      await updateSupplierDetail(supplierId, { carbon_footprint_doc_url: meta.s3Key });
+      const meta = await uploadFile(f, `self-assessment-doc:${supplierId}`);
+      await updateSupplierDetail(supplierId, { self_assessment_doc_url: meta.s3Key });
       if (cancelledRef.current) return;
       setDocValue(meta.s3Key);
       setDisplayName(f.name);
       setSessionUploaded(true);
       setParseDone(false);  // 새 파일 = 새 파싱 사이클
-      setNotice(`업로드 완료 · ${f.name} — AI가 분석을 시작했어요`);
-      // 부모에 업로드 문서 전달(모달 파싱 표시용) → 파싱 확인 팝업 + 자동 파싱 폴링.
+      setNotice(`업로드 완료 · ${f.name} — AI가 CSDDD 실사 분석을 시작했어요`);
       onUploaded?.({ docS3Key: meta.s3Key, fileName: f.name });
       onOpenViewer();
       void runParse(meta.s3Key);
@@ -130,13 +120,13 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
           ? notice
           : sessionUploaded
             ? `업로드됨 · ${shownName}`
-            : '미업로드 · PDF/이미지(png/jpg/jpeg)를 올리면 탄소집약도/에너지원을 자동으로 채워요.';
+            : '미업로드 · SAQ 보고서(PDF/이미지)를 올리면 고충처리·강제노동 등 항목을 자동으로 채워요.';
 
   return (
     <div className="relative overflow-hidden rounded-sm border border-ink-700 bg-white">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-ink-100">탄소발자국 문서 (탄소집약도/에너지원 자동 추출)</div>
+          <div className="text-sm font-semibold text-ink-100">실사 자가진단(SAQ) 보고서 (인권·안전 항목 자동 추출)</div>
           <div className={`mt-0.5 flex items-center gap-1.5 truncate text-xs ${error ? 'text-alert-text' : notice ? 'text-ok-text' : sessionUploaded ? 'text-ink-400' : 'text-ink-500'}`}>
             {busy && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent-700" />}
             <span className="truncate">{statusText}</span>
@@ -152,7 +142,7 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
                 {sessionUploaded ? '파일 변경' : '파일 업로드'}
                 <input
                   type="file"
-                  accept={CARBON_DOC_ACCEPT}
+                  accept={SAQ_DOC_ACCEPT}
                   className="hidden"
                   disabled={busy}
                   onChange={handleSelect}
@@ -164,7 +154,7 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
                 disabled={!sessionUploaded || busy || parseDone}
                 className="inline-flex items-center gap-1 rounded-xs bg-accent-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-900 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {parsing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {parsing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                 {parsing ? '파싱 중…' : '파싱하기'}
               </button>
               {/* 결과 보기도 세션 업로드 전에는 비활성 — 업로드 없이 열면 빈 파싱 팝업만 떠서
@@ -180,11 +170,9 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
             </>
           )}
         </div>
-        {/* persistForm(master-form authoritative-overwrite) round-trip 캐리어 —
-            없으면 자료 제출 시 carbon_footprint_doc_url 이 NULL 로 덮인다. */}
-        <input type="hidden" data-field="regulation.carbonFootprintDocUrl" value={docValue} readOnly />
+        {/* persistForm round-trip 캐리어 — 없으면 자료 제출 시 self_assessment_doc_url 이 NULL 로 덮인다. */}
+        <input type="hidden" data-field="regulation.selfAssessmentDocUrl" value={docValue} readOnly />
       </div>
-      {/* 진행 중 하단 인디터미네이트 프로그레스 바 (Tailwind 내장 pulse) */}
       {busy && <div className="h-0.5 w-full animate-pulse bg-accent-600" />}
     </div>
   );

@@ -80,8 +80,12 @@ interface ExtractionTableProps {
   hoveredFieldId?: string | null;
   /** 이 패널에서 필드 호버 시 외부에 전파하는 콜백. */
   onFieldHover?: (fieldId: string | null) => void;
+  /** [목표2] 필드 클릭 → 좌측 원본에서 해당 데이터 고정 하이라이트(역추적). */
+  onFieldSelect?: (fieldId: string | null) => void;
   /** 소재구성 팝업 모드(true) — 하단에 저장 버튼만 노출(원청사 제출 버튼 숨김). */
   saveOnlyMode?: boolean;
+  /** 저장 확정 시 최종값(fieldId → 값, 사용자 수정분 반영) 부모 전달 — 폼 자동 채움 + RAG 트리거용. */
+  onSaveValues?: (finalValues: Record<string, string>) => void;
 }
 
 // ─── 토스트 컴포넌트 ────────────────────────────────────────────────────────
@@ -167,7 +171,9 @@ export default function ExtractionTable({
   mode = 'supplier',
   hoveredFieldId,
   onFieldHover,
+  onFieldSelect,
   saveOnlyMode = false,
+  onSaveValues,
 }: ExtractionTableProps) {
   const prime = mode === 'prime';
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
@@ -236,12 +242,15 @@ export default function ExtractionTable({
     try {
       const isRealSupplier = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId);
       const payload: Record<string, unknown> = {};
+      // 전체 필드의 최종 확정값(편집값 우선) — 저장 후 부모 폼 자동 채움(onSaveValues)용.
+      const finalValues: Record<string, string> = {};
       for (const f of (doc.extractionResult.fields as Array<{ fieldId: string; aiValue: string }>)) {
-        const key = FIELD_TO_DETAIL[f.fieldId];
-        if (!key) continue;
         const raw = editedValues[f.fieldId] !== undefined ? editedValues[f.fieldId] : f.aiValue;
         const v = (raw ?? '').toString().trim();
         if (!v) continue;
+        finalValues[f.fieldId] = v;
+        const key = FIELD_TO_DETAIL[f.fieldId];
+        if (!key) continue;
         // 탄소집약도만 숫자(천단위 콤마 제거). 나머지는 문자열 그대로.
         // country 정규화(국가명→ISO alpha-2)는 백엔드 update_supplier_detail이 담당.
         payload[key] = key === 'carbon_intensity' ? Number(v.replace(/,/g, '')) : v;
@@ -250,6 +259,8 @@ export default function ExtractionTable({
         await updateSupplierDetail(supplierId, payload);
       }
       localStorage.removeItem(draftKey(supplierId, doc.docId));
+      // 부모 폼 상태로 확정값 전달(입력칸 자동 채움 + RAG 분석 트리거) → 이후 모달 닫힘.
+      onSaveValues?.(finalValues);
       onConfirmComplete();
     } catch {
       setToast({ message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', tone: 'ok' });
@@ -314,7 +325,9 @@ export default function ExtractionTable({
                   data-field-id={field.fieldId}
                   onMouseEnter={() => handleFieldMouseEnter(field.fieldId)}
                   onMouseLeave={handleFieldMouseLeave}
-                  className={`rounded-xs border px-3 py-3 transition-all duration-200 cursor-default ${
+                  onClick={() => onFieldSelect?.(field.fieldId)}
+                  title="클릭하면 좌측 원본에서 해당 항목을 표시합니다"
+                  className={`rounded-xs border px-3 py-3 transition-all duration-200 cursor-pointer ${
                     isHighlighted
                       ? 'ring-2 ring-accent-500 ring-offset-1 shadow-md scale-[1.01]'
                       : ''
@@ -390,15 +403,16 @@ export default function ExtractionTable({
 
         {/* 하단 액션 버튼 */}
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-ink-700 bg-white px-5 py-4 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
-          {/* saveOnlyMode: 저장 버튼만 노출 (원청사 제출 버튼 숨김) */}
+          {/* saveOnlyMode: '저장' 단일 버튼 — 백엔드 영속화 + 부모 폼 반영(onSaveValues) + 모달 닫기 */}
           {saveOnlyMode ? (
             <button
               type="button"
-              onClick={() => { handleDraftSave(); onConfirmComplete(); }}
-              className="inline-flex items-center gap-1.5 rounded-xs border border-ink-700 bg-white px-4 py-2 text-xs font-bold text-ink-400 hover:border-ink-600 hover:text-ink-200 transition-colors"
+              onClick={handleSubmit}
+              disabled={confirming}
+              className="inline-flex items-center gap-1.5 rounded-xs bg-accent-700 px-5 py-2 text-xs font-bold text-white shadow-control transition-colors hover:bg-accent-900 disabled:opacity-70"
             >
               <Save className="h-3.5 w-3.5" />
-              저장
+              {confirming ? '저장 중...' : '저장'}
             </button>
           ) : (
             <>

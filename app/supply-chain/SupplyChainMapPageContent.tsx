@@ -786,8 +786,9 @@ export function SupplyChainMapPageContent({
         </div>
       )}
 
-      {/* 공급망 맵 평가 리포트(종합 판정 문구) — 표/엑셀과 같은 화면에 노출. */}
-      {!formationMode && evaluation?.available && (
+      {/* 공급망 맵 평가 리포트(종합 판정 문구) — 표/엑셀과 같은 화면에 노출.
+          임베드(허브 안)일 땐 허브가 이미 상단에 같은 카드를 보여주므로 중복 방지로 건너뛴다. */}
+      {!embedded && !formationMode && evaluation?.available && (
         <EvaluationReportCard report={evaluation} className="mt-4" />
       )}
 

@@ -33,6 +33,25 @@ export function calculateDDay(expiresAt: string): { label: string; days: number 
   return { label: `D-${days}`, days };
 }
 
+// [오늘의 알림] 로그인 시점(클라이언트 현재 날짜) 기준 마감일 D-Day 동적 산출.
+// ⚠️ calculateDDay(REFERENCE_DATE 고정)와 별개 함수 — 기존 인증서 화면 로직 보호.
+//   · days > 0   → 'D-N'   (기한 여유)       · state: 'future'
+//   · days === 0 → 'D-Day' (당일 마감)       · state: 'dday'   (호출부에서 Red 강조)
+//   · days < 0   → 'D+N'   (기한 초과=연체)  · state: 'overdue'(호출부에서 상태 '연체' 강제)
+export function calcDeadlineDDay(
+  dueDate: string,
+  now: Date = new Date(),
+): { label: string; days: number; state: 'future' | 'dday' | 'overdue' } {
+  const due = new Date(dueDate);
+  // 시·분·초 무시하고 '날짜' 단위로만 차이 계산
+  const dueMidnight = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+  const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const days = Math.round((dueMidnight - nowMidnight) / (1000 * 60 * 60 * 24));
+  if (days > 0) return { label: `D-${days}`, days, state: 'future' };
+  if (days === 0) return { label: 'D-Day', days, state: 'dday' };
+  return { label: `D+${Math.abs(days)}`, days, state: 'overdue' };
+}
+
 // ESG API는 인증서 status를 주지 않음 → 만료일 기준으로 파생 (기준일 REFERENCE_DATE)
 export function deriveCertStatusPortal(expiresAt: string): 'active' | 'expiring_soon' | 'expired' {
   const exp = new Date(expiresAt + 'T00:00:00').getTime();
@@ -186,8 +205,8 @@ export const PARTNER_DEEP_LINK_ROUTE: Record<string, string> = {
 };
 
 export const PARTNER_DEEP_LINK_LABEL: Record<string, string> = {
-  'company-info':     '내 기업 정보',
-  'submit-documents': '내 기업 정보',
+  'company-info':     '자료제출',
+  'submit-documents': '자료제출',
   'ai-parsing':       'AI 파싱 확인',
   'supply-chain':     '공급망 연결',
 };
