@@ -507,7 +507,6 @@ export interface SupplierDetail extends SupplierBrief {
   // 기업 기본정보 (suppliers 테이블 — 없으면 null)
   companyNameEn?: string | null;
   companyNameKo?: string | null;
-  ceoName?: string | null;
   businessRegNo?: string | null;
   dunsNumber?: string | null;
   website?: string | null;
@@ -1064,6 +1063,8 @@ export interface OnboardingPrefill {
   } | null;
   // 이미 업로드된 사업자등록증(있으면) — 재업로드 없이 확인만.
   businessRegDoc?: { s3Key: string; fileName?: string | null } | null;
+  // 이미 업로드된 환경성적서(있으면) — businessRegDoc과 동일 패턴.
+  environmentalReport?: { s3Key: string; fileName?: string | null } | null;
   unverified?: boolean; // 미확인(서류 미보유)으로 등록돼 있는지
   consent?: OnboardingConsentSummary | null;
 }

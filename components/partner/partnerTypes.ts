@@ -25,3 +25,29 @@ export interface MockFactory {
   operatingPeriodTo?: string;
   monthlyCapacity?: string;
 }
+
+// 8단계 제출 트래커(구 EightStageStepper.tsx)에서 이관된 타입.
+export type StageStatus =
+  | 'done'       // 완료 (초록)
+  | 'active'     // 현재 진행 중 (accent 깜빡 펄스)
+  | 'rejected'   // 보완 요청 / 반려 (빨강)
+  | 'pending';   // 대기 (회색)
+
+export interface Stage {
+  no: number;
+  label: string;
+  sublabel: string;           // 단계 설명 (툴팁용)
+  status: StageStatus;
+  completedAt?: string;       // 완료 일시
+}
+
+export interface Submission {
+  id: string;
+  documentName: string;       // 서류명
+  submittedAt: string;        // 최초 제출일
+  stages: Stage[];
+  /** 반려된 경우 해당 단계 번호 (1-based) */
+  rejectedStageNo?: number;
+  rejectionReason?: string;   // 반려 사유
+  onResubmit?: () => void;    // [재제출 하기] 클릭 콜백
+}

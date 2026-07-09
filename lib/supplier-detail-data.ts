@@ -4,23 +4,15 @@
 //   - supplier_names           (영문 기본 + 한글 병기)
 //   - supplier_contacts        (담당자 다중 — 공장 담당자 포함)
 //   - supplier_factories       (본사/공장 분리, 좌표, 가동기간)
-//   - supplier_certifications  (인증서 + 만료일)
-//   - supplier_risk            (종합 위험도, 실사, 인권, 산재, 교육)
-//   - purchase_orders          → supply_chain_map.po_number 매핑
-//   - parts, bom_items         (부품 5계층)
-//   - manufacturing_process    (제조공정도)
-//   - data_completeness_status (완성도)
-//   - data_request_log         (리마인드 이력)
-//   - origin_certificates      (원산지 증명서)
-//   - training_records         (교육 이수 현황)
+//   - supplier_risk            (종합 위험도, 실사, 인권, 산재)
 // ============================================================
 
-import { suppliers as supplierList, type Tier } from './data'; 
-// tierShortLabels는 lib/data.ts에서 단일 출처로 관리 (중복 제거) 
-// // 외부에서 이 파일을 통해 import하던 코드 호환을 위해 re-export 
-export { tierShortLabels } from './data'; 
-// // TierLevel은 Tier의 별칭 — 파일 내부에서 사용 + 외부 re-export 
-export type TierLevel = Tier; 
+import { type Tier } from './data';
+// tierShortLabels는 lib/data.ts에서 단일 출처로 관리 (중복 제거)
+// // 외부에서 이 파일을 통해 import하던 코드 호환을 위해 re-export
+export { tierShortLabels } from './data';
+// // TierLevel은 Tier의 별칭 — 파일 내부에서 사용 + 외부 re-export
+export type TierLevel = Tier;
 
 // ============================================================
 // 0. 규제 타입 (v2 — 11개 규제 전체)
@@ -89,93 +81,7 @@ export function getSupplierName(supplierId: string): SupplierName | undefined {
 }
 
 // ============================================================
-// 2. 협력사 확장 정보 (기업 일반정보)
-// ============================================================
-export interface SupplierExtended {
-  supplierId: string;
-  businessRegNo: string;
-  corporateRegNo: string;
-  dunsNumber: string;
-  taxNumber: string;
-  ceoName: string;
-  website: string;
-  providerType: 'manufacturer' | 'recycler' | 'trader' | 'miner';
-  establishedYear: number;
-  employeeCount: number;
-}
-
-export const supplierExtended: SupplierExtended[] = [
-  { supplierId: 'S-CELL-001', businessRegNo: '123-45-67890',  corporateRegNo: '110111-1234567', dunsNumber: '687453291', taxNumber: 'KR-CELL-001',   ceoName: '한정민 (Han Jeongmin)', website: 'https://hanyang-cell.co.kr',  providerType: 'manufacturer', establishedYear: 2008, employeeCount: 1240 },
-  { supplierId: 'S-CAM-001',  businessRegNo: '234-56-78901',  corporateRegNo: '110111-2345678', dunsNumber: '687453292', taxNumber: 'KR-CAM-001',    ceoName: '박지훈 (Park Jihoon)',  website: 'https://pos-cathode.com',     providerType: 'manufacturer', establishedYear: 2012, employeeCount: 580 },
-  { supplierId: 'S-CAM-002',  businessRegNo: 'CN-91370600',   corporateRegNo: '91370600-X',     dunsNumber: '687453293', taxNumber: 'CN-CAM-002',    ceoName: 'Wei Liu',               website: 'https://yantai-cathode.cn',   providerType: 'manufacturer', establishedYear: 2015, employeeCount: 420 },
-  { supplierId: 'S-ANO-001',  businessRegNo: 'JP-2700-01-12', corporateRegNo: 'JP-OSA-2700-01', dunsNumber: '687453294', taxNumber: 'JP-ANO-001',    ceoName: 'Hiroshi Tanaka',        website: 'https://mitsui-anode.jp',     providerType: 'manufacturer', establishedYear: 1995, employeeCount: 880 },
-  { supplierId: 'S-PRE-001',  businessRegNo: 'CN-91440100',   corporateRegNo: '91440100-P',     dunsNumber: '687453295', taxNumber: 'CN-PRE-001',    ceoName: 'Jian Zhao',             website: 'https://qz-precursor.cn',     providerType: 'manufacturer', establishedYear: 2010, employeeCount: 690 },
-  { supplierId: 'S-REF-001',  businessRegNo: 'AU-ABN-12345',  corporateRegNo: 'AU-WA-PRW-001',  dunsNumber: '687453296', taxNumber: 'AU-REF-001',    ceoName: 'James Wilson',          website: 'https://piw-refining.au',     providerType: 'manufacturer', establishedYear: 1988, employeeCount: 1450 },
-  { supplierId: 'S-REF-002',  businessRegNo: 'CN-91360700',   corporateRegNo: '91360700-G',     dunsNumber: '687453297', taxNumber: 'CN-REF-002',    ceoName: 'Hong Chen',             website: 'https://ganzhou-rare.cn',     providerType: 'manufacturer', establishedYear: 2005, employeeCount: 320 },
-  { supplierId: 'S-MINE-001', businessRegNo: 'ID-ESDM-NCL',   corporateRegNo: 'ID-NORI-2018',   dunsNumber: '687453298', taxNumber: 'ID-MINE-001',   ceoName: 'Roberto Cruz',          website: 'https://nori-mining.id',      providerType: 'miner',        establishedYear: 2003, employeeCount: 2100 },
-  { supplierId: 'S-MINE-002', businessRegNo: 'CD-DGRAD-COB',  corporateRegNo: 'CD-KAT-2014',    dunsNumber: '687453299', taxNumber: 'CD-MINE-002',   ceoName: 'Jean-Paul Mwamba',      website: 'https://kat-cobalt.cd',       providerType: 'miner',        establishedYear: 2014, employeeCount: 1680 },
-  { supplierId: 'S-MINE-003', businessRegNo: 'CL-SII-LIO',    corporateRegNo: 'CL-SDA-2010',    dunsNumber: '687453300', taxNumber: 'CL-MINE-003',   ceoName: 'Maria Vega',            website: 'https://sda-lithium.cl',      providerType: 'miner',        establishedYear: 2010, employeeCount: 420 },
-];
-
-export function getSupplierExtended(supplierId: string) {
-  return supplierExtended.find(e => e.supplierId === supplierId) ?? null;
-}
-
-// ============================================================
-// 2-1. Provider Type CTI 상세 정보
-// MOCK: 백엔드 supplier_*_details 응답 스키마를 프론트 표시용으로 축약한 예시 데이터.
-// ============================================================
-export type ProviderType = SupplierExtended['providerType'];
-
-export type SupplierCtiDetails =
-  | {
-      providerType: 'manufacturer';
-      productionLine: string;
-      annualCapacity: string;
-      qualitySystem: string;
-      processTraceability: string;
-    }
-  | {
-      providerType: 'recycler';
-      recyclingMethod: string;
-      annualRecoveredMaterial: string;
-      wastePermitId: string;
-      recoveryRate: number;
-    }
-  | {
-      providerType: 'trader';
-      disclosureCompleteness: number;
-      disclosedUpstreamCount: number;
-      declaredMaterialScope: string;
-      readinessInput: string;
-    }
-  | {
-      providerType: 'miner';
-      mineCoordinates: [number, number] | null;
-      concessionId: string;
-      extractedMinerals: string[];
-      geoVerificationStatus: string;
-    };
-
-export const supplierCtiDetails: Record<string, SupplierCtiDetails> = {
-  'S-CELL-001': { providerType: 'manufacturer', productionLine: 'NCM/NCA Cell Assembly Line A·B', annualCapacity: '7.2 GWh', qualitySystem: 'IATF 16949 / ISO 9001', processTraceability: 'Lot-BOM-PO 단위 연결' },
-  'S-CAM-001':  { providerType: 'manufacturer', productionLine: 'Cathode Active Material Line 1·2', annualCapacity: '48,000 t/y', qualitySystem: 'ISO 9001 / ISO 14001', processTraceability: 'Batch-precursor-origin 연결' },
-  'S-CAM-002':  { providerType: 'manufacturer', productionLine: 'NCA Cathode Line YT-3', annualCapacity: '22,000 t/y', qualitySystem: 'ISO 9001', processTraceability: 'Batch 단위 일부 추적' },
-  'S-ANO-001':  { providerType: 'manufacturer', productionLine: 'Graphite Anode Coating Line', annualCapacity: '36,000 t/y', qualitySystem: 'ISO 9001 / ISO 45001', processTraceability: 'Lot-source-country 연결' },
-  'S-PRE-001':  { providerType: 'manufacturer', productionLine: 'Precursor Co-precipitation Line', annualCapacity: '31,000 t/y', qualitySystem: 'ISO 9001', processTraceability: 'Batch-refinery-origin 연결' },
-  'S-REF-001':  { providerType: 'manufacturer', productionLine: 'Nickel Refining Line WA-2', annualCapacity: '58,000 t/y', qualitySystem: 'ISO 14001 / Responsible Minerals', processTraceability: 'Refining batch-mine 연결' },
-  'S-REF-002':  { providerType: 'manufacturer', productionLine: 'Cobalt Refining Line GZ-1', annualCapacity: '18,000 t/y', qualitySystem: 'ISO 9001', processTraceability: 'Batch 단위 원산지 신고' },
-  'S-MINE-001': { providerType: 'miner', mineCoordinates: [-2.5489, 121.9957], concessionId: 'ID-ESDM-NCL-2018-042', extractedMinerals: ['니켈'], geoVerificationStatus: '위성·광권 대조 백엔드 검증 대기' },
-  'S-MINE-002': { providerType: 'miner', mineCoordinates: [-10.7167, 25.4667], concessionId: 'CD-DGRAD-COB-2014-018', extractedMinerals: ['코발트'], geoVerificationStatus: '고위험 지역 좌표 백엔드 검증 대기' },
-  'S-MINE-003': { providerType: 'miner', mineCoordinates: [-23.5000, -68.2500], concessionId: 'CL-SII-LIO-2010-071', extractedMinerals: ['리튬'], geoVerificationStatus: '염호 좌표 백엔드 검증 대기' },
-};
-
-export function getCtiDetails(supplierId: string): SupplierCtiDetails | null {
-  return supplierCtiDetails[supplierId] ?? null;
-}
-
-// ============================================================
-// 3. 담당자 연락처 (공장 담당자 포함)
+// 2. 담당자 연락처 (공장 담당자 포함)
 // ============================================================
 export interface SupplierContact {
   contactId: string;
@@ -239,12 +145,9 @@ export const supplierContacts: SupplierContact[] = [
 export function getContacts(supplierId: string): SupplierContact[] {
   return supplierContacts.filter(c => c.supplierId === supplierId);
 }
-export function getContactsByFactory(factoryId: string): SupplierContact[] {
-  return supplierContacts.filter(c => c.factoryId === factoryId);
-}
 
 // ============================================================
-// 4. 공장(사업장) — 규제 v2 (11개)
+// 3. 공장(사업장) — 규제 v2 (11개)
 // ============================================================
 export interface Factory {
   factoryId: string;
@@ -441,7 +344,7 @@ export function getFactories(supplierId: string): Factory[] {
 }
 
 // ============================================================
-// 5. 리스크 프로필 (종합 위험도 + 실사)
+// 4. 리스크 프로필 (종합 위험도 + 실사)
 // ============================================================
 export type RiskLevel = 'critical' | 'high' | 'medium' | 'low';
 export type AuditType = 'on_site' | 'remote' | 'document_review' | 'third_party';
@@ -782,168 +685,7 @@ export function getRiskProfile(supplierId: string): SupplierRiskProfile | null {
 }
 
 // ============================================================
-// 6. 원산지 증명서 관리
-// ============================================================
-export type OriginCertType =
-  | 'FTA'           // FTA 원산지 증명서
-  | 'GSP'           // 일반특혜관세 원산지 증명서
-  | 'UFLPA_REBUTTAL'// UFLPA 반증용
-  | 'CONFLICT_FREE' // 분쟁광물 無분쟁 선언
-  | 'GENERAL';      // 일반 원산지 증명
-
-export interface OriginCertificate {
-  certId: string;
-  supplierId: string;
-  factoryId?: string;
-  certType: OriginCertType;
-  certNumber: string;
-  issuingAuthority: string;
-  issuedAt: string;
-  expiresAt: string;
-  originCountry: string;
-  coveredMinerals?: string[];   // 적용 광물
-  status: 'valid' | 'expiring_soon' | 'expired' | 'under_review';
-  documentUrl?: string;
-}
-
-export const originCertificates: OriginCertificate[] = [
-  { certId: 'OC-002', supplierId: 'S-CELL-001', factoryId: 'F-003', certType: 'FTA', certNumber: 'FTA-KR-EU-2025-088', issuingAuthority: '대한상공회의소', issuedAt: '2025-01-15', expiresAt: '2026-01-14', originCountry: 'KR', status: 'expired' },
-  { certId: 'OC-003', supplierId: 'S-CAM-001',  factoryId: 'F-005', certType: 'FTA', certNumber: 'FTA-KR-EU-2026-012', issuingAuthority: '포항상공회의소', issuedAt: '2026-01-10', expiresAt: '2027-01-09', originCountry: 'KR', status: 'valid' },
-  { certId: 'OC-005', supplierId: 'S-CAM-002',  factoryId: 'F-008', certType: 'UFLPA_REBUTTAL', certNumber: 'CBP-CN-2025-YT-001', issuingAuthority: 'CBP (US Customs)', issuedAt: '2025-05-15', expiresAt: '2026-05-14', originCountry: 'CN', status: 'expiring_soon', coveredMinerals: ['니켈', '리튬'] },
-  { certId: 'OC-006', supplierId: 'S-PRE-001',  factoryId: 'F-012', certType: 'CONFLICT_FREE', certNumber: 'CMRT-QZ-2026-001', issuingAuthority: 'RMI (Responsible Minerals Initiative)', issuedAt: '2026-02-01', expiresAt: '2027-01-31', originCountry: 'CN', status: 'valid', coveredMinerals: ['코발트', '니켈', '망간'] },
-  { certId: 'OC-008', supplierId: 'S-REF-002',  factoryId: 'F-015', certType: 'UFLPA_REBUTTAL', certNumber: 'CBP-CN-2024-GZ-003', issuingAuthority: 'CBP (US Customs)', issuedAt: '2024-11-01', expiresAt: '2025-10-31', originCountry: 'CN', status: 'expired', coveredMinerals: ['코발트'] },
-  { certId: 'OC-009', supplierId: 'S-MINE-001', factoryId: 'F-016', certType: 'CONFLICT_FREE', certNumber: 'RMAP-ID-2025-NC-011', issuingAuthority: 'RMI RMAP', issuedAt: '2025-11-01', expiresAt: '2026-10-31', originCountry: 'ID', status: 'valid', coveredMinerals: ['니켈'] },
-  { certId: 'OC-010', supplierId: 'S-MINE-002', factoryId: 'F-017', certType: 'CONFLICT_FREE', certNumber: 'RMAP-CD-2024-CO-008', issuingAuthority: 'RMI RMAP', issuedAt: '2024-06-15', expiresAt: '2025-06-14', originCountry: 'CD', status: 'expired', coveredMinerals: ['코발트'] },
-];
-
-export function getOriginCertificates(supplierId: string): OriginCertificate[] {
-  return originCertificates.filter(c => c.supplierId === supplierId);
-}
-
-// ============================================================
-// 7. 교육 관리 (사업장별)
-// ============================================================
-export type TrainingCategory =
-  | 'human_rights'      // 인권 교육
-  | 'safety'            // 산업안전
-  | 'environmental'     // 환경
-  | 'anti_corruption'   // 반부패
-  | 'conflict_minerals' // 분쟁광물
-  | 'data_protection'   // 개인정보/데이터
-  | 'esg_general';      // ESG 일반
-
-export interface TrainingMaterial {
-  materialId: string;
-  title: string;
-  titleEn?: string;
-  category: TrainingCategory;
-  description: string;
-  format: 'pdf' | 'video' | 'online' | 'onsite';
-  durationMinutes: number;
-  requiredFor: string[];   // 대상 규제 (Regulation 코드)
-  version: string;
-  updatedAt: string;
-  url?: string;
-}
-
-export const trainingMaterials: TrainingMaterial[] = [
-  { materialId: 'TM-001', title: '인권 실사 기초 가이드', titleEn: 'Human Rights Due Diligence Guide', category: 'human_rights', description: 'CSDDD·LKSG 기준 인권 실사 절차 및 체크리스트', format: 'pdf', durationMinutes: 60, requiredFor: ['CSDDD', 'LKSG'], version: 'v2.1', updatedAt: '2026-02-15' },
-  { materialId: 'TM-002', title: '분쟁광물 규정 이해', titleEn: 'Understanding Conflict Minerals Regulation', category: 'conflict_minerals', description: 'EU 분쟁광물 규정 2017/821 및 OECD 가이던스 요약', format: 'video', durationMinutes: 45, requiredFor: ['CONFLICT_MINERALS'], version: 'v1.3', updatedAt: '2025-11-20' },
-  { materialId: 'TM-003', title: '광산 안전 표준 (IRMA)', titleEn: 'Mining Safety Standards (IRMA)', category: 'safety', description: 'IRMA 기준 광산 안전 절차 및 보고 양식', format: 'online', durationMinutes: 90, requiredFor: ['CSDDD'], version: 'v1.0', updatedAt: '2025-09-01' },
-  { materialId: 'TM-004', title: 'UFLPA 대응 매뉴얼', titleEn: 'UFLPA Compliance Manual', category: 'human_rights', description: '미국 UFLPA 반증 요건 및 CBP 대응 가이드', format: 'pdf', durationMinutes: 75, requiredFor: ['UFLPA'], version: 'v2.0', updatedAt: '2026-01-10' },
-  { materialId: 'TM-005', title: 'EU 배터리법 공급망 실사 (Art.47)', titleEn: 'EU Battery Regulation Art.47 Due Diligence', category: 'esg_general', description: 'Battery DDP 수립 절차 및 notified body 검증 안내', format: 'pdf', durationMinutes: 120, requiredFor: ['EU_BATTERY_ART47'], version: 'v1.0', updatedAt: '2026-03-20' },
-  { materialId: 'TM-006', title: '탄소발자국 측정 가이드 (Art.7)', titleEn: 'Carbon Footprint Measurement Guide (Art.7)', category: 'environmental', description: 'Scope 1-3 배출량 산정 방법론 및 검증 절차', format: 'online', durationMinutes: 90, requiredFor: ['EU_BATTERY_ART7', 'CBAM'], version: 'v1.2', updatedAt: '2026-04-05' },
-  { materialId: 'TM-007', title: '아동노동 방지 실무 교육', titleEn: 'Child Labor Prevention Training', category: 'human_rights', description: 'ILO 기준 아동노동 식별·대응 절차', format: 'video', durationMinutes: 60, requiredFor: ['CSDDD', 'CONFLICT_MINERALS'], version: 'v1.1', updatedAt: '2025-12-01' },
-  { materialId: 'TM-008', title: '반부패·뇌물방지 교육', titleEn: 'Anti-Bribery & Corruption Training', category: 'anti_corruption', description: 'FCPA/UK Bribery Act 기준 반부패 정책 교육', format: 'online', durationMinutes: 60, requiredFor: ['CSDDD', 'LKSG'], version: 'v2.0', updatedAt: '2026-01-20' },
-];
-
-export interface TrainingRecord {
-  recordId: string;
-  supplierId: string;
-  factoryId: string;
-  materialId: string;
-  traineeCount: number;        // 이수 인원
-  totalEligible: number;       // 대상 총 인원
-  completionRate: number;      // 이수율 %
-  completedAt?: string;        // 완료일 (미완료면 undefined)
-  dueDate: string;             // 이수 기한
-  status: 'completed' | 'in_progress' | 'overdue' | 'not_started';
-  instructor?: string;
-  notes?: string;
-}
-
-export const trainingRecords: TrainingRecord[] = [
-  // Hanyang Cell
-  { recordId: 'TR-001', supplierId: 'S-CELL-001', factoryId: 'F-002', materialId: 'TM-001', traineeCount: 45, totalEligible: 45, completionRate: 100, completedAt: '2026-03-20', dueDate: '2026-03-31', status: 'completed', instructor: '김지수 ESG팀장' },
-  { recordId: 'TR-002', supplierId: 'S-CELL-001', factoryId: 'F-002', materialId: 'TM-005', traineeCount: 12, totalEligible: 12, completionRate: 100, completedAt: '2026-04-15', dueDate: '2026-04-30', status: 'completed', instructor: '외부 강사 (TÜV SÜD)' },
-  { recordId: 'TR-003', supplierId: 'S-CELL-001', factoryId: 'F-002', materialId: 'TM-006', traineeCount: 8, totalEligible: 10, completionRate: 80, dueDate: '2026-05-31', status: 'in_progress' },
-
-  // POS Cathode 포항
-  { recordId: 'TR-004', supplierId: 'S-CAM-001', factoryId: 'F-005', materialId: 'TM-001', traineeCount: 28, totalEligible: 28, completionRate: 100, completedAt: '2026-02-28', dueDate: '2026-02-28', status: 'completed', instructor: '최유나 ESG담당' },
-  { recordId: 'TR-005', supplierId: 'S-CAM-001', factoryId: 'F-005', materialId: 'TM-002', traineeCount: 20, totalEligible: 20, completionRate: 100, completedAt: '2026-03-15', dueDate: '2026-03-31', status: 'completed' },
-  { recordId: 'TR-006', supplierId: 'S-CAM-001', factoryId: 'F-006', materialId: 'TM-004', traineeCount: 15, totalEligible: 15, completionRate: 100, completedAt: '2026-04-10', dueDate: '2026-04-30', status: 'completed', instructor: '한소희 공장장' },
-
-  // Yantai Cathode — 미이수 다수
-  { recordId: 'TR-007', supplierId: 'S-CAM-002', factoryId: 'F-008', materialId: 'TM-001', traineeCount: 12, totalEligible: 35, completionRate: 34, dueDate: '2026-04-30', status: 'overdue' },
-  { recordId: 'TR-008', supplierId: 'S-CAM-002', factoryId: 'F-008', materialId: 'TM-004', traineeCount: 0, totalEligible: 35, completionRate: 0, dueDate: '2026-05-31', status: 'not_started' },
-
-  // Ganzhou Rare Metals — 미이수
-  { recordId: 'TR-009', supplierId: 'S-REF-002', factoryId: 'F-015', materialId: 'TM-001', traineeCount: 5, totalEligible: 30, completionRate: 17, dueDate: '2026-03-31', status: 'overdue', notes: '반복 요청에도 이수 미진행' },
-  { recordId: 'TR-010', supplierId: 'S-REF-002', factoryId: 'F-015', materialId: 'TM-007', traineeCount: 0, totalEligible: 30, completionRate: 0, dueDate: '2026-04-30', status: 'overdue' },
-
-  // Katanga Cobalt — 위험 수준
-  { recordId: 'TR-011', supplierId: 'S-MINE-002', factoryId: 'F-017', materialId: 'TM-003', traineeCount: 40, totalEligible: 200, completionRate: 20, dueDate: '2026-02-28', status: 'overdue', notes: '산업안전 교육 심각 미이수 — 갱도 사고와 연계' },
-  { recordId: 'TR-012', supplierId: 'S-MINE-002', factoryId: 'F-017', materialId: 'TM-007', traineeCount: 0, totalEligible: 200, completionRate: 0, dueDate: '2026-01-31', status: 'overdue', notes: '아동노동 방지 교육 미실시 — 즉시 이행 요구' },
-
-  // SdA Lithium
-  { recordId: 'TR-013', supplierId: 'S-MINE-003', factoryId: 'F-018', materialId: 'TM-001', traineeCount: 80, totalEligible: 80, completionRate: 100, completedAt: '2026-01-20', dueDate: '2026-01-31', status: 'completed', instructor: 'Carlos Diaz ESG Director' },
-  { recordId: 'TR-014', supplierId: 'S-MINE-003', factoryId: 'F-018', materialId: 'TM-006', traineeCount: 15, totalEligible: 15, completionRate: 100, completedAt: '2026-03-10', dueDate: '2026-03-31', status: 'completed' },
-];
-
-export function getTrainingRecords(supplierId: string): TrainingRecord[] {
-  return trainingRecords.filter(r => r.supplierId === supplierId);
-}
-export function getTrainingMaterial(materialId: string): TrainingMaterial | undefined {
-  return trainingMaterials.find(m => m.materialId === materialId);
-}
-
-// ============================================================
-// 8. 인증서 (기존 유지)
-// ============================================================
-export interface Certification {
-  certId: string;
-  supplierId: string;
-  certName: string;
-  issuingBody: string;
-  certNumber: string;
-  issuedAt: string;
-  expiresAt: string;
-  status: 'active' | 'expiring_soon' | 'expired';
-  documentUrl?: string;
-}
-
-export const certifications: Certification[] = [
-  { certId: 'CERT-001', supplierId: 'S-CELL-001', certName: 'ISO 9001:2015',       issuingBody: 'TÜV Rheinland',     certNumber: 'TUV-KR-QMS-2024-112',   issuedAt: '2024-03-01', expiresAt: '2027-02-28', status: 'active' },
-  { certId: 'CERT-002', supplierId: 'S-CELL-001', certName: 'ISO 14001:2015',      issuingBody: 'TÜV Rheinland',     certNumber: 'TUV-KR-EMS-2024-113',   issuedAt: '2024-03-01', expiresAt: '2027-02-28', status: 'active' },
-  { certId: 'CERT-003', supplierId: 'S-CELL-001', certName: 'IATF 16949:2016',     issuingBody: 'Bureau Veritas',    certNumber: 'BV-KR-IATF-2023-088',   issuedAt: '2023-07-15', expiresAt: '2026-07-14', status: 'active' },
-  { certId: 'CERT-004', supplierId: 'S-CAM-001',  certName: 'ISO 9001:2015',       issuingBody: 'SGS Korea',         certNumber: 'SGS-KR-QMS-2025-041',   issuedAt: '2025-01-20', expiresAt: '2028-01-19', status: 'active' },
-  { certId: 'CERT-005', supplierId: 'S-CAM-001',  certName: 'ISO 14001:2015',      issuingBody: 'SGS Korea',         certNumber: 'SGS-KR-EMS-2025-042',   issuedAt: '2025-01-20', expiresAt: '2028-01-19', status: 'active' },
-  { certId: 'CERT-006', supplierId: 'S-CAM-002',  certName: 'ISO 9001:2015',       issuingBody: 'CNAB',              certNumber: 'CNAB-CN-QMS-2024-291',  issuedAt: '2024-06-01', expiresAt: '2027-05-31', status: 'active' },
-  { certId: 'CERT-007', supplierId: 'S-ANO-001',  certName: 'ISO 14001:2015',      issuingBody: 'JQA',               certNumber: 'JQA-JP-EMS-2025-011',   issuedAt: '2025-02-10', expiresAt: '2028-02-09', status: 'active' },
-  { certId: 'CERT-008', supplierId: 'S-ANO-001',  certName: 'IATF 16949:2016',     issuingBody: 'TÜV SÜD Japan',    certNumber: 'TUVS-JP-IATF-2024-033', issuedAt: '2024-11-05', expiresAt: '2027-11-04', status: 'active' },
-  { certId: 'CERT-009', supplierId: 'S-REF-001',  certName: 'ISO 14001:2015',      issuingBody: 'Intertek',          certNumber: 'ITK-AU-EMS-2025-018',   issuedAt: '2025-08-14', expiresAt: '2026-08-13', status: 'expiring_soon' },
-  { certId: 'CERT-010', supplierId: 'S-REF-002',  certName: 'ISO 14001:2015',      issuingBody: 'CQC',               certNumber: 'CQC-EMS-2023-441',      issuedAt: '2023-04-10', expiresAt: '2026-04-09', status: 'expired' },
-  { certId: 'CERT-011', supplierId: 'S-MINE-001', certName: 'ISO 14001:2015',      issuingBody: 'TÜV SÜD',          certNumber: 'TUV-PH-EMS-220',        issuedAt: '2024-07-08', expiresAt: '2027-07-07', status: 'active' },
-  { certId: 'CERT-012', supplierId: 'S-MINE-001', certName: 'Bettercoal Verified', issuingBody: 'Bettercoal',        certNumber: 'BC-PH-2024-12',         issuedAt: '2024-03-15', expiresAt: '2026-03-14', status: 'expiring_soon' },
-  { certId: 'CERT-013', supplierId: 'S-MINE-003', certName: 'IRMA-75',             issuingBody: 'IRMA',              certNumber: 'IRMA-MS-2024-CL-08',    issuedAt: '2024-02-28', expiresAt: '2027-02-27', status: 'active' },
-];
-
-export function getCertifications(supplierId: string): Certification[] {
-  return certifications.filter(c => c.supplierId === supplierId);
-}
-
-// ============================================================
-// 9. 데이터 완성도 + 리마인드 이력 (기존 유지)
+// 5. 데이터 완성도 — 실 API(getSupplierCompleteness) 미응답 시 폴백으로 사용
 // ============================================================
 export interface DataCompleteness {
   supplierId: string;
@@ -969,177 +711,4 @@ export const supplierCompleteness: DataCompleteness[] = [
 
 export function getCompleteness(supplierId: string): DataCompleteness | null {
   return supplierCompleteness.find(c => c.supplierId === supplierId) ?? null;
-}
-
-export interface RemindLog {
-  logId: string;
-  supplierId: string;
-  contactId: string;
-  requestType: 'initial' | 'remind_1' | 'remind_2' | 'final' | 'response';
-  requestedField: string;
-  sentAt: string;
-  dueDate: string;
-  status: 'sent' | 'opened' | 'in_progress' | 'completed' | 'overdue';
-  responseAt?: string;
-}
-
-export const remindLogs: RemindLog[] = [
-  { logId: 'RL-001', supplierId: 'S-CAM-002', contactId: 'C-007', requestType: 'initial',  requestedField: 'IRMA 인증서',       sentAt: '2026-03-01 09:00', dueDate: '2026-03-31', status: 'opened' },
-  { logId: 'RL-002', supplierId: 'S-CAM-002', contactId: 'C-007', requestType: 'remind_1', requestedField: 'IRMA 인증서',       sentAt: '2026-04-01 09:00', dueDate: '2026-04-15', status: 'overdue' },
-  { logId: 'RL-003', supplierId: 'S-PRE-001', contactId: 'C-011', requestType: 'initial',  requestedField: '제조공정도',         sentAt: '2026-03-15 10:00', dueDate: '2026-04-15', status: 'in_progress' },
-  { logId: 'RL-004', supplierId: 'S-REF-002', contactId: 'C-014', requestType: 'final',    requestedField: '제3자 검증 보고서', sentAt: '2026-04-20 14:00', dueDate: '2026-05-05', status: 'overdue' },
-  { logId: 'RL-005', supplierId: 'S-MINE-002', contactId: 'C-016', requestType: 'initial', requestedField: '아동노동 감사 보고서', sentAt: '2026-02-10 09:00', dueDate: '2026-04-30', status: 'overdue' },
-  { logId: 'RL-006', supplierId: 'S-MINE-002', contactId: 'C-016', requestType: 'remind_2', requestedField: '아동노동 감사 보고서', sentAt: '2026-05-01 09:00', dueDate: '2026-05-20', status: 'sent' },
-];
-
-export function getRemindLogs(supplierId: string): RemindLog[] {
-  return remindLogs.filter(r => r.supplierId === supplierId);
-}
-
-// ============================================================
-// 10. 부품 (5계층 트리) — 기존 유지
-// ============================================================
-export interface Part {
-  id: string;
-  partCode: string;
-  partName: string;
-  tierLevel: TierLevel;
-  parentPartId: string | null;
-  hsCode: string;
-  materialType: string;
-  functionPurpose: string;
-  unitPrice: number;
-  purchaseUnit: string;
-}
-
-export const parts: Part[] = [
-  { id: 'PRT-001', partCode: 'PACK-NCM811-100Ah',  partName: 'NCM811 배터리 팩',     tierLevel: 1, parentPartId: null,      hsCode: '850760', materialType: 'Pack Assembly',   functionPurpose: 'EV 구동용 통합 배터리 팩',          unitPrice: 8420.00, purchaseUnit: 'EA' },
-  { id: 'PRT-002', partCode: 'MOD-NCM811-12S',     partName: 'NCM811 모듈 (12셀)',   tierLevel: 1, parentPartId: 'PRT-001', hsCode: '850760', materialType: 'Module Assembly', functionPurpose: '12개 셀의 직렬 조립체',             unitPrice: 612.50,  purchaseUnit: 'EA' },
-  { id: 'PRT-003', partCode: 'BMS-V3-100Ah',       partName: 'BMS 컨트롤러',          tierLevel: 1, parentPartId: 'PRT-001', hsCode: '853710', materialType: 'Electronics',    functionPurpose: '배터리 관리 시스템',                unitPrice: 285.00,  purchaseUnit: 'EA' },
-  { id: 'PRT-004', partCode: 'CELL-NCM811-5Ah',    partName: 'NCM811 원통형 셀',      tierLevel: 2, parentPartId: 'PRT-002', hsCode: '850760', materialType: 'Cell',           functionPurpose: '리튬이온 원통형 셀 (21700)',        unitPrice: 8.40,    purchaseUnit: 'EA' },
-  { id: 'PRT-005', partCode: 'CAM-NCM811',         partName: 'NCM811 양극재',         tierLevel: 3, parentPartId: 'PRT-004', hsCode: '282200', materialType: 'Cathode',        functionPurpose: 'Ni80Mn10Co10 조성 리튬 양극재',    unitPrice: 28.40,   purchaseUnit: 'kg' },
-  { id: 'PRT-006', partCode: 'ANO-GRAPHITE',       partName: '흑연 음극재',           tierLevel: 3, parentPartId: 'PRT-004', hsCode: '280440', materialType: 'Anode',          functionPurpose: '천연 흑연 기반 음극 활물질',        unitPrice: 8.20,    purchaseUnit: 'kg' },
-  { id: 'PRT-007', partCode: 'PRE-NCM',            partName: 'NCM 전구체 (수산화물)', tierLevel: 4, parentPartId: 'PRT-005', hsCode: '282500', materialType: 'Precursor',      functionPurpose: 'NCM 양극재 합성용 전구체',          unitPrice: 14.80,   purchaseUnit: 'kg' },
-  { id: 'PRT-008', partCode: 'MIN-NI',             partName: '니켈 원광',             tierLevel: 5, parentPartId: 'PRT-007', hsCode: '260400', materialType: 'Mineral',        functionPurpose: '전구체 제조용 원료 니켈',           unitPrice: 18.50,   purchaseUnit: 'kg' },
-  { id: 'PRT-009', partCode: 'MIN-CO',             partName: '코발트 원광',           tierLevel: 5, parentPartId: 'PRT-007', hsCode: '260500', materialType: 'Mineral',        functionPurpose: '전구체 제조용 원료 코발트',         unitPrice: 32.80,   purchaseUnit: 'kg' },
-  { id: 'PRT-010', partCode: 'MIN-LI',             partName: '리튬 원광',             tierLevel: 5, parentPartId: 'PRT-005', hsCode: '260900', materialType: 'Mineral',        functionPurpose: '리튬 정제 및 전해질 원료',          unitPrice: 22.10,   purchaseUnit: 'kg' },
-];
-
-export function getPart(partId: string): Part | null {
-  return parts.find(p => p.id === partId) ?? null;
-}
-
-// ============================================================
-// 11. PO/송장 매핑 (기존 유지)
-// ============================================================
-export interface PurchaseOrder {
-  poId: string;
-  originalPoNumber: string;
-  supplierInvoiceNumber: string;
-  supplierId: string;
-  receiverSupplierId: string;
-  partId: string;
-  supplierPartCode: string;
-  originalPartCode: string;
-  factoryId: string;
-  quantity: number;
-  unit: string;
-  supplyRatio: number;
-  unitPrice: number;
-  originCountry: string;
-  orderDate: string;
-  deliveryDate: string;
-  status: 'pending' | 'in_transit' | 'delivered' | 'verified';
-}
-
-export const purchaseOrders: PurchaseOrder[] = [
-  { poId: 'PO-001', originalPoNumber: 'PO-HC-2026-04891', supplierInvoiceNumber: 'INV-POS-26041501', supplierId: 'S-CAM-001', receiverSupplierId: 'S-CELL-001', partId: 'PRT-005', supplierPartCode: 'POS-CAM-NCM-811-A', originalPartCode: 'CAM-NCM811', factoryId: 'F-005', quantity: 12500, unit: 'kg', supplyRatio: 65, unitPrice: 28.40, originCountry: 'KR', orderDate: '2026-04-15', deliveryDate: '2026-05-10', status: 'delivered' },
-  { poId: 'PO-002', originalPoNumber: 'PO-HC-2026-04891', supplierInvoiceNumber: 'INV-POS-26041502', supplierId: 'S-CAM-001', receiverSupplierId: 'S-CELL-001', partId: 'PRT-005', supplierPartCode: 'POS-CAM-NCM-811-A', originalPartCode: 'CAM-NCM811', factoryId: 'F-006', quantity:  6800, unit: 'kg', supplyRatio: 35, unitPrice: 28.40, originCountry: 'KR', orderDate: '2026-04-15', deliveryDate: '2026-05-12', status: 'verified' },
-  { poId: 'PO-003', originalPoNumber: 'PO-HC-2026-05011', supplierInvoiceNumber: 'INV-YT-26050201',  supplierId: 'S-CAM-002', receiverSupplierId: 'S-CELL-001', partId: 'PRT-005', supplierPartCode: 'YT-NCA-A1',         originalPartCode: 'CAM-NCM811', factoryId: 'F-008', quantity:  8200, unit: 'kg', supplyRatio: 100, unitPrice: 27.10, originCountry: 'CN', orderDate: '2026-05-02', deliveryDate: '2026-05-22', status: 'in_transit' },
-  { poId: 'PO-004', originalPoNumber: 'PO-HC-2026-04875', supplierInvoiceNumber: 'INV-MIT-26041001', supplierId: 'S-ANO-001', receiverSupplierId: 'S-CELL-001', partId: 'PRT-006', supplierPartCode: 'MIT-ANODE-NG-K2',   originalPartCode: 'ANO-GRAPHITE', factoryId: 'F-010', quantity: 9400, unit: 'kg', supplyRatio: 100, unitPrice: 8.20, originCountry: 'JP', orderDate: '2026-04-10', deliveryDate: '2026-05-05', status: 'verified' },
-  { poId: 'PO-005', originalPoNumber: 'PO-POS-2026-04701', supplierInvoiceNumber: 'INV-QZ-26040101', supplierId: 'S-PRE-001', receiverSupplierId: 'S-CAM-001', partId: 'PRT-007', supplierPartCode: 'QZ-PRE-NCM-OH', originalPartCode: 'PRE-NCM', factoryId: 'F-012', quantity: 18500, unit: 'kg', supplyRatio: 100, unitPrice: 14.80, originCountry: 'CN', orderDate: '2026-04-01', deliveryDate: '2026-04-28', status: 'delivered' },
-  { poId: 'PO-006', originalPoNumber: 'PO-QZ-2026-03812', supplierInvoiceNumber: 'INV-NORI-26031501', supplierId: 'S-MINE-001', receiverSupplierId: 'S-PRE-001', partId: 'PRT-008', supplierPartCode: 'NORI-NCL-RAW', originalPartCode: 'MIN-NI', factoryId: 'F-016', quantity: 21000, unit: 'kg', supplyRatio: 77, unitPrice: 18.50, originCountry: 'PH', orderDate: '2026-03-15', deliveryDate: '2026-04-18', status: 'delivered' },
-  { poId: 'PO-007', originalPoNumber: 'PO-GZ-2026-03844', supplierInvoiceNumber: 'INV-NORI-26031502', supplierId: 'S-MINE-001', receiverSupplierId: 'S-REF-002', partId: 'PRT-008', supplierPartCode: 'NORI-NCL-RAW', originalPartCode: 'MIN-NI', factoryId: 'F-016', quantity: 6200, unit: 'kg', supplyRatio: 23, unitPrice: 18.50, originCountry: 'PH', orderDate: '2026-03-15', deliveryDate: '2026-04-20', status: 'delivered' },
-  { poId: 'PO-008', originalPoNumber: 'PO-GZ-2026-03908', supplierInvoiceNumber: 'INV-KAT-26032001', supplierId: 'S-MINE-002', receiverSupplierId: 'S-REF-002', partId: 'PRT-009', supplierPartCode: 'KAT-CO-ORE', originalPartCode: 'MIN-CO', factoryId: 'F-017', quantity: 9100, unit: 'kg', supplyRatio: 60, unitPrice: 32.80, originCountry: 'CD', orderDate: '2026-03-20', deliveryDate: '2026-04-25', status: 'pending' },
-  { poId: 'PO-009', originalPoNumber: 'PO-QZ-2026-03912', supplierInvoiceNumber: 'INV-KAT-26032002', supplierId: 'S-MINE-002', receiverSupplierId: 'S-PRE-001', partId: 'PRT-009', supplierPartCode: 'KAT-CO-ORE', originalPartCode: 'MIN-CO', factoryId: 'F-017', quantity: 6200, unit: 'kg', supplyRatio: 40, unitPrice: 32.80, originCountry: 'CD', orderDate: '2026-03-20', deliveryDate: '2026-04-28', status: 'pending' },
-  { poId: 'PO-010', originalPoNumber: 'PO-POS-2026-04822', supplierInvoiceNumber: 'INV-PIW-26042201', supplierId: 'S-REF-001', receiverSupplierId: 'S-CAM-001', partId: 'PRT-010', supplierPartCode: 'PIW-LIOH-G2', originalPartCode: 'MIN-LI', factoryId: 'F-014', quantity: 28000, unit: 'kg', supplyRatio: 100, unitPrice: 22.10, originCountry: 'AU', orderDate: '2026-04-22', deliveryDate: '2026-05-15', status: 'verified' },
-  { poId: 'PO-011', originalPoNumber: 'PO-YT-2026-04900', supplierInvoiceNumber: 'INV-PIW-26042202', supplierId: 'S-REF-001', receiverSupplierId: 'S-CAM-002', partId: 'PRT-010', supplierPartCode: 'PIW-LIOH-G2', originalPartCode: 'MIN-LI', factoryId: 'F-014', quantity: 18000, unit: 'kg', supplyRatio: 100, unitPrice: 22.10, originCountry: 'AU', orderDate: '2026-04-22', deliveryDate: '2026-05-18', status: 'in_transit' },
-];
-
-export function getIncomingPOs(supplierId: string): PurchaseOrder[] {
-  return purchaseOrders.filter(po => po.supplierId === supplierId);
-}
-export function getOutgoingPOs(supplierId: string): PurchaseOrder[] {
-  return purchaseOrders.filter(po => po.receiverSupplierId === supplierId);
-}
-
-// ============================================================
-// 12. 제조공정도 (기존 유지)
-// ============================================================
-export interface ManufacturingProcess {
-  id: string;
-  supplierId: string;
-  sequenceNo: number;
-  processName: string;
-  processDescription: string;
-  isOutsourced: boolean;
-  outsourcedToSupplierId?: string;
-  hasDiagram: boolean;
-}
-
-export const manufacturingProcesses: ManufacturingProcess[] = [
-  { id: 'MP-001', supplierId: 'S-CAM-001', sequenceNo: 1, processName: '원료 수령·검수', processDescription: '수산화리튬(LiOH), NCM 전구체 입고 검사 — 순도, 입도 분석', isOutsourced: false, hasDiagram: true },
-  { id: 'MP-002', supplierId: 'S-CAM-001', sequenceNo: 2, processName: '소성 (Calcination)', processDescription: '원료를 900°C 이상 고온 소성로에서 리튬화 반응 진행', isOutsourced: false, hasDiagram: true },
-  { id: 'MP-003', supplierId: 'S-CAM-001', sequenceNo: 3, processName: '분쇄·분급', processDescription: '소성된 양극재 분말을 목표 입도(D50 10–15μm)로 분쇄', isOutsourced: false, hasDiagram: true },
-  { id: 'MP-004', supplierId: 'S-CAM-001', sequenceNo: 4, processName: '코팅 처리', processDescription: 'Al₂O₃ 표면 코팅으로 열 안정성 향상', isOutsourced: true, outsourcedToSupplierId: 'S-PRE-001', hasDiagram: false },
-  { id: 'MP-005', supplierId: 'S-CAM-001', sequenceNo: 5, processName: '최종 검사·포장', processDescription: '잔류 수분, 금속 이물질 검사 후 진공 포장', isOutsourced: false, hasDiagram: true },
-  { id: 'MP-006', supplierId: 'S-PRE-001', sequenceNo: 1, processName: '황산니켈·코발트·망간 혼합', processDescription: '원료 황산염 용액 혼합 및 pH 제어', isOutsourced: false, hasDiagram: false },
-  { id: 'MP-007', supplierId: 'S-PRE-001', sequenceNo: 2, processName: '공침법 합성', processDescription: 'NaOH + NH₄OH 공침반응으로 NCM 수산화물 전구체 합성', isOutsourced: false, hasDiagram: false },
-  { id: 'MP-008', supplierId: 'S-PRE-001', sequenceNo: 3, processName: '여과·세척·건조', processDescription: '전구체 여과 후 세척(탈이온수), 스프레이 건조', isOutsourced: false, hasDiagram: false },
-];
-
-export function getProcesses(supplierId: string): ManufacturingProcess[] {
-  return manufacturingProcesses.filter(p => p.supplierId === supplierId);
-}
-
-// ============================================================
-// 13. 권한 제어 헬퍼 (기존 유지)
-// ============================================================
-export type ViewerRole = 'prime' | 'tier1_supplier' | 'auditor';
-export const tier1ViewerSupplierId = 'S-CELL-001';
-
-// ============================================================
-// 14. BOM 트리 헬퍼 (기존 유지)
-// ============================================================
-export interface BomNode {
-  part: Part;
-  children: BomNode[];
-}
-
-export function buildBomTree(rootPartId: string): BomNode | null {
-  const root = parts.find(p => p.id === rootPartId);
-  if (!root) return null;
-  const build = (parent: Part): BomNode => {
-    const children = parts.filter(p => p.parentPartId === parent.id).map(build);
-    return { part: parent, children };
-  };
-  return build(root);
-}
-
-export function getBomTreeForProduct(productId: string): BomNode | null {
-  return buildBomTree('PRT-001');
-}
-
-export function getPOsForPart(partId: string, beforeDate?: string): PurchaseOrder[] {
-  const filtered = purchaseOrders.filter(po => po.partId === partId);
-  if (!beforeDate) return filtered;
-  return filtered
-    .filter(po => po.deliveryDate <= beforeDate)
-    .sort((a, b) => b.deliveryDate.localeCompare(a.deliveryDate));
-}
-
-export function getSuppliersForPart(partId: string): string[] {
-  const supplierIds = new Set<string>();
-  purchaseOrders.filter(po => po.partId === partId).forEach(po => supplierIds.add(po.supplierId));
-  return Array.from(supplierIds);
 }
