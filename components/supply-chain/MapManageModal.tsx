@@ -178,17 +178,12 @@ export default function MapManageModal({
         <section className="mb-4 rounded-md border border-slate-200 bg-white p-4">
           <div className="mb-3 flex items-center gap-2">
             <span className="text-sm font-bold text-ink-100">공급망 최종 검증 요약</span>
-            <span className={clsx('rounded-full px-2 py-0.5 text-[11px] font-bold',
-              summary.readyForFinal ? 'border border-ok-border bg-ok-bg text-ok-text' : 'border border-warn-border bg-warn-bg text-warn-text')}>
-              {summary.readyForFinal ? '최종 검증 준비 완료' : '입력 미흡'}
-            </span>
           </div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {([
               ['협력사', summary.supplierCount],
               ['최대 차수', summary.maxTier],
               ['미보유 필드', summary.totalGapCount],
-              ['비율 검증', summary.ratioValid ? 'OK' : '불일치'],
             ] as const).map(([label, value]) => (
               <div key={label} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-center">
                 <div className="text-[11px] text-slate-500">{label}</div>
