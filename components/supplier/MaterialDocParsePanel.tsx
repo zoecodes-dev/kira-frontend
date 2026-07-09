@@ -19,13 +19,15 @@ const MATERIAL_DOC_ACCEPT = '.pdf,.png,.jpg,.jpeg';
 const PARSE_POLL_TRIES = 10;      // 최대 재시도(총 ~25초)
 const PARSE_POLL_INTERVAL = 2500; // ms — 이벤트 기반 비동기 파싱이라 2-3초 대기 후 조회
 
-export default function MaterialDocParsePanel({ supplierId, initialUrl, editable, onParsed, onOpenViewer }: {
+export default function MaterialDocParsePanel({ supplierId, initialUrl, editable, onParsed, onOpenViewer, onUploaded }: {
   supplierId: string;
   initialUrl?: string | null;
   editable?: boolean;
   onParsed: (extraction: AiExtraction) => void;
   // AI 처리 확인 팝업(AiParsingView 모달) 열기 — 업로드 완료 직후 + '결과 보기' 클릭 시.
   onOpenViewer: () => void;
+  // 방금 업로드한 문서 정보 → 부모가 파싱 확인 모달에 넘겨 '파싱 중' 표시/폴링 활성화.
+  onUploaded?: (info: { docS3Key: string; fileName: string }) => void;
 }) {
   const [docValue, setDocValue] = useState(initialUrl ?? '');
   const [displayName, setDisplayName] = useState('');
@@ -68,6 +70,8 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
       setDocValue(meta.s3Key);
       setDisplayName(f.name);
       setNotice(`업로드 완료 · ${f.name}`);
+      // 부모에 업로드 문서 전달(모달 파싱 표시용) → 파싱 확인 팝업이 '파싱 중' 로딩을 폴링하며 보여준다.
+      onUploaded?.({ docS3Key: meta.s3Key, fileName: f.name });
       // 업로드 직후 AI 처리 확인 화면을 팝업으로 노출(/partner/ai-parsing 과 동일 화면).
       onOpenViewer();
     } catch (err) {
