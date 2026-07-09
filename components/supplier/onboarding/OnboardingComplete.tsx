@@ -42,7 +42,7 @@ export default function OnboardingComplete({
           원청 승인 대기 중
         </p>
         <p className="mt-3 max-w-md text-sm text-slate-500">
-          제출하신 정보를 원청/직상위 협력사가 검토합니다. 승인되면 담당자 이메일로 안내가 발송되며,
+          제출하신 정보를 원청사가 검토합니다. 승인되면 담당자 이메일로 안내가 발송되며,
           등록하신 하위 협력사 담당자에게는 회원가입 요청 메일이 발송됩니다.
           {signup.unverified && ' (미확인 상태로 등록되어 원청/상위의 추가 검증이 진행됩니다.)'}
         </p>

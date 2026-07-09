@@ -106,8 +106,8 @@ export function SupplyChainMapPageContent({
   onConnectClick?: (context: ReturnType<typeof getInvitationContext> & { supplierId: string }) => void;
   // 제품 선택 변화 통지 (허브가 해당 제품 BOM을 API로 불러오도록)
   onProductChange?: (productId: string) => void;
-  // 알림 딥링크 진입 시 포커스할 협력사 id(선택). 맵/표 로드 후 해당 행으로 스크롤·하이라이트하고
-  // (실 협력사면) onRowClick으로 상세 모달까지 연다. 한 번만 적용된다.
+  // 알림 딥링크 진입 시 포커스할 협력사 id(선택). 맵/표 로드 후 해당 행으로 스크롤·하이라이트만
+  // 한다(상세 모달은 자동으로 열지 않음 — 단계에 안 맞는 화면이 불쑥 뜨는 문제 방지). 한 번만 적용된다.
   focusSupplierId?: string;
   // 노출할 최대 차수. 안전 기본값 = 1(Tier0·Tier1만 노출) — Pool 확정 전엔 하위 차수를
   // 아직 모르는 상태라 숨긴다. 허브가 Pool 확정 후 undefined(무제한)로 넘긴다.
@@ -284,7 +284,9 @@ export function SupplyChainMapPageContent({
   const evaluation = evaluationReport !== undefined ? evaluationReport : selfEvaluation;
 
   // 알림 딥링크(focusSupplierId)로 진입 시: 표가 그 협력사 행을 렌더한 순간
-  //   ① 행 하이라이트 ② 그 행으로 스크롤 ③ (실 협력사면) 상세 모달 오픈.
+  //   ① 행 하이라이트 ② 그 행으로 스크롤. 상세 모달은 자동으로 열지 않는다 — 알림을 타고
+  //   들어왔다고 해서 지금 단계와 무관한 general review 팝업이 불쑥 뜨면 안 된다. 특정
+  //   딥링크(예: 동의서 회신)가 모달을 띄워야 하면 허브가 그 케이스를 따로 처리한다.
   // 제품·BOM 자동 선택 → traceRows 생성이 비동기라, traceRows 변화에 반응하고 focusSupplierId당 1회만 적용.
   const supplierRowsRef = useRef<HTMLTableSectionElement>(null);
   const appliedFocusRef = useRef<string | undefined>(undefined);
@@ -300,9 +302,7 @@ export function SupplyChainMapPageContent({
       const el = rows && Array.from(rows).find(r => r.dataset.supplierId === focusSupplierId);
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
-    // 허브에 상세 모달을 위임(openSupplierReview) — 실/데모 id 모두 처리된다.
-    onRowClick?.(row);
-  }, [focusSupplierId, traceRows, onRowClick]);
+  }, [focusSupplierId, traceRows]);
 
   function handleGenerate() {
     setGeneratedAt(new Date().toLocaleString('ko-KR'));
