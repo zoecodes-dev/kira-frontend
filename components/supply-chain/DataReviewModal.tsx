@@ -2,7 +2,7 @@
 
 // STEP 4 — 자료 수집·보완 검토. 이 공급망 맵 협력사가 제출한 자료의 '문제'를 짚어주는 화면.
 //  · 입력 누락(규제 필수필드 부족) 확인 → general review로 연결해 상세 확인 + 미완료 협력사 알림 요청
-//  · 제출 자료(문서) 확인 → AI 파싱 검토(PrimeAiParsingReviewModal)
+//  · 제출 자료(문서) 확인 → AI 처리 검토(PrimeAiParsingReviewModal)
 //  · '전체 확인'을 눌러야 STEP5(최종 검증)로 넘어간다.
 import { useEffect, useMemo, useState } from 'react';
 import { Bell, CheckCircle2, ClipboardCheck, Eye, FileText, FileWarning, Loader2, X } from 'lucide-react';
@@ -97,7 +97,7 @@ export default function DataReviewModal({
           <div>
             <div className="text-base font-bold text-ink-100">자료 수집 · 보완 검토</div>
             <p className="mt-1 text-sm text-slate-500">
-              협력사가 제출한 자료의 <b>입력 현황</b>과 <b>제출 문서</b>를 확인하세요. 입력 상세는 <b>정보 확인</b>(general review)에서 보고, 미완료는 <b>알림 요청</b>, 문서는 <b>제출 자료</b>에서 AI 파싱 검토합니다. 검토가 끝나면 <b>전체 확인</b>으로 최종 검증(STEP5)을 엽니다.
+              협력사가 제출한 자료의 <b>입력 현황</b>과 <b>제출 문서</b>를 확인할 수 있습니다. 입력 상세는 <b>정보 확인</b>(general review)에서 보고, 미완료는 <b>알림 요청</b>, 문서는 <b>제출 자료</b>에서 AI 처리 검토합니다. 검토가 끝나면 <b>전체 확인</b>으로 최종 검증(STEP5)을 엽니다.
             </p>
           </div>
           <button type="button" onClick={onClose} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-ink-100" aria-label="닫기">
@@ -143,12 +143,12 @@ export default function DataReviewModal({
                           <Eye className="h-3.5 w-3.5" />
                           정보 확인
                         </button>
-                        {/* 제출 자료 — 제출 문서 보기 / AI 파싱 검토 */}
+                        {/* 제출 자료 — 제출 문서 보기 / AI 처리 검토 */}
                         {docs.total > 0 ? (
                           <button
                             type="button"
                             onClick={() => setReview({ id: s.supplierId, name: s.companyName })}
-                            title="제출 문서 확인 · AI 파싱 검토"
+                            title="제출 문서 확인 · AI 처리 검토"
                             className={`inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs font-bold transition ${
                               docs.problem > 0
                                 ? 'border-warn-border bg-warn-bg text-warn-text hover:opacity-90'
@@ -205,7 +205,7 @@ export default function DataReviewModal({
 
         <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-5 py-3">
           <span className="text-xs font-medium text-slate-500">
-            {allConfirmed ? '자료 검토를 전체 확인했습니다. 최종 검증(STEP5)으로 넘어갈 수 있어요.' : '검토가 끝나면 전체 확인을 눌러 최종 검증으로 넘어가세요.'}
+            {allConfirmed ? '자료 검토를 전체 확인했습니다. 최종 검증(STEP5)으로 넘어갈 수 있어요.' : '검토가 끝나면 전체 확인을 눌러 최종 검증으로 넘어갑니다.'}
           </span>
           <div className="flex items-center gap-2">
             <button type="button" onClick={onClose} className="inline-flex h-9 items-center rounded-sm border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50">

@@ -830,7 +830,7 @@ export interface SubmissionBrief {
 }
 export const getSubmissions = () => api.get<SubmissionBrief[]>(`/submissions`);
 
-/** HITL 협력사 승인 — 자료요청 AI 파싱 결과(입력+AI분석+신뢰도). */
+/** HITL 협력사 승인 — 자료요청 AI 처리 결과(입력+AI분석+신뢰도). */
 export interface AiExtraction {
   requestId: string;
   supplierId: string | null;
@@ -987,7 +987,7 @@ export function getTokenUserId(): string | null {
   } catch { return null; }
 }
 
-/** 자료요청 승인(AI 파싱 검토 완료) — 자료 요청 완료로 전이. */
+/** 자료요청 승인(AI 처리 검토 완료) — 자료 요청 완료로 전이. */
 export const approveDataRequest = (requestId: string, reason?: string) =>
   api.post<ApiDataRequest>(`/data-requests/${requestId}/approve`, { actor_id: getTokenUserId(), reason });
 

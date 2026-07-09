@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Bell, X, AlertTriangle, CheckCircle2, Clock, ChevronRight } from 'lucide-react';
+import { Bell, X, ChevronRight } from 'lucide-react';
 import type { NotificationTarget } from '@/lib/api';
 
 // ─── 타입 정의 ────────────────────────────────────────────────────────────────
@@ -31,15 +31,6 @@ interface Notification {
 
 const MOCK_NOTIFICATIONS: Notification[] = [
   {
-    notification_id: 'notif-001',
-    notification_type: 'sla_warning',
-    subject: '원산지 증빙 제출 기한 임박',
-    body: '광산 폴리곤 좌표 등록 요청의 마감이 3일 남았습니다. 기한 내 미제출 시 보완 요청으로 전환됩니다.',
-    status: 'pending',
-    created_at: '2026-06-08T09:30:00Z',
-    deep_link: 'submit-documents',
-  },
-  {
     notification_id: 'notif-002',
     notification_type: 'violation',
     subject: 'EUDR 규정 위반 항목 지적',
@@ -48,15 +39,6 @@ const MOCK_NOTIFICATIONS: Notification[] = [
     created_at: '2026-06-07T14:20:00Z',
     deep_link: 'company-info',
   },
-  {
-    notification_id: 'notif-003',
-    notification_type: 'approval_needed',
-    subject: 'AI 파싱 결과 확인 요청',
-    body: '업로드하신 인증서 PDF의 AI 추출 결과에서 신뢰도 낮은 항목 2건이 발견되었습니다. 검토 후 확인해 주세요.',
-    status: 'read',
-    created_at: '2026-06-06T11:05:00Z',
-    deep_link: 'ai-parsing',
-  },
 ];
 
 // ─── 알림 유형별 스타일 맵 ───────────────────────────────────────────────────
@@ -64,33 +46,23 @@ const MOCK_NOTIFICATIONS: Notification[] = [
 const TYPE_CONFIG: Record<
   NotificationType,
   {
-    icon: React.ElementType;
-    iconClass: string;
     barClass: string;
     label: string;
   }
 > = {
   sla_warning: {
-    icon: Clock,
-    iconClass: 'text-warn-text',
     barClass: 'bg-warn-solid',
     label: '기한 임박',
   },
   violation: {
-    icon: AlertTriangle,
-    iconClass: 'text-alert-text',
     barClass: 'bg-alert-solid',
     label: '위반 지적',
   },
   approval_needed: {
-    icon: CheckCircle2,
-    iconClass: 'text-accent-600',
     barClass: 'bg-accent-600',
     label: '확인 요청',
   },
   info: {
-    icon: Bell,
-    iconClass: 'text-ink-500',
     barClass: 'bg-ink-500',
     label: '안내',
   },
@@ -321,7 +293,6 @@ export default function SupplierNotificationBell({
           ) : (
             notifications.map(notif => {
               const cfg = TYPE_CONFIG[notif.notification_type];
-              const Icon = cfg.icon;
               const isUnread = notif.status === 'pending';
 
               return (
@@ -339,11 +310,6 @@ export default function SupplierNotificationBell({
                     `}>
                       {/* 왼쪽 컬러 바 */}
                       <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${isUnread ? cfg.barClass : 'bg-ink-700'} rounded-r-sm`} />
-
-                      {/* 유형 아이콘 */}
-                      <div className={`shrink-0 mt-0.5 ${isUnread ? cfg.iconClass : 'text-ink-500'}`}>
-                        <Icon className="h-4 w-4" />
-                      </div>
 
                       {/* 본문 */}
                       <div className="flex-1 min-w-0">

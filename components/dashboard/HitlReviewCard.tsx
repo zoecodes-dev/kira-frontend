@@ -17,7 +17,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 };
 const ATTENTION = 0.8; // 신뢰도 0.8 미만 = 사람 검토 필요(그 이상은 AI 자동통과)
 
-// 자기완결형 모듈 — 대시보드·My Task 협력사 승인에서 동일하게 사용(검토→AI 파싱 뷰 내장).
+// 자기완결형 모듈 — 대시보드·My Task 협력사 승인에서 동일하게 사용(검토→AI 처리 뷰 내장).
 export default function HitlReviewCard() {
   const [items, setItems] = useState<AiExtraction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +67,7 @@ export default function HitlReviewCard() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-10 text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /><span className="text-sm font-semibold">AI 파싱 결과 불러오는 중…</span></div>
+        <div className="flex items-center justify-center gap-2 py-10 text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /><span className="text-sm font-semibold">AI 처리 결과 불러오는 중…</span></div>
       ) : items.length === 0 ? (
         <div className="px-5 py-10 text-center text-sm text-slate-500">검토할 자료가 없습니다. 협력사가 자료를 제출하면 여기에 나타납니다.</div>
       ) : (

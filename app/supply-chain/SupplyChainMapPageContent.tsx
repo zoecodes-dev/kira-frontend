@@ -711,7 +711,7 @@ export function SupplyChainMapPageContent({
           <p className="mt-2 text-sm text-slate-500">
             {hasProducts
               ? '상단에서 대표 제품을 선택하면 MBOM 자재 구조가 표시됩니다.'
-              : '제품이 동기화되면 표시됩니다. 시연하려면 "데모 데이터 불러오기"를 사용하세요.'}
+              : '제품이 동기화되면 표시됩니다.'}
           </p>
         </section>
       )}

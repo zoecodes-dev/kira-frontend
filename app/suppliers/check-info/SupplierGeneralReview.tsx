@@ -252,9 +252,9 @@ function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPre
         const key = fieldKeys?.[i];
         const opts = key ? selects?.[key] : undefined;
         const dataField = key ? `${fieldPrefix}.${key}` : undefined;
-        // AI 파싱 신뢰도 낮음 등 — 값은 채우되 warn 톤 + 배지로 검토를 유도(ExtractionTable 패턴).
+        // AI 처리 신뢰도 낮음 등 — 값은 채우되 warn 톤 + 배지로 검토를 유도(ExtractionTable 패턴).
         const flag = key ? flagged?.[key] : undefined;
-        // [작업②] AI 파싱으로 자동 입력된 값 — 연한 배경 + ✓ 배지로 '직접 입력'과 시각 구분(warn 우선).
+        // [작업②] AI 처리로 자동 입력된 값 — 연한 배경 + ✓ 배지로 '직접 입력'과 시각 구분(warn 우선).
         const parsedFilled = !flag && !!key && !!parsedFieldKeys?.includes(key);
         // [작업②] 빈값일 때 안내형 placeholder(필드별 커스텀 → 없으면 기본 '<라벨> 입력').
         const ph = (key && placeholders?.[key]) || `${label} 입력`;
@@ -666,15 +666,15 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
 }) {
   // 공장정보 섹션 — 원산지 증명서 업로드/없음 확인 전엔 나머지 입력을 가린다.
   const [originCertResolved, setOriginCertResolved] = useState(false);
-  // 규제 섹션 — 탄소발자국 문서 AI 파싱 결과. key 리마운트로 CompanyGrid(defaultValue 기반)에 반영.
+  // 규제 섹션 — 탄소발자국 문서 AI 처리 결과. key 리마운트로 CompanyGrid(defaultValue 기반)에 반영.
   const [carbonExtraction, setCarbonExtraction] = useState<AiExtraction | null>(null);
   const [carbonParseVersion, setCarbonParseVersion] = useState(0);
   // 탄소발자국 문서 업로드/파싱 진행 여부 — 파싱 중 규제 입력칸 오버레이/잠금용.
   const [carbonBusy, setCarbonBusy] = useState(false);
-  // 방금 업로드한 탄소 문서 — AI 파싱 확인 모달에 넘겨 '파싱 중' 표시/폴링 활성화.
+  // 방금 업로드한 탄소 문서 — AI 처리 확인 모달에 넘겨 '파싱 중' 표시/폴링 활성화.
   const [carbonUploadedDoc, setCarbonUploadedDoc] = useState<{ docS3Key: string; fileName: string } | null>(null);
   const [carbonParsingOpen, setCarbonParsingOpen] = useState(false);
-  // [작업1] 실사 자가진단(SAQ) 문서 AI 파싱 — 탄소와 동일 파이프라인, 별도 상태로 관리.
+  // [작업1] 실사 자가진단(SAQ) 문서 AI 처리 — 탄소와 동일 파이프라인, 별도 상태로 관리.
   const [saqExtraction, setSaqExtraction] = useState<AiExtraction | null>(null);
   const [saqParseVersion, setSaqParseVersion] = useState(0);
   const [saqBusy, setSaqBusy] = useState(false);
@@ -793,7 +793,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
             <table className="w-full border-collapse">
               <thead className="bg-slate-50">
                 <tr>
-                  {['이름', '직책', '이메일', '연락처', '대표'].map(h => (
+                  {['이름', '직책', '이메일', '연락처', '대표 담당자'].map(h => (
                     <th key={h} className="border-b border-ink-700 px-4 py-2 text-left text-xs font-semibold text-ink-500">{h}</th>
                   ))}
                 </tr>
@@ -1041,20 +1041,16 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
                 </div>
                 {/* 리스크 등급 영속화 캐리어(구 드롭다운 대체) — 파싱 등급 우선, 없으면 기존 저장값 유지 */}
                 <input type="hidden" data-field="regulation.selfReportedRiskLevel" value={srPrefill} readOnly />
-                {isPrime && (
-                  <div className="w-full text-[10px] text-ink-500">실사(DD) 보고서 — 원청 작성 · 협력사 비표시</div>
-                )}
               </div>
             </div>
             {saqBusy && busyOverlay}
           </div>
-          {/* 하단: AI 파싱 체크리스트(읽기전용) — 직접 입력 불가, 문서 업로드→AI 파싱으로만
+          {/* 하단: AI 처리 체크리스트(읽기전용) — 직접 입력 불가, 문서 업로드→AI 처리로만
               '확인됨/미확인'이 갱신된다. 핵심 항목은 파싱 전에도 '미확인'으로 항상 노출. */}
           {!naMiner && (
             <div className="overflow-hidden rounded-sm border border-ink-700">
               <div className="flex items-center justify-between border-b border-ink-700 bg-ink-800/30 px-3 py-2">
-                <span className="text-[11px] font-bold text-ink-400">AI 파싱 체크리스트</span>
-                <span className="text-[10px] text-ink-500">읽기전용 · 서류 업로드 후 AI 파싱으로만 갱신</span>
+                <span className="text-[11px] font-bold text-ink-400">AI 처리 체크리스트</span>
               </div>
               <div className="grid gap-px bg-ink-700 md:grid-cols-2">
                 {shownSaqDetail.map(x => {
@@ -1073,7 +1069,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
                       ) : (
                         <span className="flex items-center gap-1.5 truncate">
                           <span className="shrink-0 rounded-full border border-ink-700 bg-ink-800/30 px-1.5 py-0.5 text-[10px] font-bold text-ink-500">미확인</span>
-                          <span className="truncate text-[11px] text-ink-500 opacity-70">문서 파싱 시 자동 확인</span>
+                          <span className="truncate text-[11px] text-ink-500 opacity-70">문서 업로드시 자동 확인</span>
                         </span>
                       )}
                     </div>
@@ -1109,7 +1105,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
             requestType: '탄소발자국 증빙',
             docS3Key: carbonUploadedDoc.docS3Key,
           } : null}
-          title="AI 파싱 확인 및 수정 · 탄소발자국 문서"
+          title="AI 처리 확인 및 수정 · 탄소발자국 문서"
         />
         <AiParsingReviewModal
           supplierId={supplierId}
@@ -1126,7 +1122,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
             requestType: '실사 자가진단(SAQ)',
             docS3Key: saqUploadedDoc.docS3Key,
           } : null}
-          title="AI 파싱 확인 및 수정 · 실사 자가진단(SAQ)"
+          title="AI 처리 확인 및 수정 · 실사 자가진단(SAQ)"
         />
       </div>
     );
@@ -1875,7 +1871,7 @@ export function SupplierGeneralReviewContent({
           {/* 협력사: 보기 ↔ 입력 토글 (라우트 변경 없이 같은 양식의 칸만 전환) */}
           {isSupplier && !editing && !managedBanner && (
             <>
-              {/* [process.md L23·42] 원산지 geo audit · AI 파싱 검증 확인 화면으로 이동 */}
+              {/* [process.md L23·42] 원산지 geo audit · AI 처리 검증 확인 화면으로 이동 */}
               <button
                 type="button"
                 onClick={() => router.push('/partner/ai-parsing')}

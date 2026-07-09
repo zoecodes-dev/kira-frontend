@@ -3,9 +3,9 @@
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, ArrowRight, CheckCircle2, Database, Loader2, Network, Pencil, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Loader2, Network, Pencil, RefreshCw, X } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
-import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, mockDataset, supplierDetailIdMap } from '@/lib/supply-chain-mock';
+import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, supplierDetailIdMap } from '@/lib/supply-chain-mock';
 import { ApiError, confirmPool, createDataRequest, getDataConsents, getDataRequests, getSupplyChainEvaluation, getSupplyChainGaps, getSupplyChainMaps, getToken, getProductBom, getProductBomVersions, getProductSupplyChainMap, getProducts, getValidationSummary, verifySupplier, type SupplierBrief, type SupplyChainEvaluation, type SupplyChainGapsResult, type ValidationSummary } from '@/lib/api';
 import { SupplyChainMapPageContent } from './SupplyChainMapPageContent';
 import EvaluationReportCard from '@/components/supply-chain/EvaluationReportCard';
@@ -106,13 +106,11 @@ export default function SupplyChainHub() {
   // 트리에 주입할 데이터셋 — 기본 빈 상태. 제품은 API, 공급망은 형성으로 채운다.
   const [dataset, setDataset] = useState<SupplyChainDataset>(emptyDataset);
   const [productsLoading, setProductsLoading] = useState(true);
-  const [isDemo, setIsDemo] = useState(false);
   // 조회 상태 알림: 'auth'=토큰 없음/401·403, 'error'=그 외 실패, null=정상
   const [loadStatus, setLoadStatus] = useState<'auth' | 'error' | null>(null);
   // 규제 갭 — 제품 선택 시 fetch. null=미로드, nodes=[]이면 갭 없음.
   const [gaps, setGaps] = useState<SupplyChainGapsResult | null>(null);
   const [summary, setSummary] = useState<ValidationSummary | null>(null);  // [R1] 데이터 완성도 rollup
-  const [requestingGaps, setRequestingGaps] = useState(false);             // [R2] 미완성 일괄요청 진행중
   // 공급망 맵 평가 리포트(종합 판정 문구) — 제품×BOM 기준으로 배치 종합판정을 조회. null=미로드/없음.
   const [evaluation, setEvaluation] = useState<SupplyChainEvaluation | null>(null);
 
@@ -386,26 +384,25 @@ export default function SupplyChainHub() {
   // 제품 선택 시 규제 갭 + 데이터 완성도(요약/판정) 조회 — 협력사들이 자료를 채워갈수록 갱신.
   //   confirmedSuppliers(협력사 확인/자료제출 반영)가 바뀔 때도 재조회해 완성도를 최신화.
   useEffect(() => {
-    if (!selectedProductId || isDemo) { setGaps(null); setSummary(null); return; }
+    if (!selectedProductId) { setGaps(null); setSummary(null); return; }
     getSupplyChainGaps(selectedProductId, activeBomVersionId).then(setGaps).catch(() => {});
     getValidationSummary(selectedProductId, activeBomVersionId).then(setSummary).catch(() => setSummary(null));
-  }, [selectedProductId, activeBomVersionId, isDemo, confirmedSuppliers]);
+  }, [selectedProductId, activeBomVersionId, confirmedSuppliers]);
 
-  // 평가 리포트(종합 판정 문구) — 제품×BOM 확정 시 조회. 데모/미선택이면 비움.
+  // 평가 리포트(종합 판정 문구) — 제품×BOM 확정 시 조회. 미선택이면 비움.
   useEffect(() => {
-    if (!selectedProductId || isDemo || !isUuid(selectedProductId)) { setEvaluation(null); return; }
+    if (!selectedProductId || !isUuid(selectedProductId)) { setEvaluation(null); return; }
     let cancelled = false;
     getSupplyChainEvaluation(selectedProductId, activeBomVersionId)
       .then(r => { if (!cancelled) setEvaluation(r); })
       .catch(() => { if (!cancelled) setEvaluation(null); });
     return () => { cancelled = true; };
-  }, [selectedProductId, activeBomVersionId, isDemo]);
+  }, [selectedProductId, activeBomVersionId]);
 
   // 진입 게이트 통합 목록 — 제품마다 BOM 버전을 조회해 (제품×고객사×기간) 행으로 펼친다.
   // [FIX] mapStarted(URL productId로 곧장 진입)여도 "기준 변경" 모달이 이 목록을 쓰므로
   //   건너뛰면 안 된다 — 예전엔 mapStarted면 스킵해서 딥링크 진입 시 드롭다운이 항상 비어 있었다.
   useEffect(() => {
-    if (isDemo) return;
     const products = dataset.products;
     if (!products.length) return;
     let cancelled = false;
@@ -479,7 +476,7 @@ export default function SupplyChainHub() {
     return () => {
       cancelled = true;
     };
-  }, [dataset.products, isDemo]);
+  }, [dataset.products]);
 
   // 진입 게이트 3개 드롭다운 파생 목록 — 고객사 → (그 고객사) 제품 → (그 제품) 단위기간.
   const entryCustomers = Array.from(
@@ -538,10 +535,8 @@ export default function SupplyChainHub() {
   }
 
   // 제품 선택 시: BOM(버전·트리) + §10.2a 공급망 맵을 조회해 데이터셋에 병합.
-  // 각 호출은 graceful — 미구현/미배포 백엔드면 해당 부분만 건너뛴다(데모 모드면 mock 유지).
+  // 각 호출은 graceful — 미구현/미배포 백엔드면 해당 부분만 건너뛴다.
   async function handleProductChange(productId: string, explicitVersionId?: string) {
-    if (isDemo) return;
-
     // STEP 1 완료 표시. 제품이 바뀌면 이전 제품 기준 Pool 후보·확정 선택은 무효이므로 초기화.
     setSelectedProductId(productId);
     setTier1Pool([]);
@@ -663,25 +658,6 @@ export default function SupplyChainHub() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function loadDemo() {
-    setIsDemo(true);
-    setMapStarted(true); // 데모는 진입 게이트 건너뛰고 바로 맵 표시
-    setDataset(mockDataset);
-    setSelectedProductId(mockDataset.products[0]?.product_id);
-    // 데모도 동일 규칙 — tier-1 협력사만 Pool 후보로.
-    setTier1Pool(
-      mockDataset.suppliers
-        .filter(s => s.tier === 1)
-        .map(s => ({
-          supplierId: s.supplier_id,
-          companyName: s.company_name,
-          providerType: s.provider_type,
-          status: s.status as SupplierBrief['status'],
-          riskLevel: s.risk_level,
-        })),
-    );
-  }
 
   // 선택 노드의 mock supplier_id → 실 supplierId 브리지 (매핑 없으면 undefined)
   const activeMockSupplierId = selectedNode
@@ -823,26 +799,6 @@ export default function SupplyChainHub() {
     setReviewSupplier({ id: realId, name });
   }
 
-  // [R2] 미완성(미보유 필드 보유) 협력사에 자료 일괄 요청 → 완성도 재조회.
-  async function requestIncomplete() {
-    if (!summary) return;
-    setRequestingGaps(true);
-    try {
-      await Promise.all(
-        summary.gapsBySupplier
-          .filter(n => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(n.supplierId))
-          // 이 공급망 맵에 편입된 협력사에만 요청(맵 스코프 밖 협력사 제외).
-          .filter(n => mapSupplierIds.size === 0 || mapSupplierIds.has(n.supplierId))
-          .map(n => createDataRequest({ targetSupplierId: n.supplierId, requestedDataType: 'general_info' }).catch(() => {})),
-      );
-      if (selectedProductId) {
-        getValidationSummary(selectedProductId, activeBomVersionId).then(setSummary).catch(() => {});
-      }
-    } finally {
-      setRequestingGaps(false);
-    }
-  }
-
   return (
     <div className="min-h-screen bg-white text-ink-100">
       <PageHeader
@@ -970,29 +926,6 @@ export default function SupplyChainHub() {
                 </span>
               </div>
             </div>
-            <div className="flex shrink-0 gap-2">
-              {!summary?.readyForFinal && mapStats.nodesWithGaps > 0 && (
-                <button
-                  type="button"
-                  onClick={requestIncomplete}
-                  disabled={requestingGaps}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-warn-border bg-warn-bg px-3 py-2 text-sm font-semibold text-warn-text hover:opacity-90 disabled:opacity-50"
-                >
-                  {requestingGaps ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
-                  미완성 {mapStats.nodesWithGaps}개사 자료 일괄 요청
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => { markVisited(6); setActiveModal('mapManage'); }}
-                disabled={!summary?.readyForFinal}
-                title={summary?.readyForFinal ? '' : '모든 협력사 데이터가 채워지면 이동할 수 있어요'}
-                className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                최종 검증으로 이동
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -1046,11 +979,11 @@ export default function SupplyChainHub() {
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             <p className="font-semibold">제품을 불러오지 못했습니다</p>
-            <p className="text-amber-700/90">백엔드 응답 오류 또는 네트워크 문제입니다. 잠시 후 다시 시도하거나 데모 데이터로 확인하세요.</p>
+            <p className="text-amber-700/90">백엔드 응답 오류 또는 네트워크 문제입니다. 잠시 후 다시 시도해주세요.</p>
           </div>
         </div>
       )}
-      {!productsLoading && loadStatus === null && !isDemo && dataset.products.length === 0 && (
+      {!productsLoading && loadStatus === null && dataset.products.length === 0 && (
         <div className="mx-6 mt-4 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
@@ -1069,15 +1002,6 @@ export default function SupplyChainHub() {
             제품 불러오는 중…
           </span>
         )}
-        <button
-          type="button"
-          onClick={loadDemo}
-          disabled={isDemo}
-          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 hover:border-brand hover:text-brand disabled:opacity-50"
-        >
-          <Database className="h-3.5 w-3.5" />
-          {isDemo ? '데모 데이터 로드됨' : '데모 데이터 불러오기'}
-        </button>
       </div>
 
       {/* ④ 진입 게이트: 고객사·제품·단위기간·BOM(봄)을 골라 '맵 생성'으로 진입. */}
@@ -1306,7 +1230,7 @@ export default function SupplyChainHub() {
         />
       )}
 
-      {/* STEP5 — 자료 수집·보완 검토: 편입 협력사의 입력 누락·문서 문제 확인·요청·AI 파싱 검토 */}
+      {/* STEP5 — 자료 수집·보완 검토: 편입 협력사의 입력 누락·문서 문제 확인·요청·AI 처리 검토 */}
       {activeModal === 'dataReview' && (
         <DataReviewModal
           suppliers={mapSuppliers}

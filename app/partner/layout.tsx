@@ -71,12 +71,6 @@ function PartnerWorkspaceChrome({ children }: { children: React.ReactNode }) {
           {/* ✨ ai-parsing 뷰일 때는 꽉 찬 높이(h-calc), 아닐 때는 기존 패딩 적용 ✨ */}
           <div className={pathname === '/partner/ai-parsing' ? 'h-[calc(100vh-82px)]' : 'space-y-6 p-8'}>
             {children}
-            {/* 푸터 — ai-parsing 전체화면 모드일 때 숨김 (작업 몰입도 확보) */}
-            {pathname !== '/partner/ai-parsing' && (
-              <div className="rounded-sm border border-ink-700 bg-white p-4 text-xs leading-5 text-ink-500 shadow-control">
-                이 협력사 화면은 전체 공급망 구조, 다른 협력사의 상세 연락처, PO 단가 비교, 내부 HITL 판단 로그, 감사 추적 로그, 경쟁 협력사 비교 지표를 표시하지 않습니다.
-              </div>
-            )}
           </div>
         </div>
       </div>

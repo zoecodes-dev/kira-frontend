@@ -17,6 +17,7 @@ const REQUEST_META: Record<string, { label: string; section: string }> = {
   pcf_energy:           { label: '제품 탄소발자국(PCF) 및 에너지 사용량 등록', section: 'regulation' },
   material_composition: { label: '제품 소재 구성 명세서 제출',                section: 'materials' },
   factory_info:         { label: '공장 정보 입력하기',                        section: 'factories' },
+  general_info:         { label: '원청사 정보 입력 요청',                    section: 'company' },
 };
 
 // 카운트 보드 4분류(파생 상태)
