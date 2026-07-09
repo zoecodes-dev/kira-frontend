@@ -1,7 +1,7 @@
 'use client';
 
 // 원산지 geo audit 확인 뷰 — 협력사가 업로드한 자료의 원산지(좌표·폴리곤·위성 대조) 검증 결과를
-// AI 파싱과 함께 확인하는 화면. AI 파싱 뷰와 탭으로 분리되어 나란히 뜬다(process.md L23·42).
+// AI 처리과 함께 확인하는 화면. AI 처리 뷰와 탭으로 분리되어 나란히 뜬다(process.md L23·42).
 //
 // 데모: 협력사 공장 좌표(getFactories)를 바탕으로 원산지 검증 상태를 결정적으로(공장 index 기반) 렌더링한다.
 
@@ -54,7 +54,7 @@ export default function GeoAuditView({ supplierId }: { supplierId: string }) {
           <div>
             <div className="text-xs font-bold text-ink-100">원산지 geo audit 검증</div>
             <div className="mt-0.5 text-[10px] text-ink-500">
-              업로드한 자료의 원산지 좌표를 위성·광권 데이터와 대조한 결과입니다. 확인 후 AI 파싱 탭에서 제출하세요.
+              업로드한 자료의 원산지 좌표를 위성·광권 데이터와 대조한 결과입니다. 확인 후 AI 처리 탭에서 제출하세요.
             </div>
           </div>
         </div>

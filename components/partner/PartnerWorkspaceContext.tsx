@@ -36,8 +36,8 @@ function mapToSubmission(s: SubmissionBrief): Submission {
   };
   const STAGE_LABELS = [
     { label: '제출 완료',   sublabel: '협력사 최초 업로드 완료' },
-    { label: 'AI 파싱 중',  sublabel: 'LLM 문서 추출 파이프라인 처리' },
-    { label: 'AI 파싱 완료',sublabel: '데이터 추출 결과 생성 완료' },
+    { label: 'AI 처리 중',  sublabel: 'LLM 문서 추출 파이프라인 처리' },
+    { label: 'AI 처리 완료',sublabel: '데이터 추출 결과 생성 완료' },
     { label: '협력사 확인', sublabel: '협력사 담당자 파싱 결과 검토' },
     { label: '원청 접수',   sublabel: '원청사 검토 큐 진입' },
     { label: '원청 검토중', sublabel: '원청사 담당자 내용 검토 중' },

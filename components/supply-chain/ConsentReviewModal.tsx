@@ -151,7 +151,7 @@ export default function ConsentReviewModal({
 
         <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-5 py-3">
           <span className="text-xs font-medium text-slate-500">
-            {allDone ? '모든 동의서를 수신 확인했습니다. 자료 수집·보완으로 넘어갈 수 있어요.' : '노출된 협력사를 전부 수신 확인하면 다음 차수·다음 단계가 열립니다.'}
+            {allDone ? '모든 동의서를 수신 확인했습니다. 자료 수집·보완으로 넘어갈 수 있습니다.' : '노출된 협력사를 전부 수신 확인하면 다음 차수·다음 단계가 열립니다.'}
           </span>
           <button type="button" onClick={onClose} className="inline-flex h-9 items-center rounded-sm bg-ink-100 px-4 text-sm font-bold text-white hover:opacity-90">
             닫기

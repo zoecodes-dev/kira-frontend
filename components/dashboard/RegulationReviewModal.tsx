@@ -1,7 +1,7 @@
 'use client';
 
 // 규제 검증 검토 — AI가 낸 판정 결과(판정·대조한 규제 조항·신뢰도·판단 근거)를
-// 협력사가 제출한 근거 자료(AI 파싱 뷰)와 '함께' 보여준다.
+// 협력사가 제출한 근거 자료(AI 처리 뷰)와 '함께' 보여준다.
 // "근거 자료의 어느 부분을 규제의 어느 조항과 대조했더니 어떻더라"를 한 화면에서 확인.
 import clsx from 'clsx';
 import { Scale, ShieldAlert, X, FileText, ArrowLeftRight } from 'lucide-react';
@@ -64,12 +64,12 @@ export default function RegulationReviewModal({ row, onClose }: { row: RegReview
               <p className={clsx('mt-1.5 rounded-sm border px-3 py-2 text-sm font-medium leading-relaxed', vm.cls)}>
                 {row.reasoning || '판단 근거가 기록되지 않았습니다.'}
               </p>
-              <p className="mt-1 text-[11px] text-slate-500">아래 근거 자료(AI 파싱 결과)에서 해당 항목을 확인하고, 위 판정이 타당한지 검토하세요.</p>
+              <p className="mt-1 text-[11px] text-slate-500">아래 근거 자료(AI 처리 결과)에서 해당 항목을 확인하고, 위 판정이 타당한지 검토하세요.</p>
             </div>
           </div>
         </div>
 
-        {/* 근거 자료 — AI 파싱 뷰(협력사 제출 자료의 추출 결과) */}
+        {/* 근거 자료 — AI 처리 뷰(협력사 제출 자료의 추출 결과) */}
         <div className="min-h-0 flex-1">
           {row.supplierId && <AiParsingView supplierId={row.supplierId} onConfirmComplete={onClose} realOnly mode="prime" />}
         </div>

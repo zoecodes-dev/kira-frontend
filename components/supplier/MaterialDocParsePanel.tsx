@@ -1,6 +1,6 @@
 'use client';
 
-// ── 소재구성 문서 업로드 + AI 파싱 패널 ─────────────────────────────────────
+// ── 소재구성 문서 업로드 + AI 처리 패널 ─────────────────────────────────────
 // 업로드 흐름(기존 3종 문서와 동일 파이프라인 재사용, 새 엔드포인트 없음):
 //   ① uploadFile(POST /files) → s3Key
 //   ② PATCH /suppliers/{id}/detail { material_composition_doc_url: s3Key }
@@ -24,7 +24,7 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
   initialUrl?: string | null;
   editable?: boolean;
   onParsed: (extraction: AiExtraction) => void;
-  // AI 파싱 확인 팝업(AiParsingView 모달) 열기 — 업로드 완료 직후 + '결과 보기' 클릭 시.
+  // AI 처리 확인 팝업(AiParsingView 모달) 열기 — 업로드 완료 직후 + '결과 보기' 클릭 시.
   onOpenViewer: () => void;
 }) {
   const [docValue, setDocValue] = useState(initialUrl ?? '');
@@ -68,7 +68,7 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
       setDocValue(meta.s3Key);
       setDisplayName(f.name);
       setNotice(`업로드 완료 · ${f.name}`);
-      // 업로드 직후 AI 파싱 확인 화면을 팝업으로 노출(/partner/ai-parsing 과 동일 화면).
+      // 업로드 직후 AI 처리 확인 화면을 팝업으로 노출(/partner/ai-parsing 과 동일 화면).
       onOpenViewer();
     } catch (err) {
       if (!cancelledRef.current) setError(err instanceof ApiError ? err.message : '업로드에 실패했습니다.');
@@ -113,7 +113,7 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
             : uploading
               ? '업로드 중…'
               : parsing
-                ? 'AI 파싱 중… (최대 30초 정도 걸릴 수 있어요)'
+                ? 'AI 처리 중… (최대 30초 정도 걸릴 수 있어요)'
                 : notice
                   ? notice
                   : uploaded
