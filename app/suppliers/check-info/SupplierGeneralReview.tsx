@@ -975,8 +975,9 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
           </div>
           {/* AI 규제 분석 보고서 (RAG · EU 배터리법) — 탄소 문서가 파싱된 상태(carbonExtraction)일 때만.
               초기 렌더(DB 저장값만 있는 상태)에는 노출하지 않는다 — SAQ(3-2)와 동일한 흐름:
-              모달 [저장] → 폼 채움 → 그때 보고서 노출. */}
-          {!naMiner && carbonExtraction && <CarbonComplianceReport carbonIntensity={Number.isNaN(ciNum) ? null : ciNum} energySource={(es as string) || null} />}
+              모달 [저장] → 폼 채움 → 그때 보고서 노출.
+              협력사 화면에는 노출하지 않는다 — 원청 자료 검토 시에만 표시(추후 협력사는 알림으로 대체). */}
+          {isPrime && !naMiner && carbonExtraction && <CarbonComplianceReport carbonIntensity={Number.isNaN(ciNum) ? null : ciNum} energySource={(es as string) || null} />}
         </div>
 
         {/* ══ 3-2. 인권·안전 실사 (SAQ) ══ */}
@@ -1080,11 +1081,14 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
           )}
           {/* AI CSDDD 실사 분석 보고서 (RAG) — SAQ 문서가 파싱된 상태(saqExtraction)일 때만 렌더링.
               업로드 전 DB 리스크 등급만으로는 노출하지 않는다.
-              위반(violation) 판정은 onRegulatoryRisk로 끌어올려 공통 '제출하기' 경고 모달을 게이트한다. */}
+              위반(violation) 판정은 onRegulatoryRisk로 끌어올려 공통 '제출하기' 경고 모달을 게이트한다.
+              협력사 화면에서는 카드 UI를 숨긴다(visible=isPrime) — 단, 분석 자체와 제출 전 위반 게이트는
+              그대로 동작해야 하므로 컴포넌트는 계속 마운트한다(추후 협력사는 알림으로 대체 예정). */}
           {!naMiner && saqExtraction && (
             <SaqComplianceReport
               saqFields={saqFields}
               onVerdictChange={v => onRegulatoryRisk?.(v === 'violation')}
+              visible={isPrime}
             />
           )}
         </div>
@@ -2087,8 +2091,8 @@ export function SupplierGeneralReviewContent({
                 이대로 제출하면 원청사 검토 과정에서 반려되거나 시정 조치가 요구될 수 있습니다.
               </p>
               <p className="mt-2 text-xs leading-5 text-ink-500">
-                '3. 규제' 섹션의 AI CSDDD 실사 분석 보고서에서 위반 근거 조항을 확인하고,
-                필요 시 문서를 보완한 뒤 제출해 주세요. 그대로 제출하려면 [제출]을 누르세요.
+                필요 시 '3. 규제' 섹션의 실사 자가진단(SAQ) 문서를 보완한 뒤 제출해 주세요.
+                그대로 제출하려면 [제출]을 누르세요.
               </p>
             </div>
             <div className="flex justify-end gap-2 border-t border-ink-700 bg-slate-50 px-5 py-3">
