@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ExcelJS from 'exceljs';
 import { SupplierGeneralReviewContent } from '@/app/suppliers/check-info/SupplierGeneralReview';
-import { getSupplierDetail, getSupplierContacts, getSupplierFactories, getSupplierRiskProfile, getSupplyChainEvaluation, type SupplyChainEvaluation } from '@/lib/api';
+import { getSupplierDetail, getSupplierContacts, getSupplierFactories, getSupplierRiskProfile, getSupplyChainEvaluation, getOutboundRiskSummary, type SupplyChainEvaluation, type OutboundRiskSummaryLocaleRender } from '@/lib/api';
 import EvaluationReportCard, { evaluationTextLines } from '@/components/supply-chain/EvaluationReportCard';
 import {
   Box,
@@ -49,6 +49,21 @@ const PROVIDER_LABEL: Record<string, string> = {
 };
 const providerKo = (t: string) => PROVIDER_LABEL[t] ?? t;
 
+// 고객사 엑셀(대외 제출본) 전용 영문 라벨. statusMeta.label(화면 표시용, 한글)은 그대로 두고
+// 여기서만 별도 매핑한다 — 화면 UI에 영향 없이 엑셀만 영어로 통일하기 위함.
+const RISK_STATUS_LABEL_EN: Record<RiskStatus, string> = {
+  verified: 'Verified',
+  watch: 'Watch',
+  high: 'High Risk',
+  audit_required: 'Audit Required',
+};
+// PIC 직책은 대부분 이미 영문이고, 자유입력으로 들어온 한글 값 몇 종만 매핑한다.
+//   매핑에 없는 값(신규 한글 직책 등)은 원문 그대로 통과시킨다 — 무리하게 기계번역하지 않음.
+const PIC_TITLE_EN: Record<string, string> = {
+  '구매 담당자': 'Purchasing Officer',
+  'ESG 담당자': 'ESG Officer',
+};
+
 export function SupplyChainMapPageContent({
   formationMode = false,
   dataset = emptyDataset,
@@ -91,8 +106,8 @@ export function SupplyChainMapPageContent({
   onConnectClick?: (context: ReturnType<typeof getInvitationContext> & { supplierId: string }) => void;
   // 제품 선택 변화 통지 (허브가 해당 제품 BOM을 API로 불러오도록)
   onProductChange?: (productId: string) => void;
-  // 알림 딥링크 진입 시 포커스할 협력사 id(선택). 맵/표 로드 후 해당 행으로 스크롤·하이라이트하고
-  // (실 협력사면) onRowClick으로 상세 모달까지 연다. 한 번만 적용된다.
+  // 알림 딥링크 진입 시 포커스할 협력사 id(선택). 맵/표 로드 후 해당 행으로 스크롤·하이라이트만
+  // 한다(상세 모달은 자동으로 열지 않음 — 단계에 안 맞는 화면이 불쑥 뜨는 문제 방지). 한 번만 적용된다.
   focusSupplierId?: string;
   // 노출할 최대 차수. 안전 기본값 = 1(Tier0·Tier1만 노출) — Pool 확정 전엔 하위 차수를
   // 아직 모르는 상태라 숨긴다. 허브가 Pool 확정 후 undefined(무제한)로 넘긴다.
@@ -269,7 +284,9 @@ export function SupplyChainMapPageContent({
   const evaluation = evaluationReport !== undefined ? evaluationReport : selfEvaluation;
 
   // 알림 딥링크(focusSupplierId)로 진입 시: 표가 그 협력사 행을 렌더한 순간
-  //   ① 행 하이라이트 ② 그 행으로 스크롤 ③ (실 협력사면) 상세 모달 오픈.
+  //   ① 행 하이라이트 ② 그 행으로 스크롤. 상세 모달은 자동으로 열지 않는다 — 알림을 타고
+  //   들어왔다고 해서 지금 단계와 무관한 general review 팝업이 불쑥 뜨면 안 된다. 특정
+  //   딥링크(예: 동의서 회신)가 모달을 띄워야 하면 허브가 그 케이스를 따로 처리한다.
   // 제품·BOM 자동 선택 → traceRows 생성이 비동기라, traceRows 변화에 반응하고 focusSupplierId당 1회만 적용.
   const supplierRowsRef = useRef<HTMLTableSectionElement>(null);
   const appliedFocusRef = useRef<string | undefined>(undefined);
@@ -285,9 +302,7 @@ export function SupplyChainMapPageContent({
       const el = rows && Array.from(rows).find(r => r.dataset.supplierId === focusSupplierId);
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
-    // 허브에 상세 모달을 위임(openSupplierReview) — 실/데모 id 모두 처리된다.
-    onRowClick?.(row);
-  }, [focusSupplierId, traceRows, onRowClick]);
+  }, [focusSupplierId, traceRows]);
 
   function handleGenerate() {
     setGeneratedAt(new Date().toLocaleString('ko-KR'));
@@ -415,21 +430,25 @@ export function SupplyChainMapPageContent({
 
   // 고객사 제출용(단일 시트) — 맵 행마다 그 협력사의 general review 컬럼을 오른쪽에 붙인 넓은 표(+상단 제품 헤더 블록).
   // 필터 무시하고 이 BOM의 전체 공급망을 내보낸다. general review는 맵에 편입된 실 협력사(UUID)를 API로 조회해 합친다.
+  // 대외 제출본(고객사 전달용)이라 전부 영어로 통일한다. 실제 영문 필드가 있으면 그걸 쓰고
+  // (companyNameEn/factoryNameEn/contact.nameEn), 없는 값(직책 등 일부 한글 자유입력)은
+  // 아래 *_EN 매핑으로 변환한다. 담당자 성명(factoryManagerName)은 영문 필드가 아예 없어
+  // 원문 그대로 둔다(고유명사라 임의 번역이 오히려 오해를 부를 수 있음).
   const CUSTOMER_HEADERS = [
-    '차수', '품목/부품', '원재료/광물', '공급사', '사업장', '국가(원산지)', '공급기간', '리스크 상태',
-    '영문명', '본사 국가', '업종', 'smelter 구분', '핵심광물(함량 %)',
-    'PIC 이름', 'PIC 직책', 'PIC 이메일', 'PIC 연락처',
-    '공장 원산지', '공장 비율(%)', '공장 담당자',
-    '탄소집약도', '에너지원', '실사 자가진단',
+    'Tier', 'Part/Component', 'Material/Mineral', 'Supplier', 'Site', 'Country of Origin', 'Supply Period', 'Risk Status',
+    'HQ Country', 'Type', 'Smelter Type', 'Core Minerals (%)',
+    'PIC Name', 'PIC Title', 'PIC Email', 'PIC Phone',
+    'Factory Country', 'Factory Ratio (%)', 'Factory Manager',
+    'Carbon Intensity', 'Energy Source', 'Self-Assessed Risk',
   ];
   const CUSTOMER_WIDTHS = [
     8, 22, 16, 22, 16, 10, 20, 12,
-    18, 10, 12, 12, 18,
+    10, 12, 12, 18,
     14, 12, 24, 16,
     10, 10, 14,
     12, 14, 12,
   ];
-  const FACTORY_RATIO_COL = 19; // 공장 비율(%) 열 번호 — 공장별로 행이 나뉘므로 셀당 값 하나뿐이라 숫자 서식 적용 가능
+  const FACTORY_RATIO_COL = 18; // Factory Ratio (%) 열 번호 — 공장별로 행이 나뉘므로 셀당 값 하나뿐이라 숫자 서식 적용 가능
 
   async function downloadCustomerExcel() {
     if (!selectedBomVersion || customerDownloading) return;
@@ -438,18 +457,26 @@ export function SupplyChainMapPageContent({
       const fullRows = buildTraceRows(dataset, selectedBomVersionId, ' ~ ', 'ALL', 'ALL');
       // 맵에 편입된 실 협력사(UUID)별 general review 조회 — supplier_id → 상세 번들.
       const uniqIds = [...new Set(fullRows.filter(r => isUuid(r.supplier_id)).map(r => r.supplier_id))];
-      const bundles = await Promise.all(
-        uniqIds.map(async id => {
-          const [detail, contactsRes, factoriesRes, risk] = await Promise.all([
-            getSupplierDetail(id).catch(() => null),
-            getSupplierContacts(id).catch(() => null),
-            getSupplierFactories(id).catch(() => null),
-            getSupplierRiskProfile(id).catch(() => null),
-          ]);
-          return [id, { detail, contacts: contactsRes?.contacts ?? [], factories: factoriesRes?.factories ?? [], risk }] as const;
-        }),
-      );
-      await writeCustomerWorkbook(fullRows, new Map(bundles));
+      const [bundles, outboundSummary] = await Promise.all([
+        Promise.all(
+          uniqIds.map(async id => {
+            const [detail, contactsRes, factoriesRes, risk] = await Promise.all([
+              getSupplierDetail(id).catch(() => null),
+              getSupplierContacts(id).catch(() => null),
+              getSupplierFactories(id).catch(() => null),
+              getSupplierRiskProfile(id).catch(() => null),
+            ]);
+            return [id, { detail, contacts: contactsRes?.contacts ?? [], factories: factoriesRes?.factories ?? [], risk }] as const;
+          }),
+        ),
+        // 고객사 전송용 요약(영어·독일어) — 화면 미리보기(CustomerRiskSummaryCard)와 같은 API.
+        //   ko 렌더는 화면 기본 표시용일 뿐 엑셀(대외 제출본)엔 넣지 않는다.
+        selectedProduct?.customer_id
+          ? getOutboundRiskSummary(selectedProductId, selectedProduct.customer_id, selectedBomVersionId).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      const outboundRenders = (outboundSummary?.renders ?? []).filter(r => r.locale !== 'ko');
+      await writeCustomerWorkbook(fullRows, new Map(bundles), outboundRenders);
     } finally {
       setCustomerDownloading(false);
     }
@@ -463,32 +490,42 @@ export function SupplyChainMapPageContent({
       factories: Awaited<ReturnType<typeof getSupplierFactories>>['factories'];
       risk: Awaited<ReturnType<typeof getSupplierRiskProfile>> | null;
     }>,
+    outboundRenders: OutboundRiskSummaryLocaleRender[],
   ) {
     const thin = { style: 'thin' as const, color: { argb: 'FFD9D9D9' } };
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('공급망 제출');
+    const ws = wb.addWorksheet('Supply Chain Submission');
     ws.columns = CUSTOMER_WIDTHS.map(w => ({ width: w }));
 
     // 상단 제품 정보 헤더 블록.
     ([
-      ['제품', selectedProduct?.product_name ?? '-'],
-      ['제품 코드', selectedProduct?.product_code ?? '-'],
-      ['고객사', customerName],
-      ['BOM 버전', selectedBomVersion?.version_number ?? '-'],
-      ['단위기간', (periodFrom || periodTo) ? `${periodFrom || '…'} ~ ${periodTo || '…'}` : '전체'],
-      ['생성일', stamp],
+      ['Product', selectedProduct?.product_name ?? '-'],
+      ['Product Code', selectedProduct?.product_code ?? '-'],
+      ['Customer', customerName],
+      ['BOM Version', selectedBomVersion?.version_number ?? '-'],
+      ['Period', (periodFrom || periodTo) ? `${periodFrom || '…'} ~ ${periodTo || '…'}` : 'All'],
+      ['Generated At', stamp],
     ] as [string, string][]).forEach(([k, v]) => {
       const r = ws.addRow([k, v]);
       r.getCell(1).font = { bold: true, color: { argb: 'FF14532D' } };
     });
 
-    // 평가 리포트 문구 블록(있으면) — 제품 정보 아래, 표 위에.
-    const introLines = evaluation?.available ? evaluationTextLines(evaluation) : [];
-    if (introLines.length) {
+    // 고객사 전송용 요약 블록(영어·독일어만) — 제품 정보 아래, 표 위에.
+    //   CustomerRiskSummaryCard와 동일한 문구(협력사 수·고위험 비율·컴플라이언스 통과율·
+    //   공급망 검증율)를 언어별로 적는다. 화면 미리보기 기본 언어(ko)는 대외 제출본인
+    //   이 엑셀엔 넣지 않는다.
+    if (outboundRenders.length) {
       ws.addRow([]);
-      introLines.forEach((line, i) => {
-        const r = ws.addRow([line]);
-        r.getCell(1).font = { bold: i === 0, color: { argb: 'FF14532D' } };
+      outboundRenders.forEach(render => {
+        const titleRow = ws.addRow([`[${render.locale.toUpperCase()}] ${render.sectionTitle}`]);
+        titleRow.getCell(1).font = { bold: true, color: { argb: 'FF14532D' }, size: 12 };
+        const summaryRow = ws.addRow([render.summaryText]);
+        summaryRow.getCell(1).font = { color: { argb: 'FF14532D' } };
+        if (render.keyPoints.length) {
+          const kpRow = ws.addRow([render.keyPoints.join('   ·   ')]);
+          kpRow.getCell(1).font = { italic: true, color: { argb: 'FF14532D' } };
+        }
+        ws.addRow([]);
       });
     }
     ws.addRow([]);
@@ -520,22 +557,26 @@ export function SupplyChainMapPageContent({
       factoryList.forEach(f => {
         ws.addRow([
           // ── 맵 정보 ──
-          row.tier, row.part_name, row.material_or_mineral, row.supplier_name,
-          row.factory_name, row.country, row.supply_period, statusMeta[row.risk_status].label,
+          // 공급사/사업장명은 영문 필드(companyNameEn/factoryNameEn)를 우선한다 — 대외 제출본은
+          // 전부 영어로 통일. 사업장명은 f(이 행이 실제로 다루는 공장)을 우선한다 — row.factory_name
+          // (맵 대표 공장) 고정값을 그대로 쓰면 공장이 여러 곳인 협력사는 모든 행에 같은 사업장명이
+          // 찍히고 비율·담당자만 바뀌어 보여서, 실제로는 다른 공장인데 같은 곳처럼 오인된다.
+          row.tier, row.part_name, row.material_or_mineral, (dt?.companyNameEn as string) ?? row.supplier_name,
+          f?.factoryNameEn ?? f?.factoryName ?? row.factory_name, row.country, row.supply_period, RISK_STATUS_LABEL_EN[row.risk_status],
           // ── 협력사 general review ──
-          (dt?.companyNameEn as string) ?? '-',
           (dt?.country as string) ?? '-',
           (dt?.providerType as string) ?? '-',
           (dt?.smelterType as string) ?? '-',
           // 있는 광물 키만 직렬화(흑연 등 포함) — 예: "Li 7.2 / Ni 80 / graphite_natural 88"
           Object.entries(cm).filter(([k, v]) => k !== 'hazardous_substances' && v != null)
             .map(([k, v]) => `${k} ${v}`).join(' / ') || '-',
-          pic?.name ?? '-',
-          pic?.role ?? '-',
+          pic?.nameEn ?? pic?.name ?? '-',
+          (pic?.role ? (PIC_TITLE_EN[pic.role] ?? pic.role) : '-'),
           pic?.email ?? '-',
           pic?.mobile ?? pic?.phone ?? '-',
           f?.country ?? '-',
           f?.supplyRatioPercent != null ? f.supplyRatioPercent : '-',
+          // 담당자 성명은 영문 필드가 없는 고유명사라 원문 그대로 둔다(임의 로마자 표기는 오히려 혼선).
           f?.factoryManagerName ?? '-',
           md.carbonIntensity != null ? (md.carbonIntensity as number) : '-',
           (md.energySource as string) ?? '-',
@@ -711,7 +752,7 @@ export function SupplyChainMapPageContent({
           <p className="mt-2 text-sm text-slate-500">
             {hasProducts
               ? '상단에서 대표 제품을 선택하면 MBOM 자재 구조가 표시됩니다.'
-              : '제품이 동기화되면 표시됩니다. 시연하려면 "데모 데이터 불러오기"를 사용하세요.'}
+              : '제품이 동기화되면 표시됩니다.'}
           </p>
         </section>
       )}
@@ -786,8 +827,9 @@ export function SupplyChainMapPageContent({
         </div>
       )}
 
-      {/* 공급망 맵 평가 리포트(종합 판정 문구) — 표/엑셀과 같은 화면에 노출. */}
-      {!formationMode && evaluation?.available && (
+      {/* 공급망 맵 평가 리포트(종합 판정 문구) — 표/엑셀과 같은 화면에 노출.
+          임베드(허브 안)일 땐 허브가 이미 상단에 같은 카드를 보여주므로 중복 방지로 건너뛴다. */}
+      {!embedded && !formationMode && evaluation?.available && (
         <EvaluationReportCard report={evaluation} className="mt-4" />
       )}
 
@@ -882,7 +924,7 @@ export function SupplyChainMapPageContent({
             className="relative w-full max-w-5xl rounded-sm border border-ink-700 bg-white shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-ink-700 bg-white px-5 py-3">
+            <div className="flex items-center justify-between gap-3 border-b border-ink-700 bg-white px-5 py-3">
               <div className="text-sm font-bold text-ink-100">협력사 상세 — {reviewSupplier.name}</div>
               <button
                 type="button"

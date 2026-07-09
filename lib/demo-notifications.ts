@@ -45,33 +45,10 @@ const isBrowser = typeof window !== 'undefined';
 // 데모 시작 시점에 벨이 비어 보이지 않도록 "과거 맥락" 알림을 최소한으로 심는다.
 // 이후 실제 행동으로 발생하는 알림이 이 위에 쌓인다.
 function seedNotifications(): DemoNotification[] {
-  const now = Date.now();
-  const ago = (min: number) => new Date(now - min * 60_000).toISOString();
-  return [
-    {
-      notification_id: 'seed-partner-1',
-      audience: 'partner',
-      notification_type: 'sla_warning',
-      subject: '원산지 증빙 제출 기한 임박',
-      body: '광산 폴리곤 좌표 등록 요청의 마감이 임박했습니다. 기한 내 미제출 시 보완 요청으로 전환됩니다.',
-      status: 'pending',
-      created_at: ago(180),
-      deep_link: 'company-info',
-      actor: 'KIRA 원청',
-    },
-    {
-      notification_id: 'seed-partner-2',
-      audience: 'partner',
-      notification_type: 'approval_needed',
-      subject: 'AI 파싱 결과 확인 요청',
-      body: '업로드하신 문서의 AI 추출 결과에서 확인이 필요한 항목이 있습니다. 검토 후 제출해 주세요.',
-      status: 'read',
-      created_at: ago(600),
-      deep_link: 'ai-parsing',
-      actor: 'KIRA 시스템',
-    },
-    // 원청(prime) 시드는 두지 않는다 — 원청 알림은 백엔드 실 알림(GET /notifications)만 표시한다.
-  ];
+  // 가짜 예시 알림(원산지 증빙 기한 임박·AI 처리 결과 확인)은 실제로 발생한 적 없는 상태를
+  // 오인시켜 제거했다. 협력사/원청 모두 시드 없이 시작하고, 이후 실 행동(메일 발송·보완
+  // 요청 등)이 발생할 때만 addDemoNotification으로 알림이 쌓인다.
+  return [];
 }
 
 // ─── 모듈 스토어 ────────────────────────────────────────────────────────────────

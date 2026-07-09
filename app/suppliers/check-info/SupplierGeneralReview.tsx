@@ -6,15 +6,14 @@ import {
   createDataRequest, getDataRequests,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierSuppliedItems, submitMasterForm,
-  getSupplierRiskProfile, uploadFile,
+  getSupplierRiskProfile, uploadFile, getSupplierDocumentUrl,
   type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type SuppliedItem as ApiItem, type ApiDataRequest,
-  type AiExtraction,
+  type AiExtraction, type SupplierDocKind,
   ApiError,
 } from '@/lib/api';
-import { addDemoNotification } from '@/lib/demo-notifications';
 
 const providerTypeLabel: Record<string, string> = {
   manufacturer: '제조사', recycler: '재활용', trader: '트레이더', miner: '광산', smelter: '제련소',
@@ -252,9 +251,9 @@ function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPre
         const key = fieldKeys?.[i];
         const opts = key ? selects?.[key] : undefined;
         const dataField = key ? `${fieldPrefix}.${key}` : undefined;
-        // AI 파싱 신뢰도 낮음 등 — 값은 채우되 warn 톤 + 배지로 검토를 유도(ExtractionTable 패턴).
+        // AI 처리 신뢰도 낮음 등 — 값은 채우되 warn 톤 + 배지로 검토를 유도(ExtractionTable 패턴).
         const flag = key ? flagged?.[key] : undefined;
-        // [작업②] AI 파싱으로 자동 입력된 값 — 연한 배경 + ✓ 배지로 '직접 입력'과 시각 구분(warn 우선).
+        // [작업②] AI 처리로 자동 입력된 값 — 연한 배경 + ✓ 배지로 '직접 입력'과 시각 구분(warn 우선).
         const parsedFilled = !flag && !!key && !!parsedFieldKeys?.includes(key);
         // [작업②] 빈값일 때 안내형 placeholder(필드별 커스텀 → 없으면 기본 '<라벨> 입력').
         const ph = (key && placeholders?.[key]) || `${label} 입력`;
@@ -519,12 +518,13 @@ function EmptyData() {
 // 키는 영구값이라(presigned url과 달리 만료 X) 백엔드 파싱(data_gateway)이 그대로 읽어 쓴다.
 // 영속화는 hidden input(data-field=섹션.필드)에 S3 키를 실어 persistForm이 읽어 처리.
 // 표시는 사람이 알아볼 파일명(키 경로의 마지막 조각)으로 보여준다.
-function DocUploadField({ label, field, initialUrl, editable, supplierId }: { label: string; field: string; initialUrl?: string | null; editable?: boolean; supplierId: string }) {
+function DocUploadField({ label, field, initialUrl, editable, supplierId, docKind }: { label: string; field: string; initialUrl?: string | null; editable?: boolean; supplierId: string; docKind?: SupplierDocKind }) {
   // docValue = 영속화할 값(S3 키). displayName = 화면 표시용 파일명.
   const [docValue, setDocValue] = useState(initialUrl ?? '');
   const [displayName, setDisplayName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [viewLoading, setViewLoading] = useState(false);
   // initialUrl은 비동기 GET(getSupplierDetail 등) 도착 후 나중에 채워짐 — 첫 렌더 때
   // useState 초기값만 잡고 끝나면 데이터가 도착해도 반영이 안 되므로 prop 변경 시 동기화.
   useEffect(() => {
@@ -533,6 +533,23 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId }: { la
   const uploaded = Boolean(docValue);
   // 표시명: 방금 올린 파일명 우선, 없으면 S3 키 경로의 마지막 조각.
   const shownName = displayName || (docValue ? docValue.split('/').pop() : '');
+  // '보기'는 서버에 이미 저장된 문서만 대상(initialUrl) — 방금 고른 파일은 폼 저장 전이라
+  // suppliers 컬럼에 아직 반영 안 됐고, 백엔드 presigned 발급은 그 컬럼 값을 읽는다.
+  const canView = Boolean(docKind && initialUrl);
+
+  async function handleView() {
+    if (!docKind) return;
+    setError('');
+    setViewLoading(true);
+    try {
+      const { url } = await getSupplierDocumentUrl(supplierId, docKind);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '문서를 여는 데 실패했습니다.');
+    } finally {
+      setViewLoading(false);
+    }
+  }
 
   async function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -564,6 +581,16 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId }: { la
         {uploaded && !uploading && (
           <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-[11px] font-bold text-ok-text">완료</span>
         )}
+        {canView && (
+          <button
+            type="button"
+            onClick={handleView}
+            disabled={viewLoading}
+            className="rounded-xs border border-ink-700 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-500 hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {viewLoading ? '여는 중…' : '보기'}
+          </button>
+        )}
         {editable && (
           <>
             <label className={`rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 ${uploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent-100'}`}>
@@ -590,17 +617,24 @@ function DocUploadField({ label, field, initialUrl, editable, supplierId }: { la
 // [제품별 독립 제출] 공급 품목(supplied-items)을 공급망 맵(=bom_version) 단위로 묶는다.
 //   같은 협력사라도 map 마다 대는 부품·공장·핵심광물이 다르므로, 페이지 전체를 이 단위로 분리한다.
 //   factoryIds: 이 맵의 엣지가 물리는 공장 id 집합 — 공장/원산지 섹션을 맵별로 필터하는 키.
-type SupplyMap = { key: string; label: string; version: string | null; rows: ApiItem[]; factoryIds: string[] };
-function buildSupplyMaps(items: ApiItem[]): SupplyMap[] {
+//   destination: 이 맵 최상위 고객사 국가로 백엔드가 자동 계산한 납품처 리전 — 맵 안 모든 행이
+//   같은 고객사로 흐르므로 첫 값을 그대로 대표값으로 쓴다(§공장 정보 "납품처" 표시용).
+type SupplyMap = { key: string; label: string; version: string | null; rows: ApiItem[]; factoryIds: string[]; destination: string | null };
+// isPrime=false(협력사 화면)면 라벨에서 고객사명을 뺀다 — 탭 라벨이 "BMW iX3 50"처럼 최종
+// 고객사를 그대로 드러내던 것도 납품처와 같은 leak 경로였다(§공장 정보 "납품처" 블라인드와 동일 취지).
+function buildSupplyMaps(items: ApiItem[], isPrime: boolean): SupplyMap[] {
   const maps: SupplyMap[] = [];
   const idxOf = new Map<string, number>();
   for (const it of items) {
     const key = it.bomVersionId ?? `${it.productId ?? ''}:${it.bomVersionNumber ?? ''}`;
     if (!key) continue;
     if (!idxOf.has(key)) {
-      const label = [it.customerName, it.modelName ?? it.productName].filter(Boolean).join(' ') || '제품';
+      const parts = isPrime
+        ? [it.customerName, it.modelName ?? it.productName]
+        : [it.modelName ?? it.productName];
+      const label = parts.filter(Boolean).join(' ') || '제품';
       idxOf.set(key, maps.length);
-      maps.push({ key, label, version: it.bomVersionNumber ?? null, rows: [], factoryIds: [] });
+      maps.push({ key, label, version: it.bomVersionNumber ?? null, rows: [], factoryIds: [], destination: it.destination ?? null });
     }
     const m = maps[idxOf.get(key)!];
     m.rows.push(it);
@@ -609,7 +643,7 @@ function buildSupplyMaps(items: ApiItem[]): SupplyMap[] {
   return maps;
 }
 
-function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft, noMoreMines = false, setNoMoreMines, isSmelter = false, readField, detectedBizRegDoc, setDetectedBizRegDoc, detectedEnvReport, setDetectedEnvReport, onRegulatoryRisk, onLiveMutate }: {
+function SectionContent({ section, real, editable = false, isPrime = false, supplierId, factoriesDraft, setFactoriesDraft, contactsDraft, setContactsDraft, factoryDestinations, noMoreMines = false, setNoMoreMines, isSmelter = false, readField, detectedBizRegDoc, setDetectedBizRegDoc, detectedEnvReport, setDetectedEnvReport, onRegulatoryRisk, onLiveMutate }: {
   section: CollectionSection;
   real?: RealData | null;
   editable?: boolean;
@@ -619,6 +653,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
   contactsDraft?: ContactDraft[];
   setContactsDraft?: (rows: ContactDraft[]) => void;
+  factoryDestinations?: Map<string, string | null>;
   // "추가 광산 없음" 명시 선언(제련소 전용) — PicRegister의 말단 선언 게이트와 같은 취지.
   noMoreMines?: boolean;
   setNoMoreMines?: (v: boolean) => void;
@@ -638,15 +673,15 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
 }) {
   // 공장정보 섹션 — 원산지 증명서 업로드/없음 확인 전엔 나머지 입력을 가린다.
   const [originCertResolved, setOriginCertResolved] = useState(false);
-  // 규제 섹션 — 탄소발자국 문서 AI 파싱 결과. key 리마운트로 CompanyGrid(defaultValue 기반)에 반영.
+  // 규제 섹션 — 탄소발자국 문서 AI 처리 결과. key 리마운트로 CompanyGrid(defaultValue 기반)에 반영.
   const [carbonExtraction, setCarbonExtraction] = useState<AiExtraction | null>(null);
   const [carbonParseVersion, setCarbonParseVersion] = useState(0);
   // 탄소발자국 문서 업로드/파싱 진행 여부 — 파싱 중 규제 입력칸 오버레이/잠금용.
   const [carbonBusy, setCarbonBusy] = useState(false);
-  // 방금 업로드한 탄소 문서 — AI 파싱 확인 모달에 넘겨 '파싱 중' 표시/폴링 활성화.
+  // 방금 업로드한 탄소 문서 — AI 처리 확인 모달에 넘겨 '파싱 중' 표시/폴링 활성화.
   const [carbonUploadedDoc, setCarbonUploadedDoc] = useState<{ docS3Key: string; fileName: string } | null>(null);
   const [carbonParsingOpen, setCarbonParsingOpen] = useState(false);
-  // [작업1] 실사 자가진단(SAQ) 문서 AI 파싱 — 탄소와 동일 파이프라인, 별도 상태로 관리.
+  // [작업1] 실사 자가진단(SAQ) 문서 AI 처리 — 탄소와 동일 파이프라인, 별도 상태로 관리.
   const [saqExtraction, setSaqExtraction] = useState<AiExtraction | null>(null);
   const [saqParseVersion, setSaqParseVersion] = useState(0);
   const [saqBusy, setSaqBusy] = useState(false);
@@ -718,6 +753,8 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
                   contacts={contactsDraft}
                   onContactsChange={setContactsDraft}
                   supplierId={supplierId}
+                  hideDestination={!isPrime}
+                  destinations={factoryDestinations}
                 />
               </div>
               {/* 제련소 전용 — 광산(직접 입력 불가)의 위치를 직상위가 대신 채우는 지점. 최소 1곳 + 추가 광산 없음 선언까지 있어야 완료로 인정. */}
@@ -765,7 +802,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
             <table className="w-full border-collapse">
               <thead className="bg-slate-50">
                 <tr>
-                  {['이름', '직책', '이메일', '연락처', '대표'].map(h => (
+                  {['이름', '직책', '이메일', '연락처', '대표 담당자'].map(h => (
                     <th key={h} className="border-b border-ink-700 px-4 py-2 text-left text-xs font-semibold text-ink-500">{h}</th>
                   ))}
                 </tr>
@@ -840,11 +877,10 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const conf = carbonExtraction?.confidenceMap ?? {};
     const flagged: Record<string, string> = {};
     const carbonParsedKeys: string[] = [];   // [작업②] AI 자동입력 하이라이트 대상
-    // [데모 흐름 강제] 업로드→파싱 전(세션 내 carbonExtraction 없음)에는 DB/시드값이 있어도
-    //   무조건 빈칸으로 시작한다 — 시드값이 화면에 떴다가 저장 라운드트립으로 DB에 되살아나는 것도 막는다.
-    //   세션에서 파싱→저장까지 마치면 persistForm이 detail을 재조회해 그 값(m)이 유지된다.
-    let ci: unknown = carbonExtraction ? m.carbonIntensity : '';
-    let es: unknown = carbonExtraction ? m.energySource : '';
+    // 기본값은 실제 저장된 백엔드 값(m) — 새 세션(예: 원청이 화면을 여는 경우)에서도
+    //   협력사가 이미 제출한 값이 그대로 보여야 한다(세션 상태 carbonExtraction에 의존하면 안 됨).
+    let ci: unknown = m.carbonIntensity;
+    let es: unknown = m.energySource;
     // [요구사항1] 파싱이 수행되면(carbonExtraction 존재) 추출 결과가 이 문서의 '권위값'이다.
     //   서류상 공란인 필드(예: 에너지원)는 빈칸으로 확정한다 — 모달을 닫고 복귀할 때
     //   이전에 저장돼 있던 스테일 DB값('한국 전력망 평균…')이 되살아나는 상태 드리프트 방지.
@@ -945,10 +981,10 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
             </div>
             {carbonBusy && busyOverlay}
           </div>
-          {/* AI 규제 분석 보고서 (RAG · EU 배터리법) — 탄소 문서가 파싱된 상태(carbonExtraction)일 때만.
-              초기 렌더(DB 저장값만 있는 상태)에는 노출하지 않는다 — SAQ(3-2)와 동일한 흐름:
-              모달 [저장] → 폼 채움 → 그때 보고서 노출. */}
-          {!naMiner && carbonExtraction && <CarbonComplianceReport carbonIntensity={Number.isNaN(ciNum) ? null : ciNum} energySource={(es as string) || null} />}
+          {/* AI 규제 분석 보고서 (RAG · EU 배터리법) — 탄소집약도·에너지원 값이 실제로 있을 때만
+              (세션에서 방금 파싱했는지 여부와 무관 — 이전에 저장된 값이어도 분석 가능해야 한다).
+              협력사 화면에는 노출하지 않는다 — 원청 자료 검토 시에만 표시(추후 협력사는 알림으로 대체). */}
+          {isPrime && !naMiner && !Number.isNaN(ciNum) && Boolean(es) && <CarbonComplianceReport carbonIntensity={ciNum} energySource={es as string} />}
         </div>
 
         {/* ══ 3-2. 인권·안전 실사 (SAQ) ══ */}
@@ -1013,20 +1049,16 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
                 </div>
                 {/* 리스크 등급 영속화 캐리어(구 드롭다운 대체) — 파싱 등급 우선, 없으면 기존 저장값 유지 */}
                 <input type="hidden" data-field="regulation.selfReportedRiskLevel" value={srPrefill} readOnly />
-                {isPrime && (
-                  <div className="w-full text-[10px] text-ink-500">실사(DD) 보고서 — 원청 작성 · 협력사 비표시</div>
-                )}
               </div>
             </div>
             {saqBusy && busyOverlay}
           </div>
-          {/* 하단: AI 파싱 체크리스트(읽기전용) — 직접 입력 불가, 문서 업로드→AI 파싱으로만
+          {/* 하단: AI 처리 체크리스트(읽기전용) — 직접 입력 불가, 문서 업로드→AI 처리로만
               '확인됨/미확인'이 갱신된다. 핵심 항목은 파싱 전에도 '미확인'으로 항상 노출. */}
           {!naMiner && (
             <div className="overflow-hidden rounded-sm border border-ink-700">
               <div className="flex items-center justify-between border-b border-ink-700 bg-ink-800/30 px-3 py-2">
-                <span className="text-[11px] font-bold text-ink-400">AI 파싱 체크리스트</span>
-                <span className="text-[10px] text-ink-500">읽기전용 · 서류 업로드 후 AI 파싱으로만 갱신</span>
+                <span className="text-[11px] font-bold text-ink-400">AI 처리 체크리스트</span>
               </div>
               <div className="grid gap-px bg-ink-700 md:grid-cols-2">
                 {shownSaqDetail.map(x => {
@@ -1045,7 +1077,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
                       ) : (
                         <span className="flex items-center gap-1.5 truncate">
                           <span className="shrink-0 rounded-full border border-ink-700 bg-ink-800/30 px-1.5 py-0.5 text-[10px] font-bold text-ink-500">미확인</span>
-                          <span className="truncate text-[11px] text-ink-500 opacity-70">문서 파싱 시 자동 확인</span>
+                          <span className="truncate text-[11px] text-ink-500 opacity-70">문서 업로드시 자동 확인</span>
                         </span>
                       )}
                     </div>
@@ -1056,11 +1088,14 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
           )}
           {/* AI CSDDD 실사 분석 보고서 (RAG) — SAQ 문서가 파싱된 상태(saqExtraction)일 때만 렌더링.
               업로드 전 DB 리스크 등급만으로는 노출하지 않는다.
-              위반(violation) 판정은 onRegulatoryRisk로 끌어올려 공통 '제출하기' 경고 모달을 게이트한다. */}
+              위반(violation) 판정은 onRegulatoryRisk로 끌어올려 공통 '제출하기' 경고 모달을 게이트한다.
+              협력사 화면에서는 카드 UI를 숨긴다(visible=isPrime) — 단, 분석 자체와 제출 전 위반 게이트는
+              그대로 동작해야 하므로 컴포넌트는 계속 마운트한다(추후 협력사는 알림으로 대체 예정). */}
           {!naMiner && saqExtraction && (
             <SaqComplianceReport
               saqFields={saqFields}
               onVerdictChange={v => onRegulatoryRisk?.(v === 'violation')}
+              visible={isPrime}
             />
           )}
         </div>
@@ -1081,7 +1116,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
             requestType: '탄소발자국 증빙',
             docS3Key: carbonUploadedDoc.docS3Key,
           } : null}
-          title="AI 파싱 확인 및 수정 · 탄소발자국 문서"
+          title="AI 처리 확인 및 수정 · 탄소발자국 문서"
         />
         <AiParsingReviewModal
           supplierId={supplierId}
@@ -1098,7 +1133,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
             requestType: '실사 자가진단(SAQ)',
             docS3Key: saqUploadedDoc.docS3Key,
           } : null}
-          title="AI 파싱 확인 및 수정 · 실사 자가진단(SAQ)"
+          title="AI 처리 확인 및 수정 · 실사 자가진단(SAQ)"
         />
       </div>
     );
@@ -1111,11 +1146,11 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const req = (key: string) => isFieldRequired(key, comp, true);
     content = (
       <div className="space-y-2">
-        <DocUploadField label={reqLabel('사업자등록증', req('documents.business_reg_doc_url'))} field="documents.businessRegDocUrl" initialUrl={bizRegUrl} editable={editable} supplierId={supplierId} />
+        <DocUploadField label={reqLabel('사업자등록증', req('documents.business_reg_doc_url'))} field="documents.businessRegDocUrl" initialUrl={bizRegUrl} editable={editable} supplierId={supplierId} docKind="business_reg" />
         {detectedBizRegDoc && (
           <div className="-mt-1 text-[11px] text-ink-400">공장정보 섹션에서 올린 자료에서 자동 연결됨 · {detectedBizRegDoc.fileName}</div>
         )}
-        <DocUploadField label={reqLabel('환경성적서', req('documents.environmental_report_url'))} field="documents.environmentalReportUrl" initialUrl={envUrl} editable={editable} supplierId={supplierId} />
+        <DocUploadField label={reqLabel('환경성적서', req('documents.environmental_report_url'))} field="documents.environmentalReportUrl" initialUrl={envUrl} editable={editable} supplierId={supplierId} docKind="environmental_report" />
         {detectedEnvReport && (
           <div className="-mt-1 text-[11px] text-ink-400">공장정보 섹션에서 올린 자료에서 자동 연결됨 · {detectedEnvReport.fileName}</div>
         )}
@@ -1142,15 +1177,10 @@ function AccordionSection({
   setFactoriesDraft,
   contactsDraft,
   setContactsDraft,
+  factoryDestinations,
   noMoreMines,
   setNoMoreMines,
   isSmelter = false,
-  locked = false,
-  canProceed = false,
-  prompt = null,
-  onProceedClick,
-  onConfirmYes,
-  onConfirmNo,
   readField,
   detectedBizRegDoc,
   setDetectedBizRegDoc,
@@ -1170,18 +1200,11 @@ function AccordionSection({
   setFactoriesDraft?: (rows: FactoryDraft[]) => void;
   contactsDraft?: ContactDraft[];
   setContactsDraft?: (rows: ContactDraft[]) => void;
+  // factoryId → 자동 계산된 납품처 리전(EU/US/KR). 공장 정보 섹션의 "납품처" 표시용.
+  factoryDestinations?: Map<string, string | null>;
   noMoreMines?: boolean;
   setNoMoreMines?: (v: boolean) => void;
   isSmelter?: boolean;
-  // 이전 섹션이 미완료 — 내용은 비쳐 보이되 편집 불가(단계별 강제 순서).
-  locked?: boolean;
-  // 잠긴 섹션 중 "바로 다음 순번"인가 — 여기에만 진행 버튼을 보여준다(순서를 건너뛰어 진행 불가).
-  canProceed?: boolean;
-  // 진행 버튼 클릭 결과 — 'missing'(필수값 미충족) | 'confirm'(정말 넘어가시겠습니까) | null(버튼만 표시).
-  prompt?: 'missing' | 'confirm' | null;
-  onProceedClick?: () => void;
-  onConfirmYes?: () => void;
-  onConfirmNo?: () => void;
   readField?: (field: string) => string;
   detectedBizRegDoc?: { s3Key: string; fileName: string } | null;
   setDetectedBizRegDoc?: (v: { s3Key: string; fileName: string } | null) => void;
@@ -1202,11 +1225,6 @@ function AccordionSection({
           <span className="truncate text-sm font-semibold text-ink-100">
             {section.order}. {section.title}
           </span>
-          {locked && (
-            <span className="inline-flex items-center gap-1 rounded-xs border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
-              <Lock className="h-3 w-3" />이전 섹션 완료 필요
-            </span>
-          )}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <span className="text-xs font-medium text-ink-500">{section.completed} / {section.total} 완료</span>
@@ -1224,62 +1242,28 @@ function AccordionSection({
           )}
         </div>
       </div>
-      <div className="relative">
-        <SectionContent
-          section={section}
-          real={real}
-          editable={editable}
-          isPrime={isPrime}
-          supplierId={supplierId}
-          factoriesDraft={factoriesDraft}
-          setFactoriesDraft={setFactoriesDraft}
-          contactsDraft={contactsDraft}
-          setContactsDraft={setContactsDraft}
-          noMoreMines={noMoreMines}
-          setNoMoreMines={setNoMoreMines}
-          isSmelter={isSmelter}
-          readField={readField}
-          detectedBizRegDoc={detectedBizRegDoc}
-          setDetectedBizRegDoc={setDetectedBizRegDoc}
-          detectedEnvReport={detectedEnvReport}
-          setDetectedEnvReport={setDetectedEnvReport}
-          onRegulatoryRisk={onRegulatoryRisk}
-          onLiveMutate={onLiveMutate}
-        />
-        {/* 잠금 오버레이 — 내용은 비쳐 보이되(반투명) 클릭·입력은 막는다.
-            바로 다음 순번(canProceed)이면 진행 버튼을, 그 뒤 섹션들은 안내 문구만 보여준다. */}
-        {locked && (
-          <div className="absolute inset-0 z-10 flex items-start justify-center bg-white/70 pt-10 backdrop-blur-[1px]">
-            {canProceed ? (
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onProceedClick}
-                  className="flex items-center gap-2 rounded-full border-2 border-accent-300 bg-white px-5 py-3 text-base font-bold text-accent-700 shadow-md hover:bg-accent-50"
-                >
-                  <Lock className="h-5 w-5" />이전 세션 완료시 눌러주시면 다음 입력이 가능합니다
-                </button>
-                {prompt === 'missing' && (
-                  <div className="rounded-full border-2 border-alert-border bg-alert-bg px-4 py-2 text-sm font-bold text-alert-text">
-                    필수값을 먼저 입력해주세요
-                  </div>
-                )}
-                {prompt === 'confirm' && (
-                  <div className="flex items-center gap-3 rounded-md border-2 border-slate-300 bg-white px-4 py-3 text-base font-bold text-ink-100 shadow-md">
-                    정말 다음으로 넘어가시겠습니까?
-                    <button type="button" onClick={onConfirmYes} className="rounded-sm bg-accent-700 px-4 py-2 text-base text-white hover:bg-accent-900">네</button>
-                    <button type="button" onClick={onConfirmNo} className="rounded-sm border-2 border-ink-700 px-4 py-2 text-base text-ink-500 hover:bg-slate-50">아니오</button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 shadow-sm">
-                <Lock className="h-3.5 w-3.5" />이전 섹션을 완료하면 열립니다
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <SectionContent
+        section={section}
+        real={real}
+        editable={editable}
+        isPrime={isPrime}
+        supplierId={supplierId}
+        factoriesDraft={factoriesDraft}
+        setFactoriesDraft={setFactoriesDraft}
+        contactsDraft={contactsDraft}
+        setContactsDraft={setContactsDraft}
+        factoryDestinations={factoryDestinations}
+        noMoreMines={noMoreMines}
+        setNoMoreMines={setNoMoreMines}
+        isSmelter={isSmelter}
+        readField={readField}
+        detectedBizRegDoc={detectedBizRegDoc}
+        setDetectedBizRegDoc={setDetectedBizRegDoc}
+        detectedEnvReport={detectedEnvReport}
+        setDetectedEnvReport={setDetectedEnvReport}
+        onRegulatoryRisk={onRegulatoryRisk}
+        onLiveMutate={onLiveMutate}
+      />
     </section>
   );
 }
@@ -1308,9 +1292,6 @@ export function SupplierGeneralReviewContent({
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);   // 저장하기 직후 '저장됨' 피드백
-  // [데모 초기화] 이번 세션에서 한 번이라도 저장했는가 — 저장 전에는 협력사 화면에서
-  //   DB 시드값(사업자번호·DUNS·업종·공장 목록 등)을 숨기고 완전한 빈 폼에서 시작한다.
-  const [sessionSaved, setSessionSaved] = useState(false);
   // [Red Flag] 규제 섹션 CSDDD RAG 판정이 위반(Red)이면 true — 하위(SaqComplianceReport)에서 끌어올림.
   // 공통 '제출하기' 클릭 시 이 값이 true면 즉시 제출하지 않고 경고 모달을 먼저 띄운다.
   const [hasRegulatoryRisk, setHasRegulatoryRisk] = useState(false);
@@ -1342,11 +1323,6 @@ export function SupplierGeneralReviewContent({
   useEffect(() => {
     if (editable) setFormTick(t => t + 1);
   }, [editable]);
-  // 단계별 진행 — 자동으로 "완료됨" 판정만으로 다음 섹션을 열지 않고, 사용자가 직접
-  //   "다음 섹션으로 진행" 버튼을 눌러 확인해야 연다. unlockedUpTo = 지금까지 진행 확정한 섹션 idx.
-  const [unlockedUpTo, setUnlockedUpTo] = useState(0);
-  type ProceedPrompt = { idx: number; kind: 'confirm' | 'missing' } | null;
-  const [proceedPrompt, setProceedPrompt] = useState<ProceedPrompt>(null);
   // 공장정보 섹션에서 원산지 증명서로 올린 파일이 사업자등록증/환경성적서로 보이면 문서 섹션에 자동 연결.
   const [detectedBizRegDoc, setDetectedBizRegDoc] = useState<{ s3Key: string; fileName: string } | null>(null);
   const [detectedEnvReport, setDetectedEnvReport] = useState<{ s3Key: string; fileName: string } | null>(null);
@@ -1414,21 +1390,23 @@ export function SupplierGeneralReviewContent({
   // api 로드 시 draft 시드(전체 현재 집합). 편집 진입 시에도 최신 서버 값으로 재시드(아래 setEditing 핸들러).
   // 비활성(is_active=false, 소프트 삭제) 공장은 편집 대상에서 제외 — 원산지 이력 보존용이라 UI엔 안 뜬다.
   useEffect(() => {
-    // [데모 초기화] 세션 무저장 상태의 협력사 화면은 서버 공장 목록을 시드하지 않는다 —
-    //   사용자가 직접 추가(또는 엑셀 업로드)하기 전까지 완전히 빈 폼. 저장 후에는 서버 값으로 재시드.
-    if (isSupplier && !sessionSaved) {
-      setFactoriesDraft([]);
-      setContactsDraft(seedContactsDraft([], []));
-      return;
-    }
     const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
     setFactoriesDraft(factories);
     setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
-  }, [api, isSupplier, sessionSaved]);
+  }, [api]);
 
   // [제품별 독립 제출] 공급망 맵 목록 + 선택된 맵. 회사정보/PIC/연락처는 맵 무관 공통.
-  const supplyMaps = buildSupplyMaps(api?.items ?? []);
+  const supplyMaps = buildSupplyMaps(api?.items ?? [], isPrime);
   const activeMap = supplyMaps.find(m => m.key === selectedMapKey) ?? supplyMaps[0] ?? null;
+  // factoryId → destination — 편집(자료 제출) 중엔 맵 탭이 숨겨져 전체 공장을 한꺼번에 보여주므로
+  //   (맵 스코프 없음), 맵별로 다를 수 있는 destination을 공장 단위로 조회할 수 있게 전체
+  //   items에서 미리 매핑해둔다. 같은 공장이 여러 맵에 걸치면 먼저 만난 값을 대표로 쓴다.
+  const factoryDestinations = new Map<string, string | null>();
+  for (const it of api?.items ?? []) {
+    if (it.factoryId && !factoryDestinations.has(it.factoryId)) {
+      factoryDestinations.set(it.factoryId, it.destination ?? null);
+    }
+  }
   // 선택된 맵으로 스코프한 api — 공장(엣지가 무는 factory_id)·품목을 맵 단위로 한정.
   //   factoryIds가 비면(레거시/미매핑) 전체 공장을 그대로 보여준다(정보 손실 방지).
   const scopedApi: RealData | null = api && activeMap
@@ -1440,22 +1418,6 @@ export function SupplierGeneralReviewContent({
           : api.factories,
       }
     : api;
-  // [데모 흐름 강제] 협력사 화면 & 세션 무저장 → 시드/DB 값을 표시·집계 모두에서 숨긴 뷰.
-  //   comp:null은 서버 완성도(시드 포함 스냅샷) 대신 클라이언트 폴백으로 0부터 세게 한다.
-  //   저장(persistForm) 후에는 sessionSaved=true → 재조회된 서버 값이 그대로 보인다.
-  //   원청(prime) 검토 화면은 isSupplier=false라 영향 없음(실데이터 그대로).
-  const demoBlank = isSupplier && !sessionSaved;
-  const viewApi: RealData | null = demoBlank && scopedApi
-    ? {
-        ...scopedApi,
-        comp: null,
-        detail: scopedApi.detail
-          ? { ...scopedApi.detail, businessRegNo: '', dunsNumber: '', providerType: '' as ApiSupplierDetail['providerType'], smelterType: '', manufacturerDetail: null }
-          : scopedApi.detail,
-        factories: [],
-        riskProfile: null,
-      }
-    : scopedApi;
   // 선택된 맵의 최신 자료요청(원청 검토 상태·예정일). 마이그레이션 안전:
   //   요청 중 bom_version_id가 하나라도 있으면(=per-map 기능 가동) 맵별로 엄격 분리,
   //   전부 null(기능 이전 데이터)이면 기존처럼 전체 최신으로 폴백.
@@ -1509,8 +1471,7 @@ export function SupplierGeneralReviewContent({
   const mineRequirementMet = !isSmelter || (miningRows.length > 0 && miningRows.every(f => f.latitude.trim() !== '' && f.longitude.trim() !== '') && noMoreMines);
   // 편집 중엔 저장 전 입력칸 값 기준(live)으로, 아니면 마지막 저장된 스냅샷 기준으로 완료 여부 판정.
   const liveCtx: LiveFieldCtx | undefined = editable ? { readField, factories: factoriesDraft } : undefined;
-  // 집계·표시 모두 viewApi 기준 — 데모 초기화 중에는 시드값이 진척도에 계산되지 않는다.
-  const liveSections = (viewApi ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, viewApi, liveCtx) })) : sections)
+  const liveSections = (scopedApi ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, scopedApi, liveCtx) })) : sections)
     .map(s => (s.key === 'factories' && isSmelter && !mineRequirementMet)
       ? { ...s, status: '미입력' as ReviewStatus, missing: Array.from(new Set([...s.missing, '광산 위치(최소 1곳) + 추가 광산 없음 확인'])) }
       : s);
@@ -1524,19 +1485,6 @@ export function SupplierGeneralReviewContent({
     ? (displayTotal > 0 ? Math.round((displayCompleted / displayTotal) * 100) : 0)
     : (selectedCompleteness?.completionRate ?? supplierSummary.collectionRate);
 
-  // 다음 섹션으로 진행 버튼 — 직전 섹션이 완료/해당없음이면 "정말 넘어가시겠습니까" 확인,
-  //   아니면 "필수값을 먼저 입력해주세요"만 띄우고 대기(자동으로 넘어가지 않음).
-  function handleProceedClick(idx: number) {
-    const prevOk = ['완료', '해당 없음'].includes(liveSections[idx - 1]?.status);
-    setProceedPrompt({ idx, kind: prevOk ? 'confirm' : 'missing' });
-  }
-  function confirmProceedYes() {
-    if (proceedPrompt) setUnlockedUpTo(u => Math.max(u, proceedPrompt.idx));
-    setProceedPrompt(null);
-  }
-  function confirmProceedNo() {
-    setProceedPrompt(null);
-  }
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
   function toggleItem(key: string) {
@@ -1684,8 +1632,6 @@ export function SupplierGeneralReviewContent({
       ...(rp ? { riskProfile: rp } : {}),
       ...(comp ? { comp } : {}),
     } : prev));
-    // 첫 저장 완료 — 이후부터는 데모 초기화(빈 폼 강제)를 풀고 서버 값을 그대로 보여준다.
-    setSessionSaved(true);
   }
 
   // 저장하기 — DB 영속화 후 계속 입력(편집 유지).
@@ -1720,17 +1666,10 @@ export function SupplierGeneralReviewContent({
       await persistForm();
       setSaved(false);
       setEditing(false);
-      // [process.md L28·52] 협력사가 표준 양식 자료 제출 완료 → 원청 탭에 검토/승인 요청 알림.
-      if (isSupplier) {
-        addDemoNotification({
-          audience: 'prime',
-          notification_type: 'approval_needed',
-          subject: '협력사 자료 제출 완료',
-          body: '협력사가 표준 양식 자료 입력을 완료했습니다. My Task에서 내용을 검토하고 승인해 주세요.',
-          deep_link: 'my-task',
-          actor: '협력사',
-        });
-      }
+      // [process.md L28·52] 협력사가 표준 양식 자료 제출 완료 → 원청에 검토 요청 알림.
+      //   원청 알림 벨(PrimeNotificationBell)은 이제 실 백엔드 알림만 읽는다(데모 스토어 미사용) —
+      //   실제 알림은 백엔드가 submitMasterForm 커밋 후 MasterFormSubmitted를 발행해 만든다
+      //   (backend/domains/supplier/service.py submit_master_form → handlers/master_form_submitted_notify.py).
     } catch (err) {
       if (err instanceof ApiError && err.status === 403 && err.message === 'CONSENT_REQUIRED') {
         alert('제3자 정보제공 동의가 필요합니다. 초대 메일의 링크로 접속해 동의를 완료한 뒤 자료를 제출할 수 있어요.');
@@ -1876,7 +1815,7 @@ export function SupplierGeneralReviewContent({
           {/* 협력사: 보기 ↔ 입력 토글 (라우트 변경 없이 같은 양식의 칸만 전환) */}
           {isSupplier && !editing && !managedBanner && (
             <>
-              {/* [process.md L23·42] 원산지 geo audit · AI 파싱 검증 확인 화면으로 이동 */}
+              {/* [process.md L23·42] 원산지 geo audit · AI 처리 검증 확인 화면으로 이동 */}
               <button
                 type="button"
                 onClick={() => router.push('/partner/ai-parsing')}
@@ -1889,18 +1828,9 @@ export function SupplierGeneralReviewContent({
                 type="button"
                 onClick={() => {
                   setSaved(false);
-                  // 데모 초기화 중(세션 무저장)에는 편집 진입 시에도 서버 값 재시드를 건너뛴다.
-                  const factories = demoBlank ? [] : (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
+                  const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
                   setFactoriesDraft(factories);
-                  setContactsDraft(demoBlank ? seedContactsDraft([], []) : seedContactsDraft(api?.contacts ?? [], factories));
-                  // 이미 저장돼 완료된 앞쪽 섹션들은 매번 재확인시키지 않고 그대로 이어서 열어준다.
-                  let alreadyDone = 0;
-                  for (const s of liveSections) {
-                    if (s.status === '완료' || s.status === '해당 없음') alreadyDone += 1;
-                    else break;
-                  }
-                  setUnlockedUpTo(alreadyDone);
-                  setProceedPrompt(null);
+                  setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
                   setEditing(true);
                 }}
                 className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
@@ -2032,45 +1962,33 @@ export function SupplierGeneralReviewContent({
       </section>
 
       <section className="mt-4 rounded-sm border border-ink-700 bg-white shadow-control">
-        {/* 단계별 잠금 — 자료 제출 입력 모드에서만: idx가 unlockedUpTo보다 크면 잠금.
-            "직전 섹션 완료" 자동판정만으로는 열리지 않고, 사용자가 진행 버튼을 눌러 확인해야 열린다.
-            원청 검토·협력사 보기 모드는 항상 전체 노출(검토는 순서 강제할 이유가 없음). */}
-        {liveSections.map((section, idx) => {
-          const locked = editable && idx > unlockedUpTo;
-          const isNextToUnlock = locked && idx === unlockedUpTo + 1;
-          return (
-            <AccordionSection
-              key={section.key}
-              section={section}
-              onRequestSection={openRequestForSection}
-              real={viewApi}
-              editable={section.key === 'factories' ? factoriesEditable : editable}
-              showRequest={isPrime}
-              isPrime={isPrime}
-              supplierId={supplierId}
-              factoriesDraft={factoriesDraft}
-              setFactoriesDraft={setFactoriesDraft}
-              contactsDraft={contactsDraft}
-              setContactsDraft={setContactsDraft}
-              noMoreMines={noMoreMines}
-              setNoMoreMines={setNoMoreMines}
-              isSmelter={isSmelter}
-              locked={locked}
-              canProceed={isNextToUnlock}
-              prompt={isNextToUnlock && proceedPrompt?.idx === idx ? proceedPrompt.kind : null}
-              onProceedClick={() => handleProceedClick(idx)}
-              onConfirmYes={confirmProceedYes}
-              onConfirmNo={confirmProceedNo}
-              readField={editable ? readField : undefined}
-              onLiveMutate={bumpFormTick}
-              detectedBizRegDoc={detectedBizRegDoc}
-              setDetectedBizRegDoc={setDetectedBizRegDoc}
-              detectedEnvReport={detectedEnvReport}
-              setDetectedEnvReport={setDetectedEnvReport}
-              onRegulatoryRisk={setHasRegulatoryRisk}
-            />
-          );
-        })}
+        {liveSections.map(section => (
+          <AccordionSection
+            key={section.key}
+            section={section}
+            onRequestSection={openRequestForSection}
+            real={scopedApi}
+            editable={section.key === 'factories' ? factoriesEditable : editable}
+            showRequest={isPrime}
+            isPrime={isPrime}
+            supplierId={supplierId}
+            factoriesDraft={factoriesDraft}
+            setFactoriesDraft={setFactoriesDraft}
+            contactsDraft={contactsDraft}
+            setContactsDraft={setContactsDraft}
+            factoryDestinations={factoryDestinations}
+            noMoreMines={noMoreMines}
+            setNoMoreMines={setNoMoreMines}
+            isSmelter={isSmelter}
+            readField={editable ? readField : undefined}
+            onLiveMutate={bumpFormTick}
+            detectedBizRegDoc={detectedBizRegDoc}
+            setDetectedBizRegDoc={setDetectedBizRegDoc}
+            detectedEnvReport={detectedEnvReport}
+            setDetectedEnvReport={setDetectedEnvReport}
+            onRegulatoryRisk={setHasRegulatoryRisk}
+          />
+        ))}
       </section>
 
       <section className="mt-4 grid rounded-sm border border-ink-700 bg-white shadow-control md:grid-cols-2">
@@ -2093,8 +2011,8 @@ export function SupplierGeneralReviewContent({
                 이대로 제출하면 원청사 검토 과정에서 반려되거나 시정 조치가 요구될 수 있습니다.
               </p>
               <p className="mt-2 text-xs leading-5 text-ink-500">
-                '3. 규제' 섹션의 AI CSDDD 실사 분석 보고서에서 위반 근거 조항을 확인하고,
-                필요 시 문서를 보완한 뒤 제출해 주세요. 그대로 제출하려면 [제출]을 누르세요.
+                필요 시 '3. 규제' 섹션의 실사 자가진단(SAQ) 문서를 보완한 뒤 제출해 주세요.
+                그대로 제출하려면 [제출]을 누르세요.
               </p>
             </div>
             <div className="flex justify-end gap-2 border-t border-ink-700 bg-slate-50 px-5 py-3">

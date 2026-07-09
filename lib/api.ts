@@ -660,6 +660,11 @@ export interface CarbonDeclaration {
 export const getSupplierCarbonDeclarations = (id: string) =>
   api.get<{ supplierId: string; declarations: CarbonDeclaration[] }>(`/suppliers/${id}/carbon-declarations`);
 
+/** 필요문서(사업자등록증/환경성적서 등) presigned 다운로드 URL. 미업로드면 404(호출부가 catch). */
+export type SupplierDocKind = "business_reg" | "environmental_report" | "self_assessment" | "material_composition" | "carbon_footprint";
+export const getSupplierDocumentUrl = (id: string, docKind: SupplierDocKind) =>
+  api.get<{ url: string; fileName: string }>(`/suppliers/${id}/documents/${docKind}/url`);
+
 /** 공통 파일 메타. 환경성적서 첨부 등 context별 업로드 파일. */
 export interface FileMeta {
   fileId: string;
@@ -782,6 +787,8 @@ export interface SuppliedItem {
   hopLevel?: number | null;      // 이 맵에서 협력사 차수
   factoryId?: string | null;     // 이 맵(엣지)에서 대는 공장 — map 탭 공장 필터용
   coreMinerals?: Record<string, number> | null; // 이 맵(엣지)의 핵심광물 함량 %(회사값 폴백)
+  /** 이 맵 최상위 고객사 국가로 자동 계산된 납품처 리전('EU'|'US'|'KR'). 매핑 밖 국가면 null. */
+  destination?: string | null;
 }
 export const getSupplierSuppliedItems = (id: string) =>
   api.get<{ supplierId: string; items: SuppliedItem[] }>(`/suppliers/${id}/supplied-items`);
@@ -825,7 +832,7 @@ export interface SubmissionBrief {
 }
 export const getSubmissions = () => api.get<SubmissionBrief[]>(`/submissions`);
 
-/** HITL 협력사 승인 — 자료요청 AI 파싱 결과(입력+AI분석+신뢰도). */
+/** HITL 협력사 승인 — 자료요청 AI 처리 결과(입력+AI분석+신뢰도). */
 export interface AiExtraction {
   requestId: string;
   supplierId: string | null;
@@ -982,7 +989,7 @@ export function getTokenUserId(): string | null {
   } catch { return null; }
 }
 
-/** 자료요청 승인(AI 파싱 검토 완료) — 자료 요청 완료로 전이. */
+/** 자료요청 승인(AI 처리 검토 완료) — 자료 요청 완료로 전이. */
 export const approveDataRequest = (requestId: string, reason?: string) =>
   api.post<ApiDataRequest>(`/data-requests/${requestId}/approve`, { actor_id: getTokenUserId(), reason });
 
@@ -1636,8 +1643,12 @@ export const exportAuditPackage = (packageId: string) =>
  *   → 이 값은 협력사가 자료를 제출할 때가 아니라, 요청/초대를 보낸 시점의 맵 컨텍스트에서 채워져야 한다.
  */
 export interface NotificationTarget {
-  /** 맵을 여는 제품 id — 허브 진입의 1차 식별자(필수) */
-  productId: string;
+  /**
+   * 맵을 여는 제품 id — 있으면 공급망 맵으로 딥링크한다. 없으면(예: 협력사 마스터폼/
+   * 자가진단 제출처럼 특정 제품·맵에 매이지 않는 알림) focusSupplierId만으로
+   * 협력사 상세 리뷰로 보낸다(buildMapDeepLink 참고).
+   */
+  productId?: string;
   /**
    * 그 회차의 맵 인스턴스를 여는 BOM 버전. 맵은 매 회차 새로 만들어지므로 대상 맵을 특정하려면 사실상 필수.
    * 허브는 이 값을 URL(bomVersionId)로 읽어 해당 맵을 바로 선택한다. 생략 시 현재 버전으로 폴백(오조준 위험).
