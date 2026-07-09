@@ -30,6 +30,13 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
 }) {
   const [docValue, setDocValue] = useState(initialUrl ?? '');
   const [displayName, setDisplayName] = useState('');
+  // [흐름 통일] 뱃지·파일명·버튼 상태는 전부 "이번 세션에서 실제 업로드" 기준.
+  //   초기 진입(새로고침 포함)에는 항상 미업로드 상태로 시작 — [파일 업로드]만 활성.
+  //   hidden 캐리어(docValue)만 DB 저장값(initialUrl)을 유지해 저장 시 NULL 덮어쓰기를 막는다.
+  const [sessionUploaded, setSessionUploaded] = useState(false);
+  // 파싱 성공 후에는 메인 [파싱하기] 재비활성 — 파싱은 업로드 직후 모달 흐름에서 이미 수행됨.
+  //   (업로드됐지만 파싱이 지연/실패한 재시도 구간에서만 활성)
+  const [parseDone, setParseDone] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState('');
@@ -44,7 +51,6 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
   const busy = uploading || parsing;
   useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
 
-  const uploaded = Boolean(docValue);
   const shownName = displayName || (docValue ? docValue.split('/').pop() : '');
 
   async function runParse(keyArg?: string) {
@@ -62,6 +68,7 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
         const hit = (list ?? []).find(e => e.docS3Key === key);
         if (hit) {
           onParsed(hit);
+          setParseDone(true);
           setNotice('파싱 완료 — 추출된 SAQ 항목이 입력칸에 채워졌어요. CSDDD 준수 분석 결과를 확인해주세요.');
           return;
         }
@@ -90,6 +97,8 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
       if (cancelledRef.current) return;
       setDocValue(meta.s3Key);
       setDisplayName(f.name);
+      setSessionUploaded(true);
+      setParseDone(false);  // 새 파일 = 새 파싱 사이클
       setNotice(`업로드 완료 · ${f.name} — AI가 CSDDD 실사 분석을 시작했어요`);
       onUploaded?.({ docS3Key: meta.s3Key, fileName: f.name });
       onOpenViewer();
@@ -109,7 +118,7 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
         ? 'AI 파싱 중… (최대 30초 정도 걸릴 수 있어요)'
         : notice
           ? notice
-          : uploaded
+          : sessionUploaded
             ? `업로드됨 · ${shownName}`
             : '미업로드 · SAQ 보고서(PDF/이미지)를 올리면 고충처리·강제노동 등 항목을 자동으로 채워요.';
 
@@ -118,19 +127,19 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-ink-100">실사 자가진단(SAQ) 보고서 (인권·안전 항목 자동 추출)</div>
-          <div className={`mt-0.5 flex items-center gap-1.5 truncate text-xs ${error ? 'text-alert-text' : notice ? 'text-ok-text' : uploaded ? 'text-ink-400' : 'text-ink-500'}`}>
+          <div className={`mt-0.5 flex items-center gap-1.5 truncate text-xs ${error ? 'text-alert-text' : notice ? 'text-ok-text' : sessionUploaded ? 'text-ink-400' : 'text-ink-500'}`}>
             {busy && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent-700" />}
             <span className="truncate">{statusText}</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {uploaded && !busy && (
+          {sessionUploaded && !busy && (
             <span className="rounded-full border border-ok-border bg-ok-bg px-2 py-0.5 text-[11px] font-bold text-ok-text">업로드됨</span>
           )}
           {editable && (
             <>
               <label className={`rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 ${busy ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent-100'}`}>
-                {uploaded ? '파일 변경' : '자료 업로드'}
+                {sessionUploaded ? '파일 변경' : '파일 업로드'}
                 <input
                   type="file"
                   accept={SAQ_DOC_ACCEPT}
@@ -142,16 +151,19 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
               <button
                 type="button"
                 onClick={() => runParse()}
-                disabled={!uploaded || busy}
+                disabled={!sessionUploaded || busy || parseDone}
                 className="inline-flex items-center gap-1 rounded-xs bg-accent-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-900 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {parsing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                 {parsing ? '파싱 중…' : '파싱하기'}
               </button>
+              {/* 결과 보기도 세션 업로드 전에는 비활성 — 업로드 없이 열면 빈 파싱 팝업만 떠서
+                  [업로드→모달 확인→저장→분석] 흐름을 벗어난다. (파싱 지연 중 재열기는 허용) */}
               <button
                 type="button"
                 onClick={onOpenViewer}
-                className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-accent-500 hover:text-accent-700"
+                disabled={!sessionUploaded}
+                className="rounded-xs border border-ink-700 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-accent-500 hover:text-accent-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-ink-700 disabled:hover:text-ink-500"
               >
                 결과 보기
               </button>
