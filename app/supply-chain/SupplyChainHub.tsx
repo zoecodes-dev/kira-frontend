@@ -643,12 +643,19 @@ export default function SupplyChainHub() {
   // 알림 딥링크 등으로 productId를 들고 곧장 진입(mapStarted가 URL 기준으로 이미 true)하면
   // 진입 게이트의 "맵 생성" 버튼(startMapFromSelection)을 안 거치므로 handleProductChange가
   // 한 번도 안 불려 tier1Pool이 빈 채로 남는다 — STEP2가 "1차 협력사 없음"으로 오탐하던 원인.
-  // 최초 1회만 여기서 대신 호출해 데이터를 채운다.
   // + focusSupplier(알림의 "동의서 회신" 딥링크)가 같이 있으면, 데이터 로드 후 STEP4(동의서
   //   수신 확인) 모달을 바로 열어준다 — 안 그러면 맵 화면(협력사 상세 팝업)까지만 가고, 정작
   //   알림이 안내한 "STEP4에서 확인" 액션은 사용자가 직접 STEP4 버튼을 다시 눌러야 했다.
+  // [FIX] deps를 빈 배열([])에서 initialProductId 등으로 바꿨다 — 기존엔 마운트 시 1회만
+  //   실행돼서, 이미 이 페이지(형성하기 게이트, mapStarted=false)에 떠 있는 상태에서 같은
+  //   헤더의 알림벨로 다른 공급망 알림을 누르면(router.push로 productId만 바뀌고 같은
+  //   라우트라 리마운트가 없음) mapStarted도 이 effect도 갱신되지 않아 화면이 "형성하기"에
+  //   그대로 머무는 버그가 있었다. mapStarted/entryProductId도 여기서 같이 갱신해야 게이트
+  //   화면이 실제로 닫히고 자식(SupplyChainMapPageContent)에 새 productId가 전달된다.
   useEffect(() => {
     if (initialProductId) {
+      setMapStarted(true);
+      setEntryProductId(initialProductId);
       (async () => {
         await handleProductChange(initialProductId, initialBomVersionId);
         if (initialFocusSupplierId) {
@@ -657,7 +664,7 @@ export default function SupplyChainHub() {
       })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialProductId, initialBomVersionId, initialFocusSupplierId]);
 
   // 선택 노드의 mock supplier_id → 실 supplierId 브리지 (매핑 없으면 undefined)
   const activeMockSupplierId = selectedNode
