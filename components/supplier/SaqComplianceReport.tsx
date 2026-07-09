@@ -7,11 +7,14 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, ShieldAlert } from 'lucide-react';
 import { analyzeSaqRegulation, type SaqComplianceResult } from '@/lib/api';
 
-export default function SaqComplianceReport({ saqFields, onVerdictChange }: {
+export default function SaqComplianceReport({ saqFields, onVerdictChange, visible = true }: {
   saqFields: Record<string, unknown> | null;
   /** RAG 판정 변경 통보 — 최상위(공통 제출 버튼)가 위반(Red) 여부를 알 수 있게 상태를 끌어올린다.
       분석 전/해제 시 null. */
   onVerdictChange?: (verdict: SaqComplianceResult['verdict'] | null) => void;
+  /** false면 분석(RAG 조회 + onVerdictChange 통보)은 그대로 돌지만 카드 UI는 렌더하지 않는다.
+      협력사 화면에서는 보고서를 숨기되, 제출 전 규제 위반 게이트는 계속 동작해야 하므로 필요. */
+  visible?: boolean;
 }) {
   const [result, setResult] = useState<SaqComplianceResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -39,7 +42,7 @@ export default function SaqComplianceReport({ saqFields, onVerdictChange }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldsSig]);
 
-  if (!hasFields) return null;
+  if (!hasFields || !visible) return null;
 
   const violation = result?.verdict === 'violation';
   const pass = result?.verdict === 'pass';

@@ -97,7 +97,7 @@ export const MINERAL_LABELS: Record<string, string> = {
 };
 export const MINERAL_EDIT_KEYS = Object.keys(MINERAL_LABELS);
 
-// 소재구성 입력칸 키 → AI 파싱 결과(parsed_fields) 키 후보. 배열인 이유: 인조흑연은
+// 소재구성 입력칸 키 → AI 처리 결과(parsed_fields) 키 후보. 배열인 이유: 인조흑연은
 // 백엔드 버전에 따라 artificial_/synthetic_ 두 표기가 있어 둘 다 수용한다(앞쪽 우선).
 export const MINERAL_PARSE_KEYS: Record<string, string[]> = {
   Li: ['li_content'],

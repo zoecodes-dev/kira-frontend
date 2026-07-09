@@ -64,7 +64,7 @@ export default function PoolModal({
    <>
     <ModalShell
       title="협력사 Pool 구성"
-      subtitle="선택한 대표 제품의 1차 협력사 중 이번 공급망 맵 작업 대상을 고르세요. (1차 협력사는 이미 등록되어 있습니다)"
+      subtitle="선택한 대표 제품의 1차 협력사 중 이번 공급망 맵 대상 1차 협력사를 선택할 수 있습니다."
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3">

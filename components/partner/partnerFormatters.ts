@@ -207,7 +207,7 @@ export const PARTNER_DEEP_LINK_ROUTE: Record<string, string> = {
 export const PARTNER_DEEP_LINK_LABEL: Record<string, string> = {
   'company-info':     '자료제출',
   'submit-documents': '자료제출',
-  'ai-parsing':       'AI 파싱 확인',
+  'ai-parsing':       'AI 처리 확인',
   'supply-chain':     '공급망 연결',
 };
 

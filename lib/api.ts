@@ -787,6 +787,8 @@ export interface SuppliedItem {
   hopLevel?: number | null;      // 이 맵에서 협력사 차수
   factoryId?: string | null;     // 이 맵(엣지)에서 대는 공장 — map 탭 공장 필터용
   coreMinerals?: Record<string, number> | null; // 이 맵(엣지)의 핵심광물 함량 %(회사값 폴백)
+  /** 이 맵 최상위 고객사 국가로 자동 계산된 납품처 리전('EU'|'US'|'KR'). 매핑 밖 국가면 null. */
+  destination?: string | null;
 }
 export const getSupplierSuppliedItems = (id: string) =>
   api.get<{ supplierId: string; items: SuppliedItem[] }>(`/suppliers/${id}/supplied-items`);
@@ -830,7 +832,7 @@ export interface SubmissionBrief {
 }
 export const getSubmissions = () => api.get<SubmissionBrief[]>(`/submissions`);
 
-/** HITL 협력사 승인 — 자료요청 AI 파싱 결과(입력+AI분석+신뢰도). */
+/** HITL 협력사 승인 — 자료요청 AI 처리 결과(입력+AI분석+신뢰도). */
 export interface AiExtraction {
   requestId: string;
   supplierId: string | null;
@@ -987,7 +989,7 @@ export function getTokenUserId(): string | null {
   } catch { return null; }
 }
 
-/** 자료요청 승인(AI 파싱 검토 완료) — 자료 요청 완료로 전이. */
+/** 자료요청 승인(AI 처리 검토 완료) — 자료 요청 완료로 전이. */
 export const approveDataRequest = (requestId: string, reason?: string) =>
   api.post<ApiDataRequest>(`/data-requests/${requestId}/approve`, { actor_id: getTokenUserId(), reason });
 

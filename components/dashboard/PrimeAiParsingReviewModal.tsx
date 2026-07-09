@@ -1,6 +1,6 @@
 'use client';
 
-// 검토가 필요한 항목(데이터 추출·규제 검증) → 이 모달로 AI 파싱 뷰(AiParsingView)를 띄운다.
+// 검토가 필요한 항목(데이터 추출·규제 검증) → 이 모달로 AI 처리 뷰(AiParsingView)를 띄운다.
 // 협력사가 보던 파싱 확인 화면과 동일 컴포넌트(공통 모듈) = 원청/협력사 같은 데이터.
 import { X } from 'lucide-react';
 import AiParsingView from '@/components/supplier/AiParsingView';
@@ -21,7 +21,7 @@ export default function PrimeAiParsingReviewModal({
         onClick={e => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-ink-700 bg-white px-4 py-2.5">
-          <div className="text-sm font-bold text-ink-100">AI 파싱 검토 · {supplierName}</div>
+          <div className="text-sm font-bold text-ink-100">AI 처리 검토 · {supplierName}</div>
           <button type="button" onClick={onClose} className="rounded-sm p-1 text-ink-400 hover:bg-slate-100 hover:text-ink-100">
             <X className="h-4 w-4" />
           </button>

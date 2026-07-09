@@ -14,7 +14,7 @@ import {
 const menu = [
   { href: '/partner',              label: '홈',           subtitle: '요약 · 우선 조치',              icon: LayoutDashboard, exact: true },
   { href: '/partner/company-info', label: '자료제출',      subtitle: '정보 확인 · 자료 제출(입력)',    icon: Building2 },
-  { href: '/partner/ai-parsing',   label: 'AI 파싱 확인',  subtitle: '추출 결과 검토 · 수정',          icon: ScanLine },
+  { href: '/partner/ai-parsing',   label: 'AI 처리 확인',  subtitle: '추출 결과 검토 · 수정',          icon: ScanLine },
   { href: '/partner/supply-chain', label: '공급망 연결',   subtitle: '직접 연결 업체',                icon: Network },
   { href: '/partner/settings',     label: '계정 설정',     subtitle: '비밀번호 · 담당자 정보',          icon: KeyRound },
 ] as const;

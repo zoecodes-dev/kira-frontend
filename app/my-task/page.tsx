@@ -272,7 +272,7 @@ type MyTaskView = 'request' | 'hitl' | 'inputStatus';
 export default function MyTaskPage() {
   // 업무 분장 단위 허브 — 실제 쓰이는 기능만: 자료 요청(+추가), 협력사 승인(HITL), 입력 현황.
   const [view, setView] = useState<MyTaskView>('request');
-  // 검토 클릭 시 AI 파싱 뷰를 띄울 대상 협력사(데이터 추출 검토).
+  // 검토 클릭 시 AI 처리 뷰를 띄울 대상 협력사(데이터 추출 검토).
   const [review, setReview] = useState<{ supplierId: string; supplierName: string } | null>(null);
   // 규제 검증 검토 — AI 판정 결과 + 파싱 뷰 함께.
   const [regReview, setRegReview] = useState<RegReviewRow | null>(null);
@@ -305,7 +305,7 @@ export default function MyTaskPage() {
         {view === 'request' && <RequestArea onReview={openReview} />}
         {view === 'hitl' && (
           <div className="space-y-5">
-            {/* AI 파싱 결과 = 데이터 추출 검토 + 규제 검증 결과. 검토 클릭 → AI 파싱 뷰 모달. */}
+            {/* AI 처리 결과 = 데이터 추출 검토 + 규제 검증 결과. 검토 클릭 → AI 처리 뷰 모달. */}
             <HitlReviewCard />
             <RegulationResultsCard onReview={setRegReview} />
             {/* audit 업무 큐 — GET /actions 에서 내 담당 액션 아이템 목록 */}

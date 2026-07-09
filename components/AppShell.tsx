@@ -43,10 +43,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* 대시보드 · My Task */}
+          {/* 대시보드 */}
           <div className="border-t border-white/10 py-2.5">
             <div className="space-y-0.5">
               <NavLink href="/dashboard" iconName="activity" label="대시보드" subtitle="전체 결과 요약" />
+            </div>
+          </div>
+
+          {/* My Task */}
+          <div className="border-t border-white/10 py-2.5">
+            <div className="space-y-0.5">
               <NavLink href="/my-task" iconName="clipboard-check" label="My Task" subtitle="담당자 업무" />
             </div>
           </div>

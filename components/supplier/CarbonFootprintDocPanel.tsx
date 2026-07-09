@@ -1,6 +1,6 @@
 'use client';
 
-// ── 탄소발자국 문서 업로드 + AI 파싱 패널 ─────────────────────────────────────
+// ── 탄소발자국 문서 업로드 + AI 처리 패널 ─────────────────────────────────────
 // MaterialDocParsePanel과 동일 파이프라인(신규 엔드포인트 없음), 대상 컬럼만 다르다:
 //   ① uploadFile(POST /files) → s3Key
 //   ② PATCH /suppliers/{id}/detail { carbon_footprint_doc_url: s3Key }
@@ -24,7 +24,7 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
   initialUrl?: string | null;
   editable?: boolean;
   onParsed: (extraction: AiExtraction) => void;
-  // AI 파싱 확인 팝업(AiParsingView 모달) 열기 — 업로드 완료 직후 + '결과 보기' 클릭 시.
+  // AI 처리 확인 팝업(AiParsingView 모달) 열기 — 업로드 완료 직후 + '결과 보기' 클릭 시.
   onOpenViewer: () => void;
   // 업로드/파싱 진행 상태를 부모로 알림 → 부모가 입력칸 오버레이/잠금 적용.
   onBusyChange?: (busy: boolean) => void;
@@ -78,7 +78,7 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
         if (hit) {
           onParsed(hit);
           setParseDone(true);
-          setNotice('파싱 완료 — 추출된 값이 입력칸에 채워졌어요. 값을 확인한 뒤 저장해주세요.');
+          setNotice('');
           return;
         }
       }
@@ -142,18 +142,18 @@ export default function CarbonFootprintDocPanel({ supplierId, initialUrl, editab
     : uploading
       ? '업로드 중…'
       : parsing
-        ? 'AI 파싱 중… (최대 30초 정도 걸릴 수 있어요)'
+        ? 'AI 처리 중… (최대 30초 정도 걸릴 수 있습니다)'
         : notice
           ? notice
           : sessionUploaded
             ? `업로드됨 · ${shownName}`
-            : '미업로드 · PDF/이미지(png/jpg/jpeg)를 올리면 탄소집약도/에너지원을 자동으로 채워요.';
+            : '';
 
   return (
     <div className="relative overflow-hidden rounded-sm border border-ink-700 bg-white">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-ink-100">탄소발자국 문서 (탄소집약도/에너지원 자동 추출)</div>
+          <div className="text-sm font-semibold text-ink-100">탄소발자국 문서</div>
           <div className={`mt-0.5 flex items-center gap-1.5 truncate text-xs ${error ? 'text-alert-text' : notice ? 'text-ok-text' : sessionUploaded ? 'text-ink-400' : 'text-ink-500'}`}>
             {busy && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent-700" />}
             <span className="truncate">{statusText}</span>

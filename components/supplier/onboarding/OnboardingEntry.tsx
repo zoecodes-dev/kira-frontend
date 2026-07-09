@@ -79,7 +79,7 @@ export default function OnboardingEntry({
       <div className="flex items-start gap-3 rounded-md border border-ok-border bg-ok-bg p-4">
         <Mail className="mt-0.5 h-5 w-5 shrink-0 text-ok-text" />
         <div>
-          <div className="text-sm font-bold text-ink-100">원청 또는 직상위 협력사로부터 공급망 정보 입력 요청을 받았습니다.</div>
+          <div className="text-sm font-bold text-ink-100">공급망 정보 입력 요청을 받았습니다.</div>
           <p className="mt-1 text-xs leading-5 text-ok-text">
             아래 절차에 따라 회사 정보를 확인·입력하고, 하위 협력사 담당자를 등록해 주세요.
           </p>
@@ -133,7 +133,7 @@ export default function OnboardingEntry({
         ) : consentDoc ? (
           <>
             <p className="mt-2 text-xs leading-5 text-slate-500">
-              직상위 협력사가 요청한 아래 제3자 정보 제공 동의서를 확인하고 동의해 주세요. 동의해야 다음 단계를 진행할 수 있으며, 동의 내역은 이력으로 기록됩니다.
+              아래 제3자 정보 제공 동의서를 확인하고 동의해 주세요. 동의해야 다음 단계를 진행할 수 있으며, 동의 내역은 이력으로 기록됩니다.
             </p>
             <pre className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-3 text-[11px] leading-5 text-ink-200">
               {consentDoc}

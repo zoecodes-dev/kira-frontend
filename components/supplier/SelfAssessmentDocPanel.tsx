@@ -1,6 +1,6 @@
 'use client';
 
-// ── [작업1] 실사 자가진단(SAQ) 문서 업로드 + AI 파싱 패널 ───────────────────────
+// ── [작업1] 실사 자가진단(SAQ) 문서 업로드 + AI 처리 패널 ───────────────────────
 // CarbonFootprintDocPanel과 동일 파이프라인(신규 엔드포인트 없음), 대상 컬럼만 다르다:
 //   ① uploadFile(POST /files) → s3Key
 //   ② PATCH /suppliers/{id}/detail { self_assessment_doc_url: s3Key }
@@ -86,7 +86,7 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
         if (hit) {
           onParsed(hit);
           setParseDone(true);
-          setNotice('파싱 완료 — 추출된 SAQ 항목이 입력칸에 채워졌어요. CSDDD 준수 분석 결과를 확인해주세요.');
+          setNotice('');
           return;
         }
       }
@@ -132,18 +132,18 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
     : uploading
       ? '업로드 중…'
       : parsing
-        ? 'AI 파싱 중… (최대 30초 정도 걸릴 수 있어요)'
+        ? 'AI 처리 중… (최대 30초 정도 걸릴 수 있어요)'
         : notice
           ? notice
           : sessionUploaded
             ? `업로드됨 · ${shownName}`
-            : '미업로드 · SAQ 보고서(PDF/이미지)를 올리면 고충처리·강제노동 등 항목을 자동으로 채워요.';
+            : '';
 
   return (
     <div className="relative overflow-hidden rounded-sm border border-ink-700 bg-white">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-ink-100">실사 자가진단(SAQ) 보고서 (인권·안전 항목 자동 추출)</div>
+          <div className="text-sm font-semibold text-ink-100">실사 자가진단(SAQ) 보고서</div>
           <div className={`mt-0.5 flex items-center gap-1.5 truncate text-xs ${error ? 'text-alert-text' : notice ? 'text-ok-text' : sessionUploaded ? 'text-ink-400' : 'text-ink-500'}`}>
             {busy && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent-700" />}
             <span className="truncate">{statusText}</span>

@@ -1,6 +1,6 @@
 'use client';
 
-// ── 소재구성 문서 업로드 + AI 파싱 패널 ─────────────────────────────────────
+// ── 소재구성 문서 업로드 + AI 처리 패널 ─────────────────────────────────────
 // 업로드 흐름(기존 3종 문서와 동일 파이프라인 재사용, 새 엔드포인트 없음):
 //   ① uploadFile(POST /files) → s3Key
 //   ② PATCH /suppliers/{id}/detail { material_composition_doc_url: s3Key }
@@ -19,13 +19,15 @@ const MATERIAL_DOC_ACCEPT = '.pdf,.png,.jpg,.jpeg';
 const PARSE_POLL_TRIES = 10;      // 최대 재시도(총 ~25초)
 const PARSE_POLL_INTERVAL = 2500; // ms — 이벤트 기반 비동기 파싱이라 2-3초 대기 후 조회
 
-export default function MaterialDocParsePanel({ supplierId, initialUrl, editable, onParsed, onOpenViewer }: {
+export default function MaterialDocParsePanel({ supplierId, initialUrl, editable, onParsed, onOpenViewer, onUploaded }: {
   supplierId: string;
   initialUrl?: string | null;
   editable?: boolean;
   onParsed: (extraction: AiExtraction) => void;
-  // AI 파싱 확인 팝업(AiParsingView 모달) 열기 — 업로드 완료 직후 + '결과 보기' 클릭 시.
+  // AI 처리 확인 팝업(AiParsingView 모달) 열기 — 업로드 완료 직후 + '결과 보기' 클릭 시.
   onOpenViewer: () => void;
+  // 방금 업로드한 문서 정보 → 부모가 파싱 확인 모달에 넘겨 '파싱 중' 표시/폴링 활성화.
+  onUploaded?: (info: { docS3Key: string; fileName: string }) => void;
 }) {
   const [docValue, setDocValue] = useState(initialUrl ?? '');
   const [displayName, setDisplayName] = useState('');
@@ -68,7 +70,9 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
       setDocValue(meta.s3Key);
       setDisplayName(f.name);
       setNotice(`업로드 완료 · ${f.name}`);
-      // 업로드 직후 AI 파싱 확인 화면을 팝업으로 노출(/partner/ai-parsing 과 동일 화면).
+      // 부모에 업로드 문서 전달(모달 파싱 표시용) → 파싱 확인 팝업이 '파싱 중' 로딩을 폴링하며 보여준다.
+      onUploaded?.({ docS3Key: meta.s3Key, fileName: f.name });
+      // 업로드 직후 AI 처리 확인 화면을 팝업으로 노출(/partner/ai-parsing 과 동일 화면).
       onOpenViewer();
     } catch (err) {
       if (!cancelledRef.current) setError(err instanceof ApiError ? err.message : '업로드에 실패했습니다.');
@@ -93,7 +97,7 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
         const hit = (list ?? []).find(e => e.docS3Key === docValue);
         if (hit) {
           onParsed(hit);
-          setNotice('파싱 완료 — 추출된 함량이 입력칸에 채워졌어요. 값을 확인한 뒤 저장해주세요.');
+          setNotice('');
           return;
         }
       }
@@ -113,7 +117,7 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
             : uploading
               ? '업로드 중…'
               : parsing
-                ? 'AI 파싱 중… (최대 30초 정도 걸릴 수 있어요)'
+                ? 'AI 처리 중… (최대 30초 정도 걸릴 수 있어요)'
                 : notice
                   ? notice
                   : uploaded
