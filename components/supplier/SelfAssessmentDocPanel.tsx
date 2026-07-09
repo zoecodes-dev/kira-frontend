@@ -86,7 +86,7 @@ export default function SelfAssessmentDocPanel({ supplierId, initialUrl, editabl
         if (hit) {
           onParsed(hit);
           setParseDone(true);
-          setNotice('파싱 완료 — 추출된 SAQ 항목이 입력칸에 채워졌어요. CSDDD 준수 분석 결과를 확인해주세요.');
+          setNotice('');
           return;
         }
       }

@@ -97,7 +97,7 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
         const hit = (list ?? []).find(e => e.docS3Key === docValue);
         if (hit) {
           onParsed(hit);
-          setNotice('파싱 완료 — 추출된 함량이 입력칸에 채워졌어요. 값을 확인한 뒤 저장해주세요.');
+          setNotice('');
           return;
         }
       }
