@@ -147,7 +147,10 @@ function RequestArea({ onReview }: { onReview?: (supplierId: string, supplierNam
   async function load() {
     setStored(getStoredRequests());
     try {
-      const [reqs, sups] = await Promise.all([getDataRequests(), getSuppliers()]);
+      // [FIX] 파라미터 없이 호출하면 백엔드 기본 페이지 크기(20건)만 와서, 그 밖의
+      // 협력사는 이름 매핑(nameById)에서 빠져 '협력사'로 표시되던 문제 — 충분히 큰
+      // size로 요청해 전체 협력사가 매핑에 들어오게 한다.
+      const [reqs, sups] = await Promise.all([getDataRequests(), getSuppliers({ size: 500 })]);
       setSuppliers(sups);
       const nameById = new Map(sups.map(s => [s.supplierId, s.companyName]));
       setApiRows(reqs.map(r => ({

@@ -255,9 +255,12 @@ export default function ExtractionTable({
         // country 정규화(국가명→ISO alpha-2)는 백엔드 update_supplier_detail이 담당.
         payload[key] = key === 'carbon_intensity' ? Number(v.replace(/,/g, '')) : v;
       }
-      if (isRealSupplier && Object.keys(payload).length > 0) {
+      if (isRealSupplier) {
         // submitted: true — 원청 알림 트리거(백엔드 MasterFormSubmitted). 단순 문서 업로드
         //   PATCH(Material/SelfAssessment/CarbonFootprintDocPanel)와 구분하는 신호.
+        // [FIX] payload가 비어도(이 문서 타입 필드가 FIELD_TO_DETAIL에 없는 경우 —
+        //   소재구성/자가진단 등) submitted는 항상 보낸다. 과거엔 payload가 비면 이 호출
+        //   자체를 건너뛰어서 "원청사로 제출"을 눌러도 알림이 조용히 안 뜨는 버그가 있었다.
         await updateSupplierDetail(supplierId, { ...payload, submitted: true });
       }
       localStorage.removeItem(draftKey(supplierId, doc.docId));
