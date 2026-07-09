@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation';
 import { ScanLine, Globe2 } from 'lucide-react';
 import AiParsingView from '@/components/supplier/AiParsingView';
 import GeoAuditView from '@/components/supplier/GeoAuditView';
-import { addDemoNotification } from '@/lib/demo-notifications';
 import { usePartnerWorkspace } from './PartnerWorkspaceContext';
 import type { AiExtraction } from '@/lib/api';
 
@@ -44,8 +43,7 @@ export default function PartnerAiParsing({
   onConfirmComplete,
 }: PartnerAiParsingProps = {}) {
   const router = useRouter();
-  const { supplierId, supplierUuid, name } = usePartnerWorkspace();
-  const myLabel = name?.nameKo ?? name?.nameEn ?? '협력사';
+  const { supplierId, supplierUuid } = usePartnerWorkspace();
   const [tab, setTab] = useState<ParsingTab>('ai');
 
   const tabs: { id: ParsingTab; label: string; sub: string; icon: React.ElementType }[] = [
@@ -95,16 +93,10 @@ export default function PartnerAiParsing({
             onParsed={onParsed}
             saveOnlyMode={saveOnlyMode}
             onConfirmComplete={onConfirmComplete ?? (() => {
-              // [process.md L23·53] AI 처리 + geo audit 확인 후 최종 제출 →
-              // 원청 탭에 "공급망 최종 검증 가능" 알림 전파.
-              addDemoNotification({
-                audience: 'prime',
-                notification_type: 'approval_needed',
-                subject: '공급망 자료 입력 완료 · 최종 검증 요청',
-                body: `${myLabel}가 AI 처리 결과와 원산지(geo audit) 검증을 확인하고 자료를 최종 제출했습니다. 공급망 맵에서 최종 검증을 진행할 수 있습니다.`,
-                deep_link: 'supply-chain-map',
-                actor: myLabel,
-              });
+              // [process.md L23·53] AI 파싱 + geo audit 확인 후 최종 제출 → 원청에 알림.
+              //   원청 벨(PrimeNotificationBell)은 실 백엔드 알림만 읽는다(데모 스토어 미사용) —
+              //   실제 알림은 백엔드가 updateSupplierDetail(submitted:true) 커밋 후
+              //   MasterFormSubmitted를 발행해 만든다(ExtractionTable.handleSubmit 참고).
               router.push('/partner');
             })}
           />

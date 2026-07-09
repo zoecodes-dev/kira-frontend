@@ -256,7 +256,9 @@ export default function ExtractionTable({
         payload[key] = key === 'carbon_intensity' ? Number(v.replace(/,/g, '')) : v;
       }
       if (isRealSupplier && Object.keys(payload).length > 0) {
-        await updateSupplierDetail(supplierId, payload);
+        // submitted: true — 원청 알림 트리거(백엔드 MasterFormSubmitted). 단순 문서 업로드
+        //   PATCH(Material/SelfAssessment/CarbonFootprintDocPanel)와 구분하는 신호.
+        await updateSupplierDetail(supplierId, { ...payload, submitted: true });
       }
       localStorage.removeItem(draftKey(supplierId, doc.docId));
       // 부모 폼 상태로 확정값 전달(입력칸 자동 채움 + RAG 분석 트리거) → 이후 모달 닫힘.

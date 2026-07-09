@@ -1,8 +1,8 @@
 'use client';
 
 // 원청 공급망 맵 허브 — 8단계 흐름과 팝업을 오케스트레이션하는 컨테이너
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowRight, CheckCircle2, Loader2, Network, Pencil, RefreshCw, X } from 'lucide-react';
 import type { SelectedNode, SupplyChainDataset } from '@/lib/supply-chain-mock';
 import { apiProductsToDataset, emptyDataset, mergeBomVersions, mergeProductBom, mergeSupplyChainMap, supplierDetailIdMap } from '@/lib/supply-chain-mock';
@@ -68,6 +68,8 @@ function bomInPeriod(r: EntryChainRow, from: string, to: string): boolean {
 export default function SupplyChainHub() {
   // 공급망 목록에서 특정 공급망을 누르고 들어오면 productId(+bomVersionId)로 해당 Lot을 선택해 연다.
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const initialProductId = searchParams.get('productId') ?? undefined;
   const initialBomVersionId = searchParams.get('bomVersionId') ?? undefined;
   // 알림 딥링크로 진입 시 맵 안에서 포커스할 협력사 id — 해당 행으로 스크롤·하이라이트하고 상세를 연다.
@@ -652,17 +654,32 @@ export default function SupplyChainHub() {
   //   라우트라 리마운트가 없음) mapStarted도 이 effect도 갱신되지 않아 화면이 "형성하기"에
   //   그대로 머무는 버그가 있었다. mapStarted/entryProductId도 여기서 같이 갱신해야 게이트
   //   화면이 실제로 닫히고 자식(SupplyChainMapPageContent)에 새 productId가 전달된다.
+  // [FIX2] focusSupplier는 URL에 남아있는 한 "한 번 쓰고 버리는" 신호가 아니라 매 마운트마다
+  //   다시 읽힌다 — 그래서 STEP4 모달을 연 뒤 그냥 새로고침만 해도(같은 URL이 그대로 남아있으니)
+  //   모달이 계속 다시 떴다. loadedProductIdRef로 "이미 이 productId는 로드했는지"를 추적해
+  //   같은 마운트 안에서(아래 router.replace로 focusSupplier가 사라지며 effect가 한 번 더
+  //   돌 때) handleProductChange가 중복 실행되지 않게 막고, 모달을 연 직후 URL에서
+  //   focusSupplier만 지운다(productId/bomVersionId는 유지 — 그 맵 자체는 계속 보여야 하므로)
+  //   — 그래야 이후 새로고침에선 모달이 다시 안 뜬다(한 번만 소비).
+  const loadedProductIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (initialProductId) {
-      setMapStarted(true);
-      setEntryProductId(initialProductId);
-      (async () => {
+    if (!initialProductId) return;
+    const isNewProduct = loadedProductIdRef.current !== initialProductId;
+    loadedProductIdRef.current = initialProductId;
+
+    setMapStarted(true);
+    setEntryProductId(initialProductId);
+    (async () => {
+      if (isNewProduct) {
         await handleProductChange(initialProductId, initialBomVersionId);
-        if (initialFocusSupplierId) {
-          setActiveModal('consent');
-        }
-      })();
-    }
+      }
+      if (initialFocusSupplierId) {
+        setActiveModal('consent');
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete('focusSupplier');
+        router.replace(params.size ? `${pathname}?${params.toString()}` : pathname, { scroll: false });
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialProductId, initialBomVersionId, initialFocusSupplierId]);
 
