@@ -1336,9 +1336,6 @@ export function SupplierGeneralReviewContent({
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);   // 저장하기 직후 '저장됨' 피드백
-  // [데모 초기화] 이번 세션에서 한 번이라도 저장했는가 — 저장 전에는 협력사 화면에서
-  //   DB 시드값(사업자번호·DUNS·업종·공장 목록 등)을 숨기고 완전한 빈 폼에서 시작한다.
-  const [sessionSaved, setSessionSaved] = useState(false);
   // [Red Flag] 규제 섹션 CSDDD RAG 판정이 위반(Red)이면 true — 하위(SaqComplianceReport)에서 끌어올림.
   // 공통 '제출하기' 클릭 시 이 값이 true면 즉시 제출하지 않고 경고 모달을 먼저 띄운다.
   const [hasRegulatoryRisk, setHasRegulatoryRisk] = useState(false);
@@ -1442,17 +1439,10 @@ export function SupplierGeneralReviewContent({
   // api 로드 시 draft 시드(전체 현재 집합). 편집 진입 시에도 최신 서버 값으로 재시드(아래 setEditing 핸들러).
   // 비활성(is_active=false, 소프트 삭제) 공장은 편집 대상에서 제외 — 원산지 이력 보존용이라 UI엔 안 뜬다.
   useEffect(() => {
-    // [데모 초기화] 세션 무저장 상태의 협력사 화면은 서버 공장 목록을 시드하지 않는다 —
-    //   사용자가 직접 추가(또는 엑셀 업로드)하기 전까지 완전히 빈 폼. 저장 후에는 서버 값으로 재시드.
-    if (isSupplier && !sessionSaved) {
-      setFactoriesDraft([]);
-      setContactsDraft(seedContactsDraft([], []));
-      return;
-    }
     const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
     setFactoriesDraft(factories);
     setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
-  }, [api, isSupplier, sessionSaved]);
+  }, [api]);
 
   // [제품별 독립 제출] 공급망 맵 목록 + 선택된 맵. 회사정보/PIC/연락처는 맵 무관 공통.
   const supplyMaps = buildSupplyMaps(api?.items ?? []);
@@ -1468,22 +1458,6 @@ export function SupplierGeneralReviewContent({
           : api.factories,
       }
     : api;
-  // [데모 흐름 강제] 협력사 화면 & 세션 무저장 → 시드/DB 값을 표시·집계 모두에서 숨긴 뷰.
-  //   comp:null은 서버 완성도(시드 포함 스냅샷) 대신 클라이언트 폴백으로 0부터 세게 한다.
-  //   저장(persistForm) 후에는 sessionSaved=true → 재조회된 서버 값이 그대로 보인다.
-  //   원청(prime) 검토 화면은 isSupplier=false라 영향 없음(실데이터 그대로).
-  const demoBlank = isSupplier && !sessionSaved;
-  const viewApi: RealData | null = demoBlank && scopedApi
-    ? {
-        ...scopedApi,
-        comp: null,
-        detail: scopedApi.detail
-          ? { ...scopedApi.detail, businessRegNo: '', dunsNumber: '', providerType: '' as ApiSupplierDetail['providerType'], smelterType: '', manufacturerDetail: null }
-          : scopedApi.detail,
-        factories: [],
-        riskProfile: null,
-      }
-    : scopedApi;
   // 선택된 맵의 최신 자료요청(원청 검토 상태·예정일). 마이그레이션 안전:
   //   요청 중 bom_version_id가 하나라도 있으면(=per-map 기능 가동) 맵별로 엄격 분리,
   //   전부 null(기능 이전 데이터)이면 기존처럼 전체 최신으로 폴백.
@@ -1537,8 +1511,7 @@ export function SupplierGeneralReviewContent({
   const mineRequirementMet = !isSmelter || (miningRows.length > 0 && miningRows.every(f => f.latitude.trim() !== '' && f.longitude.trim() !== '') && noMoreMines);
   // 편집 중엔 저장 전 입력칸 값 기준(live)으로, 아니면 마지막 저장된 스냅샷 기준으로 완료 여부 판정.
   const liveCtx: LiveFieldCtx | undefined = editable ? { readField, factories: factoriesDraft } : undefined;
-  // 집계·표시 모두 viewApi 기준 — 데모 초기화 중에는 시드값이 진척도에 계산되지 않는다.
-  const liveSections = (viewApi ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, viewApi, liveCtx) })) : sections)
+  const liveSections = (scopedApi ? sections.map(s => ({ ...s, ...deriveSectionMeta(s.key, scopedApi, liveCtx) })) : sections)
     .map(s => (s.key === 'factories' && isSmelter && !mineRequirementMet)
       ? { ...s, status: '미입력' as ReviewStatus, missing: Array.from(new Set([...s.missing, '광산 위치(최소 1곳) + 추가 광산 없음 확인'])) }
       : s);
@@ -1712,8 +1685,6 @@ export function SupplierGeneralReviewContent({
       ...(rp ? { riskProfile: rp } : {}),
       ...(comp ? { comp } : {}),
     } : prev));
-    // 첫 저장 완료 — 이후부터는 데모 초기화(빈 폼 강제)를 풀고 서버 값을 그대로 보여준다.
-    setSessionSaved(true);
   }
 
   // 저장하기 — DB 영속화 후 계속 입력(편집 유지).
@@ -1917,10 +1888,9 @@ export function SupplierGeneralReviewContent({
                 type="button"
                 onClick={() => {
                   setSaved(false);
-                  // 데모 초기화 중(세션 무저장)에는 편집 진입 시에도 서버 값 재시드를 건너뛴다.
-                  const factories = demoBlank ? [] : (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
+                  const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
                   setFactoriesDraft(factories);
-                  setContactsDraft(demoBlank ? seedContactsDraft([], []) : seedContactsDraft(api?.contacts ?? [], factories));
+                  setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
                   // 이미 저장돼 완료된 앞쪽 섹션들은 매번 재확인시키지 않고 그대로 이어서 열어준다.
                   let alreadyDone = 0;
                   for (const s of liveSections) {
@@ -2071,7 +2041,7 @@ export function SupplierGeneralReviewContent({
               key={section.key}
               section={section}
               onRequestSection={openRequestForSection}
-              real={viewApi}
+              real={scopedApi}
               editable={section.key === 'factories' ? factoriesEditable : editable}
               showRequest={isPrime}
               isPrime={isPrime}
