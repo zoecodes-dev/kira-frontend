@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   AlertCircle,
   ArrowRight,
@@ -547,7 +548,10 @@ function SupplierInfoPreview({
 }
 
 export default function SupplierPage() {
-  const [activeView, setActiveView] = useState<SupplierView>('dashboard');
+  const pathname = usePathname();
+  const [activeView, setActiveView] = useState<SupplierView>(
+    pathname.includes('company-info') ? 'company-info' : 'dashboard'
+  );
   const [selectedRelatedId, setSelectedRelatedId] = useState('S-CAM-001');
   // ── 자료 제출 모달 상태 ──────────────────────────────────────────────────────
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -565,6 +569,7 @@ export default function SupplierPage() {
   const [selfReportOpen, setSelfReportOpen] = useState(false);
   // 5-3. 정보 수정 승인 요청 상태 — true면 company-info에 "정보 변경 검토 중" 표시
   const [isProfilePending, setIsProfilePending] = useState(false);
+  const [hasFactoryInfoChanges, setHasFactoryInfoChanges] = useState(false);
   // ── 공급망 연결 화면 — 선택된 노드 ID (supply-chain 뷰 상세 패널 연동) ──────
   const [selectedSupplyNodeId, setSelectedSupplyNodeId] = useState<string | null>(null);
 
@@ -649,6 +654,16 @@ export default function SupplierPage() {
     setActiveView('submit-documents'); // 탭도 자료 제출로 이동
     setWizardOpen(true);
   }
+
+  function submitProfileChangeRequest() {
+    setIsProfilePending(true);
+    if (hasFactoryInfoChanges) {
+      alert('공장 위치 재확인이 요청되었습니다.');
+    }
+    setHasFactoryInfoChanges(false);
+    setActiveView('company-info');
+  }
+
   const supplier = suppliers.find(item => item.id === supplierId) as unknown as MockSupplier | undefined;
   const name = getSupplierName(supplierId);
   const contacts = getContacts(supplierId) as unknown as MockContact[];
@@ -1496,12 +1511,7 @@ export default function SupplierPage() {
             {/* 5-2. Primary Action 버튼 — 우측 상단 */}
             <button
               type="button"
-              onClick={() => {
-                // 5-3. 순차 실행: 상태 변경 → alert → 화면 복귀
-                setIsProfilePending(true);
-                alert('원청사에 변경 승인 요청이 전송되었습니다.');
-                setActiveView('company-info');
-              }}
+              onClick={submitProfileChangeRequest}
               className="inline-flex items-center gap-2 rounded-xs bg-accent-700 px-4 py-2.5 text-xs font-bold text-white shadow-control hover:bg-accent-900 transition-colors"
             >
               <CheckCircle2 className="h-4 w-4" />
@@ -1593,6 +1603,7 @@ export default function SupplierPage() {
                         <input
                           type="text"
                           defaultValue={f.value}
+                          onChange={() => setHasFactoryInfoChanges(true)}
                           placeholder={f.placeholder}
                           className="w-full rounded-xs border border-ink-700 bg-white px-3 py-2 text-xs text-ink-100 placeholder:text-ink-600 focus:border-accent-500 focus:outline-none focus:ring-1 focus:ring-accent-500 transition-colors"
                         />
@@ -1611,11 +1622,7 @@ export default function SupplierPage() {
             </div>
             <button
               type="button"
-              onClick={() => {
-                setIsProfilePending(true);
-                alert('원청사에 변경 승인 요청이 전송되었습니다.');
-                setActiveView('company-info');
-              }}
+              onClick={submitProfileChangeRequest}
               className="inline-flex items-center gap-2 rounded-xs bg-accent-700 px-5 py-2.5 text-xs font-bold text-white shadow-control hover:bg-accent-900 transition-colors"
             >
               <CheckCircle2 className="h-4 w-4" />
