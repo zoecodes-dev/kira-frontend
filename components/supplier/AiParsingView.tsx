@@ -843,7 +843,18 @@ export default function AiParsingView({
 
         {/* 좌측: 소재구성 → HTML 문서 미리보기 / 그 외 → PDF iframe */}
         <div className="flex flex-1 flex-col overflow-hidden rounded-sm border border-ink-700 bg-white">
-          {showOriginalMaterialPreview ? (
+          {showParsingLoader ? (
+            // 파싱 대기 중엔 원본 URL이 아직 없어(방금 업로드) 소재구성/탄소 HTML 템플릿으로
+            // 폴백되는데, 이게 실제 업로드 문서가 아닌 임의 양식이라 사용자가 오인한다.
+            // 파싱 완료 전까지는 "파싱 중" 안내만 보여준다.
+            <div className="flex flex-1 flex-col items-center justify-center bg-[#E5E7EB]">
+              <div className="text-center text-ink-400">
+                <Loader2 className="mx-auto mb-2 h-10 w-10 animate-spin opacity-50" />
+                <p className="text-xs font-semibold">파싱 중입니다…</p>
+                <p className="mt-1 text-[11px] opacity-60">문서를 분석하고 있어요. 잠시만 기다려주세요.</p>
+              </div>
+            </div>
+          ) : showOriginalMaterialPreview ? (
             <OriginalDocumentPreview doc={activeDoc} />
           ) : isCarbonDoc ? (
             <CarbonDocumentPreview

@@ -3,8 +3,7 @@
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  createDataRequest, getDataRequests,
-  getAiExtractions,
+  createDataRequest, getDataRequests, getAiExtractions,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierSuppliedItems, submitMasterForm,
   getSupplierRiskProfile, uploadFile, getSupplierDocumentUrl,
@@ -691,41 +690,34 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   // 파싱 완료(key 리마운트로 입력칸 채움)·업로드 종료 직후, DOM 커밋 뒤에 부모 진척도 재계산 요청.
   //   readField는 실제 DOM 값을 읽으므로 커밋 이후(useEffect 시점)에 tick을 올려야 새 값이 보인다.
   useEffect(() => { onLiveMutate?.(); }, [carbonParseVersion, saqParseVersion, carbonBusy, saqBusy, onLiveMutate]);
-  // [FIX] carbonExtraction/saqExtraction은 원래 "이번 세션에 직접 업로드·파싱"해야만 채워졌다 —
-  //   문서가 이미 처리돼 있어도 새로고침하거나 원청이 새로 화면을 열면(세션 상태 없음) 카드가
-  //   빈 채로 시작해 "결과 보기"를 다시 눌러야만 값이 보였다(=매번 다시 입력하는 것처럼 느껴짐).
-  //   AiParsingView가 쓰는 것과 동일한 카테고리 매칭으로 최근 추출결과를 1회 자동 조회해 채운다
-  //   (이미 이번 세션에서 파싱됐으면 덮지 않음). 값 자체(자가진단 등급)는 아래 srPrefill이
-  //   백엔드 저장값을 기본으로 쓰므로 이 조회가 실패해도 완비 판정엔 영향 없다 — 카드 표시만 보강.
+  // 저장된 AI 추출 결과(탄소·SAQ)를 세션과 무관하게 진입 시점에 불러온다 — SAQ 점수·평가일·
+  //   체크리스트는 저장 컬럼이 없어 이 state(saqExtraction)가 유일한 표시 출처인데, 지금까지는
+  //   "이 브라우저 세션에서 방금 파싱"한 경우에만 채워져 원청이 새로 열면 항상 비어 보였다.
+  //   이미 세션에서 채워진 값(예: 방금 파싱)이 있으면 덮지 않는다.
   useEffect(() => {
-    if (!supplierId) return;
+    if (section.key !== 'regulation') return;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId)) return;
     let cancelled = false;
     getAiExtractions()
       .then(list => {
         if (cancelled) return;
         const mine = list.filter(x => x.supplierId === supplierId);
-        if (!carbonExtraction) {
-          const hit = mine.find(x =>
-            x.docCategory === 'carbon_footprint_declaration'
-            || x.requestedDataType?.includes('탄소')
-            || x.requestedDataType?.includes('환경성적'),
-          );
-          if (hit) setCarbonExtraction(hit);
-        }
-        if (!saqExtraction) {
-          const hit = mine.find(x =>
-            x.docCategory === 'dd_audit_report'
-            || x.requestedDataType?.includes('실사')
-            || x.requestedDataType?.includes('자가진단')
-            || x.requestedDataType?.toUpperCase().includes('SAQ'),
-          );
-          if (hit) setSaqExtraction(hit);
-        }
+        const isCarbon = (x: AiExtraction) => x.docCategory === 'carbon_footprint_declaration' || Boolean(
+          x.requestedDataType?.includes('탄소') || x.requestedDataType?.includes('carbon') ||
+          x.requestedDataType?.includes('환경성적') || x.requestedDataType?.includes('self_upload:carbon')
+        );
+        const isSaq = (x: AiExtraction) => x.docCategory === 'dd_audit_report' || x.docCategory === 'safety_health_report' || Boolean(
+          x.requestedDataType?.includes('실사') || x.requestedDataType?.includes('자가진단') ||
+          x.requestedDataType?.toUpperCase().includes('SAQ') || x.requestedDataType?.includes('self_upload:self_assessment')
+        );
+        const latestCarbon = mine.find(isCarbon);  // list가 created_at DESC라 첫 매칭 = 최신
+        const latestSaq = mine.find(isSaq);
+        setCarbonExtraction(prev => prev ?? latestCarbon ?? null);
+        setSaqExtraction(prev => prev ?? latestSaq ?? null);
       })
       .catch(() => {});
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supplierId]);
+  }, [section.key, supplierId]);
   let content: ReactNode;
   const d = real?.detail ?? null;
   // live면 지금 입력칸 값, 아니면 마지막 저장된 스냅샷 — 완료 배지 판정용(defaultValue 표시엔 영향 없음).

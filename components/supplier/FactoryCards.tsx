@@ -144,7 +144,11 @@ function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
             <div>
               <input
                 value={coreMinerals[k] ?? ''}
-                onChange={e => onUpdateMineral(k, e.target.value)}
+                onChange={e => {
+                  const v = e.target.value;
+                  // 소수점 둘째 자리까지만 허용(정수부 최대 3자리) — 입력 도중 상태(빈 값·"7." 등)는 통과.
+                  if (v === '' || /^\d{0,3}(\.\d{0,2})?$/.test(v)) onUpdateMineral(k, v);
+                }}
                 placeholder="-"
                 inputMode="decimal"
                 className={editCellCls}
