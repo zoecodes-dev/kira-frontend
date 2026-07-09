@@ -945,7 +945,11 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const sr = real?.riskProfile?.selfReportedRiskLevel;
     const srRaw = sr && sr !== 'unknown' ? sr : '';
     const parsedRisk = typeof spf.saq_risk_level === 'string' ? (spf.saq_risk_level as string).toLowerCase() : '';
-    const srPrefill = editable && ['low', 'medium', 'high'].includes(parsedRisk) ? parsedRisk : srRaw;
+    // [FIX] "editable &&" 게이트가 있으면 방금 파싱한 등급(parsedRisk)이 있어도 그 순간 editable이
+    //   아니면(예: 리마운트/렌더 타이밍) 조용히 저장값(srRaw)으로 되돌아가 "제출하기"를 눌러도
+    //   백엔드에 반영이 안 되는 것처럼 보였다. saqExtraction은 editable 하위 UI에서만 채워지므로
+    //   이 게이트는 실질적 보호 없이 값만 지웠다 — 파싱값이 있으면 그게 항상 권위값이다.
+    const srPrefill = ['low', 'medium', 'high'].includes(parsedRisk) ? parsedRisk : srRaw;
     // 콤팩트 상단 폼(점수·평가일·유효기간) 프리필 — 파싱 자동입력, 사용자 수정 가능.
     const saqRiskBadge = RISK_BADGE[(srPrefill || '').toLowerCase()] ?? null;
     const saqScorePrefill = spf.saq_score != null ? String(spf.saq_score) : '';
