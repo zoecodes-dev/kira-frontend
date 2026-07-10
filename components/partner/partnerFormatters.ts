@@ -194,11 +194,13 @@ export function phoneToDomesticFormatted(phone?: string | null): { country: stri
 
 // 알림/사이드바 딥링크 키 → 실제 /partner 하위 라우트 매핑.
 // 'submit-documents'는 구 activeView 체계의 잔존 값 — company-info로 합류시켜 하위호환.
+// 'ai-parsing'은 /partner/ai-parsing 화면 폐지 후에도 브라우저 localStorage에 남아있는 옛
+//   알림이 참조할 수 있어 키를 남기고 company-info(문서 업로드·확인 팝업이 있는 곳)로 리포인트한다.
 export const PARTNER_DEEP_LINK_ROUTE: Record<string, string> = {
   dashboard:          '/partner',
   'company-info':     '/partner/company-info',
   'submit-documents': '/partner/company-info',
-  'ai-parsing':       '/partner/ai-parsing',
+  'ai-parsing':       '/partner/company-info',
   'supply-chain':     '/partner/supply-chain',
   notifications:      '/partner/notifications',
   'edit-info':        '/partner/settings',
@@ -207,7 +209,7 @@ export const PARTNER_DEEP_LINK_ROUTE: Record<string, string> = {
 export const PARTNER_DEEP_LINK_LABEL: Record<string, string> = {
   'company-info':     '자료제출',
   'submit-documents': '자료제출',
-  'ai-parsing':       'AI 처리 확인',
+  'ai-parsing':       '자료제출',
   'supply-chain':     '공급망 연결',
 };
 

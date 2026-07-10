@@ -1,7 +1,8 @@
 'use client';
 
-// AI 처리 확인 팝업 — /partner/ai-parsing 페이지와 동일 화면(AiParsingView 공통 모듈)을
-//   거의 풀스크린 모달로 띄운다. 닫거나 전체 제출 완료 시 close.
+// AI 처리 확인 팝업 — AiParsingView(공통 모듈)를 거의 풀스크린 모달로 띄운다.
+//   닫거나 전체 제출 완료 시 close. 협력사가 AI 추출 결과를 보는 유일한 경로다
+//   (독립 화면이던 /partner/ai-parsing 은 폐지 — 각 문서 업로드 패널에서 이 팝업으로 연다).
 //   하단 버튼은 '저장' 단일 — 저장 시 확정값을 onSaved로 부모 폼에 반영하고 모달을 닫는다.
 import { X } from 'lucide-react';
 import AiParsingView from '@/components/supplier/AiParsingView';

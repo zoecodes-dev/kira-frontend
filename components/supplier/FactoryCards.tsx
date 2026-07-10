@@ -107,8 +107,11 @@ function ContactsSubsection({ factoryIndex, contacts, onContactsChange, max }: {
 
 // 공장 카드 안 소재구성 — 문서 업로드 + AI 처리 포함. 카드(공장)마다 독립된 파싱 상태를 가진다
 //   (컨트롤드 입력이라 파싱 결과는 CompanyGrid의 defaultValue 트릭 없이 곧장 coreMinerals에 반영).
-function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
+function FactoryMineralPanel({ supplierId, factoryId, materialDocUrl, coreMinerals, onUpdateMineral }: {
   supplierId: string;
+  // 저장 전 새 카드는 없다 → 업로드 비활성화(패널이 안내를 띄운다).
+  factoryId?: string | null;
+  materialDocUrl?: string | null;
   coreMinerals: Record<string, number>;
   onUpdateMineral: (key: string, value: string) => void;
 }) {
@@ -137,7 +140,7 @@ function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
 
   return (
     <div className="space-y-2">
-      <MaterialDocParsePanel supplierId={supplierId} editable onParsed={applyExtraction} onOpenViewer={() => setParsingOpen(true)} onUploaded={setUploadedDoc} />
+      <MaterialDocParsePanel supplierId={supplierId} factoryId={factoryId} initialUrl={materialDocUrl} editable onParsed={applyExtraction} onOpenViewer={() => setParsingOpen(true)} onUploaded={setUploadedDoc} />
       <div className="mb-1 text-sm font-medium text-ink-500">이 공장의 소재 구성</div>
       {/* 다른 섹션(CompanyGrid)과 같은 테두리 표 톤 — 광물마다 한 칸, 균일하게 나뉜다. */}
       <div className="grid overflow-hidden rounded-sm border border-ink-700 md:grid-cols-2">
@@ -177,6 +180,9 @@ function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
           requestType: '소재구성 문서',
           docS3Key: uploadedDoc.docS3Key,
         } : null}
+        // 모달에서 검토·수정 후 '저장'을 눌러도 이 공장의 소재 구성 입력칸에 반영되지
+        // 않던 문제 — applyExtraction을 그대로 재사용해 파싱하기 버튼과 동일하게 채운다.
+        onSaved={applyExtraction}
       />
     </div>
   );
@@ -306,6 +312,8 @@ export default function FactoryCards({ rows, onChange, isSmelter = false, active
                   (광산뿐 아니라 모든 유형 공통 — §materials.any/materials.handled_any). */}
               <FactoryMineralPanel
                 supplierId={supplierId}
+                factoryId={r.factoryId}
+                materialDocUrl={r.materialCompositionDocUrl}
                 coreMinerals={r.coreMinerals}
                 onUpdateMineral={(k, v) => updateMineral(i, k, v)}
               />

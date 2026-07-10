@@ -53,7 +53,6 @@ function PartnerHeader() {
 }
 
 function PartnerWorkspaceChrome({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const { supplierId, supplier } = usePartnerWorkspace();
   const name = getSupplierName(supplierId);
   // 자진 신고 모달 — 기획서 E-3. 현재 코드 전체에서 이 모달을 여는 트리거가 없어(항상 닫힌 상태) 동작은
@@ -68,8 +67,7 @@ function PartnerWorkspaceChrome({ children }: { children: React.ReactNode }) {
         <PartnerSidebar supplierName={name?.shortNameKo ?? name?.shortNameEn ?? supplier?.name ?? supplierId} />
         <div className="min-w-0 flex-1">
           <PartnerHeader />
-          {/* ✨ ai-parsing 뷰일 때는 꽉 찬 높이(h-calc), 아닐 때는 기존 패딩 적용 ✨ */}
-          <div className={pathname === '/partner/ai-parsing' ? 'h-[calc(100vh-82px)]' : 'space-y-6 p-8'}>
+          <div className="space-y-6 p-8">
             {children}
           </div>
         </div>
