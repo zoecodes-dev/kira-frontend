@@ -81,6 +81,7 @@ import {
   applyMaterialsPrefill,
   FACTORY_ROLE_OPTS,
   factoryToDraft,
+  formatMineral,
   MINERAL_EDIT_KEYS,
   MINERAL_LABELS,
   seedContactsDraft,
@@ -868,6 +869,8 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
         ) : <div className="text-sm text-ink-500">등록된 담당자가 없습니다.</div>
       );
       const factories = (real?.factories ?? []).filter(f => f.isActive !== false);
+      // 공장별 AI 추출 소재구성 — 저장 전이라도 보기 모드에서 '확인 필요'로 노출한다.
+      const materialsByFactory = new Map((real?.factoryPrefill ?? []).map(p => [p.factoryId, p.materials]));
       content = (
         <div className="space-y-3">
           {factories.length === 0 && <EmptyData />}
@@ -879,10 +882,20 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
               ['주소', f.address ?? '-', fieldFilled(f.address)],
               ['공급비율', f.supplyRatioPercent != null ? `${f.supplyRatioPercent}%` : '-', fieldFilled(f.supplyRatioPercent)],
             ];
+            // 보기 모드 소재 구성 — 저장값(core_minerals)이 우선. 비어 있는 칸은 업로드된 문서에서
+            //   AI가 뽑은 값(factory_prefill)으로 채워 '확인 필요'로 보여준다. 아직 저장 전이라
+            //   '완료'가 아니며, CompanyGrid가 parsedFieldKeys로 AI 배지(✓)를 붙인다.
             const cm = f.coreMinerals ?? {};
+            const aiFilled = applyMaterialsPrefill(
+              { coreMinerals: cm } as FactoryDraft,
+              materialsByFactory.get(f.factoryId),
+            ).coreMinerals;
+            const aiKeys = Object.keys(aiFilled).filter(k => cm[k] == null);
             const mineralRows: string[][] = MINERAL_EDIT_KEYS.map(k => {
-              const v = cm[k];
-              return [`${MINERAL_LABELS[k] ?? k} 함량(%)`, v != null ? `${v}%` : '-', v != null ? '완료' : '해당 없음'];
+              const v = aiFilled[k];
+              const label = `${MINERAL_LABELS[k] ?? k} 함량(%)`;
+              if (v == null) return [label, '-', '해당 없음'];
+              return [label, `${formatMineral(v)}%`, aiKeys.includes(k) ? '확인 필요' : '완료'];
             });
             return (
               <div key={f.factoryId} className={clsx('space-y-3 rounded-sm border border-ink-700 bg-white p-4', f.factoryRole === 'mining' && 'bg-accent-50/40')}>
@@ -895,7 +908,7 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
                 <CompanyGrid rows={infoRows} />
                 <div>
                   <div className="mb-1 text-sm font-medium text-ink-500">소재 구성</div>
-                  <CompanyGrid rows={mineralRows} />
+                  <CompanyGrid rows={mineralRows} fieldKeys={MINERAL_EDIT_KEYS} parsedFieldKeys={aiKeys} />
                 </div>
                 <div>
                   <div className="mb-1 text-sm font-medium text-ink-500">담당자</div>
@@ -926,31 +939,47 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     //   협력사가 이미 제출한 값이 그대로 보여야 한다(세션 상태 carbonExtraction에 의존하면 안 됨).
     let ci: unknown = m.carbonIntensity;
     let es: unknown = m.energySource;
-    // [요구사항1] 파싱이 수행되면(carbonExtraction 존재) 추출 결과가 이 문서의 '권위값'이다.
-    //   서류상 공란인 필드(예: 에너지원)는 빈칸으로 확정한다 — 모달을 닫고 복귀할 때
-    //   이전에 저장돼 있던 스테일 DB값('한국 전력망 평균…')이 되살아나는 상태 드리프트 방지.
-    if (editable && carbonExtraction) {
-      const ciParsed = pf.carbon_intensity;
-      const esParsed = pf.energy_source;
-      if (ciParsed != null && ciParsed !== '') {
-        ci = ciParsed;
-        carbonParsedKeys.push('carbonIntensity');
-        if ((conf.carbon_intensity ?? 0) < 0.8) flagged.carbonIntensity = `검토 권장 · 신뢰도 ${Math.round((conf.carbon_intensity ?? 0) * 100)}%`;
+    const savedCi = m.carbonIntensity;
+    const savedEs = m.energySource;
+    const ciParsed = pf.carbon_intensity;
+    const esParsed = pf.energy_source;
+    const hasParsed = (v: unknown) => v != null && v !== '';
+    // 저장값과 다르거나 저장값이 아예 없으면 'AI가 준 값'으로 본다 → 배지 + '확인 필요'.
+    //   같은 값이면 이미 반영된 것이라 배지를 달지 않는다(공장 소재구성 배지와 같은 규칙).
+    const isAiValue = (parsed: unknown, saved: unknown) =>
+      hasParsed(parsed) && String(parsed) !== String(saved ?? '');
+
+    if (carbonExtraction) {
+      if (editable) {
+        // [요구사항1] 파싱이 수행되면 추출 결과가 이 문서의 '권위값'이다. 서류상 공란인 필드는
+        //   빈칸으로 확정한다 — 모달을 닫고 복귀할 때 스테일 DB값이 되살아나는 드리프트 방지.
+        ci = hasParsed(ciParsed) ? ciParsed : '';
+        es = hasParsed(esParsed) ? esParsed : '';
       } else {
-        ci = '';  // 파싱됐으나 탄소집약도 미기재 → 빈칸(스테일값 폴백 금지)
+        // 보기 모드: 저장값을 지우지 않는다(서류에 없다고 이미 제출한 값을 숨기면 안 됨).
+        //   서류에서 읽힌 값만 덮어써 보여주고, 아래에서 '확인 필요' + AI 배지로 저장 전임을 알린다.
+        if (hasParsed(ciParsed)) ci = ciParsed;
+        if (hasParsed(esParsed)) es = esParsed;
       }
-      if (esParsed != null && esParsed !== '') {
-        es = esParsed;
-        carbonParsedKeys.push('energySource');
+      if (hasParsed(ciParsed)) {
+        if (editable || isAiValue(ciParsed, savedCi)) carbonParsedKeys.push('carbonIntensity');
+        if ((conf.carbon_intensity ?? 0) < 0.8) flagged.carbonIntensity = `검토 권장 · 신뢰도 ${Math.round((conf.carbon_intensity ?? 0) * 100)}%`;
+      }
+      if (hasParsed(esParsed)) {
+        if (editable || isAiValue(esParsed, savedEs)) carbonParsedKeys.push('energySource');
         if ((conf.energy_source ?? 0) < 0.8) flagged.energySource = `검토 권장 · 신뢰도 ${Math.round((conf.energy_source ?? 0) * 100)}%`;
-      } else {
-        es = '';  // 서류상 에너지원 공란 → 빈칸 유지(스테일값 폴백 금지)
       }
     }
     const ciNum = ci != null && ci !== '' ? parseFloat(String(ci)) : NaN;
+    // 보기 모드에서 AI가 준 값(아직 저장 전)은 '완료'가 아니라 '확인 필요'로 표시한다.
+    const carbonStatus = (key: 'carbonIntensity' | 'energySource', value: unknown, parsed: unknown, saved: unknown) => {
+      if (naMiner) return '해당 없음';
+      if (!editable && isAiValue(parsed, saved)) return '확인 필요';
+      return filled(`regulation.${key}`, value);
+    };
     const carbonRows: string[][] = [
-      [reqLabel('탄소집약도 (kgCO2eq/kg)', req('regulation.carbon_intensity')), ci != null ? String(ci) : '-', naMiner ? '해당 없음' : filled('regulation.carbonIntensity', ci)],
-      [reqLabel('에너지원', req('regulation.energy_source')), (es as string) ?? '-', naMiner ? '해당 없음' : filled('regulation.energySource', es)],
+      [reqLabel('탄소집약도 (kgCO2eq/kg)', req('regulation.carbon_intensity')), ci != null ? String(ci) : '-', carbonStatus('carbonIntensity', ci, ciParsed, savedCi)],
+      [reqLabel('에너지원', req('regulation.energy_source')), (es as string) ?? '-', carbonStatus('energySource', es, esParsed, savedEs)],
     ];
     const carbonPlaceholders = {
       carbonIntensity: '서류를 업로드하면 자동으로 채워집니다 (직접 입력도 가능)',

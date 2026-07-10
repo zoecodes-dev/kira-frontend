@@ -130,6 +130,13 @@ function toCamel(key: string): string {
   return key.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 }
 
+// 값이 '데이터 딕셔너리'인 컬럼 — 키가 필드명이 아니라 도메인 값(광물명·문서 필드 ID)이라
+//   camelCase 변환 대상이 아니다. 변환하면 프론트 카탈로그와 어긋나 값이 사라진다.
+//   (예: core_minerals의 graphite_synthetic → graphiteSynthetic 이 되어 화면이 '-' 로 보였다.
+//    hazardous_substances → hazardousSubstances 가 되어 비광물 키 필터도 무력화됐다.)
+//   컬럼명 자체는 camelCase로 바꾸되(coreMinerals), 그 안의 키는 원본 그대로 둔다.
+const OPAQUE_DICT_KEYS = new Set(["core_minerals", "parsed_fields", "confidence_map"]);
+
 export function snakeToCamel<T = unknown>(input: unknown): T {
   if (Array.isArray(input)) {
     return input.map((item) => snakeToCamel(item)) as unknown as T;
@@ -137,7 +144,7 @@ export function snakeToCamel<T = unknown>(input: unknown): T {
   if (input !== null && typeof input === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
-      out[toCamel(k)] = snakeToCamel(v);
+      out[toCamel(k)] = OPAQUE_DICT_KEYS.has(k) ? v : snakeToCamel(v);
     }
     return out as T;
   }
