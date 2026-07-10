@@ -126,6 +126,11 @@ export interface MineralParseState {
 // 신뢰도 임계치 — 미만이면 값은 채우되 '검토 권장' 표시(ExtractionTable 신뢰도 톤 패턴).
 export const MINERAL_CONFIDENCE_THRESHOLD = 0.8;
 
+// 광물 함량 표시 자릿수 — 입력 허용 자릿수(정규식 \.\d{0,2})와 맞춘다.
+//   JS number는 소수점 이하 0을 못 기억해 백엔드의 10.0이 "10"으로 보인다. 표시 시점에 고정한다.
+export const MINERAL_DECIMALS = 2;
+export const formatMineral = (v: number): string => v.toFixed(MINERAL_DECIMALS);
+
 // AiExtraction 1건에서 광물 입력칸 키(k)의 파싱 상태를 도출.
 export function mineralParseStateOf(extraction: AiExtraction | null, k: string): MineralParseState | null {
   if (!extraction) return null;

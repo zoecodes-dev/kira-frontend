@@ -23,6 +23,7 @@ import {
   emptyContactDraft,
   emptyFactoryDraft,
   FACTORY_ROLE_OPTS,
+  formatMineral,
   MINERAL_CONFIDENCE_THRESHOLD,
   MINERAL_EDIT_KEYS,
   MINERAL_LABELS,
@@ -119,6 +120,20 @@ function FactoryMineralPanel({ supplierId, factoryId, materialDocUrl, coreMinera
   const [flagged, setFlagged] = useState<Record<string, string>>({});
   // 방금 업로드한 문서 정보 → 파싱 확인 모달에 넘겨 '파싱 중' 표시/폴링 활성화(업로드 직후 빈 화면 방지).
   const [uploadedDoc, setUploadedDoc] = useState<{ docS3Key: string; fileName: string } | null>(null);
+  // 편집 중인 입력칸의 '날 문자열'. coreMinerals는 number라 "10." 을 담을 수 없다 —
+  //   Number("10.")===10 이라 컨트롤드 입력이 곧장 "10"으로 되돌려 소수점을 못 찍었다.
+  //   타이핑 중에는 이 버퍼를 보여주고, 포커스를 떠나면 지워 정규화된 숫자를 다시 표시한다.
+  //   (공급비율 입력칸은 draft가 문자열이라 이 문제가 없었다.)
+  const [typing, setTyping] = useState<Record<string, string>>({});
+
+  const shownValue = (k: string) => typing[k] ?? (coreMinerals[k] != null ? formatMineral(coreMinerals[k]) : '');
+  const stopTyping = (k: string) =>
+    setTyping(prev => {
+      if (!(k in prev)) return prev;
+      const next = { ...prev };
+      delete next[k];
+      return next;
+    });
 
   function applyExtraction(extraction: AiExtraction) {
     const nextFlagged: Record<string, string> = {};
@@ -131,6 +146,7 @@ function FactoryMineralPanel({ supplierId, factoryId, materialDocUrl, coreMinera
         }
       }
     }
+    setTyping({});   // 파싱값이 타이핑 버퍼에 가려지지 않도록.
     setFlagged(nextFlagged);
     setParsingOpen(true);
   }
@@ -146,12 +162,15 @@ function FactoryMineralPanel({ supplierId, factoryId, materialDocUrl, coreMinera
             <span className="text-sm font-medium text-ink-500">{MINERAL_LABELS[k]} 함량(%)</span>
             <div>
               <input
-                value={coreMinerals[k] ?? ''}
+                value={shownValue(k)}
                 onChange={e => {
                   const v = e.target.value;
                   // 소수점 둘째 자리까지만 허용(정수부 최대 3자리) — 입력 도중 상태(빈 값·"7." 등)는 통과.
-                  if (v === '' || /^\d{0,3}(\.\d{0,2})?$/.test(v)) onUpdateMineral(k, v);
+                  if (!(v === '' || /^\d{0,3}(\.\d{0,2})?$/.test(v))) return;
+                  setTyping(prev => ({ ...prev, [k]: v }));   // "10." 같은 중간 문자열 보존
+                  onUpdateMineral(k, v);                       // draft에는 숫자로 반영
                 }}
+                onBlur={() => stopTyping(k)}
                 placeholder="-"
                 inputMode="decimal"
                 className={editCellCls}
