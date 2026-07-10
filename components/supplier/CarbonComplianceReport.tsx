@@ -34,34 +34,42 @@ export default function CarbonComplianceReport({ carbonIntensity, energySource }
     : pass
       ? 'border-ok-border bg-ok-bg text-ok-text'
       : 'border-warn-border bg-warn-bg text-warn-text';
+  // 본문을 빈 줄(\n\n) 기준 문단으로 분리 — 문단 간 여백을 space-y로 직접 제어.
+  //   줄바꿈 없는 응답(구 프롬프트)도 문단 1개로 자연 표시된다.
+  const paragraphs = (result?.reasoning ?? '').split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
 
   return (
-    <div className="mt-3 rounded-sm border border-ink-700 bg-white">
-      <div className="flex items-center gap-2 border-b border-ink-700 px-4 py-2.5">
+    <div className="mt-4 rounded-md border border-ink-700 bg-white shadow-control">
+      <div className="flex items-center gap-2 border-b border-ink-700 px-5 py-3.5">
         <ShieldAlert className="h-4 w-4 text-accent-700" />
-        <span className="text-xs font-bold text-ink-100">AI 규제 분석 보고서</span>
-        <span className="text-[10px] text-ink-500">RAG · 규제 지식베이스 조회</span>
+        <span className="text-sm font-bold text-ink-100">AI 규제 분석 보고서</span>
+        <span className="text-xs text-ink-400">RAG · 규제 지식베이스 조회</span>
       </div>
-      <div className="p-4">
+      <div className="p-5">
         {loading ? (
-          <div className="flex items-center gap-2 text-xs text-ink-500">
+          <div className="flex items-center gap-2 text-sm text-ink-500">
             <Loader2 className="h-4 w-4 animate-spin text-accent-700" />
             규제 지식베이스(RAG)를 조회해 준수 여부를 분석 중…
           </div>
         ) : error ? (
-          <div className="text-xs text-alert-text">{error}</div>
+          <div className="text-sm text-alert-text">{error}</div>
         ) : result ? (
-          <div className="space-y-2.5">
-            <div className={`inline-flex items-center gap-1.5 rounded-xs border px-2.5 py-1 text-xs font-bold ${badgeCls}`}>
-              {violation ? <AlertTriangle className="h-3.5 w-3.5" /> : pass ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
-              {violation ? '규제 위반' : pass ? '규제 준수' : '검토 필요'}
+          /* 와이드 화면: 본문 2/3 + 근거 법령 세로 배너 1/3 — 좁은 화면(lg 미만)은 1단 스택 */
+          <div className="grid gap-5 lg:grid-cols-3">
+            <div className="space-y-3 lg:col-span-2">
+              <div className={`inline-flex items-center gap-1.5 rounded-xs border px-2.5 py-1 text-xs font-bold ${badgeCls}`}>
+                {violation ? <AlertTriangle className="h-3.5 w-3.5" /> : pass ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                {violation ? '규제 위반' : pass ? '규제 준수' : '검토 필요'}
+              </div>
+              <div className="space-y-3 text-sm leading-7 tracking-[0.01em] text-ink-100">
+                {paragraphs.map((p, i) => <p key={i} className="whitespace-pre-line">{p}</p>)}
+              </div>
             </div>
-            <div className="text-sm leading-6 text-ink-100">{result.reasoning}</div>
-            <div className="rounded-xs border border-ink-700 bg-ink-800/40 p-2.5 text-[11px] text-ink-400">
-              <div className="font-semibold text-ink-300">
+            <div className="rounded-xs border border-ink-700 bg-ink-800/40 p-4 text-sm text-ink-400 lg:col-span-1">
+              <div className="font-semibold text-ink-200">
                 근거 법령: {result.regulationName}{result.citation ? ` · ${result.citation}` : ''}
               </div>
-              {result.clauseText && <div className="mt-1 leading-5">&ldquo;{result.clauseText}&rdquo;</div>}
+              {result.clauseText && <div className="mt-2 whitespace-pre-line leading-7 text-ink-300">&ldquo;{result.clauseText}&rdquo;</div>}
             </div>
           </div>
         ) : null}
