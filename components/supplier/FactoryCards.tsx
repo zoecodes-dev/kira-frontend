@@ -170,6 +170,9 @@ function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
           requestType: '소재구성 문서',
           docS3Key: uploadedDoc.docS3Key,
         } : null}
+        // 모달에서 검토·수정 후 '저장'을 눌러도 이 공장의 소재 구성 입력칸에 반영되지
+        // 않던 문제 — applyExtraction을 그대로 재사용해 파싱하기 버튼과 동일하게 채운다.
+        onSaved={applyExtraction}
       />
     </div>
   );
