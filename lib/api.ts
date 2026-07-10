@@ -256,7 +256,10 @@ async function request<T = unknown>(
       }
     }
     // 리프레시 불가/실패한 401 → 토큰 정리 + 전역 알림(로그인 오버레이) 후 throw.
-    if (res.status === 401) {
+    //   /auth/login 자체의 401(비밀번호 오류 등)은 "세션 만료"가 아니라 로그인 실패이므로
+    //   제외한다 — 안 그러면 로그인 폼 위에 "로그인이 필요합니다" 오버레이가 뜨고, 거길 통해
+    //   /login으로 재이동하면서 폼이 리마운트돼 역할 토글(원청/협력사)이 기본값으로 되돌아갔다.
+    if (res.status === 401 && !path.includes("/auth/login") && !path.includes("/auth/refresh")) {
       clearToken();
       notifyAuthExpired();
     }
@@ -522,6 +525,9 @@ export interface SupplierDetail extends SupplierBrief {
   selfAssessmentDocUrl?: string | null;     // 실사 자가진단 보고서 업로드 URL
   materialCompositionDocUrl?: string | null; // 소재구성 문서(핵심광물 함량) 업로드 URL
   carbonFootprintDocUrl?: string | null;     // 탄소발자국 신고서(탄소집약도/에너지원) 업로드 URL
+  // 소재구성·탄소발자국·SAQ 3종 AI 처리 종합 결론(협력사 '제출하기' 클릭 시 팝업으로 노출).
+  aiComplianceSummary?: string | null;
+  aiComplianceSummaryGeneratedAt?: string | null;
   manufacturerDetail: SupplierManufacturerDetail | null;
   recyclerDetail: SupplierRecyclerDetail | null;
   traderDetail: SupplierTraderDetail | null;
@@ -572,6 +578,7 @@ export interface SupplierFactory {
   supplyRatioPercent: number | null;
   supplyQuantity: string | null;
   coreMinerals: Record<string, number> | null;  // 공장(사이트)별 소재 구성 — 광산 사이트마다 다를 수 있음
+  materialCompositionDocUrl: string | null;     // 이 공장의 소재구성 문서 S3 키(없으면 미업로드)
   // 공장 담당자(공장 단위) — 협력사 PIC(SupplierContact)와 별개
   factoryManagerName: string | null;
   factoryManagerRole: string | null;
@@ -1208,6 +1215,46 @@ export const getSupplierReliability = (id: string) =>
 /** 공장 목록. 좌표는 latitude/longitude. 200+빈 배열 / 404. */
 export const getSupplierFactories = (id: string) =>
   api.get<SupplierFactoriesResponse>(`/suppliers/${id}/factories`);
+
+/** 공장 단위 소재구성 문서 업로드 — 추출된 광물 함량이 이 공장의 core_minerals로 간다.
+ *  협력사 단위 PATCH /detail(material_composition_doc_url)과 달리 귀속 공장이 기록된다.
+ *  body는 snake_case 그대로(요청 래퍼가 camel→snake 변환을 하지 않음). 공장이 없으면 404. */
+export const updateFactoryMaterialDoc = (supplierId: string, factoryId: string, s3Key: string) =>
+  api.patch<SupplierFactoriesResponse>(
+    `/suppliers/${supplierId}/factories/${factoryId}/material-doc`,
+    { material_composition_doc_url: s3Key },
+  );
+
+/** 마스터폼 AI 자동 채움 초안 — 협력사 문서 추출결과를 마스터폼 섹션 구조로 모은 것. */
+export interface FactoryMaterialsPrefill {
+  factoryId: string;
+  /** 광물 함량. 키는 문서 필드 ID(스네이크케이스) — factory-draft.MINERAL_PARSE_KEYS와 대조된다. */
+  materials: Record<string, number>;
+  lowConfidenceFields: { section: string; field: string; label: string; value: unknown; confidence: number }[];
+}
+export interface MasterFormPrefill {
+  supplierId: string;
+  documentCount: number;
+  unconfirmedDocuments: number;
+  /** 섹션별 협력사 단위 초안. 내부 키는 스네이크케이스 필드 ID 그대로. */
+  prefill: Record<string, Record<string, unknown>>;
+  factoryPrefill: FactoryMaterialsPrefill[];
+}
+// getAiExtractions와 같은 이유로 raw로 받는다 — prefill/materials의 키는 문서 필드 ID
+// (ni_content 등, masterform_prefill 카탈로그 SSOT)라 snakeToCamel이 재귀 변환하면
+// (niContent) 프론트 필드 카탈로그와 어긋나 값이 안 보인다. 최상위만 수동 매핑.
+export const getMasterFormPrefill = (id: string) =>
+  api.get<Record<string, unknown>>(`/suppliers/${id}/master-form/prefill`, { raw: true }).then((x): MasterFormPrefill => ({
+    supplierId: x.supplier_id as string,
+    documentCount: (x.document_count as number) ?? 0,
+    unconfirmedDocuments: (x.unconfirmed_documents as number) ?? 0,
+    prefill: (x.prefill as Record<string, Record<string, unknown>>) ?? {},
+    factoryPrefill: ((x.factory_prefill as Record<string, unknown>[]) ?? []).map((f): FactoryMaterialsPrefill => ({
+      factoryId: f.factory_id as string,
+      materials: (f.materials as Record<string, number>) ?? {},
+      lowConfidenceFields: (f.low_confidence_fields as FactoryMaterialsPrefill['lowConfidenceFields']) ?? [],
+    })),
+  }));
 
 // ── 제품 / BOM (백엔드 구현됨: backend/domains/product/router.py) ──
 // GET /products, GET /products/{id}, GET /products/{id}/bom(트리),

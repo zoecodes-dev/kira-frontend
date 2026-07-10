@@ -8,13 +8,13 @@ import {
   KeyRound,
   LayoutDashboard,
   Network,
-  ScanLine,
 } from 'lucide-react';
 
+// 'AI 처리 확인'(/partner/ai-parsing) 항목 제거 — AI 추출 결과는 이제 각 문서 업로드 패널의
+// 확인 팝업(AiParsingReviewModal)과 제출 시점 종합 진단 팝업으로만 노출한다(독립 화면 폐지).
 const menu = [
   { href: '/partner',              label: '홈',           subtitle: '요약 · 우선 조치',              icon: LayoutDashboard, exact: true },
   { href: '/partner/company-info', label: '자료제출',      subtitle: '정보 확인 · 자료 제출(입력)',    icon: Building2 },
-  { href: '/partner/ai-parsing',   label: 'AI 처리 확인',  subtitle: '추출 결과 검토 · 수정',          icon: ScanLine },
   { href: '/partner/supply-chain', label: '공급망 연결',   subtitle: '직접 연결 업체',                icon: Network },
   { href: '/partner/settings',     label: '계정 설정',     subtitle: '비밀번호 · 담당자 정보',          icon: KeyRound },
 ] as const;
