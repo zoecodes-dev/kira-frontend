@@ -610,6 +610,13 @@ export default function AiParsingView({
   // [목표2] 우측 폼에서 클릭한 필드 → 좌측 원본에서 고정 하이라이트(역추적).
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const notifiedExtractionRef = useRef<string | null>(null);
+  // AI 처리 완료 안내 — 알림 패널이 아니라 화면 하단에 고정 배너로 직접 알린다(협력사 피드백).
+  const [showParsedBanner, setShowParsedBanner] = useState(false);
+  useEffect(() => {
+    if (!showParsedBanner) return;
+    const timer = setTimeout(() => setShowParsedBanner(false), 6000);
+    return () => clearTimeout(timer);
+  }, [showParsedBanner]);
 
   // ── 좌↔우 하이라이트 연동 상태 ──────────────────────────────────────────
   // docFieldHover: 좌측 문서에서 hover 중인 fieldId → 우측 패널 강조
@@ -710,6 +717,10 @@ export default function AiParsingView({
           setIsParsing(false);  // 추출 완료 → 로딩 해제, 폼 표시
           if (notifiedExtractionRef.current !== matchedExtraction.requestId) {
             notifiedExtractionRef.current = matchedExtraction.requestId;
+            // 방금 업로드한 문서의 AI 처리가 실제로 끝난 시점에만 안내한다(prime 검토 화면은 대상 아님).
+            // [UX 변경] 알림 패널(데모 스토어)이 아니라 이 화면 하단 고정 배너로 직접 알린다 —
+            // 협력사가 알림함에서 뒤늦게 발견하는 대신, 결과를 보고 있는 바로 이 자리에서 확인하도록.
+            if (!prime) setShowParsedBanner(true);
             onParsed?.(matchedExtraction);
           }
         })
@@ -950,6 +961,27 @@ export default function AiParsingView({
         </div>
 
       </div>
+
+      {/* AI 처리 완료 배너 — 알림 패널 대신 화면 하단 고정으로 직접 알림(6초 자동 소멸 + 수동 닫기). */}
+      {showParsedBanner && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4">
+          <div className="toast-in pointer-events-auto flex items-center gap-3 rounded-sm border border-accent-100 bg-white px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.14)]">
+            <ScanLine className="h-4 w-4 shrink-0 text-accent-700" />
+            <div className="text-xs">
+              <span className="font-bold text-ink-100">AI 처리 결과 확인이 필요합니다.</span>{' '}
+              <span className="text-ink-500">추출된 항목을 확인한 뒤 저장해 주세요.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowParsedBanner(false)}
+              aria-label="닫기"
+              className="ml-1 shrink-0 rounded-xs p-0.5 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -21,6 +21,9 @@ export interface FactoryDraft {
   // 소재 구성(공장/사이트별) — 광산(factoryRole='mining')은 사이트마다 채굴 광물이 달라
   // 회사 단위가 아니라 이 값으로 판정한다(§factories.mine_composition).
   coreMinerals: Record<string, number>;
+  // 이 공장에 귀속된 소재구성 문서 S3 키(coreMinerals의 근거). 표시 전용 —
+  // master-form 페이로드에 담지 않는다(문서 업로드는 전용 PATCH 경로가 소유).
+  materialCompositionDocUrl?: string | null;
 }
 export interface ContactDraft {
   name: string;
@@ -39,6 +42,7 @@ export const emptyFactoryDraft = (): FactoryDraft => ({
   destination: '', supplyRatioPercent: '', latitude: '', longitude: '',
   factoryManagerName: '', factoryManagerRole: '', factoryManagerPhone: '', factoryManagerEmail: '',
   coreMinerals: {},
+  materialCompositionDocUrl: null,
 });
 export const emptyContactDraft = (factoryIndex: number | null = null): ContactDraft => ({
   name: '', role: '', department: '', email: '', phone: '', mobile: '', isPrimary: false, factoryIndex,
@@ -59,6 +63,7 @@ export const factoryToDraft = (f: ApiSupplierFactory): FactoryDraft => ({
   factoryManagerPhone: f.factoryManagerPhone ?? '',
   factoryManagerEmail: f.factoryManagerEmail ?? '',
   coreMinerals: f.coreMinerals ?? {},
+  materialCompositionDocUrl: f.materialCompositionDocUrl ?? null,
 });
 export const contactToDraft = (c: ApiSupplierContact, factoryIndex: number | null = null): ContactDraft => ({
   name: c.name ?? '',
@@ -138,4 +143,26 @@ export function mineralParseStateOf(extraction: AiExtraction | null, k: string):
   for (const key of parseKeys) if (unreadable.has(key)) return { value: null, confidence: 0, status: 'unreadable' };
   for (const key of parseKeys) if (blank.has(key)) return { value: null, confidence: 0, status: 'blank' };
   return null; // 파싱 결과에 언급 없음 → 기존 표시 유지
+}
+
+// 공장별 prefill(materials) → 공장 draft의 coreMinerals에 '빈 칸만' 채운다.
+//   이미 값이 있는 칸(사용자 입력·DB 저장값)은 건드리지 않는다 — 온보딩 prefill의 prev 우선 규칙과 동일.
+//   prefill의 키는 문서 필드 ID(ni_content 등)라 MINERAL_PARSE_KEYS로 입력칸 키(Ni)로 되돌린다.
+export function applyMaterialsPrefill(
+  draft: FactoryDraft,
+  materials: Record<string, number> | undefined,
+): FactoryDraft {
+  if (!materials || !Object.keys(materials).length) return draft;
+  const next = { ...draft.coreMinerals };
+  let changed = false;
+  for (const k of MINERAL_EDIT_KEYS) {
+    if (next[k] != null) continue;                       // 빈 칸만 — 기존 값 보존
+    const hit = (MINERAL_PARSE_KEYS[k] ?? []).find(pk => materials[pk] != null);
+    if (!hit) continue;
+    const num = Number(materials[hit]);
+    if (!Number.isFinite(num)) continue;
+    next[k] = num;
+    changed = true;
+  }
+  return changed ? { ...draft, coreMinerals: next } : draft;
 }

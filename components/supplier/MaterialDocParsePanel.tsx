@@ -1,17 +1,20 @@
 'use client';
 
 // ── 소재구성 문서 업로드 + AI 처리 패널 ─────────────────────────────────────
-// 업로드 흐름(기존 3종 문서와 동일 파이프라인 재사용, 새 엔드포인트 없음):
+// 업로드 흐름(기존 3종 문서와 동일 파이프라인 재사용):
 //   ① uploadFile(POST /files) → s3Key
-//   ② PATCH /suppliers/{id}/detail { material_composition_doc_url: s3Key }
-//      → 커밋 후 SupplierDocumentUploaded(doc_kind='material_composition') 발행 → 파싱 큐
+//   ② PATCH /suppliers/{id}/factories/{factoryId}/material-doc { material_composition_doc_url: s3Key }
+//      → 커밋 후 SupplierDocumentUploaded(doc_kind='material_composition', factory_id) 발행 → 파싱 큐
+//      협력사 단위 PATCH /detail이 아니라 공장 단위 경로를 쓴다: 추출된 광물 함량의 저장 위치가
+//      supplier_factories.core_minerals(공장 단위)라, 공장이 여럿이면 어느 공장의 근거인지
+//      기록해 두지 않으면 prefill이 값을 되돌려줄 공장을 고를 수 없다.
 //   ③ '파싱하기' 클릭 → GET /data-requests/ai-extractions 폴링, docS3Key === s3Key 매칭
 //      (목록이 created_at DESC라 첫 매칭 = 최신 → 같은 파일 재업로드 시 최신 결과 선택)
 //   ④ 매칭된 추출결과(AiExtraction)를 부모로 올려 광물 입력칸에 반영
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import {
-  ApiError, getAiExtractions, updateSupplierDetail, uploadFile,
+  ApiError, getAiExtractions, updateFactoryMaterialDoc, uploadFile,
   type AiExtraction,
 } from '@/lib/api';
 
@@ -19,8 +22,11 @@ const MATERIAL_DOC_ACCEPT = '.pdf,.png,.jpg,.jpeg';
 const PARSE_POLL_TRIES = 10;      // 최대 재시도(총 ~25초)
 const PARSE_POLL_INTERVAL = 2500; // ms — 이벤트 기반 비동기 파싱이라 2-3초 대기 후 조회
 
-export default function MaterialDocParsePanel({ supplierId, initialUrl, editable, onParsed, onOpenViewer, onUploaded }: {
+export default function MaterialDocParsePanel({ supplierId, factoryId, initialUrl, editable, onParsed, onOpenViewer, onUploaded }: {
   supplierId: string;
+  // 아직 저장되지 않은 공장 카드는 DB 행이 없어 factory_id가 없다 → 귀속시킬 대상이 없으므로
+  // 업로드를 막고 '공장을 먼저 저장' 안내를 띄운다(추측 귀속 금지).
+  factoryId?: string | null;
   initialUrl?: string | null;
   editable?: boolean;
   onParsed: (extraction: AiExtraction) => void;
@@ -54,6 +60,10 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
+    if (!factoryId) {
+      setError('이 공장을 먼저 저장한 뒤 문서를 올려주세요.');
+      return;
+    }
     const ext = f.name.toLowerCase().split('.').pop() ?? '';
     if (!['pdf', 'png', 'jpg', 'jpeg'].includes(ext)) {
       setError('PDF 또는 이미지(png/jpg/jpeg) 파일만 업로드할 수 있어요.');
@@ -64,15 +74,15 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
     setNotice('');
     try {
       const meta = await uploadFile(f, `material-doc:${supplierId}`);
-      // PATCH → 컬럼 갱신 + 커밋 후 문서 이벤트 발행(파싱 파이프라인 트리거).
-      await updateSupplierDetail(supplierId, { material_composition_doc_url: meta.s3Key });
+      // PATCH → 공장 컬럼 갱신 + 커밋 후 문서 이벤트(factory_id 포함) 발행 → 파싱 파이프라인 트리거.
+      await updateFactoryMaterialDoc(supplierId, factoryId, meta.s3Key);
       if (cancelledRef.current) return;
       setDocValue(meta.s3Key);
       setDisplayName(f.name);
       setNotice(`업로드 완료 · ${f.name}`);
       // 부모에 업로드 문서 전달(모달 파싱 표시용) → 파싱 확인 팝업이 '파싱 중' 로딩을 폴링하며 보여준다.
       onUploaded?.({ docS3Key: meta.s3Key, fileName: f.name });
-      // 업로드 직후 AI 처리 확인 화면을 팝업으로 노출(/partner/ai-parsing 과 동일 화면).
+      // 업로드 직후 AI 처리 확인 화면을 팝업(AiParsingReviewModal)으로 노출.
       onOpenViewer();
     } catch (err) {
       if (!cancelledRef.current) setError(err instanceof ApiError ? err.message : '업로드에 실패했습니다.');
@@ -120,9 +130,11 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
                 ? 'AI 처리 중… (최대 30초 정도 걸릴 수 있어요)'
                 : notice
                   ? notice
-                  : uploaded
-                    ? `업로드됨 · ${shownName}`
-                    : '미업로드 · PDF/이미지(png/jpg/jpeg)를 올리면 Li/Co/Ni/Mn/흑연 함량을 자동으로 채워요.'}
+                  : !factoryId
+                    ? '이 공장을 먼저 저장하면 문서를 올릴 수 있어요.'
+                    : uploaded
+                      ? `업로드됨 · ${shownName}`
+                      : '미업로드 · PDF/이미지(png/jpg/jpeg)를 올리면 Li/Co/Ni/Mn/흑연 함량을 자동으로 채워요.'}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -131,13 +143,13 @@ export default function MaterialDocParsePanel({ supplierId, initialUrl, editable
         )}
         {editable && (
           <>
-            <label className={`rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 ${uploading || parsing ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent-100'}`}>
+            <label className={`rounded-xs border border-accent-100 bg-accent-50 px-3 py-1.5 text-xs font-semibold text-accent-700 ${uploading || parsing || !factoryId ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent-100'}`}>
               {uploaded ? '파일 변경' : '자료 업로드'}
               <input
                 type="file"
                 accept={MATERIAL_DOC_ACCEPT}
                 className="hidden"
-                disabled={uploading || parsing}
+                disabled={uploading || parsing || !factoryId}
                 onChange={handleSelect}
               />
             </label>

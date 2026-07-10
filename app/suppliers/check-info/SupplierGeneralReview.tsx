@@ -5,13 +5,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createDataRequest, getDataRequests, getAiExtractions,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
-  getSupplierSuppliedItems, submitMasterForm,
+  getSupplierSuppliedItems, submitMasterForm, getMasterFormPrefill,
   getSupplierRiskProfile, uploadFile, getSupplierDocumentUrl,
   type SupplierRiskProfileResponse as ApiRiskProfile,
   type SupplierDetail as ApiSupplierDetail, type SupplierContact as ApiSupplierContact,
   type SupplierFactory as ApiSupplierFactory, type SupplierCompleteness as ApiCompleteness,
   type SuppliedItem as ApiItem, type ApiDataRequest,
   type AiExtraction, type SupplierDocKind,
+  type FactoryMaterialsPrefill as ApiFactoryMaterialsPrefill,
   ApiError,
 } from '@/lib/api';
 
@@ -39,6 +40,8 @@ interface RealData {
   comp: ApiCompleteness | null;
   items: ApiItem[];
   riskProfile: ApiRiskProfile | null;   // 규제 — 실사 자가진단(self_reported_risk_level)
+  // AI 자동 채움 — 공장별 소재구성 추출값. 공장 카드의 빈 광물 칸을 채우는 데만 쓴다.
+  factoryPrefill: ApiFactoryMaterialsPrefill[];
 }
 import type { ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -57,11 +60,11 @@ import {
   Globe,
   HelpCircle,
   Info,
-  Globe2,
   Lock,
   MessageSquare,
   Pencil,
   Save,
+  ScanLine,
   Send,
   X,
   XCircle,
@@ -75,12 +78,24 @@ import AiParsingReviewModal from '@/components/supplier/AiParsingReviewModal';
 import {
   type ContactDraft,
   type FactoryDraft,
+  applyMaterialsPrefill,
   FACTORY_ROLE_OPTS,
   factoryToDraft,
   MINERAL_EDIT_KEYS,
   MINERAL_LABELS,
   seedContactsDraft,
 } from '@/components/supplier/factory-draft';
+
+// 공장 draft 시드 — 서버 공장 목록 + AI 자동 채움(공장별 소재구성)을 합쳐 편집 draft를 만든다.
+//   비활성(is_active=false, 소프트 삭제) 공장은 제외 — 원산지 이력 보존용이라 UI엔 안 뜬다.
+//   prefill은 '빈 광물 칸'만 채운다(applyMaterialsPrefill) → 사용자 입력·DB 저장값을 덮지 않는다.
+function seedFactoriesDraft(api: RealData | null): FactoryDraft[] {
+  const materialsByFactory = new Map((api?.factoryPrefill ?? []).map(p => [p.factoryId, p.materials]));
+  return (api?.factories ?? [])
+    .filter(f => f.isActive !== false)
+    .map(factoryToDraft)
+    .map(d => (d.factoryId ? applyMaterialsPrefill(d, materialsByFactory.get(d.factoryId)) : d));
+}
 
 type ReviewStatus = '완료' | '입력 중' | '확인 필요' | '미입력' | '해당 없음';
 type SectionKey = 'company' | 'factories' | 'regulation' | 'documents';
@@ -316,10 +331,12 @@ function CompanyGrid({ rows = companyRows, editable = false, fieldKeys, fieldPre
 
 const fieldFilled = (v: unknown): ReviewStatus => (v !== null && v !== undefined && v !== '' ? '완료' : '미입력');
 
+// 부분 완료는 '입력 중' — '확인 필요'는 원청이 제출물을 검토 중인 상태(submission_review)를
+//   가리키는 말이라 필수값을 덜 채운 것과 의미가 다르다.
 function sectionStatusFrom(completed: number, total: number): ReviewStatus {
   if (total === 0) return '해당 없음';
   if (completed === 0) return '미입력';
-  return completed >= total ? '완료' : '확인 필요';
+  return completed >= total ? '완료' : '입력 중';
 }
 
 // 백엔드 완성도 필드 키(네임스페이스) → 섹션·표시 라벨. provider_type별 필수셋은 백엔드가 SSOT.
@@ -949,7 +966,9 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     //   아니면(예: 리마운트/렌더 타이밍) 조용히 저장값(srRaw)으로 되돌아가 "제출하기"를 눌러도
     //   백엔드에 반영이 안 되는 것처럼 보였다. saqExtraction은 editable 하위 UI에서만 채워지므로
     //   이 게이트는 실질적 보호 없이 값만 지웠다 — 파싱값이 있으면 그게 항상 권위값이다.
-    const srPrefill = ['low', 'medium', 'high'].includes(parsedRisk) ? parsedRisk : srRaw;
+    // 허용 등급은 RISK_BADGE 키(low/medium/high/critical) — DB CHECK·워커의 _SELF_RISK_LEVELS와 같은 집합.
+    //   critical을 빼면 고위험 SAQ의 파싱 등급이 조용히 버려져 3-2가 영영 미완으로 남는다.
+    const srPrefill = parsedRisk in RISK_BADGE ? parsedRisk : srRaw;
     // 콤팩트 상단 폼(점수·평가일·유효기간) 프리필 — 파싱 자동입력, 사용자 수정 가능.
     const saqRiskBadge = RISK_BADGE[(srPrefill || '').toLowerCase()] ?? null;
     const saqScorePrefill = spf.saq_score != null ? String(spf.saq_score) : '';
@@ -1247,8 +1266,8 @@ function AccordionSection({
   // 파싱/업로드의 프로그램적 입력칸 채움 → 최상위 수집 항목 요약 재계산 패스스루.
   onLiveMutate?: () => void;
 }) {
-  // 섹션은 항상 펼쳐서 고정 표시(드롭다운 제거). 미입력/확인 필요면 그 자리에서 보완 요청.
-  const needsRequest = showRequest && (section.status === '미입력' || section.status === '확인 필요') && section.missing.length > 0;
+  // 섹션은 항상 펼쳐서 고정 표시(드롭다운 제거). 미입력/입력 중이면 그 자리에서 보완 요청.
+  const needsRequest = showRequest && (section.status === '미입력' || section.status === '입력 중') && section.missing.length > 0;
   return (
     <section id={`section-${section.key}`} className="scroll-mt-24 overflow-hidden border-b border-ink-700 bg-white first:rounded-t-sm first:border-t last:rounded-b-sm">
       <div className="flex w-full items-center justify-between gap-3 border-b border-ink-700 bg-slate-50/60 px-4 py-2.5">
@@ -1328,6 +1347,10 @@ export function SupplierGeneralReviewContent({
   // 공통 '제출하기' 클릭 시 이 값이 true면 즉시 제출하지 않고 경고 모달을 먼저 띄운다.
   const [hasRegulatoryRisk, setHasRegulatoryRisk] = useState(false);
   const [riskModalOpen, setRiskModalOpen] = useState(false);
+  // [AI 종합 진단] 소재구성·탄소발자국·SAQ 3종 AI 처리 종합 결론 — 알림 패널이 아니라
+  //   '제출하기' 클릭 시 팝업으로 노출한다(협력사 피드백: 제출 흐름과 무관한 알림함에 묻히던 문제).
+  //   같은 결론(generated_at 동일)은 한 번 확인하면 다시 안 띄운다(localStorage로 기기별 기억).
+  const [aiSummaryModalOpen, setAiSummaryModalOpen] = useState(false);
   // 제련소 등 연결된 상위 협력사가 이 광산의 '공장 정보'만 대신 입력하는 모드(§factories.mine_*).
   //   광산 자신은 항상 읽기전용이라(managedBanner) 이 화면(mode='prime')에서 대신 입력한다.
   //   실제 저장 범위 제한은 백엔드(submit_master_form의 on_behalf 분기)가 구조적으로 보장한다.
@@ -1393,7 +1416,7 @@ export function SupplierGeneralReviewContent({
     (async () => {
       // 광산도 자기 id로 조회한다 — 광산은 광산 자체가 곧 공장이라 자기 supplier_factories 를
       //   그대로 받는다(리다이렉트 없음). 단 광산은 입력 주체가 아니라 보기 전용.
-      const [detail, contactsRes, factoriesRes, comp, itemsRes, riskRes, requestsRes] = await Promise.all([
+      const [detail, contactsRes, factoriesRes, comp, itemsRes, riskRes, requestsRes, prefillRes] = await Promise.all([
         getSupplierDetail(supplierId).catch(() => null),
         getSupplierContacts(supplierId).catch(() => null),
         getSupplierFactories(supplierId).catch(() => null),
@@ -1401,6 +1424,9 @@ export function SupplierGeneralReviewContent({
         getSupplierSuppliedItems(supplierId).catch(() => null),
         getSupplierRiskProfile(supplierId).catch(() => null),
         getDataRequests({ supplierId }).catch(() => null),
+        // AI 자동 채움 — 업로드된 소재구성 문서의 추출값을 공장별로 받아온다.
+        //   실패해도 폼은 서버 저장값으로 정상 동작해야 하므로 조용히 무시한다.
+        getMasterFormPrefill(supplierId).catch(() => null),
       ]);
       if (cancelled) return;
       setApi({
@@ -1410,6 +1436,7 @@ export function SupplierGeneralReviewContent({
         comp,
         items: itemsRes?.items ?? [],
         riskProfile: riskRes,
+        factoryPrefill: prefillRes?.factoryPrefill ?? [],
       });
       // 광산은 입력 주체가 아니라 읽기 전용(공장 정보는 광산 자체 = 공장).
       setManagedBanner(detail?.providerType === 'miner' ? { mineName: detail.companyName } : null);
@@ -1420,9 +1447,8 @@ export function SupplierGeneralReviewContent({
   }, [isRealSupplier, supplierId]);
 
   // api 로드 시 draft 시드(전체 현재 집합). 편집 진입 시에도 최신 서버 값으로 재시드(아래 setEditing 핸들러).
-  // 비활성(is_active=false, 소프트 삭제) 공장은 편집 대상에서 제외 — 원산지 이력 보존용이라 UI엔 안 뜬다.
   useEffect(() => {
-    const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
+    const factories = seedFactoriesDraft(api);
     setFactoriesDraft(factories);
     setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
   }, [api]);
@@ -1537,7 +1563,7 @@ export function SupplierGeneralReviewContent({
   }
 
   const urgentCount = liveSections.reduce((sum, section) =>
-    section.status === '미입력' || section.status === '확인 필요' ? sum + section.missing.length : sum, 0);
+    section.status === '미입력' || section.status === '입력 중' ? sum + section.missing.length : sum, 0);
 
   // 협력사 '자료 제출' — 입력값을 수집해 master-form 으로 일괄 영속화(저장·제출 공통).
   // company 는 authoritative-overwrite(생략=NULL) → 로드된 detail 에서 round-trip 후 편집값으로 override.
@@ -1684,9 +1710,31 @@ export function SupplierGeneralReviewContent({
     }
   }
 
-  // 공통 '제출하기' 클릭 — 곧바로 제출하지 않고, CSDDD 위반(Red Flag) 상태를 먼저 확인한다.
-  //   위반 감지 시 경고 모달을 띄우고, 모달의 [제출]에서만 실제 제출이 이어진다.
+  // [AI 종합 진단] api.detail에서 온 결론 + 마지막 확인 시각(기기별 localStorage) 비교.
+  const aiSummary = api?.detail?.aiComplianceSummary ?? null;
+  const aiSummaryGeneratedAt = api?.detail?.aiComplianceSummaryGeneratedAt ?? null;
+  const aiSummaryStorageKey = `kira_ai_summary_seen_${supplierId}`;
+  const hasUnseenAiSummary = Boolean(
+    aiSummary && aiSummaryGeneratedAt &&
+    (typeof window === 'undefined' || window.localStorage.getItem(aiSummaryStorageKey) !== aiSummaryGeneratedAt)
+  );
+  function markAiSummarySeen() {
+    if (typeof window === 'undefined' || !aiSummaryGeneratedAt) return;
+    window.localStorage.setItem(aiSummaryStorageKey, aiSummaryGeneratedAt);
+  }
+
+  // 공통 '제출하기' 클릭 — 곧바로 제출하지 않고, ① 미확인 AI 종합 진단 → ② CSDDD 위반(Red Flag)
+  //   순서로 먼저 확인한다. 둘 다 없으면 바로 제출.
   function handleSubmitClick() {
+    if (hasUnseenAiSummary) { setAiSummaryModalOpen(true); return; }
+    if (hasRegulatoryRisk) { setRiskModalOpen(true); return; }
+    void submitSupplierForm();
+  }
+
+  // AI 종합 진단 팝업의 [확인] — 이 결론을 봤다고 기록하고, 나머지 제출 게이트(위반 감지)를 이어서 확인한다.
+  function handleAiSummaryAck() {
+    markAiSummarySeen();
+    setAiSummaryModalOpen(false);
     if (hasRegulatoryRisk) { setRiskModalOpen(true); return; }
     void submitSupplierForm();
   }
@@ -1809,7 +1857,7 @@ export function SupplierGeneralReviewContent({
               type="button"
               onClick={() => {
                 setSaved(false);
-                setFactoriesDraft((api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft));
+                setFactoriesDraft(seedFactoriesDraft(api));
                 setMinerFactoryEditing(true);
               }}
               className="inline-flex h-9 items-center gap-2 rounded-sm bg-accent-700 px-3 text-sm font-semibold text-white shadow-control transition-colors hover:bg-accent-900 active:opacity-75"
@@ -1847,20 +1895,13 @@ export function SupplierGeneralReviewContent({
           {/* 협력사: 보기 ↔ 입력 토글 (라우트 변경 없이 같은 양식의 칸만 전환) */}
           {isSupplier && !editing && !managedBanner && (
             <>
-              {/* [process.md L23·42] 원산지 geo audit · AI 처리 검증 확인 화면으로 이동 */}
-              <button
-                type="button"
-                onClick={() => router.push('/partner/ai-parsing')}
-                className="inline-flex h-9 items-center gap-2 rounded-sm border border-ink-700 bg-white px-3 text-sm font-semibold text-ink-500 transition-colors hover:border-accent-500 hover:text-accent-700"
-              >
-                <Globe2 className="h-4 w-4" />
-                원산지·AI 검증 확인
-              </button>
+              {/* '원산지·AI 검증 확인' 버튼 제거 — 진입처였던 /partner/ai-parsing(AI 처리 확인 +
+                  geo audit 탭) 화면 폐지. AI 추출 결과는 각 문서 패널의 확인 팝업에서 본다. */}
               <button
                 type="button"
                 onClick={() => {
                   setSaved(false);
-                  const factories = (api?.factories ?? []).filter(f => f.isActive !== false).map(factoryToDraft);
+                  const factories = seedFactoriesDraft(api);
                   setFactoriesDraft(factories);
                   setContactsDraft(seedContactsDraft(api?.contacts ?? [], factories));
                   setEditing(true);
@@ -1986,7 +2027,6 @@ export function SupplierGeneralReviewContent({
         <div className="mt-3 flex flex-wrap items-center gap-4">
           <LegendItem status="완료" icon={<CheckCircle2 className="h-4 w-4" />} />
           <LegendItem status="입력 중" icon={<HelpCircle className="h-4 w-4" />} />
-          <LegendItem status="확인 필요" icon={<HelpCircle className="h-4 w-4" />} />
           <LegendItem status="미입력" icon={<XCircle className="h-4 w-4" />} />
           <LegendItem status="해당 없음" icon={<span className="block h-3 w-3 rounded-full bg-slate-300" />} />
           <span className="text-xs font-medium text-alert-text">* 표시 = 필수 입력 항목</span>
@@ -2027,6 +2067,36 @@ export function SupplierGeneralReviewContent({
         <MetaItem label="마지막 업데이트" value={displayLastUpdated} />
         <MetaItem label="다음 제출 예정일" value={displayNextDue} />
       </section>
+
+      {/* [🤖 AI 종합 진단 팝업] — 공통 '제출하기' 클릭 시, 아직 확인 안 한 AI 종합 결론이 있으면 먼저 노출.
+          알림 패널이 아니라 제출 흐름 안에서 바로 보여준다(협력사 피드백). [확인] = 확인 기록 후
+          다음 게이트(위반 감지)로 진행 — 그 게이트도 없으면 바로 제출. */}
+      {aiSummaryModalOpen && aiSummary && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setAiSummaryModalOpen(false)}>
+          <div className="w-full max-w-md overflow-hidden rounded-sm border border-accent-100 bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2.5 border-b border-accent-100 bg-accent-50 px-5 py-3.5">
+              <ScanLine className="h-5 w-5 shrink-0 text-accent-700" />
+              <span className="text-sm font-bold text-accent-800">🤖 AI 종합 진단 결과가 도착했습니다</span>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm leading-6 text-ink-100">{aiSummary}</p>
+              <p className="mt-2 text-xs leading-5 text-ink-500">
+                소재구성·탄소발자국·실사 자가진단(SAQ) 3종 문서를 AI가 종합한 결론입니다. 확인 후 제출을 계속하세요.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-ink-700 bg-slate-50 px-5 py-3">
+              <button
+                type="button"
+                onClick={handleAiSummaryAck}
+                disabled={submitting}
+                className="inline-flex items-center gap-1.5 rounded-sm bg-accent-700 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-accent-900 disabled:opacity-50"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* [🚨 규제 위반 리스크 감지 모달] — 공통 '제출하기' 클릭 시 CSDDD 위반(Red) 상태면 노출.
           [취소] = 제출 중단·모달 닫기 / [제출] = 그때 실제 제출 API(submitSupplierForm) 실행. */}
