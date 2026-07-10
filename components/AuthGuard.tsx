@@ -9,6 +9,10 @@ import { AUTH_EXPIRED_EVENT } from '@/lib/api';
 
 // 로그인/회원가입/온보딩 흐름에선 오버레이를 띄우지 않는다(로그인 자체를 방해하지 않도록).
 const AUTH_FLOW_PREFIXES = ['/login', '/signup', '/partner/onboarding'];
+// 루트('/')는 app/page.tsx가 로그인 페이지를 그대로 재노출하는 "메인 페이지" — startsWith로
+//   매칭하면 모든 경로가 걸리므로 정확히 일치할 때만 로그인 흐름으로 취급한다.
+const isAuthFlowPath = (pathname: string | null) =>
+  pathname === '/' || AUTH_FLOW_PREFIXES.some(p => pathname?.startsWith(p));
 
 export default function AuthGuard() {
   const [expired, setExpired] = useState(false);
@@ -17,7 +21,7 @@ export default function AuthGuard() {
 
   useEffect(() => {
     const onExpired = () => {
-      if (AUTH_FLOW_PREFIXES.some(p => pathname?.startsWith(p))) return;
+      if (isAuthFlowPath(pathname)) return;
       setExpired(true);
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
@@ -26,7 +30,7 @@ export default function AuthGuard() {
 
   // 로그인 페이지로 이동하면 오버레이는 닫는다.
   useEffect(() => {
-    if (AUTH_FLOW_PREFIXES.some(p => pathname?.startsWith(p))) setExpired(false);
+    if (isAuthFlowPath(pathname)) setExpired(false);
   }, [pathname]);
 
   if (!expired) return null;
