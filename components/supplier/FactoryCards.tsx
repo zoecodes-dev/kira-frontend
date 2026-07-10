@@ -114,6 +114,9 @@ function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
 }) {
   const [parsingOpen, setParsingOpen] = useState(false);
   const [flagged, setFlagged] = useState<Record<string, string>>({});
+  // 입력 중인 원본 텍스트("1." 같은 미완성 소수) — 부모는 즉시 Number()로 확정값을 들고 있어
+  // "1." 입력 시 1로 반올림되어 점이 사라지므로, 편집 중엔 이 텍스트를 우선 표시하고 blur 시 비운다.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   // 방금 업로드한 문서 정보 → 파싱 확인 모달에 넘겨 '파싱 중' 표시/폴링 활성화(업로드 직후 빈 화면 방지).
   const [uploadedDoc, setUploadedDoc] = useState<{ docS3Key: string; fileName: string } | null>(null);
 
@@ -143,8 +146,16 @@ function FactoryMineralPanel({ supplierId, coreMinerals, onUpdateMineral }: {
             <span className="text-sm font-medium text-ink-500">{MINERAL_LABELS[k]} 함량(%)</span>
             <div>
               <input
-                value={coreMinerals[k] ?? ''}
-                onChange={e => onUpdateMineral(k, e.target.value)}
+                value={drafts[k] ?? coreMinerals[k] ?? ''}
+                onChange={e => {
+                  const v = e.target.value;
+                  // 소수점 둘째 자리까지만 허용(정수부 최대 3자리) — 입력 도중 상태(빈 값·"7." 등)는 통과.
+                  if (v === '' || /^\d{0,3}(\.\d{0,2})?$/.test(v)) {
+                    setDrafts(prev => ({ ...prev, [k]: v }));
+                    onUpdateMineral(k, v);
+                  }
+                }}
+                onBlur={() => setDrafts(prev => Object.fromEntries(Object.entries(prev).filter(([dk]) => dk !== k)))}
                 placeholder="-"
                 inputMode="decimal"
                 className={editCellCls}

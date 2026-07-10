@@ -3,7 +3,7 @@
 // 협력사 입력 데이터 수집 현황을 원청사가 검토하는 화면
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  createDataRequest, getDataRequests,
+  createDataRequest, getDataRequests, getAiExtractions,
   getSupplierCompleteness, getSupplierContacts, getSupplierDetail, getSupplierFactories,
   getSupplierSuppliedItems, submitMasterForm,
   getSupplierRiskProfile, uploadFile, getSupplierDocumentUrl,
@@ -690,6 +690,34 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
   // 파싱 완료(key 리마운트로 입력칸 채움)·업로드 종료 직후, DOM 커밋 뒤에 부모 진척도 재계산 요청.
   //   readField는 실제 DOM 값을 읽으므로 커밋 이후(useEffect 시점)에 tick을 올려야 새 값이 보인다.
   useEffect(() => { onLiveMutate?.(); }, [carbonParseVersion, saqParseVersion, carbonBusy, saqBusy, onLiveMutate]);
+  // 저장된 AI 추출 결과(탄소·SAQ)를 세션과 무관하게 진입 시점에 불러온다 — SAQ 점수·평가일·
+  //   체크리스트는 저장 컬럼이 없어 이 state(saqExtraction)가 유일한 표시 출처인데, 지금까지는
+  //   "이 브라우저 세션에서 방금 파싱"한 경우에만 채워져 원청이 새로 열면 항상 비어 보였다.
+  //   이미 세션에서 채워진 값(예: 방금 파싱)이 있으면 덮지 않는다.
+  useEffect(() => {
+    if (section.key !== 'regulation') return;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(supplierId)) return;
+    let cancelled = false;
+    getAiExtractions()
+      .then(list => {
+        if (cancelled) return;
+        const mine = list.filter(x => x.supplierId === supplierId);
+        const isCarbon = (x: AiExtraction) => x.docCategory === 'carbon_footprint_declaration' || Boolean(
+          x.requestedDataType?.includes('탄소') || x.requestedDataType?.includes('carbon') ||
+          x.requestedDataType?.includes('환경성적') || x.requestedDataType?.includes('self_upload:carbon')
+        );
+        const isSaq = (x: AiExtraction) => x.docCategory === 'dd_audit_report' || x.docCategory === 'safety_health_report' || Boolean(
+          x.requestedDataType?.includes('실사') || x.requestedDataType?.includes('자가진단') ||
+          x.requestedDataType?.toUpperCase().includes('SAQ') || x.requestedDataType?.includes('self_upload:self_assessment')
+        );
+        const latestCarbon = mine.find(isCarbon);  // list가 created_at DESC라 첫 매칭 = 최신
+        const latestSaq = mine.find(isSaq);
+        setCarbonExtraction(prev => prev ?? latestCarbon ?? null);
+        setSaqExtraction(prev => prev ?? latestSaq ?? null);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [section.key, supplierId]);
   let content: ReactNode;
   const d = real?.detail ?? null;
   // live면 지금 입력칸 값, 아니면 마지막 저장된 스냅샷 — 완료 배지 판정용(defaultValue 표시엔 영향 없음).
@@ -917,7 +945,11 @@ function SectionContent({ section, real, editable = false, isPrime = false, supp
     const sr = real?.riskProfile?.selfReportedRiskLevel;
     const srRaw = sr && sr !== 'unknown' ? sr : '';
     const parsedRisk = typeof spf.saq_risk_level === 'string' ? (spf.saq_risk_level as string).toLowerCase() : '';
-    const srPrefill = editable && ['low', 'medium', 'high'].includes(parsedRisk) ? parsedRisk : srRaw;
+    // [FIX] "editable &&" 게이트가 있으면 방금 파싱한 등급(parsedRisk)이 있어도 그 순간 editable이
+    //   아니면(예: 리마운트/렌더 타이밍) 조용히 저장값(srRaw)으로 되돌아가 "제출하기"를 눌러도
+    //   백엔드에 반영이 안 되는 것처럼 보였다. saqExtraction은 editable 하위 UI에서만 채워지므로
+    //   이 게이트는 실질적 보호 없이 값만 지웠다 — 파싱값이 있으면 그게 항상 권위값이다.
+    const srPrefill = ['low', 'medium', 'high'].includes(parsedRisk) ? parsedRisk : srRaw;
     // 콤팩트 상단 폼(점수·평가일·유효기간) 프리필 — 파싱 자동입력, 사용자 수정 가능.
     const saqRiskBadge = RISK_BADGE[(srPrefill || '').toLowerCase()] ?? null;
     const saqScorePrefill = spf.saq_score != null ? String(spf.saq_score) : '';
