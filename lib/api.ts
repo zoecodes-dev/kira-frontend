@@ -1535,7 +1535,6 @@ export interface SupplyChainMapParams {
   periodFrom?: string;
   periodTo?: string;
   factoryId?: string;
-  poNumber?: string;
 }
 
 function buildSupplyMapQuery(p: SupplyChainMapParams = {}): string {
@@ -1544,7 +1543,6 @@ function buildSupplyMapQuery(p: SupplyChainMapParams = {}): string {
   if (p.periodFrom) q.set("period_from", p.periodFrom);
   if (p.periodTo) q.set("period_to", p.periodTo);
   if (p.factoryId) q.set("factory_id", p.factoryId);
-  if (p.poNumber) q.set("po_number", p.poNumber);
   const s = q.toString();
   return s ? `?${s}` : "";
 }
