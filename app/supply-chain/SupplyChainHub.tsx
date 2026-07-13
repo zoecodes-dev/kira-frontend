@@ -263,9 +263,14 @@ export default function SupplyChainHub() {
   // STEP4 완료(제3자 동의서 수신 확인) = 이 맵에 편입된 협력사 '전부' 수신 확인 → 전 차수 노출 완료.
   const step4Done = mapSuppliers.length > 0 && mapSuppliers.every(p => confirmedSuppliers.has(p.supplierId));
 
-  // 완료 공급망(=STEP6 최종검증까지 done) = 동의서 전부 수신 확인(STEP4) + 자료 검토 전체 확인(STEP5) + 완성도 준비(readyForFinal).
+  // 완료 공급망(=STEP6 최종검증까지 done) = 동의서 전부 수신 확인(STEP4) + 자료 검토 전체 확인(STEP5)
+  //   + 완성도 준비(readyForFinal) + STEP6 최종 검증 진입(visitedSteps.has(6)).
+  //   [FIX] STEP6 진입 조건이 없으면, 자료가 이미 완비(readyForFinal)된 공급망에서 STEP5 '전체 확인'을
+  //   누르는 순간 세 조건이 동시에 참이 돼 chainComplete→locked가 켜지고, 정작 그때 열려야 할
+  //   STEP6(최종 검증) 버튼이 곧바로 비활성화되던 문제가 있었다. STEP6를 실제로 열어야(markVisited(6))
+  //   완료·잠금으로 넘어가도록 게이트를 건다 — 그전까진 STEP5 확인만으로 STEP6가 열려 있는 상태 유지.
   const dataReady = summary?.readyForFinal ?? false;
-  const chainComplete = step4Done && dataReviewDone && dataReady;
+  const chainComplete = step4Done && dataReviewDone && dataReady && visitedSteps.has(6);
   // 완료 공급망은 '수정'을 누르기 전까지 전체 완료·잠금 상태로 본다.
   const [editMode, setEditMode] = useState(false);
   const locked = chainComplete && !editMode;

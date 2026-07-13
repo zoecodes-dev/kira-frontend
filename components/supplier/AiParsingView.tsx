@@ -662,10 +662,20 @@ export default function AiParsingView({
     let cancelled = false;
     getAiExtractions()
       .then(list => {
+        // 같은 문서 종류(카테고리)를 재업로드한 과거 이력이 여러 건 남아 있어도 탭은
+        // 카테고리당 최신 1건만 남긴다(list는 request()가 created_at DESC로 주므로
+        // 첫 매칭 = 최신 — 그 뒤 같은 키가 또 나오면 과거 재업로드분이라 건너뛴다).
+        const seenCategoryKeys = new Set<string>();
         const mine = list
           .filter(x => !supplierId || x.supplierId === supplierId)
           .filter(matchesCategoryFilter)
           .filter(matchesDocumentFilter)
+          .filter(x => {
+            const key = x.docCategory ?? x.requestedDataType ?? x.requestId;
+            if (seenCategoryKeys.has(key)) return false;
+            seenCategoryKeys.add(key);
+            return true;
+          })
           .map(x => extractionToDoc(x, initialDoc))
           .filter(doc => !docCategoryFilter || doc.extractionResult.fields.length > 0);
         if (cancelled) return;

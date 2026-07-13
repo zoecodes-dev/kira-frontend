@@ -1754,10 +1754,26 @@ export function SupplierGeneralReviewContent({
 
   // 공통 '제출하기' 클릭 — 곧바로 제출하지 않고, ① 미확인 AI 종합 진단 → ② CSDDD 위반(Red Flag)
   //   순서로 먼저 확인한다. 둘 다 없으면 바로 제출.
-  function handleSubmitClick() {
-    if (hasUnseenAiSummary) { setAiSummaryModalOpen(true); return; }
-    if (hasRegulatoryRisk) { setRiskModalOpen(true); return; }
-    void submitSupplierForm();
+  //   api.detail은 페이지 진입 시점의 스냅샷이라, 방금 업로드한 문서의 AI 종합 결론이
+  //   백그라운드에서 그 뒤에 완성됐다면 여기 그대로 두면 null인 옛 값으로 판단해 팝업을
+  //   건너뛰고 곧장 제출돼 버린다 — 판단 직전에 최신 상세를 한 번 더 조회해 반영한다.
+  async function handleSubmitClick() {
+    setSubmitting(true);
+    try {
+      const fresh = await getSupplierDetail(supplierId).catch(() => null);
+      if (fresh) setApi(prev => (prev ? { ...prev, detail: fresh } : prev));
+      const freshSummary = fresh?.aiComplianceSummary ?? aiSummary;
+      const freshGeneratedAt = fresh?.aiComplianceSummaryGeneratedAt ?? aiSummaryGeneratedAt;
+      const freshUnseen = Boolean(
+        freshSummary && freshGeneratedAt &&
+        (typeof window === 'undefined' || window.localStorage.getItem(aiSummaryStorageKey) !== freshGeneratedAt)
+      );
+      if (freshUnseen) { setAiSummaryModalOpen(true); return; }
+      if (hasRegulatoryRisk) { setRiskModalOpen(true); return; }
+      await submitSupplierForm();
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   // AI 종합 진단 팝업의 [확인] — 이 결론을 봤다고 기록하고, 나머지 제출 게이트(위반 감지)를 이어서 확인한다.
@@ -2105,12 +2121,14 @@ export function SupplierGeneralReviewContent({
           <div className="w-full max-w-md overflow-hidden rounded-sm border border-accent-100 bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2.5 border-b border-accent-100 bg-accent-50 px-5 py-3.5">
               <ScanLine className="h-5 w-5 shrink-0 text-accent-700" />
-              <span className="text-sm font-bold text-accent-800">🤖 AI 종합 진단 결과가 도착했습니다</span>
+              <span className="text-sm font-bold text-accent-800">🤖 AI가 제출 자료를 확인했습니다</span>
             </div>
             <div className="px-5 py-4">
-              <p className="text-sm leading-6 text-ink-100">{aiSummary}</p>
+              <div className="rounded-xs border border-ok-border bg-ok-bg px-4 py-3">
+                <p className="text-sm leading-6 text-ink-100">{aiSummary}</p>
+              </div>
               <p className="mt-2 text-xs leading-5 text-ink-500">
-                소재구성·탄소발자국·실사 자가진단(SAQ) 3종 문서를 AI가 종합한 결론입니다. 확인 후 제출을 계속하세요.
+                지금까지 제출한 자료를 AI가 검토한 결과입니다. 확인 후 제출을 계속해 주십시오.
               </p>
             </div>
             <div className="flex justify-end gap-2 border-t border-ink-700 bg-slate-50 px-5 py-3">
