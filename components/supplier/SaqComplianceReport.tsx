@@ -53,38 +53,52 @@ export default function SaqComplianceReport({ saqFields, onVerdictChange, visibl
       : 'border-warn-border bg-warn-bg text-warn-text';
 
   return (
-    <div className="mt-3 rounded-sm border border-ink-700 bg-white">
-      <div className="flex items-center gap-2 border-b border-ink-700 px-4 py-2.5">
+    <div className="mt-3 rounded-sm border border-ok-border bg-ok-bg">
+      <div className="flex items-center gap-2 border-b border-ok-border px-4 py-2.5">
         <ShieldAlert className="h-4 w-4 text-accent-700" />
-        <span className="text-xs font-bold text-ink-100">AI CSDDD 실사 분석 보고서</span>
+        <span className="text-xs font-bold text-ink-100">AI 실사 분석 보고서</span>
         <span className="text-[10px] text-ink-500">RAG · 공급망 실사 지침 조회</span>
       </div>
       <div className="p-4">
         {loading ? (
           <div className="flex items-center gap-2 text-xs text-ink-500">
             <Loader2 className="h-4 w-4 animate-spin text-accent-700" />
-            CSDDD 규제 지식베이스(RAG)를 조회해 인권·환경 실사 위반 여부를 분석 중…
+            규제 지식베이스(RAG)를 조회해 인권·환경 실사 위반 여부를 분석 중…
           </div>
         ) : error ? (
           <div className="text-xs text-alert-text">{error}</div>
         ) : result ? (
           <div className="space-y-2.5">
-            {/* 위반 시 강조 경고 Alert — 근거 조항 인용 포함 */}
-            {violation ? (
+            {/* 위반 시 강조 경고 배너 — 세부 근거는 아래 체크리스트에서 확인 */}
+            {violation && (
               <div className="flex items-start gap-2 rounded-xs border border-alert-border bg-alert-bg px-3 py-2.5 text-sm font-semibold text-alert-text">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>🚨 {result.citation ? `${result.citation} 위반 위험` : 'CSDDD 위반 위험'}: {result.reasoning}</span>
+                <span>🚨 문제가 될 수 있는 내용이 확인됐습니다.</span>
               </div>
-            ) : (
-              <>
-                <div className={`inline-flex items-center gap-1.5 rounded-xs border px-2.5 py-1 text-xs font-bold ${badgeCls}`}>
-                  {pass ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
-                  {pass ? '실사 요건 충족' : '검토 필요'}
-                </div>
-                <div className="text-sm leading-6 text-ink-100">{result.reasoning}</div>
-              </>
             )}
-            <div className="rounded-xs border border-ink-700 bg-ink-800/40 p-2.5 text-[11px] text-ink-400">
+            {!violation && (
+              <div className={`inline-flex items-center gap-1.5 rounded-xs border px-2.5 py-1 text-xs font-bold ${badgeCls}`}>
+                {pass ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                {pass ? '실사 요건 충족' : '검토 필요'}
+              </div>
+            )}
+            {result.checks && result.checks.length > 0 && (
+              <ul className="space-y-1.5">
+                {result.checks.map((c, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm leading-6 text-ink-100">
+                    {c.passed
+                      ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok-solid" />
+                      : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-alert-text" />}
+                    <span>
+                      <b>{c.label}</b>
+                      {c.note && <span className="text-ink-400"> — {c.note}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="text-sm leading-6 text-ink-100">{result.reasoning}</div>
+            <div className="rounded-xs border border-ink-700 bg-white p-2.5 text-[11px] text-ink-400">
               <div className="font-semibold text-ink-300">
                 근거 법령: {result.regulationName}{result.citation ? ` · ${result.citation}` : ''}
               </div>

@@ -1753,11 +1753,18 @@ export const getCurrentSupplySource = (
   );
 
 // ── [목표3] RAG 기반 탄소 규제 준수 진단 ──────────────────────────────────────
+export interface ComplianceCheckItem {
+  label: string;
+  passed: boolean;
+  note?: string;
+}
+
 export interface CarbonComplianceResult {
   verdict: 'pass' | 'violation' | 'warning';
   regulationName: string;
   citation: string;
   clauseText: string;
+  checks?: ComplianceCheckItem[];
   reasoning: string;
   carbonIntensity?: number | null;
   energySource?: string | null;
@@ -1776,6 +1783,7 @@ export interface SaqComplianceResult {
   regulationName: string;
   citation: string;
   clauseText: string;
+  checks?: ComplianceCheckItem[];
   reasoning: string;
 }
 
